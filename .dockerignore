@@ -1,0 +1,36 @@
+# Node modules
+**/node_modules
+
+# Build outputs
+backend/dist
+frontend/dist
+
+# Development files
+**/.git
+**/.gitignore
+**/.env
+**/.env.*
+**/README.md
+**/LICENSE
+
+# IDE files
+**/.vscode
+**/.idea
+**/*.swp
+**/*.swo
+
+# OS files
+**/.DS_Store
+**/Thumbs.db
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+
+# Logs
+**/*.log
+**/npm-debug.log*
+
+# Local data (will be mounted as volumes)
+backend/data
+backend/uploads

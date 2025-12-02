@@ -56,7 +56,7 @@
 
 ### 方式一：Docker 部署（推荐）
 
-使用 Docker 可以快速部署整个应用，无需安装 Node.js 环境。
+使用 Docker 可以快速部署整个应用，前后端合并在一个镜像中，无需安装 Node.js 环境。
 
 #### 环境要求
 - Docker >= 20.10
@@ -90,8 +90,25 @@ docker-compose down
 
 6. **数据持久化**
 数据库和上传文件存储在 Docker 卷中：
-- `backend-data`: 数据库文件
-- `backend-uploads`: 上传的文件
+- `app-data`: 数据库文件
+- `app-uploads`: 上传的文件
+
+#### 单独构建镜像
+
+如果需要单独构建 Docker 镜像：
+
+```bash
+# 构建镜像
+docker build -t smart-bill-manager .
+
+# 运行容器
+docker run -d \
+  --name smart-bill-manager \
+  -p 80:80 \
+  -v smart-bill-data:/app/backend/data \
+  -v smart-bill-uploads:/app/backend/uploads \
+  smart-bill-manager
+```
 
 ### 方式二：本地开发
 
@@ -192,7 +209,7 @@ Smart-bill-manager/
 │   │   └── utils/          # 工具函数
 │   ├── uploads/            # 上传文件存储
 │   ├── data/               # SQLite数据库
-│   └── Dockerfile          # 后端 Docker 配置
+│   └── Dockerfile          # 后端单独 Docker 配置
 ├── frontend/               # 前端应用
 │   ├── src/
 │   │   ├── App.tsx        # 主应用
@@ -200,8 +217,11 @@ Smart-bill-manager/
 │   │   ├── services/      # API服务
 │   │   └── types/         # TypeScript类型
 │   ├── public/            # 静态资源
-│   ├── Dockerfile          # 前端 Docker 配置
-│   └── nginx.conf          # Nginx 配置
+│   ├── Dockerfile          # 前端单独 Docker 配置
+│   └── nginx.conf          # 前端单独 Nginx 配置
+├── Dockerfile              # 统一 Docker 配置（前后端合一）
+├── nginx.conf              # 统一 Nginx 配置
+├── supervisord.conf        # Supervisor 进程管理配置
 ├── docker-compose.yml      # Docker Compose 配置
 └── README.md
 ```

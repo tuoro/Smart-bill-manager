@@ -5,59 +5,15 @@
   box-sizing: border-box;
 }
 
-#root {
+#app {
   width: 100%;
   height: 100vh;
 }
 
-/* Ant Design overrides */
-.ant-layout-sider-trigger {
-  background: rgba(0, 0, 0, 0.2) !important;
-}
-
-.ant-menu-dark {
-  background: transparent !important;
-}
-
-.ant-menu-dark .ant-menu-item-selected {
-  background: linear-gradient(90deg, #1890ff 0%, transparent 100%) !important;
-}
-
 /* Card hover effects */
-.ant-card:hover {
+.el-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
-}
-
-/* Table styling */
-.ant-table-thead > tr > th {
-  background: #fafafa !important;
-  font-weight: 600;
-}
-
-/* Button styling */
-.ant-btn-primary {
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
-}
-
-/* Statistic styling */
-.ant-statistic-title {
-  font-size: 14px;
-  color: rgba(0, 0, 0, 0.65);
-}
-
-/* Tag styling */
-.ant-tag {
-  border-radius: 4px;
-}
-
-/* Modal styling */
-.ant-modal-header {
-  border-radius: 8px 8px 0 0;
-}
-
-.ant-modal-content {
-  border-radius: 8px;
 }
 
 /* Scrollbar styling */
@@ -92,14 +48,13 @@
   }
 }
 
-.ant-card {
+.el-card {
   animation: fadeIn 0.3s ease;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .ant-layout-content {
-    margin: 12px !important;
+  .el-main {
     padding: 12px !important;
   }
 }

@@ -54,10 +54,12 @@
 - express-rate-limit (请求频率限制)
 
 ### 前端
-- React 18 + TypeScript
+- Vue 3 + TypeScript + Composition API
 - Vite (构建工具)
-- Ant Design 5.x (UI组件库)
-- Recharts (图表)
+- Element Plus (UI组件库)
+- ECharts / Vue-ECharts (图表)
+- Vue Router (路由)
+- Pinia (状态管理)
 - Axios (HTTP客户端)
 
 ## 📦 快速开始
@@ -271,13 +273,17 @@ Smart-bill-manager/
 │   ├── uploads/            # 上传文件存储
 │   ├── data/               # SQLite数据库
 │   └── Dockerfile          # 后端单独 Docker 配置
-├── frontend/               # 前端应用
+├── frontend/               # 前端应用 (Vue 3)
 │   ├── src/
-│   │   ├── App.tsx        # 主应用
-│   │   ├── pages/         # 页面组件
-│   │   ├── services/      # API服务
-│   │   └── types/         # TypeScript类型
-│   ├── public/            # 静态资源
+│   │   ├── main.ts         # Vue 应用入口
+│   │   ├── App.vue         # 根组件
+│   │   ├── router/         # Vue Router 配置
+│   │   ├── stores/         # Pinia 状态管理
+│   │   ├── views/          # 页面视图
+│   │   ├── components/     # 可复用组件
+│   │   ├── api/            # API 服务
+│   │   └── types/          # TypeScript类型
+│   ├── public/             # 静态资源
 │   ├── Dockerfile          # 前端单独 Docker 配置
 │   └── nginx.conf          # 前端单独 Nginx 配置
 ├── Dockerfile              # 统一 Docker 配置（前后端合一）

@@ -18,7 +18,7 @@ RUN npm ci
 COPY frontend/ .
 
 # Build the frontend (use npx to ensure local binaries are found)
-RUN npx tsc -b && npx vite build
+RUN npx vue-tsc -b && npx vite build
 
 # ============================================
 # Stage 2: Build Backend (Go)

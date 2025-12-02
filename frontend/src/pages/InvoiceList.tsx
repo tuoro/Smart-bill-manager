@@ -8,7 +8,7 @@ import {
   CloudDownloadOutlined, InboxOutlined
 } from '@ant-design/icons';
 import type { UploadProps, UploadFile } from 'antd';
-import { invoiceApi } from '../services/api';
+import { invoiceApi, FILE_BASE_URL } from '../services/api';
 import type { Invoice } from '../types';
 import dayjs from 'dayjs';
 
@@ -187,7 +187,7 @@ const InvoiceList: React.FC = () => {
             type="link"
             icon={<CloudDownloadOutlined />}
             onClick={() => {
-              window.open(`http://localhost:3001/${record.file_path}`, '_blank');
+              window.open(`${FILE_BASE_URL}/${record.file_path}`, '_blank');
             }}
           />
           <Popconfirm
@@ -353,7 +353,7 @@ const InvoiceList: React.FC = () => {
             <Descriptions.Item label="预览" span={2}>
               <Button 
                 type="primary" 
-                onClick={() => window.open(`http://localhost:3001/${previewInvoice.file_path}`, '_blank')}
+                onClick={() => window.open(`${FILE_BASE_URL}/${previewInvoice.file_path}`, '_blank')}
               >
                 查看PDF文件
               </Button>

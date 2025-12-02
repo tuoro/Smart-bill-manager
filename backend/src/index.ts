@@ -6,6 +6,9 @@ import fs from 'fs';
 import paymentRoutes from './routes/payments';
 import invoiceRoutes from './routes/invoices';
 import emailRoutes from './routes/email';
+import { paymentService } from './services/paymentService';
+import { invoiceService } from './services/invoiceService';
+import { emailService } from './services/emailService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,10 +40,6 @@ app.get('/api/health', (req, res) => {
 // Dashboard summary
 app.get('/api/dashboard', (req, res) => {
   try {
-    const { paymentService } = require('./services/paymentService');
-    const { invoiceService } = require('./services/invoiceService');
-    const { emailService } = require('./services/emailService');
-
     const today = new Date();
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
     const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString();

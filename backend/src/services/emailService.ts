@@ -1,16 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
 import Imap from 'node-imap';
 import { simpleParser, ParsedMail } from 'mailparser';
+import type { Source } from 'mailparser';
 import db from '../models/database';
 import { invoiceService } from './invoiceService';
 import fs from 'fs';
 import path from 'path';
 
-// Type assertion helper
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const parseEmail = (stream: any): Promise<ParsedMail> => {
+// Type assertion helper for IMAP stream compatibility
+const parseEmail = (stream: NodeJS.ReadableStream): Promise<ParsedMail> => {
   return new Promise((resolve, reject) => {
-    simpleParser(stream, (err, parsed) => {
+    simpleParser(stream as unknown as Source, (err, parsed) => {
       if (err) reject(err);
       else resolve(parsed);
     });

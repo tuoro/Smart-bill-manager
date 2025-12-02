@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { ConfigProvider, Layout, Menu, theme } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { ConfigProvider, Layout, Menu, theme, Dropdown, Avatar, message, Spin } from 'antd';
 import {
   DashboardOutlined,
   WalletOutlined,
   FileTextOutlined,
   MailOutlined,
-  SettingOutlined,
   RobotOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  KeyOutlined,
 } from '@ant-design/icons';
 import zhCN from 'antd/locale/zh_CN';
 
@@ -15,6 +17,10 @@ import PaymentList from './pages/PaymentList';
 import InvoiceList from './pages/InvoiceList';
 import EmailSettings from './pages/EmailSettings';
 import DingtalkSettings from './pages/DingtalkSettings';
+import Login from './pages/Login';
+
+import { getStoredUser, clearAuth, authApi } from './services/api';
+import type { User } from './types';
 
 import './App.css';
 
@@ -51,6 +57,69 @@ const menuItems = [
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [collapsed, setCollapsed] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      try {
+        // Verify token is still valid
+        await authApi.verify();
+        setUser(storedUser);
+      } catch {
+        // Token invalid, clear auth
+        clearAuth();
+        setUser(null);
+      }
+    }
+    setLoading(false);
+  };
+
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    setUser(null);
+    message.success('已退出登录');
+  };
+
+  const userMenuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: user?.username || '用户',
+      disabled: true,
+    },
+    {
+      key: 'change-password',
+      icon: <KeyOutlined />,
+      label: '修改密码',
+    },
+    {
+      type: 'divider' as const,
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      danger: true,
+    },
+  ];
+
+  const handleUserMenuClick = ({ key }: { key: string }) => {
+    if (key === 'logout') {
+      handleLogout();
+    } else if (key === 'change-password') {
+      message.info('修改密码功能开发中...');
+    }
+  };
 
   const renderContent = () => {
     switch (currentPage) {
@@ -68,6 +137,37 @@ const App: React.FC = () => {
         return <Dashboard />;
     }
   };
+
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: '#f0f2f5',
+      }}>
+        <Spin size="large" tip="加载中..." />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <ConfigProvider
+        locale={zhCN}
+        theme={{
+          algorithm: theme.defaultAlgorithm,
+          token: {
+            colorPrimary: '#1890ff',
+            borderRadius: 6,
+          },
+        }}
+      >
+        <Login onLoginSuccess={handleLoginSuccess} />
+      </ConfigProvider>
+    );
+  }
 
   return (
     <ConfigProvider
@@ -123,7 +223,18 @@ const App: React.FC = () => {
               {menuItems.find(m => m.key === currentPage)?.label || '仪表盘'}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <SettingOutlined style={{ fontSize: 18, cursor: 'pointer' }} />
+              <Dropdown 
+                menu={{ items: userMenuItems, onClick: handleUserMenuClick }}
+                placement="bottomRight"
+              >
+                <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Avatar 
+                    style={{ backgroundColor: '#1890ff' }} 
+                    icon={<UserOutlined />}
+                  />
+                  <span>{user.username}</span>
+                </div>
+              </Dropdown>
             </div>
           </Header>
           <Content style={{ 

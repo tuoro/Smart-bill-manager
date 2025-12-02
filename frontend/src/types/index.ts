@@ -90,6 +90,23 @@ export interface DashboardData {
   };
 }
 
+export interface User {
+  id: string;
+  username: string;
+  email?: string;
+  role: string;
+  is_active: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AuthResult {
+  success: boolean;
+  message: string;
+  user?: User;
+  token?: string;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;

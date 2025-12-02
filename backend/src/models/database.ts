@@ -14,6 +14,17 @@ const db: DatabaseType = new Database(dbPath);
 
 // Initialize tables
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    email TEXT,
+    role TEXT DEFAULT 'user',
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
     amount REAL NOT NULL,
@@ -67,6 +78,7 @@ db.exec(`
     FOREIGN KEY (email_config_id) REFERENCES email_configs(id)
   );
 
+  CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
   CREATE INDEX IF NOT EXISTS idx_payments_time ON payments(transaction_time);
   CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date);
   CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(received_date);

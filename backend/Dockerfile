@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm install
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -20,14 +20,13 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3
-RUN apk add --no-cache python3 make g++
-
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm install --omit=dev
+# Install build dependencies for better-sqlite3, install production deps, then clean up
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci --omit=dev \
+    && apk del .build-deps
 
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist

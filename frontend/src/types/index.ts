@@ -1,0 +1,75 @@
+export interface Payment {
+  id: string;
+  amount: number;
+  merchant?: string;
+  category?: string;
+  payment_method?: string;
+  description?: string;
+  transaction_time: string;
+  created_at?: string;
+}
+
+export interface Invoice {
+  id: string;
+  payment_id?: string;
+  filename: string;
+  original_name: string;
+  file_path: string;
+  file_size?: number;
+  invoice_number?: string;
+  invoice_date?: string;
+  amount?: number;
+  seller_name?: string;
+  buyer_name?: string;
+  extracted_data?: string;
+  source?: string;
+  created_at?: string;
+}
+
+export interface EmailConfig {
+  id: string;
+  email: string;
+  imap_host: string;
+  imap_port: number;
+  password: string;
+  is_active: number;
+  last_check?: string;
+  created_at?: string;
+}
+
+export interface EmailLog {
+  id: string;
+  email_config_id: string;
+  subject?: string;
+  from_address?: string;
+  received_date?: string;
+  has_attachment: number;
+  attachment_count: number;
+  status: string;
+  created_at?: string;
+}
+
+export interface DashboardData {
+  payments: {
+    totalThisMonth: number;
+    countThisMonth: number;
+    categoryStats: Record<string, number>;
+    dailyStats: Record<string, number>;
+  };
+  invoices: {
+    totalCount: number;
+    totalAmount: number;
+    bySource: Record<string, number>;
+  };
+  email: {
+    monitoringStatus: { configId: string; status: string }[];
+    recentLogs: EmailLog[];
+  };
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}

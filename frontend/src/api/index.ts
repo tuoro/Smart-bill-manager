@@ -1,4 +1,4 @@
-export { authApi, setToken, setStoredUser, getStoredUser, clearAuth, FILE_BASE_URL } from './auth'
+export { authApi, setToken, setStoredUser, getStoredUser, clearAuth, FILE_BASE_URL, setAuthErrorHandler } from './auth'
 export { paymentApi } from './payments'
 export { invoiceApi } from './invoices'
 export { emailApi } from './email'

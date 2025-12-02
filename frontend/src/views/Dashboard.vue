@@ -171,12 +171,13 @@ import VChart from 'vue-echarts'
 import dayjs from 'dayjs'
 import { Wallet, Document, TrendCharts, Message, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api'
+import { CHART_COLORS } from '@/utils/constants'
 import type { DashboardData } from '@/types'
 
 // Register ECharts components
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
-const COLORS = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2']
+const COLORS = CHART_COLORS
 
 const loading = ref(true)
 const data = ref<DashboardData | null>(null)

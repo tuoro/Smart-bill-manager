@@ -198,6 +198,7 @@ import {
 } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { dingtalkApi } from '@/api'
+import { getBackendBaseUrl } from '@/utils/constants'
 import type { DingtalkConfig, DingtalkLog } from '@/types'
 
 const loading = ref(false)
@@ -290,7 +291,7 @@ const handleDelete = async (id: string) => {
 }
 
 const copyWebhookUrl = (id: string) => {
-  const baseUrl = window.location.origin.replace(/:\d+$/, ':3001')
+  const baseUrl = getBackendBaseUrl()
   const webhookUrl = `${baseUrl}/api/dingtalk/webhook/${id}`
   navigator.clipboard.writeText(webhookUrl).then(() => {
     ElMessage.success('Webhook URL已复制到剪贴板')

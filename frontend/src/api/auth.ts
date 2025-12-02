@@ -46,6 +46,13 @@ export const clearAuth = () => {
   localStorage.removeItem('user')
 }
 
+// Auth error handler callback - to be set by router
+let authErrorHandler: (() => void) | null = null
+
+export const setAuthErrorHandler = (handler: () => void) => {
+  authErrorHandler = handler
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -68,7 +75,10 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       clearAuth()
-      window.location.href = '/login'
+      // Use callback instead of direct window manipulation
+      if (authErrorHandler) {
+        authErrorHandler()
+      }
     }
     return Promise.reject(error)
   }

@@ -1,5 +1,5 @@
 # Unified Dockerfile for Smart Bill Manager
-# This builds both frontend and backend into a single image
+# This builds both frontend and backend (Go) into a single image
 
 # ============================================
 # Stage 1: Build Frontend
@@ -21,45 +21,39 @@ COPY frontend/ .
 RUN npx tsc -b && npx vite build
 
 # ============================================
-# Stage 2: Build Backend
+# Stage 2: Build Backend (Go)
 # ============================================
-FROM node:24-alpine AS backend-builder
+FROM golang:1.23-alpine AS backend-builder
 
 WORKDIR /app/backend
 
-# Copy backend package files
-COPY backend/package*.json ./
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
+# Copy go mod files
+COPY backend-go/go.mod backend-go/go.sum ./
+
+# Download dependencies
+RUN go mod download
 
 # Copy backend source code
-COPY backend/ .
+COPY backend-go/ .
 
-# Build TypeScript (use npx to ensure local typescript is found)
-RUN npx tsc
+# Build the Go binary
+RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
 
 # ============================================
 # Stage 3: Production Image
 # ============================================
 FROM nginx:alpine AS production
 
-# Install Node.js and supervisor
-RUN apk add --no-cache nodejs npm supervisor
+# Install supervisor and SQLite runtime
+RUN apk add --no-cache supervisor
 
 WORKDIR /app
 
-# Copy backend package files and install production dependencies
-COPY backend/package*.json ./backend/
-
-# Install build dependencies for better-sqlite3, install production deps, then clean up
-RUN cd backend && \
-    apk add --no-cache --virtual .build-deps python3 make g++ && \
-    npm ci --omit=dev && \
-    apk del .build-deps
-
-# Copy built backend files
-COPY --from=backend-builder /app/backend/dist ./backend/dist
+# Copy built backend binary
+COPY --from=backend-builder /app/backend/server ./backend/server
 
 # Copy built frontend files to nginx html directory
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
@@ -84,5 +78,5 @@ EXPOSE 80
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# Start supervisord which manages both nginx and node
+# Start supervisord which manages both nginx and Go backend
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

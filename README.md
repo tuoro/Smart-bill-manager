@@ -4,6 +4,12 @@
 
 ## ✨ 功能特性
 
+### 🔐 用户认证
+- JWT令牌认证
+- 安全的密码加密存储
+- 首次启动自动创建管理员账户
+- API请求频率限制
+
 ### 📊 仪表盘
 - 本月支出总览
 - 每日支出趋势图
@@ -41,9 +47,11 @@
 ### 后端
 - Node.js + Express + TypeScript
 - SQLite (better-sqlite3)
+- JWT认证 (jsonwebtoken + bcryptjs)
 - node-imap (邮箱IMAP协议)
 - pdf-parse (PDF解析)
 - multer (文件上传)
+- express-rate-limit (请求频率限制)
 
 ### 前端
 - React 18 + TypeScript
@@ -92,6 +100,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+    environment:
+      - JWT_SECRET=your-secure-secret-key-here  # 可选：设置JWT密钥
+      - ADMIN_PASSWORD=your-admin-password      # 可选：设置管理员密码
     volumes:
       - app-data:/app/backend/data
       - app-uploads:/app/backend/uploads
@@ -106,8 +117,14 @@ volumes:
 docker-compose up -d
 ```
 
-3. **访问应用**
-打开浏览器访问 http://localhost
+3. **首次登录**
+- 打开浏览器访问 http://localhost
+- 查看容器日志获取初始管理员密码：
+```bash
+docker-compose logs | grep "Password:"
+```
+- 使用用户名 `admin` 和日志中显示的密码登录
+- ⚠️ **重要**：请在首次登录后修改默认密码
 
 4. **查看日志**
 ```bash

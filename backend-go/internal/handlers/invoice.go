@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -227,7 +228,7 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 		invoices = append(invoices, invoice)
 	}
 
-	utils.Success(c, 201, "成功上传 "+string(rune('0'+len(invoices)))+" 个发票", invoices)
+	utils.Success(c, 201, fmt.Sprintf("成功上传 %d 个发票", len(invoices)), invoices)
 }
 
 func (h *InvoiceHandler) Update(c *gin.Context) {

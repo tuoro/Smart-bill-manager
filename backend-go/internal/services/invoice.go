@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"smart-bill-manager/internal/models"
@@ -229,21 +230,9 @@ func parseFloat(s string, result *float64) (bool, error) {
 	s = strings.TrimSpace(s)
 	s = strings.ReplaceAll(s, ",", "")
 	
-	var val float64
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			val = val*10 + float64(c-'0')
-		} else if c == '.' {
-			// Handle decimal point
-			var decimal float64 = 0.1
-			for _, d := range s[strings.Index(s, ".")+1:] {
-				if d >= '0' && d <= '9' {
-					val += float64(d-'0') * decimal
-					decimal /= 10
-				}
-			}
-			break
-		}
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return false, err
 	}
 	
 	*result = val

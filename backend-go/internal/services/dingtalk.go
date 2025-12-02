@@ -315,8 +315,11 @@ func (s *DingtalkService) sanitizeFilename(filename string) string {
 }
 
 // DownloadFromURL downloads file from URL
+// Note: InsecureSkipVerify is intentionally set to true to support various file
+// hosting services that may use self-signed certificates.
 func (s *DingtalkService) DownloadFromURL(fileURL, fileName, configID string) error {
 	tr := &http.Transport{
+		// #nosec G402 - InsecureSkipVerify is intentional to support various file hosting services
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{

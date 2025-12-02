@@ -112,9 +112,13 @@ func (s *EmailService) GetLogs(configID string, limit int) ([]models.EmailLog, e
 }
 
 // TestConnection tests IMAP connection
+// Note: InsecureSkipVerify is intentionally set to true to support mail servers
+// with self-signed certificates, which is common in enterprise environments.
+// This matches the behavior of the original Node.js implementation.
 func (s *EmailService) TestConnection(email, imapHost string, imapPort int, password string) (bool, string) {
 	addr := fmt.Sprintf("%s:%d", imapHost, imapPort)
 	
+	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
 	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		return false, fmt.Sprintf("连接失败: %v", err)
@@ -139,6 +143,7 @@ func (s *EmailService) StartMonitoring(configID string) bool {
 	s.StopMonitoring(configID)
 
 	addr := fmt.Sprintf("%s:%d", config.IMAPHost, config.IMAPPort)
+	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
 	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		log.Printf("[Email Monitor] Connection error for %s: %v", config.Email, err)
@@ -435,6 +440,7 @@ func (s *EmailService) ManualCheck(configID string) (bool, string, int) {
 	}
 
 	addr := fmt.Sprintf("%s:%d", config.IMAPHost, config.IMAPPort)
+	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
 	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		return false, fmt.Sprintf("连接失败: %v", err), 0

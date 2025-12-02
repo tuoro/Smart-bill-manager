@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Payment, Invoice, EmailConfig, DashboardData, ApiResponse, EmailLog } from '../types';
+import type { Payment, Invoice, EmailConfig, DashboardData, ApiResponse, EmailLog, DingtalkConfig, DingtalkLog } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 export const FILE_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001';
@@ -99,6 +99,24 @@ export const emailApi = {
   
   manualCheck: (id: string) =>
     api.post<ApiResponse<{ newEmails: number }>>(`/email/check/${id}`),
+};
+
+// DingTalk APIs
+export const dingtalkApi = {
+  getConfigs: () =>
+    api.get<ApiResponse<DingtalkConfig[]>>('/dingtalk/configs'),
+  
+  createConfig: (config: Omit<DingtalkConfig, 'id' | 'created_at'>) =>
+    api.post<ApiResponse<DingtalkConfig>>('/dingtalk/configs', config),
+  
+  updateConfig: (id: string, config: Partial<DingtalkConfig>) =>
+    api.put<ApiResponse<void>>(`/dingtalk/configs/${id}`, config),
+  
+  deleteConfig: (id: string) =>
+    api.delete<ApiResponse<void>>(`/dingtalk/configs/${id}`),
+  
+  getLogs: (configId?: string, limit?: number) =>
+    api.get<ApiResponse<DingtalkLog[]>>('/dingtalk/logs', { params: { configId, limit } }),
 };
 
 // Dashboard API

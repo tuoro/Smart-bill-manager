@@ -332,7 +332,7 @@ const DingtalkSettings: React.FC = () => {
             valuePropName="checked"
             initialValue={true}
           >
-            <Switch checkedChildren="启用" unCheckedChildren="禁用" defaultChecked />
+            <Switch checkedChildren="启用" unCheckedChildren="禁用" />
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>

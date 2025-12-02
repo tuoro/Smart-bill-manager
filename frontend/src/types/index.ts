@@ -49,6 +49,29 @@ export interface EmailLog {
   created_at?: string;
 }
 
+export interface DingtalkConfig {
+  id: string;
+  name: string;
+  app_key?: string;
+  app_secret?: string;
+  webhook_token?: string;
+  is_active: number;
+  created_at?: string;
+}
+
+export interface DingtalkLog {
+  id: string;
+  config_id: string;
+  message_type: string;
+  sender_nick?: string;
+  sender_id?: string;
+  content?: string;
+  has_attachment: number;
+  attachment_count: number;
+  status: string;
+  created_at?: string;
+}
+
 export interface DashboardData {
   payments: {
     totalThisMonth: number;

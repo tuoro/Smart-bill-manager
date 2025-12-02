@@ -154,11 +154,15 @@ const InvoiceList: React.FC = () => {
       title: '来源',
       dataIndex: 'source',
       key: 'source',
-      render: (val: string) => (
-        <Tag color={val === 'email' ? 'blue' : 'green'}>
-          {val === 'email' ? '邮件下载' : '手动上传'}
-        </Tag>
-      ),
+      render: (val: string) => {
+        const sourceMap: Record<string, { color: string; label: string }> = {
+          email: { color: 'blue', label: '邮件下载' },
+          dingtalk: { color: 'orange', label: '钉钉机器人' },
+          upload: { color: 'green', label: '手动上传' },
+        };
+        const source = sourceMap[val] || { color: 'default', label: val || '未知' };
+        return <Tag color={source.color}>{source.label}</Tag>;
+      },
     },
     {
       title: '上传时间',
@@ -240,6 +244,12 @@ const InvoiceList: React.FC = () => {
               <Statistic
                 title="邮件下载"
                 value={stats?.bySource?.email || 0}
+                suffix="张"
+                valueStyle={{ fontSize: 20 }}
+              />
+              <Statistic
+                title="钉钉机器人"
+                value={stats?.bySource?.dingtalk || 0}
                 suffix="张"
                 valueStyle={{ fontSize: 20 }}
               />
@@ -343,9 +353,15 @@ const InvoiceList: React.FC = () => {
               {previewInvoice.buyer_name || '-'}
             </Descriptions.Item>
             <Descriptions.Item label="来源">
-              <Tag color={previewInvoice.source === 'email' ? 'blue' : 'green'}>
-                {previewInvoice.source === 'email' ? '邮件下载' : '手动上传'}
-              </Tag>
+              {(() => {
+                const sourceMap: Record<string, { color: string; label: string }> = {
+                  email: { color: 'blue', label: '邮件下载' },
+                  dingtalk: { color: 'orange', label: '钉钉机器人' },
+                  upload: { color: 'green', label: '手动上传' },
+                };
+                const source = sourceMap[previewInvoice.source || ''] || { color: 'default', label: previewInvoice.source || '未知' };
+                return <Tag color={source.color}>{source.label}</Tag>;
+              })()}
             </Descriptions.Item>
             <Descriptions.Item label="上传时间">
               {dayjs(previewInvoice.created_at).format('YYYY-MM-DD HH:mm:ss')}

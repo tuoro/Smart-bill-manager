@@ -6,6 +6,7 @@ import {
   FileTextOutlined,
   MailOutlined,
   SettingOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import zhCN from 'antd/locale/zh_CN';
 
@@ -13,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import PaymentList from './pages/PaymentList';
 import InvoiceList from './pages/InvoiceList';
 import EmailSettings from './pages/EmailSettings';
+import DingtalkSettings from './pages/DingtalkSettings';
 
 import './App.css';
 
@@ -39,6 +41,11 @@ const menuItems = [
     icon: <MailOutlined />,
     label: '邮箱监控',
   },
+  {
+    key: 'dingtalk',
+    icon: <RobotOutlined />,
+    label: '钉钉机器人',
+  },
 ];
 
 const App: React.FC = () => {
@@ -55,6 +62,8 @@ const App: React.FC = () => {
         return <InvoiceList />;
       case 'email':
         return <EmailSettings />;
+      case 'dingtalk':
+        return <DingtalkSettings />;
       default:
         return <Dashboard />;
     }

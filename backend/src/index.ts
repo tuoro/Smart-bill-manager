@@ -6,6 +6,7 @@ import fs from 'fs';
 import paymentRoutes from './routes/payments';
 import invoiceRoutes from './routes/invoices';
 import emailRoutes from './routes/email';
+import dingtalkRoutes from './routes/dingtalk';
 import { paymentService } from './services/paymentService';
 import { invoiceService } from './services/invoiceService';
 import { emailService } from './services/emailService';
@@ -31,6 +32,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/payments', paymentRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/dingtalk', dingtalkRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -87,6 +89,7 @@ app.listen(PORT, () => {
   console.log(`🚀 Smart Bill Manager API running on port ${PORT}`);
   console.log(`📊 Dashboard: http://localhost:${PORT}`);
   console.log(`📬 Email monitoring ready`);
+  console.log(`🤖 DingTalk webhook ready at /api/dingtalk/webhook`);
 });
 
 export default app;

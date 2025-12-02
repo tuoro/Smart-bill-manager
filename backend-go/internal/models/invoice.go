@@ -1,0 +1,35 @@
+package models
+
+import (
+	"time"
+)
+
+// Invoice represents an invoice record
+type Invoice struct {
+	ID            string    `json:"id" gorm:"primaryKey"`
+	PaymentID     *string   `json:"payment_id" gorm:"index"`
+	Filename      string    `json:"filename" gorm:"not null"`
+	OriginalName  string    `json:"original_name" gorm:"not null"`
+	FilePath      string    `json:"file_path" gorm:"not null"`
+	FileSize      *int64    `json:"file_size"`
+	InvoiceNumber *string   `json:"invoice_number"`
+	InvoiceDate   *string   `json:"invoice_date"`
+	Amount        *float64  `json:"amount"`
+	SellerName    *string   `json:"seller_name"`
+	BuyerName     *string   `json:"buyer_name"`
+	ExtractedData *string   `json:"extracted_data"`
+	Source        string    `json:"source" gorm:"default:upload"`
+	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
+}
+
+func (Invoice) TableName() string {
+	return "invoices"
+}
+
+// InvoiceStats represents invoice statistics
+type InvoiceStats struct {
+	TotalCount  int               `json:"totalCount"`
+	TotalAmount float64           `json:"totalAmount"`
+	BySource    map[string]int    `json:"bySource"`
+	ByMonth     map[string]float64 `json:"byMonth"`
+}

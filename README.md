@@ -45,13 +45,14 @@
 ## 🛠️ 技术栈
 
 ### 后端
-- Node.js + Express + TypeScript
-- SQLite (better-sqlite3)
-- JWT认证 (jsonwebtoken + bcryptjs)
-- node-imap (邮箱IMAP协议)
-- pdf-parse (PDF解析)
-- multer (文件上传)
-- express-rate-limit (请求频率限制)
+- Go 1.23 (Gin Web框架)
+- SQLite (GORM ORM)
+- JWT认证 (golang-jwt/jwt)
+- golang.org/x/crypto/bcrypt (密码加密)
+- emersion/go-imap (邮箱IMAP协议)
+- PDF解析 (内置简单解析器)
+- gin-contrib/cors (CORS支持)
+- 内置请求频率限制
 
 ### 前端
 - React 18 + TypeScript
@@ -174,6 +175,7 @@ docker run -d \
 ### 方式四：本地开发
 
 #### 环境要求
+- Go >= 1.21
 - Node.js >= 18
 - npm >= 8
 
@@ -185,10 +187,11 @@ git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
 ```
 
-2. **安装后端依赖**
+2. **安装后端依赖并运行**
 ```bash
-cd backend
-npm install
+cd backend-go
+go mod download
+go run ./cmd/server
 ```
 
 3. **安装前端依赖**
@@ -197,19 +200,12 @@ cd ../frontend
 npm install
 ```
 
-4. **启动后端服务**
+4. **启动前端开发服务器**
 ```bash
-cd ../backend
 npm run dev
 ```
 
-5. **启动前端开发服务器**
-```bash
-cd ../frontend
-npm run dev
-```
-
-6. **访问应用**
+5. **访问应用**
 打开浏览器访问 http://localhost:5173
 
 ## 📧 QQ邮箱配置说明
@@ -261,16 +257,23 @@ npm run dev
 
 ```
 Smart-bill-manager/
-├── backend/                 # 后端服务
-│   ├── src/
-│   │   ├── index.ts        # 入口文件
-│   │   ├── models/         # 数据模型
-│   │   ├── routes/         # API路由
-│   │   ├── services/       # 业务逻辑
-│   │   └── utils/          # 工具函数
-│   ├── uploads/            # 上传文件存储
-│   ├── data/               # SQLite数据库
-│   └── Dockerfile          # 后端单独 Docker 配置
+├── backend-go/              # Go 后端服务
+│   ├── cmd/
+│   │   └── server/
+│   │       └── main.go      # 应用入口
+│   ├── internal/
+│   │   ├── config/          # 配置管理
+│   │   ├── models/          # 数据模型
+│   │   ├── handlers/        # HTTP 处理器
+│   │   ├── services/        # 业务逻辑
+│   │   ├── middleware/      # 中间件
+│   │   ├── repository/      # 数据访问层
+│   │   └── utils/           # 工具函数
+│   ├── pkg/
+│   │   └── database/        # 数据库连接
+│   ├── go.mod
+│   └── go.sum
+├── backend/                 # (已废弃) Node.js 后端服务
 ├── frontend/               # 前端应用
 │   ├── src/
 │   │   ├── App.tsx        # 主应用

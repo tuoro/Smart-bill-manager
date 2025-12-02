@@ -1,0 +1,112 @@
+package services
+
+import (
+	"smart-bill-manager/internal/models"
+	"smart-bill-manager/internal/repository"
+	"smart-bill-manager/internal/utils"
+)
+
+type PaymentService struct {
+	repo *repository.PaymentRepository
+}
+
+func NewPaymentService() *PaymentService {
+	return &PaymentService{
+		repo: repository.NewPaymentRepository(),
+	}
+}
+
+type CreatePaymentInput struct {
+	Amount          float64 `json:"amount" binding:"required"`
+	Merchant        *string `json:"merchant"`
+	Category        *string `json:"category"`
+	PaymentMethod   *string `json:"payment_method"`
+	Description     *string `json:"description"`
+	TransactionTime string  `json:"transaction_time" binding:"required"`
+}
+
+func (s *PaymentService) Create(input CreatePaymentInput) (*models.Payment, error) {
+	payment := &models.Payment{
+		ID:              utils.GenerateUUID(),
+		Amount:          input.Amount,
+		Merchant:        input.Merchant,
+		Category:        input.Category,
+		PaymentMethod:   input.PaymentMethod,
+		Description:     input.Description,
+		TransactionTime: input.TransactionTime,
+	}
+
+	if err := s.repo.Create(payment); err != nil {
+		return nil, err
+	}
+
+	return payment, nil
+}
+
+type PaymentFilterInput struct {
+	Limit     int    `form:"limit"`
+	Offset    int    `form:"offset"`
+	StartDate string `form:"startDate"`
+	EndDate   string `form:"endDate"`
+	Category  string `form:"category"`
+}
+
+func (s *PaymentService) GetAll(filter PaymentFilterInput) ([]models.Payment, error) {
+	return s.repo.FindAll(repository.PaymentFilter{
+		Limit:     filter.Limit,
+		Offset:    filter.Offset,
+		StartDate: filter.StartDate,
+		EndDate:   filter.EndDate,
+		Category:  filter.Category,
+	})
+}
+
+func (s *PaymentService) GetByID(id string) (*models.Payment, error) {
+	return s.repo.FindByID(id)
+}
+
+type UpdatePaymentInput struct {
+	Amount          *float64 `json:"amount"`
+	Merchant        *string  `json:"merchant"`
+	Category        *string  `json:"category"`
+	PaymentMethod   *string  `json:"payment_method"`
+	Description     *string  `json:"description"`
+	TransactionTime *string  `json:"transaction_time"`
+}
+
+func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
+	data := make(map[string]interface{})
+
+	if input.Amount != nil {
+		data["amount"] = *input.Amount
+	}
+	if input.Merchant != nil {
+		data["merchant"] = *input.Merchant
+	}
+	if input.Category != nil {
+		data["category"] = *input.Category
+	}
+	if input.PaymentMethod != nil {
+		data["payment_method"] = *input.PaymentMethod
+	}
+	if input.Description != nil {
+		data["description"] = *input.Description
+	}
+	if input.TransactionTime != nil {
+		data["transaction_time"] = *input.TransactionTime
+	}
+
+	if len(data) == 0 {
+		return nil
+	}
+
+	return s.repo.Update(id, data)
+}
+
+func (s *PaymentService) Delete(id string) error {
+	return s.repo.Delete(id)
+}
+
+func (s *PaymentService) GetStats(startDate, endDate string) (*models.PaymentStats, error) {
+	return s.repo.GetStats(startDate, endDate)
+}

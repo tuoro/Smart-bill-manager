@@ -1,0 +1,21 @@
+# Binaries
+server
+*.exe
+
+# Database
+data/
+
+# Uploads
+uploads/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+debug
+*.log

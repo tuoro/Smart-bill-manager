@@ -484,7 +484,6 @@ const screenshotFileList = ref<UploadFile[]>([])
 const ocrResult = ref<OcrExtractedData | null>(null)
 const ocrFormRef = ref<FormInstance>()
 const uploadedPaymentId = ref<string | null>(null)
-const uploadedScreenshotPath = ref<string | null>(null)
 
 // Linked invoices state
 const linkedInvoicesModalVisible = ref(false)
@@ -687,9 +686,8 @@ const handleScreenshotUpload = async () => {
     if (res.data.success && res.data.data) {
       const { payment, extracted } = res.data.data
       
-      // Save payment ID and screenshot path for later update
+      // Save payment ID for later update
       uploadedPaymentId.value = payment.id
-      uploadedScreenshotPath.value = payment.screenshot_path || null
       
       ocrResult.value = extracted
       
@@ -755,14 +753,14 @@ const handleSaveOcrResult = async () => {
 const cancelScreenshotUpload = () => {
   // If user cancels, delete the created payment record
   if (uploadedPaymentId.value) {
-    paymentApi.delete(uploadedPaymentId.value).catch(() => {
-      // Silently handle deletion errors
+    paymentApi.delete(uploadedPaymentId.value).catch((error) => {
+      // Log deletion errors for debugging, but don't show to user
+      console.error('Failed to delete payment record:', error)
     })
   }
   
   // Clear all state
   uploadedPaymentId.value = null
-  uploadedScreenshotPath.value = null
   screenshotFileList.value = []
   ocrResult.value = null
   ocrForm.amount = 0

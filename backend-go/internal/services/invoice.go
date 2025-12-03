@@ -199,7 +199,7 @@ func (s *InvoiceService) parseInvoicePDF(filePath, filename string) (
 	parseError *string,
 ) {
 	parseStatus = "parsing"
-	
+
 	if !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
 		parseStatus = "failed"
 		errMsg := "Only PDF files can be parsed"
@@ -215,17 +215,17 @@ func (s *InvoiceService) parseInvoicePDF(filePath, filename string) (
 		parseError = &errMsg
 		return
 	}
-	
+
 	if text == "" {
 		parseStatus = "failed"
 		errMsg := "No text extracted from PDF"
 		parseError = &errMsg
 		return
 	}
-	
+
 	// Save raw text for frontend display
 	rawText = &text
-	
+
 	// Parse the extracted text
 	extracted, err := s.ocrService.ParseInvoiceData(text)
 	if err != nil {
@@ -234,14 +234,14 @@ func (s *InvoiceService) parseInvoicePDF(filePath, filename string) (
 		parseError = &errMsg
 		return
 	}
-	
+
 	invoiceNumber = extracted.InvoiceNumber
 	invoiceDate = extracted.InvoiceDate
 	amount = extracted.Amount
 	taxAmount = extracted.TaxAmount
 	sellerName = extracted.SellerName
 	buyerName = extracted.BuyerName
-	
+
 	// Store extracted data as JSON
 	if jsonStr, err := ExtractedDataToJSON(extracted); err == nil {
 		extractedData = jsonStr
@@ -276,7 +276,7 @@ func (s *InvoiceService) Reparse(id string) (*models.Invoice, error) {
 		"parse_error":  parseError,
 		"raw_text":     rawText,
 	}
-	
+
 	if invoiceNumber != nil {
 		updateData["invoice_number"] = *invoiceNumber
 	}

@@ -21,10 +21,10 @@ func NewAuthService() *AuthService {
 }
 
 type AuthResult struct {
-	Success bool                  `json:"success"`
-	Message string                `json:"message"`
-	User    *models.UserResponse  `json:"user,omitempty"`
-	Token   string                `json:"token,omitempty"`
+	Success bool                 `json:"success"`
+	Message string               `json:"message"`
+	User    *models.UserResponse `json:"user,omitempty"`
+	Token   string               `json:"token,omitempty"`
 }
 
 // Register creates a new user
@@ -122,7 +122,7 @@ func (s *AuthService) GetAllUsers() ([]models.UserResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var responses []models.UserResponse
 	for _, u := range users {
 		responses = append(responses, u.ToResponse())
@@ -199,7 +199,7 @@ func (s *AuthService) CreateInitialAdmin(username, password string, email *strin
 		log.Println("Admin user created via setup:")
 		log.Printf("  Username: %s\n", username)
 		log.Println("=========================================")
-		
+
 		// Update the role in the result
 		if result.User != nil {
 			result.User.Role = "admin"

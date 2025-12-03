@@ -71,20 +71,20 @@ func (s *OCRService) isGarbledText(text string) bool {
 	if text == "" {
 		return true
 	}
-	
+
 	// Count valid characters (Chinese, English, digits)
 	// We're strict about what we consider valid to catch garbled text
 	validChars := 0
 	totalChars := 0
-	
+
 	for _, r := range text {
 		// Skip whitespace in the count
 		if unicode.IsSpace(r) {
 			continue
 		}
-		
+
 		totalChars++
-		
+
 		// Only count clearly valid characters: Chinese, letters, and digits
 		// Common punctuation like ￥¥@#$% are also considered valid
 		if unicode.Is(unicode.Han, r) || // Chinese characters
@@ -98,22 +98,22 @@ func (s *OCRService) isGarbledText(text string) bool {
 			validChars++
 		}
 	}
-	
+
 	if totalChars == 0 {
 		return true
 	}
-	
+
 	// If valid character ratio is less than 50%, consider it garbled
 	validRatio := float64(validChars) / float64(totalChars)
 	fmt.Printf("[OCR] Text validity check: %d/%d valid chars (%.2f%%)\n", validChars, totalChars, validRatio*100)
-	
+
 	return validRatio < 0.5
 }
 
 // RecognizePDF extracts text from PDF, using OCR if necessary
 func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
-	
+
 	// First try to extract text directly from PDF
 	text, err := s.extractTextFromPDF(pdfPath)
 	if err != nil {
@@ -121,18 +121,18 @@ func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 		// If direct extraction fails, convert PDF to images and use OCR
 		return s.pdfToImageOCR(pdfPath)
 	}
-	
+
 	if strings.TrimSpace(text) == "" {
 		fmt.Printf("[OCR] No text found in PDF, attempting OCR conversion\n")
 		return s.pdfToImageOCR(pdfPath)
 	}
-	
+
 	// Check if extracted text is garbled (common with embedded fonts)
 	if s.isGarbledText(text) {
 		fmt.Printf("[OCR] Detected garbled text, falling back to OCR\n")
 		return s.pdfToImageOCR(pdfPath)
 	}
-	
+
 	fmt.Printf("[OCR] Successfully extracted %d characters from PDF\n", len(text))
 	return text, nil
 }
@@ -140,7 +140,7 @@ func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 // extractTextFromPDF extracts text from a PDF file
 func (s *OCRService) extractTextFromPDF(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] Opening PDF file: %s\n", pdfPath)
-	
+
 	f, r, err := pdf.Open(pdfPath)
 	if err != nil {
 		fmt.Printf("[OCR] Failed to open PDF: %v\n", err)
@@ -180,7 +180,7 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	// and then perform OCR. This is a placeholder for that functionality.
 	// In a production system, you might use tools like pdfcpu to extract images
 	// or convert PDF pages to images using ImageMagick or similar.
-	
+
 	return "", fmt.Errorf("scanned PDF OCR is not yet fully implemented - please use text-based PDFs or convert scanned PDFs to image files (JPG/PNG) and upload those instead")
 }
 
@@ -464,22 +464,16 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			break
 		}
 	}
-	
+
 	// If not found, try to match standalone invoice numbers (8-25 digits)
 	// This handles old format invoices (8 digits) and electronic invoices (20+ digits)
 	if data.InvoiceNumber == nil {
 		// Match 8-digit numbers on their own line (old invoice format)
 		// or 20-25 digit numbers (electronic invoice format)
-		standaloneNumRegex := regexp.MustCompile(`(?m)^(\d{8})$|(?m)^(\d{20,25})$`)
-		if match := standaloneNumRegex.FindStringSubmatch(text); len(match) > 0 {
-			// Check which capture group matched
-			if match[1] != "" {
-				invoiceNum := match[1]
-				data.InvoiceNumber = &invoiceNum
-			} else if match[2] != "" {
-				invoiceNum := match[2]
-				data.InvoiceNumber = &invoiceNum
-			}
+		standaloneNumRegex := regexp.MustCompile(`(?m)^(\d{8}|\d{20,25})$`)
+		if match := standaloneNumRegex.FindStringSubmatch(text); len(match) > 1 {
+			invoiceNum := match[1]
+			data.InvoiceNumber = &invoiceNum
 		}
 	}
 
@@ -496,7 +490,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			break
 		}
 	}
-	
+
 	// If not found, try to match standalone date format (YYYY年M月D日 or YYYY年MM月DD日)
 	// This is common in electronic invoices where the date appears on its own line
 	if data.InvoiceDate == nil {
@@ -523,7 +517,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If not found, try to find amount after Chinese character amount (e.g., "叁仟零捌拾圆整" followed by "¥3080.00")
 	// This handles the electronic invoice format where the amount appears after the Chinese text
 	// Include both simplified (万) and traditional (萬) characters
@@ -535,12 +529,13 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If still not found, try to match standalone amount at the end of text
-	// This handles cases where the amount appears as a final value like "￥19.58"
+	// This handles cases where the amount appears as a final value like "￥19.58" or "￥100"
 	if data.Amount == nil {
 		// Match amount with ￥ or ¥ symbol, possibly on its own line
-		standaloneAmountRegex := regexp.MustCompile(`[¥￥]\s*([\d]+\.[\d]{2})(?:\s*$|\s*\n|$)`)
+		// Support amounts with or without decimal places
+		standaloneAmountRegex := regexp.MustCompile(`[¥￥]\s*([\d]+(?:\.[\d]{1,2})?)(?:\s*$|\s*\n|$)`)
 		// Find all matches and take the last one (most likely to be the total)
 		matches := standaloneAmountRegex.FindAllStringSubmatch(text, -1)
 		if len(matches) > 0 {
@@ -584,7 +579,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If not found, try to find in seller section context
 	// Look for seller section and extract tax ID followed by name
 	// Format: "销售方信息 统一社会信用代码/纳税人识别号：92310109MA1KMFLM1K 名称：上海市虹口区鹏侠百货商店"
@@ -598,7 +593,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If still not found, try a more flexible pattern looking for tax ID followed by name
 	// This handles cases where the seller info appears without explicit section markers
 	if data.SellerName == nil {
@@ -613,7 +608,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If still not found, try to find company name appearing BEFORE tax ID
 	// This is common in OCR output where data sequence differs from labels
 	// Pattern: company name (containing 公司/商店/企业/中心/etc.) on one line, followed by tax ID
@@ -648,7 +643,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If not found, try to find in buyer section context
 	// Look for buyer section and extract tax ID followed by name or just name
 	// Format: "购买方信息 统一社会信用代码/纳税人识别号： 名称：个人"
@@ -663,7 +658,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			}
 		}
 	}
-	
+
 	// If still not found, try to match "个人" (individual) as a standalone buyer
 	if data.BuyerName == nil {
 		individualRegex := regexp.MustCompile(`(个人)`)
@@ -672,7 +667,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			data.BuyerName = &buyer
 		}
 	}
-	
+
 	// Final cleanup: if buyer name was set to a label by mistake, clear it
 	if data.BuyerName != nil && (*data.BuyerName == "名称：" || *data.BuyerName == "名称:") {
 		data.BuyerName = nil

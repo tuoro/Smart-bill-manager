@@ -117,7 +117,7 @@ func (s *EmailService) GetLogs(configID string, limit int) ([]models.EmailLog, e
 // This matches the behavior of the original Node.js implementation.
 func (s *EmailService) TestConnection(email, imapHost string, imapPort int, password string) (bool, string) {
 	addr := fmt.Sprintf("%s:%d", imapHost, imapPort)
-	
+
 	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
 	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
@@ -256,7 +256,7 @@ func (s *EmailService) fetchUnreadEmails(configID string, c *client.Client) {
 
 	for msg := range messages {
 		s.processMessage(configID, msg, section)
-		
+
 		// Mark as seen
 		seenSet := new(imap.SeqSet)
 		seenSet.AddNum(msg.SeqNum)
@@ -354,7 +354,7 @@ func (s *EmailService) processMessage(configID string, msg *imap.Message, sectio
 
 func (s *EmailService) saveAttachment(filename string, content []byte, configID string) {
 	safeFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeFilename(filename))
-	
+
 	if err := os.MkdirAll(s.uploadsDir, 0755); err != nil {
 		log.Printf("[Email Monitor] Error creating uploads dir: %v", err)
 		return
@@ -485,7 +485,7 @@ func (s *EmailService) ManualCheck(configID string) (bool, string, int) {
 	count := 0
 	for msg := range messages {
 		s.processMessage(configID, msg, section)
-		
+
 		// Mark as seen
 		seenSet := new(imap.SeqSet)
 		seenSet.AddNum(msg.SeqNum)

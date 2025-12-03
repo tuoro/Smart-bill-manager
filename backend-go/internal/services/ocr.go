@@ -1,0 +1,499 @@
+package services
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+
+	"github.com/ledongthuc/pdf"
+	"github.com/otiai10/gosseract/v2"
+)
+
+// OCRService provides OCR functionality
+type OCRService struct{}
+
+func NewOCRService() *OCRService {
+	return &OCRService{}
+}
+
+// PaymentExtractedData represents extracted payment information
+type PaymentExtractedData struct {
+	Amount          *float64 `json:"amount"`
+	Merchant        *string  `json:"merchant"`
+	TransactionTime *string  `json:"transaction_time"`
+	PaymentMethod   *string  `json:"payment_method"`
+	OrderNumber     *string  `json:"order_number"`
+	RawText         string   `json:"raw_text"`
+}
+
+// InvoiceExtractedData represents extracted invoice information
+type InvoiceExtractedData struct {
+	InvoiceNumber *string  `json:"invoice_number"`
+	InvoiceDate   *string  `json:"invoice_date"`
+	Amount        *float64 `json:"amount"`
+	TaxAmount     *float64 `json:"tax_amount"`
+	SellerName    *string  `json:"seller_name"`
+	BuyerName     *string  `json:"buyer_name"`
+	RawText       string   `json:"raw_text"`
+}
+
+// RecognizeImage performs OCR on an image file
+func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	// Set language to Chinese simplified and English
+	client.SetLanguage("chi_sim", "eng")
+
+	if err := client.SetImage(imagePath); err != nil {
+		return "", fmt.Errorf("failed to set image: %w", err)
+	}
+
+	text, err := client.Text()
+	if err != nil {
+		return "", fmt.Errorf("failed to recognize text: %w", err)
+	}
+
+	return text, nil
+}
+
+// RecognizePDF extracts text from PDF, using OCR if necessary
+func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
+	// First try to extract text directly from PDF
+	text, err := s.extractTextFromPDF(pdfPath)
+	if err != nil || strings.TrimSpace(text) == "" {
+		// If direct extraction fails, convert PDF to images and use OCR
+		return s.pdfToImageOCR(pdfPath)
+	}
+	return text, nil
+}
+
+// extractTextFromPDF extracts text from a PDF file
+func (s *OCRService) extractTextFromPDF(pdfPath string) (string, error) {
+	f, r, err := pdf.Open(pdfPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var buf bytes.Buffer
+	totalPage := r.NumPage()
+
+	for pageIndex := 1; pageIndex <= totalPage; pageIndex++ {
+		p := r.Page(pageIndex)
+		if p.V.IsNull() {
+			continue
+		}
+
+		text, err := p.GetPlainText(nil)
+		if err != nil {
+			continue
+		}
+		buf.WriteString(text)
+		buf.WriteString("\n")
+	}
+
+	return buf.String(), nil
+}
+
+// pdfToImageOCR converts PDF pages to images and performs OCR
+func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
+	// For scanned PDFs without text, we would need to convert pages to images
+	// and then perform OCR. This is a placeholder for that functionality.
+	// In a production system, you might use tools like pdfcpu to extract images
+	// or convert PDF pages to images using ImageMagick or similar.
+	
+	return "", fmt.Errorf("scanned PDF OCR is not yet fully implemented - please use text-based PDFs or convert scanned PDFs to image files (JPG/PNG) and upload those instead")
+}
+
+// ParsePaymentScreenshot extracts payment information from OCR text
+func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData, error) {
+	data := &PaymentExtractedData{
+		RawText: text,
+	}
+
+	// Normalize text for better matching - remove extra spaces but keep structure
+	text = strings.TrimSpace(text)
+	// Replace multiple spaces with single space
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+
+	// Try to detect payment platform and extract accordingly
+	if s.isWeChatPay(text) {
+		s.parseWeChatPay(text, data)
+	} else if s.isAlipay(text) {
+		s.parseAlipay(text, data)
+	} else if s.isBankTransfer(text) {
+		s.parseBankTransfer(text, data)
+	}
+
+	// Generic amount extraction if not found
+	if data.Amount == nil {
+		s.extractAmount(text, data)
+	}
+
+	return data, nil
+}
+
+// isWeChatPay checks if text is from WeChat Pay
+func (s *OCRService) isWeChatPay(text string) bool {
+	keywords := []string{"微信支付", "微信", "WeChat", "支付成功", "转账成功"}
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// isAlipay checks if text is from Alipay
+func (s *OCRService) isAlipay(text string) bool {
+	keywords := []string{"支付宝", "Alipay", "付款成功"}
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// isBankTransfer checks if text is from bank transfer
+func (s *OCRService) isBankTransfer(text string) bool {
+	keywords := []string{"银行", "转账", "交易成功", "电子回单"}
+	count := 0
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			count++
+		}
+	}
+	return count >= 2
+}
+
+// parseWeChatPay extracts WeChat Pay information
+func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
+	method := "微信支付"
+	data.PaymentMethod = &method
+
+	// Extract amount: ¥123.45 or 金额¥123.45
+	amountRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`[¥￥][\s]*([\d,]+\.?\d*)`),
+		regexp.MustCompile(`金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+		regexp.MustCompile(`支付金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+		regexp.MustCompile(`转账金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+	}
+	for _, re := range amountRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if amount := parseAmount(match[1]); amount != nil {
+				data.Amount = amount
+				break
+			}
+		}
+	}
+
+	// Extract merchant/receiver
+	merchantRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`收款方[：:]?([^\s¥￥]+)`),
+		regexp.MustCompile(`收款人[：:]?([^\s¥￥]+)`),
+		regexp.MustCompile(`转账给([^\s¥￥]+)`),
+	}
+	for _, re := range merchantRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			merchant := strings.TrimSpace(match[1])
+			if merchant != "" {
+				data.Merchant = &merchant
+				break
+			}
+		}
+	}
+
+	// Extract transaction time
+	timeRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`支付时间[：:]?([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`转账时间[：:]?([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日\s[\d]{2}:[\d]{2}:[\d]{2})`),
+	}
+	for _, re := range timeRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			timeStr := match[1]
+			data.TransactionTime = &timeStr
+			break
+		}
+	}
+
+	// Extract order number
+	orderRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`交易单号[：:]?([\d]+)`),
+		regexp.MustCompile(`订单号[：:]?([\d]+)`),
+		regexp.MustCompile(`流水号[：:]?([\d]+)`),
+	}
+	for _, re := range orderRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			orderNum := match[1]
+			data.OrderNumber = &orderNum
+			break
+		}
+	}
+}
+
+// parseAlipay extracts Alipay information
+func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
+	method := "支付宝"
+	data.PaymentMethod = &method
+
+	// Extract amount
+	amountRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`[¥￥][\s]*([\d,]+\.?\d*)`),
+		regexp.MustCompile(`金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+		regexp.MustCompile(`付款金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+	}
+	for _, re := range amountRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if amount := parseAmount(match[1]); amount != nil {
+				data.Amount = amount
+				break
+			}
+		}
+	}
+
+	// Extract merchant
+	merchantRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`商家[：:]?([^\s¥￥]+)`),
+		regexp.MustCompile(`收款方[：:]?([^\s¥￥]+)`),
+		regexp.MustCompile(`付款给([^\s¥￥]+)`),
+	}
+	for _, re := range merchantRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			merchant := strings.TrimSpace(match[1])
+			if merchant != "" {
+				data.Merchant = &merchant
+				break
+			}
+		}
+	}
+
+	// Extract transaction time
+	timeRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`创建时间[：:]?([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`付款时间[：:]?([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日\s[\d]{2}:[\d]{2})`),
+	}
+	for _, re := range timeRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			timeStr := match[1]
+			data.TransactionTime = &timeStr
+			break
+		}
+	}
+
+	// Extract order number
+	orderRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`订单号[：:]?([\d]+)`),
+		regexp.MustCompile(`交易号[：:]?([\d]+)`),
+		regexp.MustCompile(`流水号[：:]?([\d]+)`),
+	}
+	for _, re := range orderRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			orderNum := match[1]
+			data.OrderNumber = &orderNum
+			break
+		}
+	}
+}
+
+// parseBankTransfer extracts bank transfer information
+func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) {
+	method := "银行转账"
+	data.PaymentMethod = &method
+
+	// Extract amount
+	amountRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+		regexp.MustCompile(`转账金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+		regexp.MustCompile(`交易金额[：:]?[¥￥]?([\d,]+\.?\d*)`),
+	}
+	for _, re := range amountRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if amount := parseAmount(match[1]); amount != nil {
+				data.Amount = amount
+				break
+			}
+		}
+	}
+
+	// Extract receiver
+	merchantRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`收款人[：:]?([^\s¥￥]+)`),
+		regexp.MustCompile(`收款账户[：:]?([^\s¥￥]+)`),
+	}
+	for _, re := range merchantRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			merchant := strings.TrimSpace(match[1])
+			if merchant != "" {
+				data.Merchant = &merchant
+				break
+			}
+		}
+	}
+
+	// Extract transaction time
+	timeRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`转账时间[：:]?([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`交易时间[：:]?([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日[\d]{2}:[\d]{2})`),
+	}
+	for _, re := range timeRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			timeStr := match[1]
+			data.TransactionTime = &timeStr
+			break
+		}
+	}
+}
+
+// extractAmount extracts amount from text using generic patterns
+func (s *OCRService) extractAmount(text string, data *PaymentExtractedData) {
+	// Try various amount patterns
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`[¥￥][\s]*([\d,]+\.?\d*)`),
+		regexp.MustCompile(`([\d,]+\.?\d*)元`),
+	}
+
+	for _, re := range patterns {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if amount := parseAmount(match[1]); amount != nil {
+				data.Amount = amount
+				return
+			}
+		}
+	}
+}
+
+// ParseInvoiceData extracts invoice information from OCR text
+func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error) {
+	data := &InvoiceExtractedData{
+		RawText: text,
+	}
+
+	// Extract invoice number
+	invoiceNumRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`发票号码[：:]?\s*(\d+)`),
+		regexp.MustCompile(`发票代码[：:]?\s*(\d+)`),
+		regexp.MustCompile(`No[\.:]?\s*(\d+)`),
+	}
+	for _, re := range invoiceNumRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			invoiceNum := match[1]
+			data.InvoiceNumber = &invoiceNum
+			break
+		}
+	}
+
+	// Extract invoice date
+	dateRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`开票日期[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
+		regexp.MustCompile(`开票日期[：:]?\s*(\d{4}-\d{2}-\d{2})`),
+		regexp.MustCompile(`日期[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
+	}
+	for _, re := range dateRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			date := match[1]
+			data.InvoiceDate = &date
+			break
+		}
+	}
+
+	// Extract amount
+	amountRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`合计金额[（(]小写[)）][：:]?\s*[¥￥]?([\d,.]+)`),
+		regexp.MustCompile(`价税合计[（(]小写[)）][：:]?\s*[¥￥]?([\d,.]+)`),
+		regexp.MustCompile(`总计[：:]?\s*[¥￥]?([\d,.]+)`),
+		regexp.MustCompile(`金额[：:]?\s*[¥￥]?([\d,.]+)`),
+	}
+	for _, re := range amountRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if amount := parseAmount(match[1]); amount != nil {
+				data.Amount = amount
+				break
+			}
+		}
+	}
+
+	// Extract tax amount
+	taxRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`税额[：:]?\s*[¥￥]?([\d,.]+)`),
+		regexp.MustCompile(`税金[：:]?\s*[¥￥]?([\d,.]+)`),
+	}
+	for _, re := range taxRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if tax := parseAmount(match[1]); tax != nil {
+				data.TaxAmount = tax
+				break
+			}
+		}
+	}
+
+	// Extract seller name
+	sellerRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*([^\n]+)`),
+		regexp.MustCompile(`销售方名称[：:]?\s*([^\n]+)`),
+		regexp.MustCompile(`出票方[：:]?\s*([^\n]+)`),
+	}
+	for _, re := range sellerRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			seller := strings.TrimSpace(match[1])
+			if seller != "" {
+				data.SellerName = &seller
+				break
+			}
+		}
+	}
+
+	// Extract buyer name
+	buyerRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*([^\n]+)`),
+		regexp.MustCompile(`购买方名称[：:]?\s*([^\n]+)`),
+		regexp.MustCompile(`购货方[：:]?\s*([^\n]+)`),
+	}
+	for _, re := range buyerRegexes {
+		if match := re.FindStringSubmatch(text); len(match) > 1 {
+			buyer := strings.TrimSpace(match[1])
+			if buyer != "" {
+				data.BuyerName = &buyer
+				break
+			}
+		}
+	}
+
+	return data, nil
+}
+
+// parseAmount parses amount string to float64
+func parseAmount(s string) *float64 {
+	// Remove commas and spaces
+	s = strings.ReplaceAll(s, ",", "")
+	s = strings.ReplaceAll(s, " ", "")
+	s = strings.TrimSpace(s)
+
+	if s == "" {
+		return nil
+	}
+
+	amount, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+
+	return &amount
+}
+
+// ExtractedDataToJSON converts extracted data to JSON string
+func ExtractedDataToJSON(data interface{}) (*string, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	jsonStr := string(jsonData)
+	return &jsonStr, nil
+}

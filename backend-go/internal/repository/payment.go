@@ -124,3 +124,13 @@ func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.Payment
 	
 	return stats, nil
 }
+
+// GetLinkedInvoices returns all invoices linked to a payment
+func (r *PaymentRepository) GetLinkedInvoices(paymentID string) ([]models.Invoice, error) {
+	var invoices []models.Invoice
+	err := database.GetDB().
+		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.invoice_id = invoices.id").
+		Where("invoice_payment_links.payment_id = ?", paymentID).
+		Find(&invoices).Error
+	return invoices, err
+}

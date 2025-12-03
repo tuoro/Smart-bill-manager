@@ -27,8 +27,9 @@ FROM golang:1.24-alpine AS backend-builder
 
 WORKDIR /app/backend
 
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev
+# Install build dependencies including Tesseract
+# Note: tesseract-ocr-dev requires leptonica-dev, and pkgconfig helps with library discovery
+RUN apk add --no-cache gcc musl-dev tesseract-ocr-dev leptonica-dev pkgconfig ca-certificates
 
 # Copy go mod files
 COPY backend-go/go.mod backend-go/go.sum ./
@@ -47,8 +48,19 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
 # ============================================
 FROM nginx:alpine AS production
 
-# Install supervisor and SQLite runtime
-RUN apk add --no-cache supervisor
+# Install supervisor, SQLite runtime, and Tesseract with language packs  
+# Note: Alpine's tesseract-ocr package includes basic language data
+# Additional language data can be installed via tesseract-ocr-data-* packages or downloaded manually
+RUN apk add --no-cache supervisor tesseract-ocr ca-certificates && \
+    apk add --no-cache tesseract-ocr-data-chi_sim tesseract-ocr-data-eng 2>/dev/null || \
+    (apk add --no-cache wget && \
+     TESSDATA_DIR=/usr/share/tessdata && \
+     mkdir -p $TESSDATA_DIR && \
+     wget -q -O $TESSDATA_DIR/chi_sim.traineddata \
+         https://github.com/tesseract-ocr/tessdata_fast/raw/main/chi_sim.traineddata && \
+     wget -q -O $TESSDATA_DIR/eng.traineddata \
+         https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata && \
+     apk del wget)
 
 WORKDIR /app
 

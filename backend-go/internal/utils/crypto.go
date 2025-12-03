@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/rand"
 	"math/big"
+	"time"
 )
 
 const passwordChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%"
@@ -54,4 +55,9 @@ func hexChar(b byte) byte {
 		return '0' + b
 	}
 	return 'a' + b - 10
+}
+
+// CurrentTimeString returns current time in RFC3339 format
+func CurrentTimeString() string {
+	return time.Now().Format(time.RFC3339)
 }

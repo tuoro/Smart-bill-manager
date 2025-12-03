@@ -22,12 +22,23 @@
 - 按日期、分类筛选
 - 支出统计分析
 - 支持多种支付方式分类
+- **🆕 支付截图上传和自动识别** ✨
+  - 上传微信支付、支付宝、银行转账截图
+  - 自动识别金额、商家、交易时间、支付方式
+  - OCR技术支持中英文识别
 
 ### 📄 发票管理
 - PDF发票上传（支持批量）
-- 自动解析发票信息（发票号码、金额、销售方等）
+- **🆕 智能发票识别** ✨
+  - 自动解析发票号码、金额、税额、销售方、购买方
+  - 支持增值税电子普通发票、增值税电子专用发票
+  - 使用专业PDF解析库和OCR技术
 - 发票预览和下载
 - 来源追踪（手动上传/邮件下载/钉钉机器人）
+- **🆕 发票与支付记录关联** ✨
+  - 手动关联发票到支付记录
+  - 智能匹配建议（基于金额和日期）
+  - 查看关联关系
 
 ### 📬 邮箱监控
 - **支持QQ邮箱** ✅
@@ -45,12 +56,14 @@
 ## 🛠️ 技术栈
 
 ### 后端
-- Go 1.23 (Gin Web框架)
+- Go 1.24 (Gin Web框架)
 - SQLite (GORM ORM)
 - JWT认证 (golang-jwt/jwt)
 - golang.org/x/crypto/bcrypt (密码加密)
 - emersion/go-imap (邮箱IMAP协议)
-- PDF解析 (内置简单解析器)
+- **🆕 Tesseract OCR 5.3.4** (OCR识别引擎) ✨
+- **🆕 gosseract v2** (Go语言Tesseract绑定) ✨
+- **🆕 ledongthuc/pdf** (专业PDF解析) ✨
 - gin-contrib/cors (CORS支持)
 - 内置请求频率限制
 
@@ -300,15 +313,24 @@ Smart-bill-manager/
 ### 支付记录
 - `GET /api/payments` - 获取支付记录列表
 - `GET /api/payments/stats` - 获取统计数据
+- `GET /api/payments/:id` - 获取支付记录详情
+- `GET /api/payments/:id/invoices` - **🆕 获取关联的发票列表** ✨
 - `POST /api/payments` - 创建支付记录
+- `POST /api/payments/upload-screenshot` - **🆕 上传支付截图并OCR识别** ✨
 - `PUT /api/payments/:id` - 更新支付记录
 - `DELETE /api/payments/:id` - 删除支付记录
 
 ### 发票管理
 - `GET /api/invoices` - 获取发票列表
-- `POST /api/invoices/upload` - 上传发票
+- `GET /api/invoices/:id` - 获取发票详情
+- `GET /api/invoices/:id/linked-payments` - **🆕 获取关联的支付记录** ✨
+- `GET /api/invoices/:id/suggest-payments` - **🆕 智能匹配支付记录建议** ✨
+- `POST /api/invoices/upload` - 上传发票（自动OCR识别）
 - `POST /api/invoices/upload-multiple` - 批量上传
+- `POST /api/invoices/:id/link-payment` - **🆕 关联发票到支付记录** ✨
+- `PUT /api/invoices/:id` - 更新发票
 - `DELETE /api/invoices/:id` - 删除发票
+- `DELETE /api/invoices/:id/unlink-payment` - **🆕 取消关联** ✨
 
 ### 邮箱配置
 - `GET /api/email/configs` - 获取邮箱配置
@@ -335,6 +357,11 @@ Smart-bill-manager/
 2. **支付记录** - 表格展示，支持筛选和统计
 3. **发票管理** - 拖拽上传，自动解析
 4. **邮箱监控** - 配置管理，实时状态
+
+## 📚 文档
+
+- [API 文档](./API_DOCUMENTATION.md) - 详细的API接口说明和使用示例
+- [测试指南](./TESTING_GUIDE.md) - 功能测试步骤和性能评估方法
 
 ## 📝 License
 

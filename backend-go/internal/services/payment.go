@@ -7,12 +7,14 @@ import (
 )
 
 type PaymentService struct {
-	repo *repository.PaymentRepository
+	repo       *repository.PaymentRepository
+	ocrService *OCRService
 }
 
 func NewPaymentService() *PaymentService {
 	return &PaymentService{
-		repo: repository.NewPaymentRepository(),
+		repo:       repository.NewPaymentRepository(),
+		ocrService: NewOCRService(),
 	}
 }
 
@@ -109,4 +111,67 @@ func (s *PaymentService) Delete(id string) error {
 
 func (s *PaymentService) GetStats(startDate, endDate string) (*models.PaymentStats, error) {
 	return s.repo.GetStats(startDate, endDate)
+}
+
+// CreateFromScreenshot creates a payment from a screenshot with OCR
+type CreateFromScreenshotInput struct {
+	ScreenshotPath string
+}
+
+func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (*models.Payment, *PaymentExtractedData, error) {
+	// Perform OCR on the screenshot
+	text, err := s.ocrService.RecognizeImage(input.ScreenshotPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Parse payment data from OCR text
+	extracted, err := s.ocrService.ParsePaymentScreenshot(text)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Store extracted data as JSON
+	extractedDataJSON, err := ExtractedDataToJSON(extracted)
+	if err != nil {
+		// Log the error but continue - extracted data is optional
+		extractedDataJSON = nil
+	}
+
+	// Create payment record with extracted data
+	payment := &models.Payment{
+		ID:              utils.GenerateUUID(),
+		Amount:          0.0, // Default to 0.0, will be updated if amount is extracted
+		Merchant:        extracted.Merchant,
+		PaymentMethod:   extracted.PaymentMethod,
+		TransactionTime: "",
+		ScreenshotPath:  &input.ScreenshotPath,
+		ExtractedData:   extractedDataJSON,
+	}
+
+	// Set amount if extracted
+	if extracted.Amount != nil && *extracted.Amount > 0 {
+		payment.Amount = *extracted.Amount
+	}
+
+	// Set transaction time if extracted
+	if extracted.TransactionTime != nil {
+		payment.TransactionTime = *extracted.TransactionTime
+	}
+
+	// If no transaction time extracted, use current time
+	if payment.TransactionTime == "" {
+		payment.TransactionTime = utils.CurrentTimeString()
+	}
+
+	if err := s.repo.Create(payment); err != nil {
+		return nil, nil, err
+	}
+
+	return payment, extracted, nil
+}
+
+// GetLinkedInvoices returns all invoices linked to a payment
+func (s *PaymentService) GetLinkedInvoices(paymentID string) ([]models.Invoice, error) {
+	return s.repo.GetLinkedInvoices(paymentID)
 }

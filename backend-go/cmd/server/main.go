@@ -33,6 +33,7 @@ func main() {
 		&models.User{},
 		&models.Payment{},
 		&models.Invoice{},
+		&models.InvoicePaymentLink{},
 		&models.EmailConfig{},
 		&models.EmailLog{},
 		&models.DingtalkConfig{},
@@ -106,6 +107,7 @@ func main() {
 
 	// Payment routes
 	paymentHandler := handlers.NewPaymentHandler(paymentService)
+	paymentHandler.SetUploadsDir(uploadsDir)
 	paymentHandler.RegisterRoutes(protectedGroup.Group("/payments"))
 
 	// Invoice routes

@@ -27,11 +27,15 @@ func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/stats", h.GetStats)
 	r.GET("/:id", h.GetByID)
 	r.GET("/:id/download", h.Download)
+	r.GET("/:id/linked-payments", h.GetLinkedPayments)
+	r.GET("/:id/suggest-payments", h.SuggestPayments)
 	r.GET("/payment/:paymentId", h.GetByPaymentID)
 	r.POST("/upload", h.Upload)
 	r.POST("/upload-multiple", h.UploadMultiple)
+	r.POST("/:id/link-payment", h.LinkPayment)
 	r.PUT("/:id", h.Update)
 	r.DELETE("/:id", h.Delete)
+	r.DELETE("/:id/unlink-payment", h.UnlinkPayment)
 }
 
 func (h *InvoiceHandler) GetAll(c *gin.Context) {
@@ -255,4 +259,66 @@ func (h *InvoiceHandler) Delete(c *gin.Context) {
 	}
 
 	utils.Success(c, 200, "发票删除成功", nil)
+}
+
+func (h *InvoiceHandler) LinkPayment(c *gin.Context) {
+	id := c.Param("id")
+	
+	var input struct {
+		PaymentID string `json:"payment_id" binding:"required"`
+	}
+	
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.Error(c, 400, "参数错误", err)
+		return
+	}
+
+	if err := h.invoiceService.LinkPayment(id, input.PaymentID); err != nil {
+		utils.Error(c, 500, "关联支付记录失败", err)
+		return
+	}
+
+	utils.Success(c, 200, "关联支付记录成功", nil)
+}
+
+func (h *InvoiceHandler) UnlinkPayment(c *gin.Context) {
+	id := c.Param("id")
+	paymentID := c.Query("payment_id")
+	
+	if paymentID == "" {
+		utils.Error(c, 400, "缺少 payment_id 参数", nil)
+		return
+	}
+
+	if err := h.invoiceService.UnlinkPayment(id, paymentID); err != nil {
+		utils.Error(c, 500, "取消关联失败", err)
+		return
+	}
+
+	utils.Success(c, 200, "取消关联成功", nil)
+}
+
+func (h *InvoiceHandler) GetLinkedPayments(c *gin.Context) {
+	id := c.Param("id")
+	
+	payments, err := h.invoiceService.GetLinkedPayments(id)
+	if err != nil {
+		utils.Error(c, 500, "获取关联支付记录失败", err)
+		return
+	}
+
+	utils.SuccessData(c, payments)
+}
+
+func (h *InvoiceHandler) SuggestPayments(c *gin.Context) {
+	id := c.Param("id")
+	limit := 10 // Default limit
+	
+	payments, err := h.invoiceService.SuggestPayments(id, limit)
+	if err != nil {
+		utils.Error(c, 500, "获取建议支付记录失败", err)
+		return
+	}
+
+	utils.SuccessData(c, payments)
 }

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/ledongthuc/pdf"
 	"github.com/otiai10/gosseract/v2"
@@ -65,6 +66,50 @@ func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
 	return text, nil
 }
 
+// isGarbledText checks if extracted text contains mostly garbled/unrecognizable characters
+func (s *OCRService) isGarbledText(text string) bool {
+	if text == "" {
+		return true
+	}
+	
+	// Count valid characters (Chinese, English, digits)
+	// We're strict about what we consider valid to catch garbled text
+	validChars := 0
+	totalChars := 0
+	
+	for _, r := range text {
+		// Skip whitespace in the count
+		if unicode.IsSpace(r) {
+			continue
+		}
+		
+		totalChars++
+		
+		// Only count clearly valid characters: Chinese, letters, and digits
+		// Common punctuation like ￥¥@#$% are also considered valid
+		if unicode.Is(unicode.Han, r) || // Chinese characters
+			(unicode.IsLetter(r) && r < 128) || // ASCII letters only (not garbage high unicode)
+			unicode.IsDigit(r) || // Numbers
+			r == '，' || r == '。' || r == '、' || r == '：' || r == '；' || // Chinese punctuation
+			r == '\u201c' || r == '\u201d' || r == '\u2018' || r == '\u2019' || // Chinese quotes (using unicode escape)
+			r == '（' || r == '）' || r == '【' || r == '】' || // Chinese brackets
+			r == '￥' || r == '¥' || r == '@' || r == '#' || r == '$' || r == '%' || // Symbols
+			r == '&' || r == '*' || r == '+' || r == '-' || r == '=' || r == '/' { // Math symbols
+			validChars++
+		}
+	}
+	
+	if totalChars == 0 {
+		return true
+	}
+	
+	// If valid character ratio is less than 50%, consider it garbled
+	validRatio := float64(validChars) / float64(totalChars)
+	fmt.Printf("[OCR] Text validity check: %d/%d valid chars (%.2f%%)\n", validChars, totalChars, validRatio*100)
+	
+	return validRatio < 0.5
+}
+
 // RecognizePDF extracts text from PDF, using OCR if necessary
 func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
@@ -79,6 +124,12 @@ func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 	
 	if strings.TrimSpace(text) == "" {
 		fmt.Printf("[OCR] No text found in PDF, attempting OCR conversion\n")
+		return s.pdfToImageOCR(pdfPath)
+	}
+	
+	// Check if extracted text is garbled (common with embedded fonts)
+	if s.isGarbledText(text) {
+		fmt.Printf("[OCR] Detected garbled text, falling back to OCR\n")
 		return s.pdfToImageOCR(pdfPath)
 	}
 	
@@ -414,13 +465,21 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 	
-	// If not found, try to match standalone 20+ digit invoice numbers (electronic invoice format)
-	// Limit to 25 digits to avoid matching unintended long sequences
+	// If not found, try to match standalone invoice numbers (8-25 digits)
+	// This handles old format invoices (8 digits) and electronic invoices (20+ digits)
 	if data.InvoiceNumber == nil {
-		standaloneNumRegex := regexp.MustCompile(`\b(\d{20,25})\b`)
-		if match := standaloneNumRegex.FindStringSubmatch(text); len(match) > 1 {
-			invoiceNum := match[1]
-			data.InvoiceNumber = &invoiceNum
+		// Match 8-digit numbers on their own line (old invoice format)
+		// or 20-25 digit numbers (electronic invoice format)
+		standaloneNumRegex := regexp.MustCompile(`(?m)^(\d{8})$|(?m)^(\d{20,25})$`)
+		if match := standaloneNumRegex.FindStringSubmatch(text); len(match) > 0 {
+			// Check which capture group matched
+			if match[1] != "" {
+				invoiceNum := match[1]
+				data.InvoiceNumber = &invoiceNum
+			} else if match[2] != "" {
+				invoiceNum := match[2]
+				data.InvoiceNumber = &invoiceNum
+			}
 		}
 	}
 
@@ -473,6 +532,23 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if match := chineseAmountRegex.FindStringSubmatch(text); len(match) > 1 {
 			if amount := parseAmount(match[1]); amount != nil {
 				data.Amount = amount
+			}
+		}
+	}
+	
+	// If still not found, try to match standalone amount at the end of text
+	// This handles cases where the amount appears as a final value like "￥19.58"
+	if data.Amount == nil {
+		// Match amount with ￥ or ¥ symbol, possibly on its own line
+		standaloneAmountRegex := regexp.MustCompile(`[¥￥]\s*([\d]+\.[\d]{2})(?:\s*$|\s*\n|$)`)
+		// Find all matches and take the last one (most likely to be the total)
+		matches := standaloneAmountRegex.FindAllStringSubmatch(text, -1)
+		if len(matches) > 0 {
+			lastMatch := matches[len(matches)-1]
+			if len(lastMatch) > 1 {
+				if amount := parseAmount(lastMatch[1]); amount != nil {
+					data.Amount = amount
+				}
 			}
 		}
 	}

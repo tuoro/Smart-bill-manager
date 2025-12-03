@@ -408,3 +408,43 @@ func TestParseInvoiceData_DidiInvoice(t *testing.T) {
 		t.Errorf("Expected BuyerName '个人', got '%s'", *data.BuyerName)
 	}
 }
+
+func TestIsGarbledText(t *testing.T) {
+service := NewOCRService()
+
+// Test valid Chinese text
+validText := "上海增值税电子普通发票 发票号码：12345678"
+if service.isGarbledText(validText) {
+t.Error("Valid Chinese text incorrectly detected as garbled")
+}
+
+// Test valid English text
+validEnglishText := "Invoice Number: 12345678 Amount: $100.00"
+if service.isGarbledText(validEnglishText) {
+t.Error("Valid English text incorrectly detected as garbled")
+}
+
+// Test garbled text (from problem statement)
+garbledText := "T ��N�zT��(Y'Q�)(\\Q�)�T y�:~�zN���R+S�:W0 W@0u5 ��:_b7�LSʍ&S�:e6k>N�:Y"
+if !service.isGarbledText(garbledText) {
+t.Error("Garbled text not detected as garbled")
+}
+
+// Test mostly garbled text with some valid characters
+mostlyGarbledText := "��������a��������b��������"
+if !service.isGarbledText(mostlyGarbledText) {
+t.Error("Mostly garbled text not detected as garbled")
+}
+
+// Test empty text
+if !service.isGarbledText("") {
+t.Error("Empty text should be detected as garbled")
+}
+
+// Test text with valid ratio around 50% (edge case)
+edgeCaseText := "正常文字��������正常文字"
+// This test documents the behavior at the edge case
+// With roughly 50/50 valid/invalid, it should be detected as garbled (< 0.5)
+result := service.isGarbledText(edgeCaseText)
+t.Logf("Edge case (50%% valid) detected as garbled: %v", result)
+}

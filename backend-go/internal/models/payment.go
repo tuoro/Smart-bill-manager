@@ -13,6 +13,8 @@ type Payment struct {
 	PaymentMethod   *string   `json:"payment_method"`
 	Description     *string   `json:"description"`
 	TransactionTime string    `json:"transaction_time" gorm:"not null"`
+	ScreenshotPath  *string   `json:"screenshot_path"`
+	ExtractedData   *string   `json:"extracted_data"`
 	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`
 }
 

@@ -27,8 +27,8 @@ FROM golang:1.24-alpine AS backend-builder
 
 WORKDIR /app/backend
 
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev
+# Install build dependencies including Tesseract
+RUN apk add --no-cache gcc musl-dev tesseract-ocr-dev leptonica-dev pkgconfig
 
 # Copy go mod files
 COPY backend-go/go.mod backend-go/go.sum ./
@@ -47,8 +47,8 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
 # ============================================
 FROM nginx:alpine AS production
 
-# Install supervisor and SQLite runtime
-RUN apk add --no-cache supervisor
+# Install supervisor, SQLite runtime, and Tesseract with language packs
+RUN apk add --no-cache supervisor tesseract-ocr tesseract-ocr-data-chi_sim tesseract-ocr-data-eng
 
 WORKDIR /app
 

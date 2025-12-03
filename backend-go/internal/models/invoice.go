@@ -7,7 +7,7 @@ import (
 // Invoice represents an invoice record
 type Invoice struct {
 	ID            string    `json:"id" gorm:"primaryKey"`
-	PaymentID     *string   `json:"payment_id" gorm:"index"`
+	PaymentID     *string   `json:"payment_id" gorm:"index"` // Keep for backward compatibility
 	Filename      string    `json:"filename" gorm:"not null"`
 	OriginalName  string    `json:"original_name" gorm:"not null"`
 	FilePath      string    `json:"file_path" gorm:"not null"`
@@ -17,6 +17,7 @@ type Invoice struct {
 	Amount        *float64  `json:"amount"`
 	SellerName    *string   `json:"seller_name"`
 	BuyerName     *string   `json:"buyer_name"`
+	TaxAmount     *float64  `json:"tax_amount"` // New field for tax amount
 	ExtractedData *string   `json:"extracted_data"`
 	Source        string    `json:"source" gorm:"default:upload"`
 	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
@@ -24,6 +25,17 @@ type Invoice struct {
 
 func (Invoice) TableName() string {
 	return "invoices"
+}
+
+// InvoicePaymentLink represents the many-to-many relationship between invoices and payments
+type InvoicePaymentLink struct {
+	InvoiceID string    `json:"invoice_id" gorm:"primaryKey;index"`
+	PaymentID string    `json:"payment_id" gorm:"primaryKey;index"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+}
+
+func (InvoicePaymentLink) TableName() string {
+	return "invoice_payment_links"
 }
 
 // InvoiceStats represents invoice statistics

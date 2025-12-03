@@ -163,12 +163,9 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 		return
 	}
 
-	// Determine relative path for storage
-	relPath := filepath.Join("uploads", filename)
-	if h.uploadsDir != "" && !filepath.IsAbs(h.uploadsDir) {
-		// If uploadsDir is already relative, use it
-		relPath = filepath.Join(h.uploadsDir, filename)
-	}
+	// Create relative path for database storage
+	// Always use forward slashes and "uploads/" prefix for consistency
+	relPath := "uploads/" + filename
 
 	// Process screenshot with OCR
 	payment, extracted, err := h.paymentService.CreateFromScreenshot(services.CreateFromScreenshotInput{

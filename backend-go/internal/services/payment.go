@@ -141,7 +141,7 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 	// Create payment record with extracted data
 	payment := &models.Payment{
 		ID:              utils.GenerateUUID(),
-		Amount:          0, // Will be set from extracted data
+		Amount:          0.0, // Default to 0.0, will be updated if amount is extracted
 		Merchant:        extracted.Merchant,
 		PaymentMethod:   extracted.PaymentMethod,
 		TransactionTime: "",
@@ -150,7 +150,7 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 	}
 
 	// Set amount if extracted
-	if extracted.Amount != nil {
+	if extracted.Amount != nil && *extracted.Amount > 0 {
 		payment.Amount = *extracted.Amount
 	}
 

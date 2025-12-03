@@ -115,10 +115,10 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 		RawText: text,
 	}
 
-	// Clean text for better matching
-	text = strings.ReplaceAll(text, " ", "")
-	text = strings.ReplaceAll(text, "\n", " ")
-	text = strings.ReplaceAll(text, "\t", " ")
+	// Normalize text for better matching - remove extra spaces but keep structure
+	text = strings.TrimSpace(text)
+	// Replace multiple spaces with single space
+	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
 
 	// Try to detect payment platform and extract accordingly
 	if s.isWeChatPay(text) {

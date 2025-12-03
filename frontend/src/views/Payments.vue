@@ -366,6 +366,16 @@ import dayjs from 'dayjs'
 import { paymentApi } from '@/api'
 import type { Payment, Invoice } from '@/types'
 
+// Interface for OCR extracted data
+interface OcrExtractedData {
+  amount?: number
+  merchant?: string
+  transaction_time?: string
+  payment_method?: string
+  order_number?: string
+  raw_text?: string
+}
+
 const CATEGORIES = ['餐饮', '交通', '购物', '娱乐', '住房', '医疗', '教育', '通讯', '其他']
 const PAYMENT_METHODS = ['微信支付', '支付宝', '银行卡', '现金', '信用卡', '其他']
 
@@ -391,7 +401,7 @@ const uploadScreenshotModalVisible = ref(false)
 const uploadingScreenshot = ref(false)
 const savingOcrResult = ref(false)
 const screenshotFileList = ref<UploadFile[]>([])
-const ocrResult = ref<Record<string, unknown> | null>(null)
+const ocrResult = ref<OcrExtractedData | null>(null)
 const ocrFormRef = ref<FormInstance>()
 
 // Linked invoices state
@@ -674,18 +684,12 @@ const viewLinkedInvoices = async (payment: Payment) => {
   }
 }
 
-onMounted(() => {
-  loadPayments()
-  loadStats()
-})
-
 // Load linked invoices count when payments are loaded
 const loadPaymentsWithCount = async () => {
   await loadPayments()
   await loadLinkedInvoicesCount()
 }
 
-// Update loadPayments to use the new function
 onMounted(() => {
   loadPaymentsWithCount()
   loadStats()

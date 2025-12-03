@@ -52,5 +52,5 @@ export const invoiceApi = {
   
   // Unlink a payment from an invoice
   unlinkPayment: (invoiceId: string, paymentId: string) =>
-    api.delete<ApiResponse<void>>(`/invoices/${invoiceId}/unlink-payment`, { params: { payment_id: paymentId } }),
+    api.delete<ApiResponse<void>>(`/invoices/${invoiceId}/unlink-payment?payment_id=${paymentId}`),
 }

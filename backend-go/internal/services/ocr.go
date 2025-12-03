@@ -395,11 +395,11 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		RawText: text,
 	}
 
-	// Extract invoice number
+	// Extract invoice number - support both same-line and newline-separated formats
 	invoiceNumRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`发票号码[：:]?\s*(\d+)`),
-		regexp.MustCompile(`发票代码[：:]?\s*(\d+)`),
-		regexp.MustCompile(`No[\.:]?\s*(\d+)`),
+		regexp.MustCompile(`发票号码[：:]?\s*[\n\r]?\s*(\d+)`),
+		regexp.MustCompile(`发票代码[：:]?\s*[\n\r]?\s*(\d+)`),
+		regexp.MustCompile(`No[\.:]?\s*[\n\r]?\s*(\d+)`),
 	}
 	for _, re := range invoiceNumRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
@@ -409,11 +409,11 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 
-	// Extract invoice date
+	// Extract invoice date - support both same-line and newline-separated formats
 	dateRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`开票日期[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
-		regexp.MustCompile(`开票日期[：:]?\s*(\d{4}-\d{2}-\d{2})`),
-		regexp.MustCompile(`日期[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
+		regexp.MustCompile(`开票日期[：:]?\s*[\n\r]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
+		regexp.MustCompile(`开票日期[：:]?\s*[\n\r]?\s*(\d{4}-\d{2}-\d{2})`),
+		regexp.MustCompile(`日期[：:]?\s*[\n\r]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
 	}
 	for _, re := range dateRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
@@ -423,12 +423,13 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 
-	// Extract amount
+	// Extract amount - support newline-separated formats like "（小写）\n¥\n3080.00"
 	amountRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`合计金额[（(]小写[)）][：:]?\s*[¥￥]?([\d,.]+)`),
-		regexp.MustCompile(`价税合计[（(]小写[)）][：:]?\s*[¥￥]?([\d,.]+)`),
-		regexp.MustCompile(`总计[：:]?\s*[¥￥]?([\d,.]+)`),
-		regexp.MustCompile(`金额[：:]?\s*[¥￥]?([\d,.]+)`),
+		regexp.MustCompile(`合计金额[（(]小写[)）][：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
+		regexp.MustCompile(`价税合计[（(]小写[)）][：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
+		regexp.MustCompile(`[（(]小写[)）][：:]?\s*[\n\r]?\s*[¥￥]\s*[\n\r]?\s*([\d,.]+)`),
+		regexp.MustCompile(`总计[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
+		regexp.MustCompile(`金额[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
 	}
 	for _, re := range amountRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
@@ -453,34 +454,60 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 
-	// Extract seller name
+	// Extract seller name - handle both inline and newline-separated formats
+	// First try patterns with explicit "销售方" prefix
 	sellerRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*([^\n]+)`),
-		regexp.MustCompile(`销售方名称[：:]?\s*([^\n]+)`),
-		regexp.MustCompile(`出票方[：:]?\s*([^\n]+)`),
+		regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+		regexp.MustCompile(`销售方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+		regexp.MustCompile(`出票方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
 	}
 	for _, re := range sellerRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			seller := strings.TrimSpace(match[1])
-			if seller != "" {
+			if seller != "" && seller != "信" && seller != "息" {
 				data.SellerName = &seller
 				break
 			}
 		}
 	}
+	
+	// If not found, try to find in seller section context
+	// Look for seller section and extract name from nearby "名称：" pattern
+	if data.SellerName == nil {
+		sellerSectionRegex := regexp.MustCompile(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]+)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
+		if match := sellerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
+			seller := strings.TrimSpace(match[2])
+			if seller != "" && seller != "购" && seller != "买" && seller != "方" {
+				data.SellerName = &seller
+			}
+		}
+	}
 
-	// Extract buyer name
+	// Extract buyer name - handle both inline and newline-separated formats
+	// First try patterns with explicit "购买方" prefix
 	buyerRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*([^\n]+)`),
-		regexp.MustCompile(`购买方名称[：:]?\s*([^\n]+)`),
-		regexp.MustCompile(`购货方[：:]?\s*([^\n]+)`),
+		regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+		regexp.MustCompile(`购买方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+		regexp.MustCompile(`购货方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
 	}
 	for _, re := range buyerRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			buyer := strings.TrimSpace(match[1])
-			if buyer != "" {
+			if buyer != "" && buyer != "信" && buyer != "息" {
 				data.BuyerName = &buyer
 				break
+			}
+		}
+	}
+	
+	// If not found, try to find in buyer section context
+	// Look for buyer section and extract name from nearby "名称：" pattern
+	if data.BuyerName == nil {
+		buyerSectionRegex := regexp.MustCompile(`(?s)购.*?买.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
+		if match := buyerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
+			buyer := strings.TrimSpace(match[2])
+			if buyer != "" && buyer != "销" && buyer != "售" && buyer != "方" {
+				data.BuyerName = &buyer
 			}
 		}
 	}

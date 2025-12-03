@@ -284,6 +284,16 @@
             <el-input v-model="ocrForm.description" type="textarea" :rows="2" placeholder="请输入备注" />
           </el-form-item>
         </el-form>
+
+        <!-- OCR Raw Text Section -->
+        <el-divider v-if="ocrResult?.raw_text" />
+        <div v-if="ocrResult?.raw_text" class="ocr-raw-text-section">
+          <el-collapse>
+            <el-collapse-item title="点击查看 OCR 识别的原始文本" name="1">
+              <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
       </el-card>
 
       <template #footer>
@@ -1042,5 +1052,23 @@ onMounted(() => {
   .amount {
     font-size: 14px;
   }
+}
+
+/* OCR raw text section */
+.ocr-raw-text-section {
+  margin-top: 16px;
+}
+
+.raw-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.6;
+  font-family: var(--font-mono);
 }
 </style>

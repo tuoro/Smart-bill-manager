@@ -58,6 +58,7 @@ var (
 	// Payment parsing - compiled regex patterns for reuse
 	negativeAmountRegex   = regexp.MustCompile(`[-−][\s]*[¥￥]?[\s]*([\d,]+\.?\d*)`)
 	merchantFullNameRegex = regexp.MustCompile(`商户全称[：:]?[\s]*([^\n收单机构支付方式]+?)[\s]*(?:收单机构|支付方式|\n|$)`)
+	merchantGenericRegex  = regexp.MustCompile(`([^\n]+(?:店|行|公司|商户|超市|餐厅|饭店|有限公司))`)
 )
 
 func NewOCRService() *OCRService {
@@ -568,7 +569,7 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 	// This normalizes OCR text like "支 付 时 间" to "支付时间"
 	text = removeChineseSpaces(text)
 
-	// Normalize text for better matching - remove extra spaces but keep structure
+	// Trim leading/trailing whitespace
 	text = strings.TrimSpace(text)
 
 	// Try to detect payment platform and extract accordingly
@@ -899,8 +900,7 @@ func (s *OCRService) extractAmount(text string, data *PaymentExtractedData) {
 // extractGenericMerchant attempts to extract merchant name using generic patterns
 func (s *OCRService) extractGenericMerchant(text string, data *PaymentExtractedData) {
 	// Try to find merchant names that contain common business suffixes
-	shopNameRegex := regexp.MustCompile(`([^\n]+(?:店|行|公司|商户|超市|餐厅|饭店|有限公司))`)
-	if match := shopNameRegex.FindStringSubmatch(text); len(match) > 1 {
+	if match := merchantGenericRegex.FindStringSubmatch(text); len(match) > 1 {
 		merchant := strings.TrimSpace(match[1])
 		if merchant != "" && len(merchant) < MaxMerchantNameLength {
 			data.Merchant = &merchant

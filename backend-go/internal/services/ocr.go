@@ -464,6 +464,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	for _, re := range sellerRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			seller := strings.TrimSpace(match[1])
+			// Filter out section headers like "信息" (information) that might be captured
 			if seller != "" && seller != "信" && seller != "息" {
 				data.SellerName = &seller
 				break
@@ -493,6 +494,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	for _, re := range buyerRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			buyer := strings.TrimSpace(match[1])
+			// Filter out section headers like "信息" (information) that might be captured
 			if buyer != "" && buyer != "信" && buyer != "息" {
 				data.BuyerName = &buyer
 				break

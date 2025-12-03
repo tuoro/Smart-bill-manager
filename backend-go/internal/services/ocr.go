@@ -762,6 +762,207 @@ func (s *OCRService) extractAmount(text string, data *PaymentExtractedData) {
 	}
 }
 
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// cleanupName removes trailing noise from extracted names
+func cleanupName(name string) string {
+	// Remove common trailing patterns
+	// e.g., "上海市虹口区鹏侠百货商店\n售" -> "上海市虹口区鹏侠百货商店"
+	name = strings.TrimSpace(name)
+
+	// Split by multiple spaces (2 or more) and take the first part
+	// This handles cases where the name is followed by other content with significant spacing
+	parts := regexp.MustCompile(`\s{2,}`).Split(name, 2)
+	if len(parts) > 0 {
+		name = parts[0]
+	}
+
+	// Remove trailing single characters that are likely markers
+	trailingPatterns := []string{"销", "售", "购", "买", "方", "信", "息", "密", "码", "区"}
+	for _, pattern := range trailingPatterns {
+		name = strings.TrimSuffix(name, pattern)
+		name = strings.TrimSpace(name)
+	}
+
+	// Remove trailing whitespace and newlines
+	name = strings.TrimRight(name, " \t\n\r")
+
+	return name
+}
+
+// extractBuyerAndSellerByPosition extracts buyer and seller names based on text position
+func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller *string) {
+	// Step 1: Find positions of "购" and "销" markers
+	buyerMarkerIndex := -1
+	sellerMarkerIndex := -1
+
+	// Find "购" marker (购买方)
+	buyerPatterns := []string{"购买方", "购方", "购"}
+	for _, pattern := range buyerPatterns {
+		if idx := strings.Index(text, pattern); idx != -1 {
+			if buyerMarkerIndex == -1 || idx < buyerMarkerIndex {
+				buyerMarkerIndex = idx
+			}
+		}
+	}
+
+	// Find "销" marker (销售方)
+	sellerPatterns := []string{"销售方", "销方", "销"}
+	for _, pattern := range sellerPatterns {
+		if idx := strings.Index(text, pattern); idx != -1 {
+			if sellerMarkerIndex == -1 || idx < sellerMarkerIndex {
+				sellerMarkerIndex = idx
+			}
+		}
+	}
+
+	// Step 2: Find all "名称：XXX" or "名    称:XXX" patterns with their positions
+	// Support formats: "名称：", "名称:", "名   称：", "名   称:"
+	// Use non-greedy match and stop at 3+ spaces, newline, or end of string
+	namePattern := regexp.MustCompile(`名\s*称[：:]\s*([^\n\r]+?)(?:\s{3,}|[\n\r]|$)`)
+	nameMatches := namePattern.FindAllStringSubmatchIndex(text, -1)
+
+	// Step 3: Extract names and associate with buyer/seller based on position
+	type nameEntry struct {
+		name     string
+		position int
+	}
+	var names []nameEntry
+
+	for _, match := range nameMatches {
+		if len(match) >= 4 {
+			name := strings.TrimSpace(text[match[2]:match[3]])
+			// Clean up the name - remove trailing markers
+			name = cleanupName(name)
+			if name != "" && name != "信" && name != "息" {
+				names = append(names, nameEntry{name: name, position: match[0]})
+			}
+		}
+	}
+
+	// Step 4: Associate names with buyer/seller based on proximity to markers
+	if len(names) == 0 {
+		return nil, nil
+	}
+
+	// If we have both markers, use smart positioning logic
+	if buyerMarkerIndex != -1 && sellerMarkerIndex != -1 {
+		// Strategy: Prioritize assignments where marker comes before name (common in structured invoices)
+		// But fall back to closest distance if names come before markers
+		type preference struct {
+			nameIdx      int
+			markerType   string
+			score        int
+			markerBefore bool // true if marker comes before name
+		}
+		
+		var prefs []preference
+		
+		for idx, entry := range names {
+			distToBuyer := abs(entry.position - buyerMarkerIndex)
+			distToSeller := abs(entry.position - sellerMarkerIndex)
+			
+			buyerBefore := buyerMarkerIndex < entry.position
+			sellerBefore := sellerMarkerIndex < entry.position
+			
+			prefs = append(prefs, preference{idx, "buyer", distToBuyer, buyerBefore})
+			prefs = append(prefs, preference{idx, "seller", distToSeller, sellerBefore})
+		}
+		
+		// Check if ANY name has a valid "marker before name" assignment
+		hasValidAssignments := false
+		for _, p := range prefs {
+			if p.markerBefore {
+				hasValidAssignments = true
+				break
+			}
+		}
+		
+		// Sort preferences
+		for i := 0; i < len(prefs); i++ {
+			for j := i + 1; j < len(prefs); j++ {
+				// If we have valid assignments available, prioritize them
+				if hasValidAssignments {
+					if prefs[j].markerBefore && !prefs[i].markerBefore {
+						prefs[i], prefs[j] = prefs[j], prefs[i]
+					} else if prefs[j].markerBefore == prefs[i].markerBefore && prefs[j].score < prefs[i].score {
+						prefs[i], prefs[j] = prefs[j], prefs[i]
+					}
+				} else {
+					// No valid assignments - just sort by distance
+					if prefs[j].score < prefs[i].score {
+						prefs[i], prefs[j] = prefs[j], prefs[i]
+					}
+				}
+			}
+		}
+		
+		// Greedy assignment
+		assignedNames := make(map[int]bool)
+		
+		for _, pref := range prefs {
+			if assignedNames[pref.nameIdx] {
+				continue
+			}
+			
+			if pref.markerType == "buyer" && buyer == nil {
+				nameCopy := names[pref.nameIdx].name
+				buyer = &nameCopy
+				assignedNames[pref.nameIdx] = true
+			} else if pref.markerType == "seller" && seller == nil {
+				nameCopy := names[pref.nameIdx].name
+				seller = &nameCopy
+				assignedNames[pref.nameIdx] = true
+			}
+			
+			if buyer != nil && seller != nil {
+				break
+			}
+		}
+	} else if buyerMarkerIndex != -1 || sellerMarkerIndex != -1 {
+		// Only one marker found - use position relative to that marker
+		markerIndex := buyerMarkerIndex
+		if sellerMarkerIndex != -1 {
+			markerIndex = sellerMarkerIndex
+		}
+
+		var beforeNames, afterNames []nameEntry
+		for _, entry := range names {
+			if entry.position < markerIndex {
+				beforeNames = append(beforeNames, entry)
+			} else {
+				afterNames = append(afterNames, entry)
+			}
+		}
+
+		// The name after the marker belongs to that party
+		// The name before belongs to the other party
+		if buyerMarkerIndex != -1 {
+			if len(afterNames) > 0 {
+				buyer = &afterNames[0].name
+			}
+			if len(beforeNames) > 0 {
+				seller = &beforeNames[len(beforeNames)-1].name
+			}
+		} else {
+			if len(afterNames) > 0 {
+				seller = &afterNames[0].name
+			}
+			if len(beforeNames) > 0 {
+				buyer = &beforeNames[len(beforeNames)-1].name
+			}
+		}
+	}
+
+	return buyer, seller
+}
+
 // ParseInvoiceData extracts invoice information from OCR text
 func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error) {
 	data := &InvoiceExtractedData{
@@ -805,6 +1006,16 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			date := match[1]
 			data.InvoiceDate = &date
 			break
+		}
+	}
+
+	// If not found, try to match space-separated date format: "2025 年07 月02 日"
+	if data.InvoiceDate == nil {
+		spaceDelimitedDateRegex := regexp.MustCompile(`开票日期[：:]?\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日`)
+		if match := spaceDelimitedDateRegex.FindStringSubmatch(text); len(match) > 3 {
+			// Reconstruct date: "2025年07月02日"
+			date := fmt.Sprintf("%s年%s月%s日", match[1], match[2], match[3])
+			data.InvoiceDate = &date
 		}
 	}
 
@@ -879,115 +1090,126 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 
-	// Extract seller name - handle both inline and newline-separated formats
-	// First try patterns with explicit "销售方" prefix
-	sellerRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-		regexp.MustCompile(`销售方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-		regexp.MustCompile(`出票方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-	}
-	for _, re := range sellerRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			seller := strings.TrimSpace(match[1])
-			// Filter out section headers like "信息" (information) that might be captured
-			if seller != "" && seller != "信" && seller != "息" {
-				data.SellerName = &seller
-				break
-			}
-		}
-	}
+	// Use position-based method to extract buyer and seller names
+	buyer, seller := s.extractBuyerAndSellerByPosition(text)
+	data.BuyerName = buyer
+	data.SellerName = seller
 
-	// If not found, try to find in seller section context
-	// Look for seller section and extract tax ID followed by name
-	// Format: "销售方信息 统一社会信用代码/纳税人识别号：92310109MA1KMFLM1K 名称：上海市虹口区鹏侠百货商店"
-	if data.SellerName == nil {
-		// Match tax ID followed by company name
-		sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
-		if match := sellerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
-			seller := strings.TrimSpace(match[2])
-			if seller != "" && seller != "购" && seller != "买" && seller != "方" {
-				data.SellerName = &seller
-			}
-		}
-	}
-
-	// If still not found, try a more flexible pattern looking for tax ID followed by name
-	// This handles cases where the seller info appears without explicit section markers
-	if data.SellerName == nil {
-		// Look for patterns like: tax ID on one line, then "名称：" followed by name
-		flexibleSellerRegex := regexp.MustCompile(fmt.Sprintf(`\b(%s)\b[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
-		if match := flexibleSellerRegex.FindStringSubmatch(text); len(match) > 2 {
-			seller := strings.TrimSpace(match[2])
-			// Additional validation: check if this looks like a company name
-			// Sellers should not be "个人" (individual) - that would be a buyer
-			if seller != "" && len(seller) > 2 && seller != "个人" {
-				data.SellerName = &seller
-			}
-		}
-	}
-
-	// If still not found, try to find company name appearing BEFORE tax ID
-	// This is common in OCR output where data sequence differs from labels
-	// Pattern: company name (containing 公司/商店/企业/中心/etc.) on one line, followed by tax ID
-	if data.SellerName == nil {
-		// Look for company/store name followed by tax ID on next line
-		// Company indicators: 公司, 商店, 企业, 中心, 厂, 店, etc.
-		companyBeforeTaxIDRegex := regexp.MustCompile(fmt.Sprintf(`([^\n\r]*(?:公司|商店|企业|中心|厂|店|行|社|院|局|部)[^\n\r]*)[\s\n\r]+(%s)`, taxIDPattern))
-		if match := companyBeforeTaxIDRegex.FindStringSubmatch(text); len(match) > 2 {
-			seller := strings.TrimSpace(match[1])
-			// Validate it's not too short and doesn't contain obvious non-name content
-			if len(seller) > 3 && seller != "个人" {
-				data.SellerName = &seller
-			}
-		}
-	}
-
-	// Extract buyer name - handle both inline and newline-separated formats
-	// First try patterns with explicit "购买方" prefix
-	buyerRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-		regexp.MustCompile(`购买方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-		regexp.MustCompile(`购货方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-	}
-	for _, re := range buyerRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			buyer := strings.TrimSpace(match[1])
-			// Filter out section headers like "信息" (information) that might be captured
-			// Also filter out labels like "名称：" or "名称:"
-			if buyer != "" && buyer != "信" && buyer != "息" && buyer != "名称：" && buyer != "名称:" {
-				data.BuyerName = &buyer
-				break
-			}
-		}
-	}
-
-	// If not found, try to find in buyer section context
-	// Look for buyer section and extract tax ID followed by name or just name
-	// Format: "购买方信息 统一社会信用代码/纳税人识别号： 名称：个人"
+	// If position-based method didn't find buyer, try fallback regex methods
 	if data.BuyerName == nil {
-		// Match tax ID (optional, may be empty for individuals) followed by name
-		buyerSectionRegex := regexp.MustCompile(`(?s)购.*?买.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
-		if match := buyerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
-			buyer := strings.TrimSpace(match[2])
-			// Filter out labels and section markers
-			if buyer != "" && buyer != "销" && buyer != "售" && buyer != "方" && buyer != "名称：" && buyer != "名称:" {
+		// Extract buyer name - handle both inline and newline-separated formats
+		// First try patterns with explicit "购买方" prefix
+		buyerRegexes := []*regexp.Regexp{
+			regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+			regexp.MustCompile(`购买方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+			regexp.MustCompile(`购货方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+		}
+		for _, re := range buyerRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				buyer := strings.TrimSpace(match[1])
+				// Filter out section headers like "信息" (information) that might be captured
+				// Also filter out labels like "名称：" or "名称:"
+				if buyer != "" && buyer != "信" && buyer != "息" && buyer != "名称：" && buyer != "名称:" {
+					data.BuyerName = &buyer
+					break
+				}
+			}
+		}
+
+		// If not found, try to find in buyer section context
+		// Look for buyer section and extract tax ID followed by name or just name
+		// Format: "购买方信息 统一社会信用代码/纳税人识别号： 名称：个人"
+		if data.BuyerName == nil {
+			// Match tax ID (optional, may be empty for individuals) followed by name
+			buyerSectionRegex := regexp.MustCompile(`(?s)购.*?买.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
+			if match := buyerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
+				buyer := strings.TrimSpace(match[2])
+				// Filter out labels and section markers
+				if buyer != "" && buyer != "销" && buyer != "售" && buyer != "方" && buyer != "名称：" && buyer != "名称:" {
+					data.BuyerName = &buyer
+				}
+			}
+		}
+
+		// If still not found, try to match "个人" (individual) as a standalone buyer
+		if data.BuyerName == nil {
+			individualRegex := regexp.MustCompile(`(个人)`)
+			if match := individualRegex.FindStringSubmatch(text); len(match) > 1 {
+				buyer := match[1]
 				data.BuyerName = &buyer
 			}
 		}
-	}
 
-	// If still not found, try to match "个人" (individual) as a standalone buyer
-	if data.BuyerName == nil {
-		individualRegex := regexp.MustCompile(`(个人)`)
-		if match := individualRegex.FindStringSubmatch(text); len(match) > 1 {
-			buyer := match[1]
-			data.BuyerName = &buyer
+		// Final cleanup: if buyer name was set to a label by mistake, clear it
+		if data.BuyerName != nil && (*data.BuyerName == "名称：" || *data.BuyerName == "名称:") {
+			data.BuyerName = nil
 		}
 	}
 
-	// Final cleanup: if buyer name was set to a label by mistake, clear it
-	if data.BuyerName != nil && (*data.BuyerName == "名称：" || *data.BuyerName == "名称:") {
-		data.BuyerName = nil
+	// If position-based method didn't find seller, try fallback regex methods
+	if data.SellerName == nil {
+		// Extract seller name - handle both inline and newline-separated formats
+		// First try patterns with explicit "销售方" prefix
+		sellerRegexes := []*regexp.Regexp{
+			regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+			regexp.MustCompile(`销售方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+			regexp.MustCompile(`出票方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+		}
+		for _, re := range sellerRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				seller := strings.TrimSpace(match[1])
+				// Filter out section headers like "信息" (information) that might be captured
+				if seller != "" && seller != "信" && seller != "息" {
+					data.SellerName = &seller
+					break
+				}
+			}
+		}
+
+		// If not found, try to find in seller section context
+		// Look for seller section and extract tax ID followed by name
+		// Format: "销售方信息 统一社会信用代码/纳税人识别号：92310109MA1KMFLM1K 名称：上海市虹口区鹏侠百货商店"
+		if data.SellerName == nil {
+			// Match tax ID followed by company name
+			sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
+			if match := sellerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
+				seller := strings.TrimSpace(match[2])
+				if seller != "" && seller != "购" && seller != "买" && seller != "方" {
+					data.SellerName = &seller
+				}
+			}
+		}
+
+		// If still not found, try a more flexible pattern looking for tax ID followed by name
+		// This handles cases where the seller info appears without explicit section markers
+		if data.SellerName == nil {
+			// Look for patterns like: tax ID on one line, then "名称：" followed by name
+			flexibleSellerRegex := regexp.MustCompile(fmt.Sprintf(`\b(%s)\b[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
+			if match := flexibleSellerRegex.FindStringSubmatch(text); len(match) > 2 {
+				seller := strings.TrimSpace(match[2])
+				// Additional validation: check if this looks like a company name
+				// Sellers should not be "个人" (individual) - that would be a buyer
+				if seller != "" && len(seller) > 2 && seller != "个人" {
+					data.SellerName = &seller
+				}
+			}
+		}
+
+		// If still not found, try to find company name appearing BEFORE tax ID
+		// This is common in OCR output where data sequence differs from labels
+		// Pattern: company name (containing 公司/商店/企业/中心/etc.) on one line, followed by tax ID
+		if data.SellerName == nil {
+			// Look for company/store name followed by tax ID on next line
+			// Company indicators: 公司, 商店, 企业, 中心, 厂, 店, etc.
+			companyBeforeTaxIDRegex := regexp.MustCompile(fmt.Sprintf(`([^\n\r]*(?:公司|商店|企业|中心|厂|店|行|社|院|局|部)[^\n\r]*)[\s\n\r]+(%s)`, taxIDPattern))
+			if match := companyBeforeTaxIDRegex.FindStringSubmatch(text); len(match) > 2 {
+				seller := strings.TrimSpace(match[1])
+				// Validate it's not too short and doesn't contain obvious non-name content
+				if len(seller) > 3 && seller != "个人" {
+					data.SellerName = &seller
+				}
+			}
+		}
 	}
 
 	return data, nil

@@ -677,6 +677,164 @@ func TestExtractDates(t *testing.T) {
 	}
 }
 
+func TestExtractBuyerAndSellerByPosition(t *testing.T) {
+	service := NewOCRService()
+
+	// Test case 1: Left-right layout (buyer left, seller right) - Invoice One from problem statement
+	t.Run("LeftRightLayout", func(t *testing.T) {
+		text1 := `购 名称：个人                                       销 名称：上海市虹口区鹏侠百货商店
+买                                             售
+方                                             方
+信 统一社会信用代码/纳税人识别号：                            信 统一社会信用代码/纳税人识别号：92310109MA1KMFLM1K`
+
+		buyer1, seller1 := service.extractBuyerAndSellerByPosition(text1)
+
+		if buyer1 == nil {
+			t.Error("Buyer is nil, expected '个人'")
+		} else if *buyer1 != "个人" {
+			t.Errorf("Expected buyer '个人', got '%s'", *buyer1)
+		}
+
+		if seller1 == nil {
+			t.Error("Seller is nil, expected '上海市虹口区鹏侠百货商店'")
+		} else if *seller1 != "上海市虹口区鹏侠百货商店" {
+			t.Errorf("Expected seller '上海市虹口区鹏侠百货商店', got '%s'", *seller1)
+		}
+	})
+
+	// Test case 2: Top-bottom layout (buyer top, seller bottom) - Invoice Two from problem statement
+	t.Run("TopBottomLayout", func(t *testing.T) {
+		text2 := `    名       称: 武亚峰                                             密       *14<<...
+购
+    纳税人识别号:                                                            ...
+买
+...
+    名       称:中国移动通信集团上海有限公司                                        业务流水号...
+销
+    纳税人识别号:91310000132149237G
+售`
+
+		buyer2, seller2 := service.extractBuyerAndSellerByPosition(text2)
+
+		if buyer2 == nil {
+			t.Error("Buyer is nil, expected '武亚峰'")
+		} else if *buyer2 != "武亚峰" {
+			t.Errorf("Expected buyer '武亚峰', got '%s'", *buyer2)
+		}
+
+		if seller2 == nil {
+			t.Error("Seller is nil, expected '中国移动通信集团上海有限公司'")
+		} else if *seller2 != "中国移动通信集团上海有限公司" {
+			t.Errorf("Expected seller '中国移动通信集团上海有限公司', got '%s'", *seller2)
+		}
+	})
+
+	// Test case 3: No markers found
+	t.Run("NoMarkers", func(t *testing.T) {
+		text3 := `名称：测试公司`
+
+		buyer3, seller3 := service.extractBuyerAndSellerByPosition(text3)
+
+		// Should return nil when no markers are found
+		if buyer3 != nil || seller3 != nil {
+			t.Error("Expected both buyer and seller to be nil when no markers found")
+		}
+	})
+
+	// Test case 4: Only buyer marker
+	t.Run("OnlyBuyerMarker", func(t *testing.T) {
+		text4 := `购买方
+名称：张三`
+
+		buyer4, seller4 := service.extractBuyerAndSellerByPosition(text4)
+
+		if buyer4 == nil {
+			t.Error("Buyer is nil, expected '张三'")
+		} else if *buyer4 != "张三" {
+			t.Errorf("Expected buyer '张三', got '%s'", *buyer4)
+		}
+
+		// Seller should be nil
+		if seller4 != nil {
+			t.Errorf("Expected seller to be nil, got '%s'", *seller4)
+		}
+	})
+
+	// Test case 5: Only seller marker
+	t.Run("OnlySellerMarker", func(t *testing.T) {
+		text5 := `销售方
+名称：某某公司`
+
+		buyer5, seller5 := service.extractBuyerAndSellerByPosition(text5)
+
+		if seller5 == nil {
+			t.Error("Seller is nil, expected '某某公司'")
+		} else if *seller5 != "某某公司" {
+			t.Errorf("Expected seller '某某公司', got '%s'", *seller5)
+		}
+
+		// Buyer should be nil
+		if buyer5 != nil {
+			t.Errorf("Expected buyer to be nil, got '%s'", *buyer5)
+		}
+	})
+}
+
+func TestParseInvoiceData_SpaceSeparatedDate(t *testing.T) {
+	service := NewOCRService()
+
+	// Test case for Invoice Two from problem statement with space-separated date
+	sampleText := `电子发票（普通发票）
+开票日期: 2025 年07 月02 日
+名       称: 武亚峰
+购
+买
+方
+纳税人识别号:
+名       称:中国移动通信集团上海有限公司
+销
+售
+方
+纳税人识别号:91310000132149237G
+价税合计（小写）¥100.00`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+
+	// Test invoice date - should parse space-separated format
+	if data.InvoiceDate == nil {
+		t.Error("InvoiceDate is nil - should extract '2025年07月02日'")
+	} else if *data.InvoiceDate != "2025年07月02日" {
+		t.Errorf("Expected InvoiceDate '2025年07月02日', got '%s'", *data.InvoiceDate)
+	}
+
+	// Test buyer name - should extract using position-based method
+	if data.BuyerName == nil {
+		t.Error("BuyerName is nil - should extract '武亚峰'")
+	} else if *data.BuyerName != "武亚峰" {
+		t.Errorf("Expected BuyerName '武亚峰', got '%s'", *data.BuyerName)
+	}
+
+	// Test seller name - should extract using position-based method
+	if data.SellerName == nil {
+		t.Error("SellerName is nil - should extract '中国移动通信集团上海有限公司'")
+	} else if *data.SellerName != "中国移动通信集团上海有限公司" {
+		t.Errorf("Expected SellerName '中国移动通信集团上海有限公司', got '%s'", *data.SellerName)
+	}
+
+	// Test amount
+	if data.Amount == nil {
+		t.Error("Amount is nil")
+	} else {
+		expectedAmount := 100.00
+		if *data.Amount != expectedAmount {
+			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
+		}
+	}
+}
+
 func TestMergeExtractionResults(t *testing.T) {
 	service := NewOCRService()
 

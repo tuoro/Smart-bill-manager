@@ -201,10 +201,12 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	// Use pdftoppm to convert PDF to PNG images
 	// pdftoppm -png -r 300 input.pdf outputPrefix
 	// Note: exec.Command properly escapes arguments, preventing shell injection
+	// pdftoppm outputs files with pattern: outputPrefix-N.png where N is page number
 	outputPrefix := filepath.Join(tempDir, "page")
 	cmd := exec.Command("pdftoppm", "-png", "-r", "300", pdfPath, outputPrefix)
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("failed to convert PDF to images with pdftoppm: %w", err)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to convert PDF to images with pdftoppm: %w (output: %s)", err, string(output))
 	}
 
 	// Find generated image files

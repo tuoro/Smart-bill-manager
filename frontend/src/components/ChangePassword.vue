@@ -178,22 +178,44 @@ const handleSubmit = async () => {
 
 .strength-indicator {
   font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all var(--transition-base);
+  display: inline-block;
 }
 
 .strength-indicator.weak {
   color: #f56c6c;
-  background-color: #fef0f0;
+  background: linear-gradient(135deg, rgba(245, 108, 108, 0.15), rgba(245, 86, 108, 0.15));
 }
 
 .strength-indicator.medium {
   color: #e6a23c;
-  background-color: #fdf6ec;
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.15), rgba(254, 225, 64, 0.15));
 }
 
 .strength-indicator.strong {
   color: #67c23a;
-  background-color: #f0f9ec;
+  background: linear-gradient(135deg, rgba(103, 194, 58, 0.15), rgba(56, 249, 215, 0.15));
+}
+
+/* Form enhancements */
+:deep(.el-form-item__label) {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+:deep(.el-input__wrapper) {
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+:deep(.el-input__wrapper:hover) {
+  box-shadow: var(--shadow-sm);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 </style>

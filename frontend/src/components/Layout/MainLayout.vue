@@ -136,6 +136,20 @@ const handleUserCommand = (command: string) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: width var(--transition-base);
+  position: relative;
+}
+
+/* Glassmorphism overlay for sidebar */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+  pointer-events: none;
 }
 
 .logo {
@@ -149,19 +163,62 @@ const handleUserCommand = (command: string) => {
   border-bottom: 1px solid rgba(255,255,255,0.1);
   white-space: nowrap;
   overflow: hidden;
+  transition: all var(--transition-base);
+  position: relative;
+  z-index: 1;
 }
 
 .sidebar-menu {
   flex: 1;
   border-right: none;
+  padding: 8px 0;
 }
 
 .sidebar-menu:not(.el-menu--collapse) {
   width: 200px;
 }
 
+:deep(.el-menu-item) {
+  margin: 4px 8px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+:deep(.el-menu-item::before) {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #1890ff;
+  transform: scaleY(0);
+  transition: transform var(--transition-base);
+}
+
+:deep(.el-menu-item:hover) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  transform: translateX(2px);
+}
+
 :deep(.el-menu-item.is-active) {
-  background: linear-gradient(90deg, #1890ff 0%, transparent 100%) !important;
+  background: rgba(24, 144, 255, 0.15) !important;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
+}
+
+:deep(.el-menu-item.is-active::before) {
+  transform: scaleY(1);
+}
+
+:deep(.el-menu-item .el-icon) {
+  transition: all var(--transition-base);
+}
+
+:deep(.el-menu-item:hover .el-icon),
+:deep(.el-menu-item.is-active .el-icon) {
+  transform: scale(1.1);
 }
 
 .collapse-trigger {
@@ -172,10 +229,22 @@ const handleUserCommand = (command: string) => {
   background: rgba(0, 0, 0, 0.2);
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
+  transition: all var(--transition-base);
+  position: relative;
+  z-index: 1;
 }
 
 .collapse-trigger:hover {
   color: #1890ff;
+  background: rgba(24, 144, 255, 0.1);
+}
+
+.collapse-trigger .el-icon {
+  transition: transform var(--transition-base);
+}
+
+.collapse-trigger:hover .el-icon {
+  transform: scale(1.2);
 }
 
 .header {
@@ -184,12 +253,20 @@ const handleUserCommand = (command: string) => {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  box-shadow: 0 1px 4px rgba(0,21,41,.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+  z-index: 10;
 }
 
 .page-title {
   margin: 0;
-  color: #1890ff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 20px;
+  font-weight: 600;
+  animation: slideInLeft 0.3s ease;
 }
 
 .header-right {
@@ -203,16 +280,79 @@ const handleUserCommand = (command: string) => {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.user-info:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.user-info :deep(.el-avatar) {
+  transition: all var(--transition-base);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.user-info:hover :deep(.el-avatar) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .username {
-  color: #333;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  transition: color var(--transition-base);
+}
+
+.user-info:hover .username {
+  color: var(--color-primary);
 }
 
 .main-content {
-  background: #f0f2f5;
+  background: var(--color-bg-primary);
   padding: 24px;
   min-height: 280px;
-  border-radius: 8px;
+  overflow-y: auto;
+  animation: fadeIn 0.3s ease;
+}
+
+/* Page transition */
+.main-content > * {
+  animation: fadeIn 0.4s ease;
+}
+
+/* Dropdown menu enhancements */
+:deep(.el-dropdown-menu__item) {
+  transition: all var(--transition-base);
+  border-radius: var(--radius-sm);
+  margin: 4px 8px;
+}
+
+:deep(.el-dropdown-menu__item:hover) {
+  background: rgba(102, 126, 234, 0.1);
+  transform: translateX(2px);
+}
+
+:deep(.el-dropdown-menu__item .el-icon) {
+  transition: all var(--transition-base);
+}
+
+:deep(.el-dropdown-menu__item:hover .el-icon) {
+  transform: scale(1.1);
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 0 16px;
+  }
+  
+  .page-title {
+    font-size: 18px;
+  }
+  
+  .username {
+    display: none;
+  }
 }
 </style>

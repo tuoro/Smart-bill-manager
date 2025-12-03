@@ -7,8 +7,8 @@ build/
 *.log
 
 # Data
-backend/data/
-backend/uploads/
+backend-go/data/
+backend-go/uploads/
 
 # Environment
 .env

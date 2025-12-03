@@ -8,7 +8,6 @@ services:
     ports:
       - "80:80"
     environment:
-      - NODE_ENV=production
       # Optional: Set a secure JWT secret (recommended for production)
       # - JWT_SECRET=your-secure-random-secret-key
       # Optional: Set admin password (otherwise a random password is generated)

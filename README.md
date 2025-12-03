@@ -275,7 +275,6 @@ Smart-bill-manager/
 │   │   └── database/        # 数据库连接
 │   ├── go.mod
 │   └── go.sum
-├── backend/                 # (已废弃) Node.js 后端服务
 ├── frontend/               # 前端应用
 │   ├── src/
 │   │   ├── main.ts         # Vue 应用入口

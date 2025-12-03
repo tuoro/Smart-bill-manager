@@ -2,7 +2,6 @@
 **/node_modules
 
 # Build outputs
-backend/dist
 frontend/dist
 
 # Development files
@@ -32,5 +31,5 @@ frontend/dist
 **/npm-debug.log*
 
 # Local data (will be mounted as volumes)
-backend/data
-backend/uploads
+backend-go/data
+backend-go/uploads

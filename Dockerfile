@@ -75,7 +75,6 @@ RUN mkdir -p /var/log/supervisor
 EXPOSE 80
 
 # Set environment variables
-ENV NODE_ENV=production
 ENV PORT=3001
 
 # Start supervisord which manages both nginx and Go backend

@@ -311,44 +311,125 @@ onMounted(() => {
 
 .stat-card {
   color: white;
+  border: none;
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.stat-card:hover::before {
+  opacity: 1;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
 }
 
 .stat-card :deep(.el-statistic__head) {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 
 .stat-card :deep(.el-statistic__content) {
   color: white;
+  font-weight: 700;
+}
+
+.stat-card :deep(.el-icon) {
+  transition: transform var(--transition-base);
+  font-size: 20px;
+}
+
+.stat-card:hover :deep(.el-icon) {
+  transform: scale(1.1) rotate(5deg);
 }
 
 .gradient-purple {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.gradient-purple:hover {
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
 }
 
 .gradient-pink {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+}
+
+.gradient-pink:hover {
+  box-shadow: 0 8px 25px rgba(240, 147, 251, 0.5);
 }
 
 .gradient-blue {
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+}
+
+.gradient-blue:hover {
+  box-shadow: 0 8px 25px rgba(79, 172, 254, 0.5);
 }
 
 .gradient-green {
   background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  box-shadow: 0 4px 15px rgba(67, 233, 123, 0.4);
+}
+
+.gradient-green:hover {
+  box-shadow: 0 8px 25px rgba(67, 233, 123, 0.5);
 }
 
 .charts-row {
   margin-bottom: 16px;
 }
 
+.el-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+}
+
+.el-card:not(.stat-card):hover {
+  box-shadow: var(--shadow-md);
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.card-header span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-header :deep(.el-icon) {
+  color: var(--color-primary);
 }
 
 .chart-container {
   height: 300px;
+  position: relative;
 }
 
 .pie-card {
@@ -363,10 +444,21 @@ onMounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.monitor-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  transform: translateX(4px);
 }
 
 .monitor-label {
   margin-right: 8px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
 }
 
 .monitor-progress {
@@ -380,9 +472,88 @@ onMounted(() => {
 
 .source-card {
   text-align: center;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.source-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .source-card :deep(.el-statistic__number) {
   font-size: 20px;
+  font-weight: 700;
+}
+
+.source-card :deep(.el-statistic__head) {
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+/* Table enhancements */
+:deep(.el-table) {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+:deep(.el-table thead) {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+}
+
+:deep(.el-table th) {
+  background: transparent !important;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+:deep(.el-table tbody tr) {
+  transition: all var(--transition-fast);
+}
+
+:deep(.el-table tbody tr:hover) {
+  background: rgba(102, 126, 234, 0.05) !important;
+}
+
+/* Tag enhancements */
+:deep(.el-tag) {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all var(--transition-base);
+}
+
+:deep(.el-tag:hover) {
+  transform: scale(1.05);
+}
+
+/* Progress bar enhancements */
+:deep(.el-progress__text) {
+  font-weight: 600;
+}
+
+/* Empty state */
+:deep(.el-empty) {
+  padding: 40px 0;
+}
+
+:deep(.el-empty__description) {
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+/* Loading animation */
+:deep(.el-loading-spinner) {
+  font-size: 32px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .chart-container {
+    height: 250px;
+  }
+  
+  .stat-card :deep(.el-statistic__content) {
+    font-size: 20px;
+  }
 }
 </style>

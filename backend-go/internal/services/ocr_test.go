@@ -281,3 +281,130 @@ func TestParseInvoiceData_RealWorldFormat(t *testing.T) {
 		t.Errorf("Expected BuyerName '个人', got '%s'", *data.BuyerName)
 	}
 }
+
+func TestParseInvoiceData_DidiInvoice(t *testing.T) {
+	service := NewOCRService()
+
+	// Real OCR text from Didi invoice with 8-digit invoice number and full-width ￥ symbol
+	sampleText := `合
+计
+备
+注
+上海增值税电子普通发票
+价税合计（大写）
+（小写）
+货物或应税劳务、服务名称
+规格型号
+单位
+数　量
+单　价
+金　额
+税率
+税　额
+购
+买
+方
+销
+售
+方
+收 款 人:
+复 核:
+开 票 人:
+销 售 方:（章）
+密
+码
+区
+机器编号:
+名　　　　称:
+纳税人识别号:
+地 址、
+开户行及账号:
+名　　　　称:
+纳税人识别号:
+地 址、
+开户行及账号:
+发票代码:
+发票号码:
+开票日期:
+校
+验
+码:
+电 话:
+电 话:
+￥19.01
+￥0.57
+*运输服务*客运服务费
+无
+次
+1
+24
+24.00
+3%
+0.72
+*运输服务*客运服务费
+-4.99
+3%
+-0.15
+499098504973
+壹拾玖圆不角扌分
+杜洪亮
+张唯
+于秋红
+03<5>/42>5541143639+79737-<*
+59765*+75/>89+/47732281674/2
+15<5>/42>5541143631>239-3/<5
++7*9>//<310193<219+4/8-4528-
+个人
+上海滴滴畅行科技有限公司
+91310114MA1GW61J6U
+上海市静安区万荣路777弄12号202-7室010-83456275
+招商银行股份有限公司上海东方支行121932981110606
+031002300211
+70739906
+2024年07月06日
+07908 63166 90581 33371
+￥19.58`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+
+	// Test invoice number - should extract 8-digit number
+	if data.InvoiceNumber == nil {
+		t.Error("InvoiceNumber is nil - should extract '70739906'")
+	} else if *data.InvoiceNumber != "70739906" {
+		t.Errorf("Expected InvoiceNumber '70739906', got '%s'", *data.InvoiceNumber)
+	}
+
+	// Test invoice date
+	if data.InvoiceDate == nil {
+		t.Error("InvoiceDate is nil")
+	} else if *data.InvoiceDate != "2024年07月06日" {
+		t.Errorf("Expected InvoiceDate '2024年07月06日', got '%s'", *data.InvoiceDate)
+	}
+
+	// Test amount - should extract 19.58 with full-width ￥ symbol
+	if data.Amount == nil {
+		t.Error("Amount is nil - should extract '19.58'")
+	} else {
+		expectedAmount := 19.58
+		if *data.Amount != expectedAmount {
+			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
+		}
+	}
+
+	// Test seller name
+	if data.SellerName == nil {
+		t.Error("SellerName is nil")
+	} else if *data.SellerName != "上海滴滴畅行科技有限公司" {
+		t.Errorf("Expected SellerName '上海滴滴畅行科技有限公司', got '%s'", *data.SellerName)
+	}
+
+	// Test buyer name
+	if data.BuyerName == nil {
+		t.Error("BuyerName is nil")
+	} else if *data.BuyerName != "个人" {
+		t.Errorf("Expected BuyerName '个人', got '%s'", *data.BuyerName)
+	}
+}

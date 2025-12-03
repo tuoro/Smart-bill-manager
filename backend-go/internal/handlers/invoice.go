@@ -33,6 +33,7 @@ func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/upload", h.Upload)
 	r.POST("/upload-multiple", h.UploadMultiple)
 	r.POST("/:id/link-payment", h.LinkPayment)
+	r.POST("/:id/parse", h.Parse)
 	r.PUT("/:id", h.Update)
 	r.DELETE("/:id", h.Delete)
 	r.DELETE("/:id/unlink-payment", h.UnlinkPayment)
@@ -321,4 +322,16 @@ func (h *InvoiceHandler) SuggestPayments(c *gin.Context) {
 	}
 
 	utils.SuccessData(c, payments)
+}
+
+func (h *InvoiceHandler) Parse(c *gin.Context) {
+	id := c.Param("id")
+	
+	invoice, err := h.invoiceService.Reparse(id)
+	if err != nil {
+		utils.Error(c, 500, "解析发票失败", err)
+		return
+	}
+
+	utils.Success(c, 200, "发票解析完成", invoice)
 }

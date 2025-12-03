@@ -19,6 +19,9 @@ type Invoice struct {
 	BuyerName     *string   `json:"buyer_name"`
 	TaxAmount     *float64  `json:"tax_amount"` // New field for tax amount
 	ExtractedData *string   `json:"extracted_data"`
+	ParseStatus   string    `json:"parse_status" gorm:"default:pending"` // pending/parsing/success/failed
+	ParseError    *string   `json:"parse_error"`
+	RawText       *string   `json:"raw_text"` // OCR extracted raw text for frontend display
 	Source        string    `json:"source" gorm:"default:upload"`
 	CreatedAt     time.Time `json:"created_at" gorm:"autoCreateTime"`
 }

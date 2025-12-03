@@ -74,6 +74,9 @@
         <router-view />
       </el-main>
     </el-container>
+    
+    <!-- Change Password Dialog -->
+    <ChangePassword v-model="showChangePasswordDialog" />
   </el-container>
 </template>
 
@@ -86,12 +89,14 @@ import {
   User, Key, SwitchButton, Expand, Fold
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import ChangePassword from '@/components/ChangePassword.vue'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
 const isCollapsed = ref(false)
+const showChangePasswordDialog = ref(false)
 
 const currentRoute = computed(() => route.path)
 
@@ -116,7 +121,7 @@ const handleUserCommand = (command: string) => {
     ElMessage.success('已退出登录')
     router.push('/login')
   } else if (command === 'change-password') {
-    ElMessage.info('修改密码功能开发中...')
+    showChangePasswordDialog.value = true
   }
 }
 </script>

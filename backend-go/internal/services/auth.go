@@ -165,53 +165,44 @@ func (s *AuthService) HasUsers() (bool, error) {
 	return count > 0, nil
 }
 
-// EnsureAdminExists creates default admin if no users exist
-func (s *AuthService) EnsureAdminExists() error {
+// CreateInitialAdmin creates the first admin user during setup
+func (s *AuthService) CreateInitialAdmin(username, password string, email *string) (*AuthResult, error) {
+	// Only allow if no users exist
 	hasUsers, err := s.HasUsers()
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if hasUsers {
+		return &AuthResult{Success: false, Message: "系统已初始化，无法重复设置"}, nil
 	}
 
-	if !hasUsers {
-		// Get or generate admin password
-		adminPassword := config.AppConfig.AdminPassword
-		isRandomPassword := adminPassword == ""
-		
-		if isRandomPassword {
-			adminPassword, err = utils.GenerateSecurePassword(12)
-			if err != nil {
-				return err
-			}
-		}
-
-		log.Println("No users found, creating default admin user...")
-
-		email := "admin@localhost"
-		result, err := s.Register("admin", adminPassword, &email)
-		if err != nil {
-			return err
-		}
-
-		if result.Success {
-			// Update role to admin
-			if err := s.userRepo.UpdateRole("admin", "admin"); err != nil {
-				return err
-			}
-
-			log.Println("=========================================")
-			log.Println("Default admin user created:")
-			log.Println("  Username: admin")
-			if isRandomPassword {
-				log.Printf("  Password: %s\n", adminPassword)
-				log.Println("⚠️ IMPORTANT: Save this password! It will not be shown again.")
-			} else {
-				log.Println("  Password: (from ADMIN_PASSWORD environment variable)")
-			}
-			log.Println("=========================================")
-		}
+	// Validate username and password
+	if len(username) < 3 || len(username) > 50 {
+		return &AuthResult{Success: false, Message: "用户名长度应为3-50个字符"}, nil
 	}
 
-	return nil
+	if len(password) < 6 {
+		return &AuthResult{Success: false, Message: "密码长度至少6个字符"}, nil
+	}
+
+	result, err := s.Register(username, password, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if result.Success {
+		// Update role to admin
+		if err := s.userRepo.UpdateRole(username, "admin"); err != nil {
+			return nil, err
+		}
+
+		log.Println("=========================================")
+		log.Println("Admin user created via setup:")
+		log.Printf("  Username: %s\n", username)
+		log.Println("=========================================")
+	}
+
+	return result, nil
 }
 
 var ErrUnauthorized = errors.New("unauthorized")

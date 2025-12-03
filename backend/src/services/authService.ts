@@ -183,29 +183,31 @@ export const authService = {
     return password;
   },
 
-  // Create default admin user if no users exist
-  async ensureAdminExists(): Promise<void> {
-    if (!this.hasUsers()) {
-      // Use environment variable for admin password or generate a random one
-      const adminPassword = process.env.ADMIN_PASSWORD || this.generateSecurePassword();
-      const isRandomPassword = !process.env.ADMIN_PASSWORD;
-      
-      console.log('No users found, creating default admin user...');
-      const result = await this.register('admin', adminPassword, 'admin@localhost');
-      if (result.success) {
-        // Update role to admin
-        db.prepare('UPDATE users SET role = ? WHERE username = ?').run('admin', 'admin');
-        console.log('=========================================');
-        console.log('Default admin user created:');
-        console.log('  Username: admin');
-        if (isRandomPassword) {
-          console.log(`  Password: ${adminPassword}`);
-          console.log('⚠️ IMPORTANT: Save this password! It will not be shown again.');
-        } else {
-          console.log('  Password: (from ADMIN_PASSWORD environment variable)');
-        }
-        console.log('=========================================');
-      }
+  // Create initial admin user (only during setup)
+  async createInitialAdmin(username: string, password: string, email?: string): Promise<AuthResult> {
+    // Only allow if no users exist
+    if (this.hasUsers()) {
+      return { success: false, message: '系统已初始化，无法重复设置' };
     }
+
+    // Validate username and password
+    if (username.length < 3 || username.length > 50) {
+      return { success: false, message: '用户名长度应为3-50个字符' };
+    }
+
+    if (password.length < 6) {
+      return { success: false, message: '密码长度至少6个字符' };
+    }
+
+    const result = await this.register(username, password, email);
+    if (result.success && result.user) {
+      // Update role to admin
+      db.prepare('UPDATE users SET role = ? WHERE username = ?').run('admin', username);
+      console.log('=========================================');
+      console.log('Admin user created via setup:');
+      console.log(`  Username: ${username}`);
+      console.log('=========================================');
+    }
+    return result;
   }
 };

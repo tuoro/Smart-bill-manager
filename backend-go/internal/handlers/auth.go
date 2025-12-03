@@ -22,6 +22,7 @@ func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/verify", middleware.AuthMiddleware(h.authService), h.Verify)
 	r.POST("/change-password", middleware.AuthMiddleware(h.authService), h.ChangePassword)
 	r.GET("/setup-required", h.SetupRequired)
+	r.POST("/setup", h.SetupAdmin)
 }
 
 type RegisterInput struct {
@@ -167,4 +168,31 @@ func (h *AuthHandler) SetupRequired(c *gin.Context) {
 		"success":       true,
 		"setupRequired": !hasUsers,
 	})
+}
+
+type SetupInput struct {
+	Username string  `json:"username" binding:"required"`
+	Password string  `json:"password" binding:"required"`
+	Email    *string `json:"email"`
+}
+
+func (h *AuthHandler) SetupAdmin(c *gin.Context) {
+	var input SetupInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.Error(c, 400, "用户名和密码不能为空", err)
+		return
+	}
+
+	result, err := h.authService.CreateInitialAdmin(input.Username, input.Password, input.Email)
+	if err != nil {
+		utils.Error(c, 500, "初始化失败，请稍后重试", err)
+		return
+	}
+
+	if !result.Success {
+		utils.Error(c, 400, result.Message, nil)
+		return
+	}
+
+	c.JSON(201, result)
 }

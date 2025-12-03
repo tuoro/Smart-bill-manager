@@ -4,6 +4,12 @@ import { setAuthErrorHandler } from '@/api/auth'
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/setup',
+    name: 'Setup',
+    component: () => import('@/views/Setup.vue'),
+    meta: { requiresAuth: false }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
@@ -68,6 +74,26 @@ setAuthErrorHandler(() => {
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
+  
+  // Check if setup is required
+  try {
+    const setupResponse = await authStore.checkSetupRequired()
+    if (setupResponse && setupResponse.setupRequired) {
+      // Setup is required - redirect to setup page
+      if (to.path !== '/setup') {
+        next('/setup')
+        return
+      }
+    } else {
+      // Setup is not required - don't allow access to setup page
+      if (to.path === '/setup') {
+        next('/login')
+        return
+      }
+    }
+  } catch (error) {
+    console.error('Failed to check setup status:', error)
+  }
   
   if (to.meta.requiresAuth !== false) {
     if (!authStore.isAuthenticated) {

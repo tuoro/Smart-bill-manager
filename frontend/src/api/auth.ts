@@ -103,6 +103,9 @@ export const authApi = {
   
   checkSetupRequired: () =>
     api.get<ApiResponse<{ setupRequired: boolean }>>('/auth/setup-required'),
+
+  setup: (username: string, password: string, email?: string) =>
+    api.post<{ success: boolean; message: string; user?: User; token?: string }>('/auth/setup', { username, password, email }),
 }
 
 export default api

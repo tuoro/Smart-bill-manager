@@ -148,8 +148,8 @@ if (process.env.NODE_ENV === 'production') {
 
 // Initialize application
 const startApp = async () => {
-  // Ensure default admin exists
-  await authService.ensureAdminExists();
+  // No longer automatically creating admin - use setup page instead
+  console.log('System ready. Use setup page for initial configuration.');
 
   app.listen(PORT, () => {
     console.log(`🚀 Smart Bill Manager API running on port ${PORT}`);

@@ -65,10 +65,8 @@ func main() {
 	emailService := services.NewEmailService(uploadsDir, invoiceService)
 	dingtalkService := services.NewDingtalkService(uploadsDir, invoiceService)
 
-	// Ensure admin exists
-	if err := authService.EnsureAdminExists(); err != nil {
-		log.Fatal("Failed to ensure admin exists:", err)
-	}
+	// No longer automatically creating admin - use setup page instead
+	log.Println("System ready. Use setup page for initial configuration.")
 
 	// Set Gin mode
 	if cfg.NodeEnv == "production" {

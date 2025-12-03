@@ -145,4 +145,26 @@ router.get('/setup-required', (req: Request, res: Response) => {
   res.json({ success: true, setupRequired: !hasUsers });
 });
 
+// Initial setup - create admin user
+router.post('/setup', async (req: Request, res: Response) => {
+  try {
+    const { username, password, email } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: '用户名和密码不能为空' });
+    }
+
+    const result = await authService.createInitialAdmin(username, password, email);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Setup error:', error);
+    res.status(500).json({ success: false, message: '初始化失败，请稍后重试' });
+  }
+});
+
 export default router;

@@ -1,5 +1,5 @@
 import api from './auth'
-import type { Invoice, ApiResponse } from '@/types'
+import type { Invoice, Payment, ApiResponse } from '@/types'
 
 export const invoiceApi = {
   getAll: (params?: { limit?: number; offset?: number }) =>
@@ -37,4 +37,20 @@ export const invoiceApi = {
   
   parse: (id: string) =>
     api.post<ApiResponse<Invoice>>(`/invoices/${id}/parse`),
+  
+  // Get payments linked to an invoice
+  getLinkedPayments: (invoiceId: string) =>
+    api.get<ApiResponse<Payment[]>>(`/invoices/${invoiceId}/linked-payments`),
+  
+  // Get suggested payments for an invoice (smart matching)
+  getSuggestedPayments: (invoiceId: string) =>
+    api.get<ApiResponse<Payment[]>>(`/invoices/${invoiceId}/suggest-payments`),
+  
+  // Link a payment to an invoice
+  linkPayment: (invoiceId: string, paymentId: string) =>
+    api.post<ApiResponse<void>>(`/invoices/${invoiceId}/link-payment`, { payment_id: paymentId }),
+  
+  // Unlink a payment from an invoice
+  unlinkPayment: (invoiceId: string, paymentId: string) =>
+    api.delete<ApiResponse<void>>(`/invoices/${invoiceId}/unlink-payment?payment_id=${paymentId}`),
 }

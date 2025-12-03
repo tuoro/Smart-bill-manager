@@ -221,6 +221,80 @@
             </el-collapse-item>
           </el-collapse>
         </el-descriptions-item>
+        <el-descriptions-item label="关联支付记录" :span="2">
+          <div class="linked-payments-section">
+            <!-- Linked Payments -->
+            <div v-if="linkedPayments.length > 0" class="linked-payments">
+              <div class="section-title">已关联支付记录</div>
+              <el-table :data="linkedPayments" size="small" max-height="200">
+                <el-table-column label="金额">
+                  <template #default="{ row }">
+                    <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="merchant" label="商家" show-overflow-tooltip />
+                <el-table-column label="交易时间">
+                  <template #default="{ row }">
+                    {{ formatDateTime(row.transaction_time) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="{ row }">
+                    <el-popconfirm
+                      title="确定取消关联吗？"
+                      @confirm="handleUnlinkPayment(row.id)"
+                    >
+                      <template #reference>
+                        <el-button type="danger" link size="small">取消关联</el-button>
+                      </template>
+                    </el-popconfirm>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <!-- Suggested Payments -->
+            <div v-if="suggestedPayments.length > 0" class="suggested-payments">
+              <div class="section-title">智能匹配建议</div>
+              <el-table :data="suggestedPayments" size="small" max-height="200">
+                <el-table-column label="金额">
+                  <template #default="{ row }">
+                    <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="merchant" label="商家" show-overflow-tooltip />
+                <el-table-column label="交易时间">
+                  <template #default="{ row }">
+                    {{ formatDateTime(row.transaction_time) }}
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="80">
+                  <template #default="{ row }">
+                    <el-button 
+                      type="primary" 
+                      link 
+                      size="small"
+                      @click="handleLinkPayment(row.id)"
+                    >
+                      关联
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+
+            <!-- No linked payments message -->
+            <div v-if="linkedPayments.length === 0 && suggestedPayments.length === 0" class="no-data">
+              <el-empty description="暂无关联的支付记录" :image-size="60" />
+            </div>
+
+            <!-- Loading state -->
+            <div v-if="loadingLinkedPayments" class="loading-state">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>加载中...</span>
+            </div>
+          </div>
+        </el-descriptions-item>
         <el-descriptions-item label="预览" :span="2">
           <el-button type="primary" @click="downloadFile(previewInvoice)">
             查看PDF文件
@@ -237,7 +311,7 @@ import { ElMessage, type UploadInstance, type UploadFile, type UploadRawFile } f
 import { Document, Upload, View, Download, Delete, UploadFilled, Refresh, Loading } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { invoiceApi, FILE_BASE_URL } from '@/api'
-import type { Invoice } from '@/types'
+import type { Invoice, Payment } from '@/types'
 
 const loading = ref(false)
 const invoices = ref<Invoice[]>([])
@@ -248,6 +322,11 @@ const uploading = ref(false)
 const parseStatusPending = ref(false)
 const fileList = ref<UploadFile[]>([])
 const uploadRef = ref<UploadInstance>()
+
+// Linked payments state
+const loadingLinkedPayments = ref(false)
+const linkedPayments = ref<Payment[]>([])
+const suggestedPayments = ref<Payment[]>([])
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -339,10 +418,68 @@ const handleDelete = async (id: string) => {
 const openPreview = (invoice: Invoice) => {
   previewInvoice.value = invoice
   previewVisible.value = true
+  loadLinkedPayments(invoice.id)
 }
 
 const downloadFile = (invoice: Invoice) => {
   window.open(`${FILE_BASE_URL}/${invoice.file_path}`, '_blank')
+}
+
+// Load linked payments and suggestions when invoice preview is opened
+const loadLinkedPayments = async (invoiceId: string) => {
+  loadingLinkedPayments.value = true
+  linkedPayments.value = []
+  suggestedPayments.value = []
+  
+  try {
+    // Load linked payments
+    const linkedRes = await invoiceApi.getLinkedPayments(invoiceId)
+    if (linkedRes.data.success && linkedRes.data.data) {
+      linkedPayments.value = linkedRes.data.data
+    }
+    
+    // Load suggested payments only if no linked payments
+    if (linkedPayments.value.length === 0) {
+      const suggestedRes = await invoiceApi.getSuggestedPayments(invoiceId)
+      if (suggestedRes.data.success && suggestedRes.data.data) {
+        suggestedPayments.value = suggestedRes.data.data
+      }
+    }
+  } catch (error) {
+    console.error('Load linked payments failed:', error)
+  } finally {
+    loadingLinkedPayments.value = false
+  }
+}
+
+// Link a payment to the current invoice
+const handleLinkPayment = async (paymentId: string) => {
+  if (!previewInvoice.value) return
+  
+  try {
+    await invoiceApi.linkPayment(previewInvoice.value.id, paymentId)
+    ElMessage.success('关联成功')
+    // Reload linked payments
+    loadLinkedPayments(previewInvoice.value.id)
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || '关联失败')
+  }
+}
+
+// Unlink a payment from the current invoice
+const handleUnlinkPayment = async (paymentId: string) => {
+  if (!previewInvoice.value) return
+  
+  try {
+    await invoiceApi.unlinkPayment(previewInvoice.value.id, paymentId)
+    ElMessage.success('取消关联成功')
+    // Reload linked payments
+    loadLinkedPayments(previewInvoice.value.id)
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || '取消关联失败')
+  }
 }
 
 const getSourceLabel = (source?: string) => {
@@ -739,6 +876,53 @@ onMounted(() => {
   font-size: 12px;
   line-height: 1.6;
   font-family: var(--font-mono);
+}
+
+/* Linked payments section */
+.linked-payments-section {
+  width: 100%;
+}
+
+.linked-payments,
+.suggested-payments {
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+}
+
+.linked-payments .section-title {
+  color: #43e97b;
+  border-bottom-color: rgba(67, 233, 123, 0.3);
+}
+
+.suggested-payments .section-title {
+  color: #667eea;
+  border-bottom-color: rgba(102, 126, 234, 0.3);
+}
+
+.no-data {
+  padding: 20px;
+  text-align: center;
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--color-text-secondary);
+}
+
+.loading-state .el-icon {
+  font-size: 18px;
 }
 
 @media (max-width: 768px) {

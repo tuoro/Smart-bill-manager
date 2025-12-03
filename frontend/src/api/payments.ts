@@ -1,5 +1,5 @@
 import api from './auth'
-import type { Payment, ApiResponse } from '@/types'
+import type { Payment, Invoice, ApiResponse } from '@/types'
 
 export const paymentApi = {
   getAll: (params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; category?: string }) =>
@@ -19,4 +19,17 @@ export const paymentApi = {
   
   delete: (id: string) =>
     api.delete<ApiResponse<void>>(`/payments/${id}`),
+  
+  // Upload screenshot and OCR recognition
+  uploadScreenshot: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<ApiResponse<{ payment: Payment; extracted: any }>>('/payments/upload-screenshot', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  
+  // Get invoices linked to a payment
+  getPaymentInvoices: (paymentId: string) =>
+    api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/invoices`),
 }

@@ -13,9 +13,14 @@
 **技术细节:**
 - 文件位置: `backend-go/internal/services/ocr.go`
 - 依赖库: `github.com/otiai10/gosseract/v2`, `github.com/ledongthuc/pdf`
+- 系统依赖: Tesseract OCR, poppler-utils (提供 pdftotext 和 pdftoppm)
 - 核心方法:
   - `RecognizeImage()` - 图片OCR识别
-  - `RecognizePDF()` - PDF文本提取（优先）+ OCR（后备）
+  - `RecognizePDF()` - PDF文本提取（三层回退机制）
+  - `extractTextWithPdftotext()` - 使用 pdftotext 提取文本（最佳CID字体支持）
+  - `extractTextFromPDF()` - 使用 ledongthuc/pdf 提取文本
+  - `pdfToImageOCR()` - PDF转图片后OCR识别
+  - `isGarbledText()` - 检测乱码文本
   - `ParsePaymentScreenshot()` - 支付截图数据解析
   - `ParseInvoiceData()` - 发票数据解析
 
@@ -44,9 +49,13 @@ type Payment struct {
 ### 3. 改进的 PDF 发票识别 ✅
 
 **实现内容:**
-- 使用 `ledongthuc/pdf` 库进行专业PDF解析
+- **三层回退机制**用于PDF文本提取：
+  1. **pdftotext** (poppler-utils) - 优先使用，对CID字体（UniGB-UCS2-H）有更好支持
+  2. **ledongthuc/pdf** 库 - 次选，用于PDF解析
+  3. **OCR** (pdftoppm + Tesseract) - 最后回退，用于扫描件或其他情况
 - 增强的正则表达式匹配
 - 支持更多发票字段识别
+- 乱码检测：自动识别乱码文本并回退到下一个方法
 
 **新增识别字段:**
 - 发票号码
@@ -57,9 +66,14 @@ type Payment struct {
 - 购买方名称
 
 **支持的发票格式:**
-- 增值税电子普通发票
+- 增值税电子普通发票（含CID字体编码）
 - 增值税电子专用发票
 - 其他电子发票格式
+
+**CID字体支持:**
+- 支持 STSong-Light-UniGB-UCS2-H 编码
+- 支持 KaiTi_GB2312/UniGB-UCS2-H 编码
+- 支持 SimSun/UniGB-UCS2-H 编码
 
 ### 4. 发票与支付记录关联 ✅
 
@@ -93,13 +107,19 @@ type InvoicePaymentLink struct {
 ### 5. Docker 集成 ✅
 
 **Dockerfile 更新:**
-- 构建阶段：安装 tesseract-ocr-dev, leptonica-dev, pkgconfig
-- 运行阶段：安装 tesseract-ocr, tesseract-ocr-data-chi_sim, tesseract-ocr-data-eng
+- 构建阶段：安装 tesseract-ocr-dev, leptonica-dev, pkgconfig, poppler-utils
+- 运行阶段：安装 tesseract-ocr, tesseract-ocr-data-chi_sim, tesseract-ocr-data-eng, poppler-utils
 - 使用 Alpine Linux 保持镜像精简
+
+**依赖软件:**
+- **Tesseract OCR**: 用于图片文字识别
+- **poppler-utils**: 提供 pdftotext (文本提取) 和 pdftoppm (PDF转图片)
+- **leptonica**: Tesseract 的图像处理依赖库
 
 **镜像大小估算:**
 - Tesseract + 语言包：约 10-15MB
-- 总体镜像大小增加：~15MB
+- poppler-utils：约 5-8MB
+- 总体镜像大小增加：~20MB
 
 ## 技术架构
 

@@ -240,6 +240,25 @@
 
 ## OCR 功能说明
 
+### PDF 文本提取方法
+
+系统使用三层回退机制处理PDF发票：
+
+1. **pdftotext (poppler-utils)** - 优先使用
+   - 对CID字体（如 UniGB-UCS2-H）有最佳支持
+   - 适用于电子发票（STSong-Light、KaiTi_GB2312、SimSun等字体）
+   - 速度快，提取准确
+
+2. **ledongthuc/pdf 库** - 次选方案
+   - Go原生PDF解析库
+   - 适用于标准PDF格式
+
+3. **OCR (pdftoppm + Tesseract)** - 最后回退
+   - 将PDF转换为图片后识别
+   - 适用于扫描件或其他方法失败的情况
+
+系统会自动检测乱码并切换到下一个方法。
+
 ### 支持的图片格式
 - JPG / JPEG
 - PNG
@@ -257,7 +276,8 @@ OCR识别准确度取决于：
 
 ### 性能考虑
 - 单次OCR识别通常在1-3秒内完成
-- PDF识别时间取决于页数，每页约1-2秒
+- PDF文本提取（pdftotext）：每页 < 0.5秒
+- PDF-OCR识别：每页约1-2秒
 - 建议单个文件不超过10MB
 
 ---
@@ -367,5 +387,13 @@ curl -X GET http://localhost:3001/api/payments/payment-id/invoices \
 
 - **OCR引擎**: Tesseract 5.3.4
 - **Go绑定**: gosseract v2
-- **PDF解析**: ledongthuc/pdf
+- **PDF文本提取**: poppler-utils (pdftotext)
+- **PDF解析库**: ledongthuc/pdf
+- **PDF转图片**: poppler-utils (pdftoppm)
 - **语言支持**: 中文简体(chi_sim), 英文(eng)
+
+### 系统依赖
+- **poppler-utils**: 提供 pdftotext 和 pdftoppm 工具
+  - Ubuntu/Debian: `apt-get install poppler-utils`
+  - macOS: `brew install poppler`
+  - Docker: 已在 Dockerfile 中预装

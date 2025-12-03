@@ -62,6 +62,7 @@
 - golang.org/x/crypto/bcrypt (密码加密)
 - emersion/go-imap (邮箱IMAP协议)
 - **🆕 Tesseract OCR 5.3.4** (OCR识别引擎) ✨
+- **🆕 poppler-utils** (PDF文本提取工具，支持CID字体) ✨
 - **🆕 gosseract v2** (Go语言Tesseract绑定) ✨
 - **🆕 ledongthuc/pdf** (专业PDF解析) ✨
 - gin-contrib/cors (CORS支持)
@@ -193,6 +194,17 @@ docker run -d \
 - Go >= 1.21
 - Node.js >= 18
 - npm >= 8
+- Tesseract OCR (用于图片文字识别)
+- poppler-utils (用于PDF文本提取，支持CID字体)
+
+安装系统依赖：
+```bash
+# Ubuntu/Debian
+sudo apt-get install tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng poppler-utils
+
+# macOS
+brew install tesseract tesseract-lang poppler
+```
 
 #### 安装步骤
 

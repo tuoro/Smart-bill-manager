@@ -403,8 +403,8 @@
         <!-- 截图预览 -->
         <el-descriptions-item v-if="detailPayment.screenshot_path" label="支付截图" :span="2">
           <el-image 
-            :src="`/api/files/${detailPayment.screenshot_path}`"
-            :preview-src-list="[`/api/files/${detailPayment.screenshot_path}`]"
+            :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`"
+            :preview-src-list="[`${FILE_BASE_URL}/${detailPayment.screenshot_path}`]"
             fit="contain"
             style="max-width: 300px; max-height: 400px; cursor: pointer;"
           />
@@ -443,7 +443,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadRawFile } from 'element-plus'
 import { Plus, Edit, Delete, Wallet, ShoppingCart, Upload, UploadFilled, Document, View, Refresh } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { paymentApi } from '@/api'
+import { paymentApi, FILE_BASE_URL } from '@/api'
 import type { Payment, Invoice } from '@/types'
 
 // Interface for OCR extracted data

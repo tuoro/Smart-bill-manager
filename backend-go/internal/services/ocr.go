@@ -525,52 +525,69 @@ func removeChineseSpaces(text string) string {
 	var result strings.Builder
 	runes := []rune(text)
 
-	for i := 0; i < len(runes); i++ {
+	i := 0
+	for i < len(runes) {
 		r := runes[i]
 
-		// If current character is space, check if it's between Chinese characters or digit+unit
-		if unicode.IsSpace(r) {
-			// Find the nearest non-space character before
-			var prev rune
-			prevExists := false
-			for j := i - 1; j >= 0; j-- {
-				if !unicode.IsSpace(runes[j]) {
-					prev = runes[j]
-					prevExists = true
-					break
-				}
+		// If not a space, directly add
+		if !unicode.IsSpace(r) {
+			result.WriteRune(r)
+			i++
+			continue
+		}
+
+		// Is a space, check previous and next characters
+		// Find previous non-space character
+		prevIdx := i - 1
+		for prevIdx >= 0 && unicode.IsSpace(runes[prevIdx]) {
+			prevIdx--
+		}
+
+		// Find next non-space character
+		nextIdx := i + 1
+		for nextIdx < len(runes) && unicode.IsSpace(runes[nextIdx]) {
+			nextIdx++
+		}
+
+		// Determine if we should skip this space
+		skipSpace := false
+		if prevIdx >= 0 && nextIdx < len(runes) {
+			prev := runes[prevIdx]
+			next := runes[nextIdx]
+
+			// Skip space if both neighbors are Chinese characters
+			if unicode.Is(unicode.Han, prev) && unicode.Is(unicode.Han, next) {
+				skipSpace = true
 			}
-
-			// Find the nearest non-space character after
-			var next rune
-			nextExists := false
-			for j := i + 1; j < len(runes); j++ {
-				if !unicode.IsSpace(runes[j]) {
-					next = runes[j]
-					nextExists = true
-					break
-				}
+			// Skip space if previous is digit and next is date unit (年/月/日)
+			if unicode.IsDigit(prev) && (next == '年' || next == '月' || next == '日' || next == '时' || next == '分' || next == '秒') {
+				skipSpace = true
 			}
-
-			if prevExists && nextExists {
-				prevChinese := unicode.Is(unicode.Han, prev)
-				nextChinese := unicode.Is(unicode.Han, next)
-				prevDigit := unicode.IsDigit(prev)
-				nextIsDateUnit := next == '年' || next == '月' || next == '日'
-
-				// Skip space if:
-				// 1. Both neighbors are Chinese characters
-				// 2. Previous is digit and next is date unit (年/月/日)
-				if (prevChinese && nextChinese) || (prevDigit && nextIsDateUnit) {
-					continue
-				}
+			// Skip space if previous is date unit and next is digit
+			if (prev == '年' || prev == '月' || prev == '日') && unicode.IsDigit(next) {
+				skipSpace = true
 			}
 		}
 
-		result.WriteRune(r)
+		if !skipSpace {
+			result.WriteRune(r)
+		}
+
+		i++
 	}
 
 	return result.String()
+}
+
+// convertChineseDateToISO converts Chinese date format to ISO format
+// Example: "2025年10月23日 14:59:46" -> "2025-10-23 14:59:46"
+// Example: "2025年10月23日" -> "2025-10-23"
+func convertChineseDateToISO(dateStr string) string {
+	// Replace Chinese date separators with dashes
+	dateStr = strings.ReplaceAll(dateStr, "年", "-")
+	dateStr = strings.ReplaceAll(dateStr, "月", "-")
+	dateStr = strings.ReplaceAll(dateStr, "日", "")
+	return strings.TrimSpace(dateStr)
 }
 
 // ParsePaymentScreenshot extracts payment information from OCR text
@@ -702,6 +719,8 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	for _, re := range timeRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			timeStr := match[1]
+			// Convert Chinese date format to ISO format
+			timeStr = convertChineseDateToISO(timeStr)
 			data.TransactionTime = &timeStr
 			break
 		}
@@ -791,6 +810,8 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 	for _, re := range timeRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			timeStr := match[1]
+			// Convert Chinese date format to ISO format
+			timeStr = convertChineseDateToISO(timeStr)
 			data.TransactionTime = &timeStr
 			break
 		}
@@ -879,6 +900,8 @@ func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) 
 	for _, re := range timeRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			timeStr := match[1]
+			// Convert Chinese date format to ISO format
+			timeStr = convertChineseDateToISO(timeStr)
 			data.TransactionTime = &timeStr
 			break
 		}

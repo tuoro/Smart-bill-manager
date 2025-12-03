@@ -840,7 +840,8 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 			name := strings.TrimSpace(text[match[2]:match[3]])
 			// Clean up the name - remove trailing markers
 			name = cleanupName(name)
-			if name != "" && name != "信" && name != "息" {
+			// Filter out invalid names: empty, single character, or just markers/labels
+			if name != "" && name != "信" && name != "息" && name != "名称：" && name != "名称:" && len(name) > 1 {
 				names = append(names, nameEntry{name: name, position: match[0]})
 			}
 		}
@@ -853,13 +854,12 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 
 	// If we have both markers, use smart positioning logic
 	if buyerMarkerIndex != -1 && sellerMarkerIndex != -1 {
-		// Strategy: Prioritize assignments where marker comes before name (common in structured invoices)
-		// But fall back to closest distance if names come before markers
+		// Strategy: For each name, find which marker it's closest to, considering direction
+		// Names can appear either before or after their associated markers depending on invoice format
 		type preference struct {
-			nameIdx      int
-			markerType   string
-			score        int
-			markerBefore bool // true if marker comes before name
+			nameIdx    int
+			markerType string
+			score      int
 		}
 		
 		var prefs []preference
@@ -868,37 +868,71 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 			distToBuyer := abs(entry.position - buyerMarkerIndex)
 			distToSeller := abs(entry.position - sellerMarkerIndex)
 			
+			// Determine which marker comes immediately before this name (if any)
+			// This handles structured invoices where sections are marked by labels
+			var preferredMarker string
+			var preferredDist int
+			
+			// Check which markers come before/after the name
 			buyerBefore := buyerMarkerIndex < entry.position
 			sellerBefore := sellerMarkerIndex < entry.position
+			buyerAfter := buyerMarkerIndex > entry.position
+			sellerAfter := sellerMarkerIndex > entry.position
 			
-			prefs = append(prefs, preference{idx, "buyer", distToBuyer, buyerBefore})
-			prefs = append(prefs, preference{idx, "seller", distToSeller, sellerBefore})
-		}
-		
-		// Check if ANY name has a valid "marker before name" assignment
-		hasValidAssignments := false
-		for _, p := range prefs {
-			if p.markerBefore {
-				hasValidAssignments = true
-				break
+			if buyerBefore && sellerBefore {
+				// Both markers come before the name - name is after both sections
+				// Pick the closer one
+				if distToBuyer < distToSeller {
+					preferredMarker = "buyer"
+					preferredDist = distToBuyer
+				} else {
+					preferredMarker = "seller"
+					preferredDist = distToSeller
+				}
+				prefs = append(prefs, preference{idx, preferredMarker, preferredDist})
+			} else if buyerBefore && sellerAfter {
+				// Buyer before, seller after - name is between markers
+				// Prefer the first marker (buyer in this case) as names in structured sections
+				// belong to the section they appear in
+				if buyerMarkerIndex < sellerMarkerIndex {
+					// Buyer comes first - prefer buyer
+					prefs = append(prefs, preference{idx, "buyer", distToBuyer})
+					// Also add seller with penalty to allow fallback if needed
+					prefs = append(prefs, preference{idx, "seller", distToSeller + 1000})
+				} else {
+					// Seller comes first - prefer seller
+					prefs = append(prefs, preference{idx, "seller", distToSeller})
+					prefs = append(prefs, preference{idx, "buyer", distToBuyer + 1000})
+				}
+			} else if sellerBefore && buyerAfter {
+				// Seller before, buyer after - name is between markers
+				if sellerMarkerIndex < buyerMarkerIndex {
+					// Seller comes first - prefer seller
+					prefs = append(prefs, preference{idx, "seller", distToSeller})
+					prefs = append(prefs, preference{idx, "buyer", distToBuyer + 1000})
+				} else {
+					// Buyer comes first - prefer buyer
+					prefs = append(prefs, preference{idx, "buyer", distToBuyer})
+					prefs = append(prefs, preference{idx, "seller", distToSeller + 1000})
+				}
+			} else if buyerAfter && sellerAfter {
+				// Both markers come after the name - name is before both sections
+				// This is the top-bottom layout case where names precede markers
+				// Assign to closer marker
+				prefs = append(prefs, preference{idx, "buyer", distToBuyer})
+				prefs = append(prefs, preference{idx, "seller", distToSeller})
+			} else {
+				// Name is before markers or between them - use distance to both
+				prefs = append(prefs, preference{idx, "buyer", distToBuyer})
+				prefs = append(prefs, preference{idx, "seller", distToSeller})
 			}
 		}
 		
-		// Sort preferences
+		// Sort by distance - closest pairs first
 		for i := 0; i < len(prefs); i++ {
 			for j := i + 1; j < len(prefs); j++ {
-				// If we have valid assignments available, prioritize them
-				if hasValidAssignments {
-					if prefs[j].markerBefore && !prefs[i].markerBefore {
-						prefs[i], prefs[j] = prefs[j], prefs[i]
-					} else if prefs[j].markerBefore == prefs[i].markerBefore && prefs[j].score < prefs[i].score {
-						prefs[i], prefs[j] = prefs[j], prefs[i]
-					}
-				} else {
-					// No valid assignments - just sort by distance
-					if prefs[j].score < prefs[i].score {
-						prefs[i], prefs[j] = prefs[j], prefs[i]
-					}
+				if prefs[j].score < prefs[i].score {
+					prefs[i], prefs[j] = prefs[j], prefs[i]
 				}
 			}
 		}

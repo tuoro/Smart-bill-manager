@@ -6,6 +6,7 @@ import type { User } from '@/types'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(getStoredUser())
   const loading = ref(false)
+  const setupRequiredCache = ref<{ setupRequired: boolean; timestamp: number } | null>(null)
 
   const isAuthenticated = computed(() => !!user.value)
 
@@ -53,10 +54,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function checkSetupRequired(): Promise<{ setupRequired: boolean } | null> {
+    // Return cached value if less than 10 seconds old
+    if (setupRequiredCache.value && Date.now() - setupRequiredCache.value.timestamp < 10000) {
+      return { setupRequired: setupRequiredCache.value.setupRequired }
+    }
+    
     try {
       const res = await authApi.checkSetupRequired()
       if (res.data.success && res.data.data) {
-        return { setupRequired: res.data.data.setupRequired }
+        const result = { setupRequired: res.data.data.setupRequired }
+        setupRequiredCache.value = {
+          setupRequired: result.setupRequired,
+          timestamp: Date.now()
+        }
+        return result
       }
       return null
     } catch (error) {

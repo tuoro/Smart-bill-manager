@@ -3,6 +3,9 @@ import { ref, computed } from 'vue'
 import { authApi, setToken, setStoredUser, getStoredUser, clearAuth } from '@/api/auth'
 import type { User } from '@/types'
 
+// Cache TTL for setup-required check (10 seconds)
+const SETUP_CACHE_TTL_MS = 10000
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(getStoredUser())
   const loading = ref(false)
@@ -54,8 +57,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function checkSetupRequired(): Promise<{ setupRequired: boolean } | null> {
-    // Return cached value if less than 10 seconds old
-    if (setupRequiredCache.value && Date.now() - setupRequiredCache.value.timestamp < 10000) {
+    // Return cached value if less than SETUP_CACHE_TTL_MS old
+    if (setupRequiredCache.value && Date.now() - setupRequiredCache.value.timestamp < SETUP_CACHE_TTL_MS) {
       return { setupRequired: setupRequiredCache.value.setupRequired }
     }
     

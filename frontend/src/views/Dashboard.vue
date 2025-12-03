@@ -511,8 +511,8 @@ onMounted(() => {
   transition: all var(--transition-fast);
 }
 
-:deep(.el-table tbody tr:hover) {
-  background: rgba(102, 126, 234, 0.05) !important;
+:deep(.el-table tbody tr:hover > td) {
+  background: rgba(102, 126, 234, 0.05);
 }
 
 /* Tag enhancements */

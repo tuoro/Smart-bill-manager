@@ -10,6 +10,9 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   
+  /* Monospace Font */
+  --font-mono: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+  
   /* Color System - Light Mode */
   --color-text-primary: rgba(0, 0, 0, 0.85);
   --color-text-secondary: rgba(0, 0, 0, 0.65);

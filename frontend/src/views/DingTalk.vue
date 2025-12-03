@@ -434,7 +434,7 @@ onMounted(() => {
 
 /* Text truncated */
 :deep(.el-text) {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
 }
 

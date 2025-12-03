@@ -460,7 +460,7 @@ onMounted(() => {
   color: #f5222d;
   font-weight: bold;
   font-size: 15px;
-  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
 }
 
 /* Enhanced tags */

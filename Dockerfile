@@ -29,7 +29,7 @@ WORKDIR /app/backend
 
 # Install build dependencies including Tesseract
 # Note: tesseract-ocr-dev requires leptonica-dev, and pkgconfig helps with library discovery
-RUN apk add --no-cache gcc musl-dev tesseract-ocr-dev leptonica-dev pkgconfig ca-certificates
+RUN apk add --no-cache gcc g++ musl-dev tesseract-ocr-dev leptonica-dev pkgconfig ca-certificates
 
 # Copy go mod files
 COPY backend-go/go.mod backend-go/go.sum ./

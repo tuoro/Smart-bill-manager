@@ -48,10 +48,12 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
 # ============================================
 FROM nginx:alpine AS production
 
-# Install supervisor, SQLite runtime, Tesseract with language packs, and poppler-utils
+# Install supervisor, SQLite runtime, Tesseract with language packs, poppler-utils, ImageMagick, and poppler-data
 # Note: Alpine's tesseract-ocr package includes basic language data
 # Additional language data can be installed via tesseract-ocr-data-* packages or downloaded manually
-RUN apk add --no-cache supervisor tesseract-ocr ca-certificates poppler-utils && \
+# poppler-data provides CJK CMap files for better PDF text extraction
+# imagemagick provides image preprocessing capabilities for better OCR
+RUN apk add --no-cache supervisor tesseract-ocr ca-certificates poppler-utils poppler-data imagemagick && \
     apk add --no-cache tesseract-ocr-data-chi_sim tesseract-ocr-data-eng 2>/dev/null || \
     (apk add --no-cache wget && \
      TESSDATA_DIR=/usr/share/tessdata && \

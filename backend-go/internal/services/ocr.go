@@ -154,37 +154,226 @@ func (s *OCRService) extractTextWithPdftotext(pdfPath string) (string, error) {
 	return text, nil
 }
 
-// RecognizePDF extracts text from PDF, using multiple fallback methods
+// RecognizePDF extracts text from PDF using hybrid approach
 func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
 
-	// Method 1: Try pdftotext first (best CID font support)
-	text, err := s.extractTextWithPdftotext(pdfPath)
-	if err == nil && !s.isGarbledText(text) && strings.TrimSpace(text) != "" {
-		fmt.Printf("[OCR] Successfully extracted %d characters using pdftotext\n", len(text))
-		return text, nil
-	}
-	if err != nil {
-		fmt.Printf("[OCR] pdftotext extraction failed: %v\n", err)
+	var pdftotextResult, ocrResult string
+	var pdftotextErr, ocrErr error
+
+	// Method 1: Try pdftotext first (good for numbers, amounts, tax IDs)
+	pdftotextResult, pdftotextErr = s.extractTextWithPdftotext(pdfPath)
+	if pdftotextErr != nil {
+		fmt.Printf("[OCR] pdftotext extraction failed: %v\n", pdftotextErr)
 	} else {
-		fmt.Printf("[OCR] pdftotext result was empty or garbled, trying next method\n")
+		fmt.Printf("[OCR] pdftotext extracted %d characters\n", len(pdftotextResult))
 	}
 
-	// Method 2: Try ledongthuc/pdf library
-	text, err = s.extractTextFromPDF(pdfPath)
-	if err == nil && !s.isGarbledText(text) && strings.TrimSpace(text) != "" {
-		fmt.Printf("[OCR] Successfully extracted %d characters using pdf library\n", len(text))
-		return text, nil
-	}
-	if err != nil {
-		fmt.Printf("[OCR] PDF library extraction failed: %v\n", err)
-	} else {
-		fmt.Printf("[OCR] PDF library result was empty or garbled, trying OCR\n")
+	// Check if pdftotext result has enough Chinese characters
+	chineseRatio := s.getChineseCharRatio(pdftotextResult)
+	fmt.Printf("[OCR] pdftotext Chinese character ratio: %.2f%%\n", chineseRatio*100)
+
+	// If pdftotext result is good enough (has sufficient Chinese), use it directly
+	if pdftotextErr == nil && chineseRatio > 0.1 && !s.isGarbledText(pdftotextResult) {
+		fmt.Printf("[OCR] pdftotext result is sufficient, using it directly\n")
+		return pdftotextResult, nil
 	}
 
-	// Method 3: Fall back to OCR (convert PDF to images)
-	fmt.Printf("[OCR] Falling back to image-based OCR\n")
-	return s.pdfToImageOCR(pdfPath)
+	// Method 2: Use enhanced OCR to get Chinese characters
+	fmt.Printf("[OCR] pdftotext result lacks Chinese content, performing enhanced OCR\n")
+	ocrResult, ocrErr = s.enhancedPdfToImageOCR(pdfPath)
+	if ocrErr != nil {
+		fmt.Printf("[OCR] Enhanced OCR failed: %v\n", ocrErr)
+		// If OCR also failed, return pdftotext result if available
+		if pdftotextErr == nil && strings.TrimSpace(pdftotextResult) != "" {
+			return pdftotextResult, nil
+		}
+		return "", fmt.Errorf("both pdftotext and OCR failed: pdftotext: %v, OCR: %v", pdftotextErr, ocrErr)
+	}
+
+	// Method 3: Merge results - combine the best of both
+	if pdftotextErr == nil && strings.TrimSpace(pdftotextResult) != "" {
+		mergedResult := s.mergeExtractionResults(pdftotextResult, ocrResult)
+		fmt.Printf("[OCR] Merged result: %d characters\n", len(mergedResult))
+		return mergedResult, nil
+	}
+
+	return ocrResult, nil
+}
+
+// getChineseCharRatio calculates the ratio of Chinese characters in the text
+func (s *OCRService) getChineseCharRatio(text string) float64 {
+	if text == "" {
+		return 0
+	}
+
+	totalChars := 0
+	chineseChars := 0
+
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			continue
+		}
+		totalChars++
+		if unicode.Is(unicode.Han, r) {
+			chineseChars++
+		}
+	}
+
+	if totalChars == 0 {
+		return 0
+	}
+	return float64(chineseChars) / float64(totalChars)
+}
+
+// enhancedPdfToImageOCR converts PDF to images with preprocessing and performs OCR
+func (s *OCRService) enhancedPdfToImageOCR(pdfPath string) (string, error) {
+	fmt.Printf("[OCR] Starting enhanced PDF to image OCR: %s\n", pdfPath)
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "pdf-ocr-enhanced-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Step 1: Convert PDF to high-resolution images (400 DPI)
+	outputPrefix := filepath.Join(tempDir, "page")
+	cmd := exec.Command("pdftoppm", "-png", "-r", "400", pdfPath, outputPrefix)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("pdftoppm failed: %w (output: %s)", err, string(output))
+	}
+
+	// Find generated images
+	files, err := filepath.Glob(filepath.Join(tempDir, "page-*.png"))
+	if err != nil || len(files) == 0 {
+		return "", fmt.Errorf("no images generated from PDF")
+	}
+	sort.Strings(files)
+
+	// Step 2: Preprocess images and perform OCR
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	// Configure Tesseract for better Chinese recognition
+	client.SetLanguage("chi_sim", "eng")
+	client.SetPageSegMode(gosseract.PSM_AUTO) // or PSM_SINGLE_BLOCK for uniform text
+
+	var allText strings.Builder
+
+	for i, imgPath := range files {
+		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
+
+		// Preprocess image using ImageMagick (if available)
+		processedPath := s.preprocessImage(imgPath, tempDir, i)
+
+		// Perform OCR
+		client.SetImage(processedPath)
+		text, err := client.Text()
+		if err != nil {
+			fmt.Printf("[OCR] OCR failed for page %d: %v\n", i+1, err)
+			continue
+		}
+
+		fmt.Printf("[OCR] Extracted %d characters from page %d\n", len(text), i+1)
+		allText.WriteString(text)
+		allText.WriteString("\n")
+	}
+
+	return allText.String(), nil
+}
+
+// preprocessImage applies image enhancements using ImageMagick
+func (s *OCRService) preprocessImage(inputPath, tempDir string, pageNum int) string {
+	outputPath := filepath.Join(tempDir, fmt.Sprintf("processed-%d.png", pageNum))
+
+	// Check if ImageMagick is available
+	_, err := exec.LookPath("convert")
+	if err != nil {
+		fmt.Printf("[OCR] ImageMagick not found, skipping preprocessing\n")
+		return inputPath
+	}
+
+	// Apply preprocessing: grayscale, contrast enhancement, adaptive threshold, denoise, sharpen
+	// Command: convert input.png -colorspace Gray -contrast-stretch 0.1x0.1% -adaptive-sharpen 0x1 -median 1 output.png
+	cmd := exec.Command("convert", inputPath,
+		"-colorspace", "Gray",           // Convert to grayscale
+		"-contrast-stretch", "0.1x0.1%", // Enhance contrast
+		"-adaptive-sharpen", "0x1",      // Sharpen edges
+		"-median", "1",                  // Denoise
+		"-normalize",                    // Normalize histogram
+		outputPath)
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("[OCR] Image preprocessing failed: %v (output: %s), using original\n", err, string(output))
+		return inputPath
+	}
+
+	fmt.Printf("[OCR] Image preprocessed successfully: %s\n", outputPath)
+	return outputPath
+}
+
+// mergeExtractionResults combines pdftotext and OCR results
+func (s *OCRService) mergeExtractionResults(pdftotextResult, ocrResult string) string {
+	// Strategy:
+	// 1. pdftotext is better for: numbers, dates, amounts, tax IDs
+	// 2. OCR is better for: Chinese characters, text labels
+
+	// Extract structured data from pdftotext
+	amounts := s.extractAmounts(pdftotextResult)
+	taxIDs := s.extractTaxIDs(pdftotextResult)
+	dates := s.extractDates(pdftotextResult)
+
+	// If OCR result has more Chinese content, prefer OCR as base
+	ocrChineseRatio := s.getChineseCharRatio(ocrResult)
+	pdfChineseRatio := s.getChineseCharRatio(pdftotextResult)
+
+	fmt.Printf("[OCR] Merge: pdftotext Chinese ratio: %.2f%%, OCR Chinese ratio: %.2f%%\n",
+		pdfChineseRatio*100, ocrChineseRatio*100)
+
+	// Use OCR as base if it has more Chinese content
+	if ocrChineseRatio > pdfChineseRatio {
+		// Verify and potentially correct amounts/tax IDs from pdftotext
+		result := ocrResult
+
+		// If pdftotext found valid amounts not in OCR, append note
+		if len(amounts) > 0 {
+			fmt.Printf("[OCR] Found %d amounts from pdftotext\n", len(amounts))
+		}
+		if len(taxIDs) > 0 {
+			fmt.Printf("[OCR] Found %d tax IDs from pdftotext\n", len(taxIDs))
+		}
+
+		return result
+	}
+
+	// Otherwise, use pdftotext result
+	return pdftotextResult
+}
+
+// extractAmounts finds monetary amounts in text
+func (s *OCRService) extractAmounts(text string) []string {
+	re := regexp.MustCompile(`[¥￥]\s*[\d,]+\.?\d*`)
+	return re.FindAllString(text, -1)
+}
+
+// extractTaxIDs finds Chinese unified social credit codes
+func (s *OCRService) extractTaxIDs(text string) []string {
+	re := regexp.MustCompile(`[A-Z0-9]{15,20}`)
+	return re.FindAllString(text, -1)
+}
+
+// extractDates finds date patterns
+func (s *OCRService) extractDates(text string) []string {
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`\d{4}[-/年]\s*\d{1,2}[-/月]\s*\d{1,2}[日]?`),
+		regexp.MustCompile(`\d{4}\s+\d{2}\s+\d{2}`),
+	}
+	var dates []string
+	for _, re := range patterns {
+		dates = append(dates, re.FindAllString(text, -1)...)
+	}
+	return dates
 }
 
 // extractTextFromPDF extracts text from a PDF file

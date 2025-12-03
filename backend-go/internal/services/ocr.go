@@ -474,7 +474,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	// If not found, try to find in seller section context
 	// Look for seller section and extract name from nearby "名称：" pattern
 	if data.SellerName == nil {
-		sellerSectionRegex := regexp.MustCompile(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]+)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
+		sellerSectionRegex := regexp.MustCompile(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
 		if match := sellerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
 			seller := strings.TrimSpace(match[2])
 			if seller != "" && seller != "购" && seller != "买" && seller != "方" {

@@ -61,9 +61,8 @@ COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 # Create necessary directories for backend
 RUN mkdir -p /app/backend/uploads /app/backend/data
 
-# Create nginx configuration
-RUN mkdir -p /etc/nginx/http.d
-COPY nginx.conf /etc/nginx/http.d/default.conf
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Create supervisord configuration
 COPY supervisord.conf /etc/supervisord.conf

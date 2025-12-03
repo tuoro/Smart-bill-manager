@@ -32,6 +32,7 @@ func (h *PaymentHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/:id/invoices", h.GetLinkedInvoices)
 	r.POST("", h.Create)
 	r.POST("/upload-screenshot", h.UploadScreenshot)
+	r.POST("/:id/reparse", h.ReparseScreenshot)
 	r.PUT("/:id", h.Update)
 	r.DELETE("/:id", h.Delete)
 }
@@ -193,4 +194,29 @@ func (h *PaymentHandler) GetLinkedInvoices(c *gin.Context) {
 	}
 
 	utils.SuccessData(c, invoices)
+}
+
+// ReparseScreenshot re-parses the payment screenshot with OCR
+func (h *PaymentHandler) ReparseScreenshot(c *gin.Context) {
+	id := c.Param("id")
+
+	payment, err := h.paymentService.GetByID(id)
+	if err != nil {
+		utils.Error(c, 404, "支付记录不存在", nil)
+		return
+	}
+
+	if payment.ScreenshotPath == nil || *payment.ScreenshotPath == "" {
+		utils.Error(c, 400, "该支付记录没有截图", nil)
+		return
+	}
+
+	// Re-parse the screenshot
+	extracted, err := h.paymentService.ReparseScreenshot(id)
+	if err != nil {
+		utils.Error(c, 500, "重新解析失败", err)
+		return
+	}
+
+	utils.Success(c, 200, "重新解析成功", extracted)
 }

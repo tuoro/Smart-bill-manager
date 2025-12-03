@@ -29,6 +29,10 @@ export const paymentApi = {
     })
   },
   
+  // Reparse screenshot with OCR
+  reparseScreenshot: (id: string) => 
+    api.post<ApiResponse<any>>(`/payments/${id}/reparse`),
+  
   // Get invoices linked to a payment
   getPaymentInvoices: (paymentId: string) =>
     api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/invoices`),

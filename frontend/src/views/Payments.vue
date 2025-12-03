@@ -109,8 +109,9 @@
             </el-button>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="150">
           <template #default="{ row }">
+            <el-button type="primary" link :icon="View" @click="openPaymentDetail(row)" />
             <el-button type="primary" link :icon="Edit" @click="openModal(row)" />
             <el-popconfirm
               title="确定删除这条记录吗？"
@@ -365,13 +366,82 @@
         <el-button @click="linkedInvoicesModalVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- Payment Detail Modal -->
+    <el-dialog
+      v-model="paymentDetailVisible"
+      title="支付记录详情"
+      width="700px"
+      destroy-on-close
+    >
+      <el-descriptions v-if="detailPayment" :column="2" border>
+        <el-descriptions-item label="金额" :span="2">
+          <span class="amount">¥{{ detailPayment.amount?.toFixed(2) || '0.00' }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="商家">
+          {{ detailPayment.merchant || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="支付方式">
+          <el-tag v-if="detailPayment.payment_method" type="success">
+            {{ detailPayment.payment_method }}
+          </el-tag>
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="分类">
+          <el-tag v-if="detailPayment.category" type="primary">
+            {{ detailPayment.category }}
+          </el-tag>
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="交易时间">
+          {{ formatDateTime(detailPayment.transaction_time) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">
+          {{ detailPayment.description || '-' }}
+        </el-descriptions-item>
+        
+        <!-- 截图预览 -->
+        <el-descriptions-item v-if="detailPayment.screenshot_path" label="支付截图" :span="2">
+          <el-image 
+            :src="`/api/files/${detailPayment.screenshot_path}`"
+            :preview-src-list="[`/api/files/${detailPayment.screenshot_path}`]"
+            fit="contain"
+            style="max-width: 300px; max-height: 400px; cursor: pointer;"
+          />
+        </el-descriptions-item>
+        
+        <!-- OCR 原始文本 -->
+        <el-descriptions-item v-if="detailPayment.extracted_data" label="OCR原始文本" :span="2">
+          <div class="ocr-section">
+            <el-button 
+              type="primary" 
+              link 
+              :icon="Refresh"
+              :loading="reparsingOcr"
+              @click="handleReparseOcr(detailPayment.id)"
+            >
+              重新解析
+            </el-button>
+            <el-collapse>
+              <el-collapse-item title="点击查看 OCR 识别的原始文本" name="1">
+                <pre class="raw-text">{{ getExtractedRawText(detailPayment.extracted_data) }}</pre>
+              </el-collapse-item>
+            </el-collapse>
+          </div>
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <template #footer>
+        <el-button @click="paymentDetailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadRawFile } from 'element-plus'
-import { Plus, Edit, Delete, Wallet, ShoppingCart, Upload, UploadFilled, Document } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Wallet, ShoppingCart, Upload, UploadFilled, Document, View, Refresh } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { paymentApi } from '@/api'
 import type { Payment, Invoice } from '@/types'
@@ -420,6 +490,11 @@ const loadingLinkedInvoices = ref(false)
 const linkedInvoices = ref<Invoice[]>([])
 const linkedInvoicesCount = ref<Record<string, number>>({})
 const currentPaymentForInvoices = ref<Payment | null>(null)
+
+// Payment detail state
+const paymentDetailVisible = ref(false)
+const detailPayment = ref<Payment | null>(null)
+const reparsingOcr = ref(false)
 
 const form = reactive({
   amount: 0,
@@ -691,6 +766,44 @@ const viewLinkedInvoices = async (payment: Payment) => {
     ElMessage.error('加载关联发票失败')
   } finally {
     loadingLinkedInvoices.value = false
+  }
+}
+
+// Payment detail functions
+const openPaymentDetail = (payment: Payment) => {
+  detailPayment.value = payment
+  paymentDetailVisible.value = true
+}
+
+const getExtractedRawText = (extractedData: string | null): string => {
+  if (!extractedData) return ''
+  try {
+    const data = JSON.parse(extractedData)
+    return data.raw_text || ''
+  } catch {
+    return extractedData
+  }
+}
+
+const handleReparseOcr = async (paymentId: string) => {
+  reparsingOcr.value = true
+  try {
+    const res = await paymentApi.reparseScreenshot(paymentId)
+    if (res.data.success) {
+      ElMessage.success('重新解析成功')
+      // Refresh detail data
+      const detailRes = await paymentApi.getById(paymentId)
+      if (detailRes.data.success && detailRes.data.data) {
+        detailPayment.value = detailRes.data.data
+      }
+      // Refresh list
+      loadPayments()
+    }
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || '重新解析失败')
+  } finally {
+    reparsingOcr.value = false
   }
 }
 
@@ -1070,5 +1183,13 @@ onMounted(() => {
   font-size: 12px;
   line-height: 1.6;
   font-family: var(--font-mono);
+}
+
+.ocr-section {
+  width: 100%;
+}
+
+.ocr-section .el-button {
+  margin-bottom: 8px;
 }
 </style>

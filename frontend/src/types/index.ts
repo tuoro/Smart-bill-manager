@@ -6,6 +6,8 @@ export interface Payment {
   payment_method?: string;
   description?: string;
   transaction_time: string;
+  screenshot_path?: string;
+  extracted_data?: string;
   created_at?: string;
 }
 

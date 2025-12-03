@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
@@ -174,4 +175,67 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 // GetLinkedInvoices returns all invoices linked to a payment
 func (s *PaymentService) GetLinkedInvoices(paymentID string) ([]models.Invoice, error) {
 	return s.repo.GetLinkedInvoices(paymentID)
+}
+
+// ReparseScreenshot re-parses the screenshot for a payment record
+func (s *PaymentService) ReparseScreenshot(paymentID string) (*PaymentExtractedData, error) {
+	// Get the payment record
+	payment, err := s.repo.FindByID(paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if payment has a screenshot
+	if payment.ScreenshotPath == nil || *payment.ScreenshotPath == "" {
+		return nil, fmt.Errorf("payment has no screenshot")
+	}
+
+	// Perform OCR on the screenshot
+	text, err := s.ocrService.RecognizeImage(*payment.ScreenshotPath)
+	if err != nil {
+		return nil, fmt.Errorf("OCR recognition failed: %w", err)
+	}
+
+	// Parse payment data from OCR text
+	extracted, err := s.ocrService.ParsePaymentScreenshot(text)
+	if err != nil {
+		return nil, fmt.Errorf("OCR parsing failed: %w", err)
+	}
+
+	// Store extracted data as JSON
+	extractedDataJSON, err := ExtractedDataToJSON(extracted)
+	if err != nil {
+		extractedDataJSON = nil
+	}
+
+	// Update payment record with new extracted data
+	updateData := make(map[string]interface{})
+	updateData["extracted_data"] = extractedDataJSON
+
+	// Update amount if extracted
+	if extracted.Amount != nil && *extracted.Amount > 0 {
+		updateData["amount"] = *extracted.Amount
+	}
+
+	// Update merchant if extracted
+	if extracted.Merchant != nil {
+		updateData["merchant"] = *extracted.Merchant
+	}
+
+	// Update payment method if extracted
+	if extracted.PaymentMethod != nil {
+		updateData["payment_method"] = *extracted.PaymentMethod
+	}
+
+	// Update transaction time if extracted
+	if extracted.TransactionTime != nil {
+		updateData["transaction_time"] = *extracted.TransactionTime
+	}
+
+	// Update the payment record
+	if err := s.repo.Update(paymentID, updateData); err != nil {
+		return nil, fmt.Errorf("failed to update payment: %w", err)
+	}
+
+	return extracted, nil
 }

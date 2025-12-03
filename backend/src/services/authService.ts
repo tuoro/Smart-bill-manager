@@ -207,6 +207,9 @@ export const authService = {
       console.log('Admin user created via setup:');
       console.log(`  Username: ${username}`);
       console.log('=========================================');
+      
+      // Update the role in the result
+      result.user.role = 'admin';
     }
     return result;
   }

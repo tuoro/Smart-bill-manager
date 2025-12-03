@@ -75,18 +75,28 @@ setAuthErrorHandler(() => {
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
   
+  console.log('[Router Guard] Navigating to:', to.path)
+  
   // Check if setup is required
   try {
     const setupResponse = await authStore.checkSetupRequired()
+    console.log('[Router Guard] Setup response:', setupResponse)
     if (setupResponse && setupResponse.setupRequired) {
       // Setup is required - redirect to setup page
+      console.log('[Router Guard] Setup required, current path:', to.path)
       if (to.path !== '/setup') {
+        console.log('[Router Guard] Redirecting to /setup')
         next('/setup')
         return
       }
-    } else {
+      // Allow access to setup page
+      console.log('[Router Guard] Allowing access to setup page')
+      next()
+      return
+    } else if (setupResponse) {
       // Setup is not required - don't allow access to setup page
       if (to.path === '/setup') {
+        console.log('[Router Guard] Setup not required, redirecting to /login')
         next('/login')
         return
       }
@@ -100,6 +110,7 @@ router.beforeEach(async (to, _from, next) => {
       // Try to verify existing token
       const verified = await authStore.verifyToken()
       if (!verified) {
+        console.log('[Router Guard] Not authenticated, redirecting to /login')
         next('/login')
         return
       }

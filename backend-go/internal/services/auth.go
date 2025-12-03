@@ -199,6 +199,11 @@ func (s *AuthService) CreateInitialAdmin(username, password string, email *strin
 		log.Println("Admin user created via setup:")
 		log.Printf("  Username: %s\n", username)
 		log.Println("=========================================")
+		
+		// Update the role in the result
+		if result.User != nil {
+			result.User.Role = "admin"
+		}
 	}
 
 	return result, nil

@@ -34,4 +34,7 @@ export const invoiceApi = {
   
   delete: (id: string) =>
     api.delete<ApiResponse<void>>(`/invoices/${id}`),
+  
+  parse: (id: string) =>
+    api.post<ApiResponse<Invoice>>(`/invoices/${id}/parse`),
 }

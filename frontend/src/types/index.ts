@@ -22,6 +22,9 @@ export interface Invoice {
   seller_name?: string;
   buyer_name?: string;
   extracted_data?: string;
+  parse_status?: string;
+  parse_error?: string;
+  raw_text?: string;
   source?: string;
   created_at?: string;
 }

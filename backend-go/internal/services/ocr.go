@@ -62,41 +62,60 @@ func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
 
 // RecognizePDF extracts text from PDF, using OCR if necessary
 func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
+	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
+	
 	// First try to extract text directly from PDF
 	text, err := s.extractTextFromPDF(pdfPath)
-	if err != nil || strings.TrimSpace(text) == "" {
+	if err != nil {
+		fmt.Printf("[OCR] Direct text extraction failed: %v\n", err)
 		// If direct extraction fails, convert PDF to images and use OCR
 		return s.pdfToImageOCR(pdfPath)
 	}
+	
+	if strings.TrimSpace(text) == "" {
+		fmt.Printf("[OCR] No text found in PDF, attempting OCR conversion\n")
+		return s.pdfToImageOCR(pdfPath)
+	}
+	
+	fmt.Printf("[OCR] Successfully extracted %d characters from PDF\n", len(text))
 	return text, nil
 }
 
 // extractTextFromPDF extracts text from a PDF file
 func (s *OCRService) extractTextFromPDF(pdfPath string) (string, error) {
+	fmt.Printf("[OCR] Opening PDF file: %s\n", pdfPath)
+	
 	f, r, err := pdf.Open(pdfPath)
 	if err != nil {
-		return "", err
+		fmt.Printf("[OCR] Failed to open PDF: %v\n", err)
+		return "", fmt.Errorf("failed to open PDF: %w", err)
 	}
 	defer f.Close()
 
 	var buf bytes.Buffer
 	totalPage := r.NumPage()
+	fmt.Printf("[OCR] PDF has %d pages\n", totalPage)
 
 	for pageIndex := 1; pageIndex <= totalPage; pageIndex++ {
 		p := r.Page(pageIndex)
 		if p.V.IsNull() {
+			fmt.Printf("[OCR] Page %d is null, skipping\n", pageIndex)
 			continue
 		}
 
 		text, err := p.GetPlainText(nil)
 		if err != nil {
+			fmt.Printf("[OCR] Failed to extract text from page %d: %v\n", pageIndex, err)
 			continue
 		}
+		fmt.Printf("[OCR] Extracted %d characters from page %d\n", len(text), pageIndex)
 		buf.WriteString(text)
 		buf.WriteString("\n")
 	}
 
-	return buf.String(), nil
+	result := buf.String()
+	fmt.Printf("[OCR] Total extracted text length: %d characters\n", len(result))
+	return result, nil
 }
 
 // pdfToImageOCR converts PDF pages to images and performs OCR

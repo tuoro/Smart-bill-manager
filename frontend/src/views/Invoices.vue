@@ -165,6 +165,29 @@
         <el-descriptions-item label="文件名" :span="2">
           {{ previewInvoice.original_name }}
         </el-descriptions-item>
+        <el-descriptions-item label="解析状态" :span="2">
+          <el-tag 
+            :type="getParseStatusType(previewInvoice.parse_status)"
+            :icon="(previewInvoice.parse_status === 'parsing' || parseStatusPending) ? Loading : undefined"
+          >
+            {{ getParseStatusLabel(previewInvoice.parse_status) }}
+          </el-tag>
+          <el-button 
+            v-if="previewInvoice.parse_status !== 'parsing'"
+            type="primary" 
+            link 
+            :icon="Refresh"
+            :loading="parseStatusPending"
+            :disabled="parseStatusPending"
+            @click="handleReparse(previewInvoice.id)"
+            style="margin-left: 8px"
+          >
+            重新解析
+          </el-button>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="previewInvoice.parse_error" label="解析错误" :span="2">
+          <el-text type="danger">{{ previewInvoice.parse_error }}</el-text>
+        </el-descriptions-item>
         <el-descriptions-item label="发票号码">
           {{ previewInvoice.invoice_number || '-' }}
         </el-descriptions-item>
@@ -191,6 +214,13 @@
         <el-descriptions-item label="上传时间">
           {{ formatDateTime(previewInvoice.created_at) }}
         </el-descriptions-item>
+        <el-descriptions-item v-if="previewInvoice.raw_text" label="OCR原始文本" :span="2">
+          <el-collapse>
+            <el-collapse-item title="点击查看提取的原始文本" name="1">
+              <pre class="raw-text">{{ previewInvoice.raw_text }}</pre>
+            </el-collapse-item>
+          </el-collapse>
+        </el-descriptions-item>
         <el-descriptions-item label="预览" :span="2">
           <el-button type="primary" @click="downloadFile(previewInvoice)">
             查看PDF文件
@@ -204,7 +234,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, type UploadInstance, type UploadFile, type UploadRawFile } from 'element-plus'
-import { Document, Upload, View, Download, Delete, UploadFilled } from '@element-plus/icons-vue'
+import { Document, Upload, View, Download, Delete, UploadFilled, Refresh, Loading } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { invoiceApi, FILE_BASE_URL } from '@/api'
 import type { Invoice } from '@/types'
@@ -215,6 +245,7 @@ const uploadModalVisible = ref(false)
 const previewVisible = ref(false)
 const previewInvoice = ref<Invoice | null>(null)
 const uploading = ref(false)
+const parseStatusPending = ref(false)
 const fileList = ref<UploadFile[]>([])
 const uploadRef = ref<UploadInstance>()
 
@@ -335,6 +366,44 @@ const getSourceType = (source?: string): 'primary' | 'success' | 'warning' | 'in
 const formatDateTime = (date?: string) => {
   if (!date) return '-'
   return dayjs(date).format('YYYY-MM-DD HH:mm')
+}
+
+const getParseStatusLabel = (status?: string) => {
+  const labels: Record<string, string> = {
+    pending: '待解析',
+    parsing: '解析中',
+    success: '解析成功',
+    failed: '解析失败'
+  }
+  return labels[status || 'pending'] || '未知'
+}
+
+const getParseStatusType = (status?: string): 'info' | 'warning' | 'success' | 'danger' => {
+  const types: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
+    pending: 'info',
+    parsing: 'warning',
+    success: 'success',
+    failed: 'danger'
+  }
+  return types[status || 'pending'] || 'info'
+}
+
+const handleReparse = async (id: string) => {
+  parseStatusPending.value = true
+  try {
+    const res = await invoiceApi.parse(id)
+    if (res.data.success && res.data.data) {
+      ElMessage.success('发票解析完成')
+      // Update the preview invoice with new data
+      previewInvoice.value = res.data.data
+      // Reload the invoices list
+      loadInvoices()
+    }
+  } catch {
+    ElMessage.error('发票解析失败')
+  } finally {
+    parseStatusPending.value = false
+  }
 }
 
 onMounted(() => {
@@ -657,6 +726,19 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
+}
+
+.raw-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.6;
+  font-family: var(--font-mono);
 }
 
 @media (max-width: 768px) {

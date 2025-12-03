@@ -165,6 +165,9 @@
 
 **新增识别字段:**
 - `tax_amount` - 税额
+- `parse_status` - 解析状态 (pending/parsing/success/failed)
+- `parse_error` - 解析错误信息
+- `raw_text` - OCR提取的原始文本
 - 更精确的金额识别
 - 支持更多发票格式（增值税电子普通发票、增值税电子专用发票等）
 
@@ -187,10 +190,51 @@
     "tax_amount": 15.65,
     "seller_name": "销售方公司",
     "buyer_name": "购买方公司",
+    "parse_status": "success",
+    "parse_error": null,
+    "raw_text": "发票原始文本...",
     "extracted_data": "{...}"
   }
 }
 ```
+
+#### POST `/api/invoices/:id/parse`
+
+手动重新解析发票。适用于以下场景：
+- 首次上传解析失败，需要重新尝试
+- OCR服务升级后重新识别旧发票
+- 调试发票识别问题
+
+**请求参数:**
+- `id`: 发票ID (URL路径参数)
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "code": 200,
+  "message": "发票解析完成",
+  "data": {
+    "id": "invoice-uuid",
+    "invoice_number": "12345678",
+    "invoice_date": "2024年01月01日",
+    "amount": 123.45,
+    "tax_amount": 15.65,
+    "seller_name": "销售方公司",
+    "buyer_name": "购买方公司",
+    "parse_status": "success",
+    "parse_error": null,
+    "raw_text": "发票原始文本...",
+    "extracted_data": "{...}"
+  }
+}
+```
+
+**解析状态说明:**
+- `pending`: 等待解析
+- `parsing`: 解析中
+- `success`: 解析成功
+- `failed`: 解析失败（查看 parse_error 字段了解失败原因）
 
 ---
 

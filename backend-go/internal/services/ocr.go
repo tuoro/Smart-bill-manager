@@ -25,6 +25,7 @@ const (
 	taxIDPattern = `[A-Z0-9]{15,20}`
 
 	// amountPattern matches monetary amounts with ¥ or ￥ symbol
+	// Pattern explanation: (?:,\d{3})* allows comma-separated thousands, (?:\.\d{1,2})? makes decimals optional
 	amountPattern = `[¥￥]\s*\d+(?:,\d{3})*(?:\.\d{1,2})?`
 
 	// taxIDPatternWithBoundary for structured extraction (word boundaries for better matching)
@@ -274,8 +275,8 @@ func (s *OCRService) enhancedPdfToImageOCR(pdfPath string) (string, error) {
 	defer client.Close()
 
 	// Configure Tesseract for better Chinese recognition
-	// PSM_AUTO: Automatic page segmentation (default, works for most cases)
-	// PSM_SINGLE_BLOCK can be used for uniform text blocks (e.g., single-column invoices)
+	// PSM_AUTO: Automatic page segmentation (best for most invoices with mixed layouts)
+	// Alternative: PSM_SINGLE_BLOCK can be used for simple single-column invoices
 	client.SetLanguage("chi_sim", "eng")
 	client.SetPageSegMode(gosseract.PSM_AUTO)
 
@@ -314,8 +315,8 @@ func (s *OCRService) preprocessImage(inputPath, tempDir string, pageNum int) str
 		return inputPath
 	}
 
-	// Apply preprocessing: grayscale, contrast enhancement, adaptive threshold, denoise, sharpen
-	// Command: convert input.png -colorspace Gray -contrast-stretch 0.1x0.1% -adaptive-sharpen 0x1 -median 1 output.png
+	// Apply preprocessing: grayscale, contrast enhancement, adaptive sharpening, denoise, normalize
+	// Command: convert input.png -colorspace Gray -contrast-stretch 0.1x0.1% -adaptive-sharpen 0x1 -median 1 -normalize output.png
 	cmd := exec.Command("convert", inputPath,
 		"-colorspace", "Gray", // Convert to grayscale
 		"-contrast-stretch", "0.1x0.1%", // Enhance contrast

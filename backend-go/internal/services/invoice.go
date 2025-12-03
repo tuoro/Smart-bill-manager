@@ -37,57 +37,17 @@ type CreateInvoiceInput struct {
 func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, error) {
 	id := utils.GenerateUUID()
 
-	// Try to extract data from PDF
-	var invoiceNumber, invoiceDate, sellerName, buyerName *string
-	var amount, taxAmount *float64
-	var extractedData *string
-	var rawText *string
-	parseStatus := "pending"
-	var parseError *string
-
+	// Build absolute file path
 	filePath := input.FilePath
 	if !filepath.IsAbs(filePath) {
 		filePath = filepath.Join(s.uploadsDir, "..", filePath)
 	}
 
-	if strings.HasSuffix(strings.ToLower(input.Filename), ".pdf") {
-		parseStatus = "parsing"
-		// Use OCR service for better PDF extraction
-		text, err := s.ocrService.RecognizePDF(filePath)
-		if err != nil {
-			parseStatus = "failed"
-			errMsg := fmt.Sprintf("OCR recognition failed: %v", err)
-			parseError = &errMsg
-		} else if text != "" {
-			// Save raw text for frontend display
-			rawText = &text
-			
-			// Parse the extracted text
-			extracted, err := s.ocrService.ParseInvoiceData(text)
-			if err == nil {
-				invoiceNumber = extracted.InvoiceNumber
-				invoiceDate = extracted.InvoiceDate
-				amount = extracted.Amount
-				taxAmount = extracted.TaxAmount
-				sellerName = extracted.SellerName
-				buyerName = extracted.BuyerName
-				
-				// Store extracted data as JSON
-				if jsonStr, err := ExtractedDataToJSON(extracted); err == nil {
-					extractedData = jsonStr
-				}
-				parseStatus = "success"
-			} else {
-				parseStatus = "failed"
-				errMsg := fmt.Sprintf("Failed to parse invoice data: %v", err)
-				parseError = &errMsg
-			}
-		} else {
-			parseStatus = "failed"
-			errMsg := "No text extracted from PDF"
-			parseError = &errMsg
-		}
-	}
+	// Parse the invoice PDF
+	invoiceNumber, invoiceDate, sellerName, buyerName,
+		amount, taxAmount,
+		extractedData, rawText,
+		parseStatus, parseError := s.parseInvoicePDF(filePath, input.Filename)
 
 	source := input.Source
 	if source == "" {
@@ -230,6 +190,66 @@ func (s *InvoiceService) SuggestPayments(invoiceID string, limit int) ([]models.
 	return s.repo.SuggestPayments(invoice, limit)
 }
 
+// parseInvoicePDF is a helper method that parses a PDF invoice and returns the extracted data
+func (s *InvoiceService) parseInvoicePDF(filePath, filename string) (
+	invoiceNumber, invoiceDate, sellerName, buyerName *string,
+	amount, taxAmount *float64,
+	extractedData, rawText *string,
+	parseStatus string,
+	parseError *string,
+) {
+	parseStatus = "parsing"
+	
+	if !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
+		parseStatus = "failed"
+		errMsg := "Only PDF files can be parsed"
+		parseError = &errMsg
+		return
+	}
+
+	// Use OCR service to extract text
+	text, err := s.ocrService.RecognizePDF(filePath)
+	if err != nil {
+		parseStatus = "failed"
+		errMsg := fmt.Sprintf("OCR recognition failed: %v", err)
+		parseError = &errMsg
+		return
+	}
+	
+	if text == "" {
+		parseStatus = "failed"
+		errMsg := "No text extracted from PDF"
+		parseError = &errMsg
+		return
+	}
+	
+	// Save raw text for frontend display
+	rawText = &text
+	
+	// Parse the extracted text
+	extracted, err := s.ocrService.ParseInvoiceData(text)
+	if err != nil {
+		parseStatus = "failed"
+		errMsg := fmt.Sprintf("Failed to parse invoice data: %v", err)
+		parseError = &errMsg
+		return
+	}
+	
+	invoiceNumber = extracted.InvoiceNumber
+	invoiceDate = extracted.InvoiceDate
+	amount = extracted.Amount
+	taxAmount = extracted.TaxAmount
+	sellerName = extracted.SellerName
+	buyerName = extracted.BuyerName
+	
+	// Store extracted data as JSON
+	if jsonStr, err := ExtractedDataToJSON(extracted); err == nil {
+		extractedData = jsonStr
+	}
+	parseStatus = "success"
+	return
+}
+
 // Reparse re-triggers parsing for an invoice
 func (s *InvoiceService) Reparse(id string) (*models.Invoice, error) {
 	// Get the invoice
@@ -244,55 +264,11 @@ func (s *InvoiceService) Reparse(id string) (*models.Invoice, error) {
 		filePath = filepath.Join(s.uploadsDir, "..", filePath)
 	}
 
-	// Initialize parse variables
-	var invoiceNumber, invoiceDate, sellerName, buyerName *string
-	var amount, taxAmount *float64
-	var extractedData *string
-	var rawText *string
-	parseStatus := "parsing"
-	var parseError *string
-
-	if strings.HasSuffix(strings.ToLower(invoice.Filename), ".pdf") {
-		// Use OCR service to extract text
-		text, err := s.ocrService.RecognizePDF(filePath)
-		if err != nil {
-			parseStatus = "failed"
-			errMsg := fmt.Sprintf("OCR recognition failed: %v", err)
-			parseError = &errMsg
-		} else if text != "" {
-			// Save raw text for frontend display
-			rawText = &text
-			
-			// Parse the extracted text
-			extracted, err := s.ocrService.ParseInvoiceData(text)
-			if err == nil {
-				invoiceNumber = extracted.InvoiceNumber
-				invoiceDate = extracted.InvoiceDate
-				amount = extracted.Amount
-				taxAmount = extracted.TaxAmount
-				sellerName = extracted.SellerName
-				buyerName = extracted.BuyerName
-				
-				// Store extracted data as JSON
-				if jsonStr, err := ExtractedDataToJSON(extracted); err == nil {
-					extractedData = jsonStr
-				}
-				parseStatus = "success"
-			} else {
-				parseStatus = "failed"
-				errMsg := fmt.Sprintf("Failed to parse invoice data: %v", err)
-				parseError = &errMsg
-			}
-		} else {
-			parseStatus = "failed"
-			errMsg := "No text extracted from PDF"
-			parseError = &errMsg
-		}
-	} else {
-		parseStatus = "failed"
-		errMsg := "Only PDF files can be parsed"
-		parseError = &errMsg
-	}
+	// Parse the invoice PDF
+	invoiceNumber, invoiceDate, sellerName, buyerName,
+		amount, taxAmount,
+		extractedData, rawText,
+		parseStatus, parseError := s.parseInvoicePDF(filePath, invoice.Filename)
 
 	// Update the invoice with parsed data
 	updateData := map[string]interface{}{

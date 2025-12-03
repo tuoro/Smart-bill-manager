@@ -168,7 +168,7 @@
         <el-descriptions-item label="解析状态" :span="2">
           <el-tag 
             :type="getParseStatusType(previewInvoice.parse_status)"
-            :icon="parseStatusPending ? Loading : undefined"
+            :icon="(previewInvoice.parse_status === 'parsing' || parseStatusPending) ? Loading : undefined"
           >
             {{ getParseStatusLabel(previewInvoice.parse_status) }}
           </el-tag>
@@ -178,6 +178,7 @@
             link 
             :icon="Refresh"
             :loading="parseStatusPending"
+            :disabled="parseStatusPending"
             @click="handleReparse(previewInvoice.id)"
             style="margin-left: 8px"
           >

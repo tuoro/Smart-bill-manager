@@ -124,11 +124,28 @@ func (s *OCRService) extractTextWithPdftotext(pdfPath string) (string, error) {
 		return "", fmt.Errorf("pdftotext not found in PATH: %w", err)
 	}
 
+	// Validate the PDF file exists before running the command
+	fileInfo, err := os.Stat(pdfPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to access PDF file: %w", err)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return "", fmt.Errorf("PDF path is not a regular file")
+	}
+
 	// Run pdftotext with -layout flag to preserve layout
 	// Output to stdout using "-" as output file
+	// Note: exec.Command properly escapes arguments, preventing command injection
 	cmd := exec.Command("pdftotext", "-layout", "-enc", "UTF-8", pdfPath, "-")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	output, err := cmd.Output()
 	if err != nil {
+		// Include stderr in error message for better diagnostics
+		stderrStr := strings.TrimSpace(stderr.String())
+		if stderrStr != "" {
+			return "", fmt.Errorf("pdftotext execution failed: %w (stderr: %s)", err, stderrStr)
+		}
 		return "", fmt.Errorf("pdftotext execution failed: %w", err)
 	}
 

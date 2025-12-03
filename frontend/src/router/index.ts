@@ -76,9 +76,15 @@ router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
   
   // Check if setup is required
+  let setupCheckFailed = false
   try {
     const setupResponse = await authStore.checkSetupRequired()
-    if (setupResponse && setupResponse.setupRequired) {
+    
+    if (setupResponse === null) {
+      // API call failed or returned invalid data
+      setupCheckFailed = true
+      console.warn('Setup check returned null - setup status unknown')
+    } else if (setupResponse.setupRequired) {
       // Setup is required - redirect to setup page
       if (to.path !== '/setup') {
         next('/setup')
@@ -87,7 +93,7 @@ router.beforeEach(async (to, _from, next) => {
       // Allow access to setup page
       next()
       return
-    } else if (setupResponse) {
+    } else {
       // Setup is not required - don't allow access to setup page
       if (to.path === '/setup') {
         next('/login')
@@ -96,6 +102,13 @@ router.beforeEach(async (to, _from, next) => {
     }
   } catch (error) {
     console.error('Failed to check setup status:', error)
+    setupCheckFailed = true
+  }
+  
+  // If setup check failed, allow access to setup page to prevent lockout
+  if (setupCheckFailed && to.path === '/setup') {
+    next()
+    return
   }
   
   if (to.meta.requiresAuth !== false) {
@@ -103,6 +116,12 @@ router.beforeEach(async (to, _from, next) => {
       // Try to verify existing token
       const verified = await authStore.verifyToken()
       if (!verified) {
+        // If setup check failed and user is not authenticated,
+        // redirect to setup page as a fallback
+        if (setupCheckFailed) {
+          next('/setup')
+          return
+        }
         next('/login')
         return
       }

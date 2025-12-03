@@ -297,11 +297,11 @@ func (s *OCRService) preprocessImage(inputPath, tempDir string, pageNum int) str
 	// Apply preprocessing: grayscale, contrast enhancement, adaptive threshold, denoise, sharpen
 	// Command: convert input.png -colorspace Gray -contrast-stretch 0.1x0.1% -adaptive-sharpen 0x1 -median 1 output.png
 	cmd := exec.Command("convert", inputPath,
-		"-colorspace", "Gray",           // Convert to grayscale
+		"-colorspace", "Gray", // Convert to grayscale
 		"-contrast-stretch", "0.1x0.1%", // Enhance contrast
-		"-adaptive-sharpen", "0x1",      // Sharpen edges
-		"-median", "1",                  // Denoise
-		"-normalize",                    // Normalize histogram
+		"-adaptive-sharpen", "0x1", // Sharpen edges
+		"-median", "1", // Denoise
+		"-normalize", // Normalize histogram
 		outputPath)
 
 	if output, err := cmd.CombinedOutput(); err != nil {

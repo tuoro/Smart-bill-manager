@@ -496,3 +496,246 @@ func TestExtractTextWithPdftotext(t *testing.T) {
 	// that pdftotext extracts the text correctly
 }
 
+func TestGetChineseCharRatio(t *testing.T) {
+	service := NewOCRService()
+
+	tests := []struct {
+		name     string
+		text     string
+		expected float64
+	}{
+		{
+			name:     "All Chinese",
+			text:     "这是一个测试",
+			expected: 1.0,
+		},
+		{
+			name:     "Half Chinese",
+			text:     "这是test",
+			expected: 0.5,
+		},
+		{
+			name:     "No Chinese",
+			text:     "This is a test",
+			expected: 0.0,
+		},
+		{
+			name:     "Empty string",
+			text:     "",
+			expected: 0.0,
+		},
+		{
+			name:     "With spaces",
+			text:     "这是 一个 测试",
+			expected: 1.0, // Spaces are ignored
+		},
+		{
+			name:     "Mixed content with numbers",
+			text:     "发票号码：12345678",
+			expected: 0.5, // 4 Chinese chars, 4 symbols/numbers (ignoring spaces and colon)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := service.getChineseCharRatio(tt.text)
+			// Use approximate comparison for floating point
+			if result < tt.expected-0.01 || result > tt.expected+0.01 {
+				t.Errorf("getChineseCharRatio() = %.2f, want %.2f", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractAmounts(t *testing.T) {
+	service := NewOCRService()
+
+	tests := []struct {
+		name     string
+		text     string
+		expected int // number of amounts found
+	}{
+		{
+			name:     "Single amount with ¥",
+			text:     "金额：¥200.00",
+			expected: 1,
+		},
+		{
+			name:     "Multiple amounts",
+			text:     "合计 ¥3049.51 税额 ¥30.49 总计 ¥3080.00",
+			expected: 3,
+		},
+		{
+			name:     "Amount with full-width symbol",
+			text:     "价税合计（小写）￥19.58",
+			expected: 1,
+		},
+		{
+			name:     "No amounts",
+			text:     "这是一个测试",
+			expected: 0,
+		},
+		{
+			name:     "Amount with comma",
+			text:     "¥1,234.56",
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := service.extractAmounts(tt.text)
+			if len(result) != tt.expected {
+				t.Errorf("extractAmounts() found %d amounts, want %d. Results: %v", len(result), tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestExtractTaxIDs(t *testing.T) {
+	service := NewOCRService()
+
+	tests := []struct {
+		name     string
+		text     string
+		expected int // number of tax IDs found
+	}{
+		{
+			name:     "Single 18-char tax ID",
+			text:     "纳税人识别号：91310000132149237G",
+			expected: 1,
+		},
+		{
+			name:     "Single 20-char tax ID",
+			text:     "统一社会信用代码：92310109MA1KMFLM1K",
+			expected: 1,
+		},
+		{
+			name:     "Multiple tax IDs",
+			text:     "销售方：91310000132149237G 购买方：92310109MA1KMFLM1K",
+			expected: 2,
+		},
+		{
+			name:     "No tax IDs",
+			text:     "这是一个测试",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := service.extractTaxIDs(tt.text)
+			if len(result) != tt.expected {
+				t.Errorf("extractTaxIDs() found %d tax IDs, want %d. Results: %v", len(result), tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestExtractDates(t *testing.T) {
+	service := NewOCRService()
+
+	tests := []struct {
+		name     string
+		text     string
+		expected int // number of dates found
+	}{
+		{
+			name:     "Chinese format YYYY年MM月DD日",
+			text:     "开票日期：2025年07月02日",
+			expected: 1,
+		},
+		{
+			name:     "Space-separated format",
+			text:     "日期：2025 07 02",
+			expected: 1,
+		},
+		{
+			name:     "Dash-separated format",
+			text:     "2025-07-02",
+			expected: 1,
+		},
+		{
+			name:     "Multiple dates",
+			text:     "开票日期：2025年07月02日 到期日：2025年08月02日",
+			expected: 2,
+		},
+		{
+			name:     "No dates",
+			text:     "这是一个测试",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := service.extractDates(tt.text)
+			if len(result) != tt.expected {
+				t.Errorf("extractDates() found %d dates, want %d. Results: %v", len(result), tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestMergeExtractionResults(t *testing.T) {
+	service := NewOCRService()
+
+	tests := []struct {
+		name          string
+		pdftotextText string
+		ocrText       string
+		expectOCR     bool // true if we expect OCR result to be used as base
+		description   string
+	}{
+		{
+			name: "OCR has more Chinese - use OCR",
+			pdftotextText: `2025   07   02
+*14<<*>07/6>27/*88780<>*>45
+¥200.00
+91310000132149237G`,
+			ocrText: `电子发票（普通发票）
+发票号码：25312000000336194167
+开票日期：2025年07月02日
+金额：¥200.00
+销售方名称：上海公司
+购买方名称：个人`,
+			expectOCR:   true,
+			description: "When OCR has Chinese text and pdftotext doesn't, use OCR",
+		},
+		{
+			name: "pdftotext has sufficient Chinese - use pdftotext",
+			pdftotextText: `电子发票（普通发票）
+发票号码：12345678901234567890
+开票日期：2024年12月01日
+销售方名称：测试公司
+购买方名称：购买公司
+价税合计（小写）¥1234.56`,
+			ocrText: `电子发票（普通发票）
+发票号码：12345678901234567890`,
+			expectOCR:   false,
+			description: "When pdftotext has more Chinese, use pdftotext",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := service.mergeExtractionResults(tt.pdftotextText, tt.ocrText)
+
+			// Check which source was used based on Chinese character ratio
+			ocrRatio := service.getChineseCharRatio(tt.ocrText)
+			pdfRatio := service.getChineseCharRatio(tt.pdftotextText)
+
+			t.Logf("OCR Chinese ratio: %.2f%%, pdftotext Chinese ratio: %.2f%%", ocrRatio*100, pdfRatio*100)
+
+			if tt.expectOCR {
+				if result != tt.ocrText {
+					t.Errorf("Expected OCR result to be used, but got different result")
+				}
+			} else {
+				if result != tt.pdftotextText {
+					t.Errorf("Expected pdftotext result to be used, but got different result")
+				}
+			}
+		})
+	}
+}

@@ -23,6 +23,18 @@ type OCRService struct{}
 const (
 	// taxIDPattern matches Chinese unified social credit codes (15-20 alphanumeric characters)
 	taxIDPattern = `[A-Z0-9]{15,20}`
+
+	// amountPattern matches monetary amounts with ¥ or ￥ symbol
+	amountPattern = `[¥￥]\s*\d+(?:,\d{3})*(?:\.\d{1,2})?`
+
+	// taxIDPatternWithBoundary for structured extraction (word boundaries for better matching)
+	taxIDPatternWithBoundary = `\b[A-Z0-9]{15,20}\b`
+)
+
+var (
+	// Compiled regex patterns for better performance
+	amountRegex = regexp.MustCompile(amountPattern)
+	taxIDRegex  = regexp.MustCompile(taxIDPatternWithBoundary)
 )
 
 func NewOCRService() *OCRService {
@@ -256,8 +268,10 @@ func (s *OCRService) enhancedPdfToImageOCR(pdfPath string) (string, error) {
 	defer client.Close()
 
 	// Configure Tesseract for better Chinese recognition
+	// PSM_AUTO: Automatic page segmentation (default, works for most cases)
+	// PSM_SINGLE_BLOCK can be used for uniform text blocks (e.g., single-column invoices)
 	client.SetLanguage("chi_sim", "eng")
-	client.SetPageSegMode(gosseract.PSM_AUTO) // or PSM_SINGLE_BLOCK for uniform text
+	client.SetPageSegMode(gosseract.PSM_AUTO)
 
 	var allText strings.Builder
 
@@ -319,11 +333,6 @@ func (s *OCRService) mergeExtractionResults(pdftotextResult, ocrResult string) s
 	// 1. pdftotext is better for: numbers, dates, amounts, tax IDs
 	// 2. OCR is better for: Chinese characters, text labels
 
-	// Extract structured data from pdftotext
-	amounts := s.extractAmounts(pdftotextResult)
-	taxIDs := s.extractTaxIDs(pdftotextResult)
-	dates := s.extractDates(pdftotextResult)
-
 	// If OCR result has more Chinese content, prefer OCR as base
 	ocrChineseRatio := s.getChineseCharRatio(ocrResult)
 	pdfChineseRatio := s.getChineseCharRatio(pdftotextResult)
@@ -333,21 +342,13 @@ func (s *OCRService) mergeExtractionResults(pdftotextResult, ocrResult string) s
 
 	// Use OCR as base if it has more Chinese content
 	if ocrChineseRatio > pdfChineseRatio {
-		// Verify and potentially correct amounts/tax IDs from pdftotext
-		result := ocrResult
-
-		// If pdftotext found valid amounts not in OCR, append note
-		if len(amounts) > 0 {
-			fmt.Printf("[OCR] Found %d amounts from pdftotext\n", len(amounts))
-		}
-		if len(taxIDs) > 0 {
-			fmt.Printf("[OCR] Found %d tax IDs from pdftotext\n", len(taxIDs))
-		}
-
-		return result
+		// OCR result contains more Chinese text, which is what we need
+		// The structured data extraction from pdftotext could be used
+		// for validation/correction in future enhancements
+		return ocrResult
 	}
 
-	// Otherwise, use pdftotext result
+	// Otherwise, use pdftotext result (it already has good Chinese content)
 	return pdftotextResult
 }
 
@@ -357,16 +358,14 @@ func (s *OCRService) extractAmounts(text string) []string {
 	// - Amounts with or without decimals: ¥100 or ¥100.00
 	// - Amounts with commas: ¥1,234.56
 	// - Amounts must have at least one digit
-	re := regexp.MustCompile(`[¥￥]\s*\d+(?:,\d{3})*(?:\.\d{1,2})?`)
-	return re.FindAllString(text, -1)
+	return amountRegex.FindAllString(text, -1)
 }
 
 // extractTaxIDs finds Chinese unified social credit codes
 // Note: This pattern is intentionally broad to catch variations in OCR output
 // Real validation should be done in the parsing layer with checksum verification
 func (s *OCRService) extractTaxIDs(text string) []string {
-	re := regexp.MustCompile(`\b[A-Z0-9]{15,20}\b`)
-	return re.FindAllString(text, -1)
+	return taxIDRegex.FindAllString(text, -1)
 }
 
 // extractDates finds date patterns

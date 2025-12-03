@@ -532,7 +532,7 @@ func TestGetChineseCharRatio(t *testing.T) {
 		{
 			name:     "Mixed content with numbers",
 			text:     "发票号码：12345678",
-			expected: 0.31, // 4 Chinese chars (发票号码), 1 colon, 8 digits = 4/13 ≈ 0.31
+			expected: 0.31, // 4 Chinese chars (发票号码), colon and 8 digits = 9 non-Chinese chars, total 13 chars
 		},
 	}
 

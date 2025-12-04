@@ -48,14 +48,15 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
 # ============================================
 FROM nginx:alpine AS production
 
-# Install supervisor, SQLite runtime, Tesseract with language packs, poppler-utils, ImageMagick, poppler-data, Python and PaddleOCR
+# Install supervisor, SQLite runtime, Tesseract with language packs, poppler-utils, ImageMagick, poppler-data, Python and OCR dependencies
 # Note: Alpine's tesseract-ocr package includes basic language data
 # Additional language data can be installed via tesseract-ocr-data-* packages or downloaded manually
 # poppler-data provides CJK CMap files for better PDF text extraction
 # imagemagick provides image preprocessing capabilities for better OCR
-# Python 3 and pip are required for PaddleOCR CLI integration
+# Python 3 and pip are required for OCR CLI integration
 RUN apk add --no-cache supervisor tesseract-ocr ca-certificates poppler-utils poppler-data imagemagick \
-    python3 py3-pip && \
+    python3 py3-pip \
+    libgl libglib libgomp libstdc++ && \
     apk add --no-cache tesseract-ocr-data-chi_sim tesseract-ocr-data-eng 2>/dev/null || \
     (apk add --no-cache wget && \
      TESSDATA_DIR=/usr/share/tessdata && \
@@ -66,9 +67,12 @@ RUN apk add --no-cache supervisor tesseract-ocr ca-certificates poppler-utils po
          https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata && \
      apk del wget)
 
-# Install PaddleOCR Python dependencies
-# Note: We install without cache to reduce image size
-RUN pip3 install --no-cache-dir paddlepaddle paddleocr
+# Upgrade pip and install RapidOCR (lightweight OCR alternative)
+# RapidOCR is more compatible with Alpine Linux than PaddlePaddle
+# If installation fails, the build continues and system falls back to PaddleOCR if available, or Tesseract
+RUN pip3 install --upgrade pip setuptools wheel && \
+    (pip3 install --no-cache-dir rapidocr_onnxruntime || \
+     echo "RapidOCR installation failed, OCR will fall back to PaddleOCR if available, or Tesseract")
 
 WORKDIR /app
 

@@ -1,4 +1,4 @@
-paddlepaddle
-paddleocr
-flask
-pillow
+paddlepaddle>=2.4,<3.0
+paddleocr>=2.6,<3.0
+flask>=2.3,<3.0
+pillow>=9.5,<11.0

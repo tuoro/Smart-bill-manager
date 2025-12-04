@@ -84,9 +84,14 @@ def recognize():
         })
         
     except Exception as e:
+        # Log full exception for debugging
+        import traceback
+        print(f"OCR error (file upload): {str(e)}")
+        print(traceback.format_exc())
+        
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'OCR processing failed'
         }), 500
 
 @app.route('/ocr/path', methods=['POST'])
@@ -140,9 +145,14 @@ def recognize_by_path():
         })
         
     except Exception as e:
+        # Log full exception for debugging
+        import traceback
+        print(f"OCR error (file path): {str(e)}")
+        print(traceback.format_exc())
+        
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'OCR processing failed'
         }), 500
 
 if __name__ == '__main__':

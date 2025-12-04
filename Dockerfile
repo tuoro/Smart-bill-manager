@@ -54,10 +54,15 @@ RUN apk add --no-cache supervisor && \
     which supervisord && \
     ls -la $(which supervisord)
 
-# Install other dependencies
-RUN apk add --no-cache tesseract-ocr ca-certificates poppler-utils poppler-data imagemagick \
-    python3 py3-pip \
-    libgl libglib libgomp libstdc++
+# Install core dependencies (required)
+RUN apk add --no-cache \
+    tesseract-ocr \
+    ca-certificates \
+    poppler-utils \
+    poppler-data \
+    imagemagick \
+    python3 \
+    py3-pip
 
 # Install Tesseract language data
 RUN apk add --no-cache tesseract-ocr-data-chi_sim tesseract-ocr-data-eng 2>/dev/null || \
@@ -69,6 +74,10 @@ RUN apk add --no-cache tesseract-ocr-data-chi_sim tesseract-ocr-data-eng 2>/dev/
      wget -q -O $TESSDATA_DIR/eng.traineddata \
          https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata && \
      apk del wget)
+
+# Install optional libraries for RapidOCR (mesa-gl for OpenGL, glib for GLib, libstdc++ for C++ runtime)
+# Allows failures since RapidOCR is optional and will fall back to Tesseract
+RUN apk add --no-cache mesa-gl glib libstdc++ 2>/dev/null || true
 
 # Install Python OCR dependencies (optional, will fall back to Tesseract if fails)
 RUN python3 -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || true && \

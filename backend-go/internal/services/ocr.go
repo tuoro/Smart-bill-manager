@@ -224,12 +224,12 @@ func (s *OCRService) preprocessPaymentScreenshot(inputPath, tempDir string) stri
 	// 4. Sharpen edges
 	// 5. Remove noise
 	cmd := exec.Command("convert", inputPath,
-		"-resize", "200%",              // Scale up for better recognition
-		"-colorspace", "Gray",          // Convert to grayscale
+		"-resize", "200%", // Scale up for better recognition
+		"-colorspace", "Gray", // Convert to grayscale
 		"-sigmoidal-contrast", "10,50%", // Increase contrast (S-curve)
-		"-threshold", "50%",            // Binary threshold for clean text
+		"-threshold", "50%", // Binary threshold for clean text
 		"-morphology", "Close", "Square:1", // Close small gaps in characters
-		"-sharpen", "0x2",              // Sharpen edges
+		"-sharpen", "0x2", // Sharpen edges
 		outputPath)
 
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -250,9 +250,9 @@ func (s *OCRService) preprocessPaymentScreenshotAlt(inputPath, tempDir string) s
 	cmd := exec.Command("convert", inputPath,
 		"-resize", "150%",
 		"-colorspace", "Gray",
-		"-contrast-stretch", "2%x2%",   // Aggressive contrast stretch
-		"-unsharp", "0x5",              // Unsharp mask for edge enhancement
-		"-despeckle",                   // Remove noise
+		"-contrast-stretch", "2%x2%", // Aggressive contrast stretch
+		"-unsharp", "0x5", // Unsharp mask for edge enhancement
+		"-despeckle", // Remove noise
 		outputPath)
 
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -290,9 +290,9 @@ func (s *OCRService) createBinaryImage(inputPath, tempDir string) string {
 
 	cmd := exec.Command("convert", inputPath,
 		"-colorspace", "Gray",
-		"-negate",                      // Invert colors
-		"-threshold", "40%",            // Aggressive threshold
-		"-negate",                      // Invert back
+		"-negate",           // Invert colors
+		"-threshold", "40%", // Aggressive threshold
+		"-negate", // Invert back
 		outputPath)
 
 	if _, err := cmd.CombinedOutput(); err != nil {
@@ -323,7 +323,7 @@ func (s *OCRService) mergeOCRResults(results []string) string {
 
 	// Find the result that contains amount-like patterns
 	amountPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`),  // Numbers like 1700.00 or -1700.00
+		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`), // Numbers like 1700.00 or -1700.00
 		regexp.MustCompile(`[¥￥]-?\d+\.?\d*`),    // Currency symbol with amount
 	}
 
@@ -342,7 +342,7 @@ func (s *OCRService) mergeOCRResults(results []string) string {
 				score++
 			}
 		}
-		
+
 		if score > bestScore {
 			bestScore = score
 			bestResult = result

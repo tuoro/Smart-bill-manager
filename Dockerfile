@@ -67,12 +67,12 @@ RUN apk add --no-cache supervisor tesseract-ocr ca-certificates poppler-utils po
          https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata && \
      apk del wget)
 
-# Upgrade pip and install RapidOCR (lightweight OCR alternative)
-# RapidOCR is more compatible with Alpine Linux than PaddlePaddle
-# If installation fails, the build continues and system falls back to PaddleOCR if available, or Tesseract
-RUN pip3 install --upgrade pip setuptools wheel && \
-    (pip3 install --no-cache-dir rapidocr_onnxruntime || \
-     echo "RapidOCR installation failed, OCR will fall back to PaddleOCR if available, or Tesseract")
+# Install Python OCR dependencies
+# Use --break-system-packages for Alpine's pip
+# If installation fails, continue - Tesseract will be used as fallback
+RUN python3 -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || true && \
+    python3 -m pip install --break-system-packages --no-cache-dir rapidocr_onnxruntime 2>/dev/null || \
+    echo "RapidOCR installation skipped - using Tesseract for OCR"
 
 WORKDIR /app
 

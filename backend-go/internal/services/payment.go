@@ -120,8 +120,8 @@ type CreateFromScreenshotInput struct {
 }
 
 func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (*models.Payment, *PaymentExtractedData, error) {
-	// Perform OCR on the screenshot with enhanced recognition
-	text, err := s.ocrService.RecognizeImageEnhanced(input.ScreenshotPath)
+	// Perform OCR on the screenshot with specialized payment screenshot recognition
+	text, err := s.ocrService.RecognizePaymentScreenshot(input.ScreenshotPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -190,8 +190,8 @@ func (s *PaymentService) ReparseScreenshot(paymentID string) (*PaymentExtractedD
 		return nil, fmt.Errorf("payment has no screenshot")
 	}
 
-	// Perform OCR on the screenshot with enhanced recognition
-	text, err := s.ocrService.RecognizeImageEnhanced(*payment.ScreenshotPath)
+	// Perform OCR on the screenshot with specialized payment screenshot recognition
+	text, err := s.ocrService.RecognizePaymentScreenshot(*payment.ScreenshotPath)
 	if err != nil {
 		return nil, fmt.Errorf("OCR recognition failed: %w", err)
 	}

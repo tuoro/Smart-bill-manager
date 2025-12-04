@@ -148,6 +148,254 @@ func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 	return text, nil
 }
 
+// RecognizePaymentScreenshot performs OCR optimized for payment screenshots
+// It tries multiple preprocessing strategies and merges results
+func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error) {
+	fmt.Printf("[OCR] Starting payment screenshot recognition for: %s\n", imagePath)
+
+	// Create temporary directory
+	tempDir, err := os.MkdirTemp("", "payment-ocr-*")
+	if err != nil {
+		return s.RecognizeImageEnhanced(imagePath)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var results []string
+
+	// Strategy 1: Original image with PSM_SINGLE_BLOCK (good for large text)
+	if text := s.ocrWithConfig(imagePath, gosseract.PSM_SINGLE_BLOCK); text != "" {
+		results = append(results, text)
+		fmt.Printf("[OCR] Strategy 1 (PSM_SINGLE_BLOCK) extracted %d chars\n", len(text))
+	}
+
+	// Strategy 2: Payment-specific preprocessing with PSM_AUTO
+	processedPath := s.preprocessPaymentScreenshot(imagePath, tempDir)
+	if text := s.ocrWithConfig(processedPath, gosseract.PSM_AUTO); text != "" {
+		results = append(results, text)
+		fmt.Printf("[OCR] Strategy 2 (preprocessed + PSM_AUTO) extracted %d chars\n", len(text))
+	}
+
+	// Strategy 3: High contrast binary image with PSM_SINGLE_BLOCK
+	binaryPath := s.createBinaryImage(imagePath, tempDir)
+	if binaryPath != imagePath {
+		if text := s.ocrWithConfig(binaryPath, gosseract.PSM_SINGLE_BLOCK); text != "" {
+			results = append(results, text)
+			fmt.Printf("[OCR] Strategy 3 (binary + PSM_SINGLE_BLOCK) extracted %d chars\n", len(text))
+		}
+	}
+
+	// Strategy 4: Inverted image (white text on black background issues)
+	invertedPath := s.createInvertedImage(imagePath, tempDir)
+	if invertedPath != imagePath {
+		if text := s.ocrWithConfig(invertedPath, gosseract.PSM_AUTO); text != "" {
+			results = append(results, text)
+			fmt.Printf("[OCR] Strategy 4 (inverted) extracted %d chars\n", len(text))
+		}
+	}
+
+	// Merge all results - combine unique content
+	mergedText := s.mergeOCRResults(results)
+	fmt.Printf("[OCR] Merged result: %d characters from %d strategies\n", len(mergedText), len(results))
+
+	if mergedText == "" {
+		// Fallback to enhanced recognition
+		return s.RecognizeImageEnhanced(imagePath)
+	}
+
+	return mergedText, nil
+}
+
+// preprocessPaymentScreenshot applies specialized preprocessing for payment screenshots
+// Payment screenshots typically have large amount text that needs special handling
+func (s *OCRService) preprocessPaymentScreenshot(inputPath, tempDir string) string {
+	outputPath := filepath.Join(tempDir, "payment-processed.png")
+
+	// Check if ImageMagick is available
+	_, err := exec.LookPath("convert")
+	if err != nil {
+		fmt.Printf("[OCR] ImageMagick not found, skipping preprocessing\n")
+		return inputPath
+	}
+
+	// For payment screenshots, we need more aggressive preprocessing:
+	// 1. Resize to larger size for better recognition of large fonts
+	// 2. Convert to grayscale
+	// 3. High contrast with thresholding to make text stand out
+	// 4. Sharpen edges
+	// 5. Remove noise
+	cmd := exec.Command("convert", inputPath,
+		"-resize", "200%",              // Scale up for better recognition
+		"-colorspace", "Gray",          // Convert to grayscale
+		"-sigmoidal-contrast", "10,50%", // Increase contrast (S-curve)
+		"-threshold", "50%",            // Binary threshold for clean text
+		"-morphology", "Close", "Square:1", // Close small gaps in characters
+		"-sharpen", "0x2",              // Sharpen edges
+		outputPath)
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("[OCR] Payment screenshot preprocessing failed: %v (output: %s)\n", err, string(output))
+		// Try alternative preprocessing
+		return s.preprocessPaymentScreenshotAlt(inputPath, tempDir)
+	}
+
+	fmt.Printf("[OCR] Payment screenshot preprocessed: %s\n", outputPath)
+	return outputPath
+}
+
+// preprocessPaymentScreenshotAlt provides alternative preprocessing for payment screenshots
+func (s *OCRService) preprocessPaymentScreenshotAlt(inputPath, tempDir string) string {
+	outputPath := filepath.Join(tempDir, "payment-processed-alt.png")
+
+	// Alternative preprocessing without threshold (for colored text)
+	cmd := exec.Command("convert", inputPath,
+		"-resize", "150%",
+		"-colorspace", "Gray",
+		"-contrast-stretch", "2%x2%",   // Aggressive contrast stretch
+		"-unsharp", "0x5",              // Unsharp mask for edge enhancement
+		"-despeckle",                   // Remove noise
+		outputPath)
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("[OCR] Alternative preprocessing failed: %v (output: %s), using original\n", err, string(output))
+		return inputPath
+	}
+
+	fmt.Printf("[OCR] Alternative preprocessing successful: %s\n", outputPath)
+	return outputPath
+}
+
+// ocrWithConfig performs OCR with specific page segmentation mode
+func (s *OCRService) ocrWithConfig(imagePath string, psm gosseract.PageSegMode) string {
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	client.SetLanguage("chi_sim", "eng")
+	client.SetPageSegMode(psm)
+
+	if err := client.SetImage(imagePath); err != nil {
+		return ""
+	}
+
+	text, err := client.Text()
+	if err != nil {
+		return ""
+	}
+
+	return text
+}
+
+// createBinaryImage creates a high-contrast binary image
+func (s *OCRService) createBinaryImage(inputPath, tempDir string) string {
+	outputPath := filepath.Join(tempDir, "binary.png")
+
+	cmd := exec.Command("convert", inputPath,
+		"-colorspace", "Gray",
+		"-negate",                      // Invert colors
+		"-threshold", "40%",            // Aggressive threshold
+		"-negate",                      // Invert back
+		outputPath)
+
+	if _, err := cmd.CombinedOutput(); err != nil {
+		return inputPath
+	}
+	return outputPath
+}
+
+// createInvertedImage creates an inverted version of the image
+func (s *OCRService) createInvertedImage(inputPath, tempDir string) string {
+	outputPath := filepath.Join(tempDir, "inverted.png")
+
+	cmd := exec.Command("convert", inputPath,
+		"-negate",
+		outputPath)
+
+	if _, err := cmd.CombinedOutput(); err != nil {
+		return inputPath
+	}
+	return outputPath
+}
+
+// mergeOCRResults merges multiple OCR results, prioritizing amount extraction
+func (s *OCRService) mergeOCRResults(results []string) string {
+	if len(results) == 0 {
+		return ""
+	}
+
+	// Find the result that contains amount-like patterns
+	amountPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`),  // Numbers like 1700.00 or -1700.00
+		regexp.MustCompile(`[¥￥]-?\d+\.?\d*`),    // Currency symbol with amount
+	}
+
+	var bestResult string
+	var bestScore int
+
+	for _, result := range results {
+		score := 0
+		for _, pattern := range amountPatterns {
+			matches := pattern.FindAllString(result, -1)
+			score += len(matches)
+		}
+		// Also score based on Chinese character count (we want good text recognition)
+		for _, r := range result {
+			if unicode.Is(unicode.Han, r) {
+				score++
+			}
+		}
+		
+		if score > bestScore {
+			bestScore = score
+			bestResult = result
+		}
+	}
+
+	// If best result has amount, use it as base
+	// Otherwise, concatenate all unique lines
+	if bestScore > 0 {
+		return bestResult
+	}
+
+	// Merge unique lines from all results
+	seen := make(map[string]bool)
+	var merged strings.Builder
+	for _, result := range results {
+		lines := strings.Split(result, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && !seen[line] {
+				seen[line] = true
+				merged.WriteString(line)
+				merged.WriteString("\n")
+			}
+		}
+	}
+
+	return merged.String()
+}
+
+// ocrDigitsOnly performs OCR configured specifically for digit recognition
+func (s *OCRService) ocrDigitsOnly(imagePath string) string {
+	client := gosseract.NewClient()
+	defer client.Close()
+
+	// Use only English for digit recognition
+	client.SetLanguage("eng")
+	client.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
+	// Whitelist only digits and common amount characters
+	client.SetVariable("tessedit_char_whitelist", "0123456789.-¥￥,")
+
+	if err := client.SetImage(imagePath); err != nil {
+		return ""
+	}
+
+	text, err := client.Text()
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(text)
+}
+
 // isGarbledText checks if extracted text contains mostly garbled/unrecognizable characters
 func (s *OCRService) isGarbledText(text string) bool {
 	if text == "" {

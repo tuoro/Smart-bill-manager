@@ -46,7 +46,7 @@ def main():
         
     except ImportError:
         pass  # Fall back to PaddleOCR
-    except (RuntimeError, ValueError, OSError) as e:
+    except (RuntimeError, ValueError, OSError):
         # RapidOCR failed with expected error, try PaddleOCR fallback
         pass
     

@@ -24,7 +24,8 @@ def main():
     try:
         from rapidocr_onnxruntime import RapidOCR
         ocr = RapidOCR()
-        result, elapsed_time = ocr(image_path)  # elapsed_time is OCR processing time
+        # RapidOCR returns (result, elapsed_time) - we only need result
+        result, elapsed_time = ocr(image_path)
         
         lines = []
         full_text_parts = []

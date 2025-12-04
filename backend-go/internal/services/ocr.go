@@ -59,6 +59,9 @@ var (
 	negativeAmountRegex   = regexp.MustCompile(`[-−][\s]*[¥￥]?[\s]*([\d,]+\.?\d*)`)
 	merchantFullNameRegex = regexp.MustCompile(`商户全称[：:]?[\s]*([^\n收单机构支付方式]+?)[\s]*(?:收单机构|支付方式|\n|$)`)
 	merchantGenericRegex  = regexp.MustCompile(`([^\n]+(?:店|行|公司|商户|超市|餐厅|饭店|有限公司))`)
+
+	// Chinese date to ISO conversion pattern - compiled once for performance
+	chineseDateTimeSpacePattern = regexp.MustCompile(`日(\d)`)
 )
 
 func NewOCRService() *OCRService {
@@ -587,8 +590,7 @@ func removeChineseSpaces(text string) string {
 func convertChineseDateToISO(dateStr string) string {
 	// If 日 is directly followed by a digit (time), insert a space
 	// This handles cases like "2025年10月23日14:59:46" -> "2025年10月23日 14:59:46"
-	re := regexp.MustCompile(`日(\d)`)
-	dateStr = re.ReplaceAllString(dateStr, "日 $1")
+	dateStr = chineseDateTimeSpacePattern.ReplaceAllString(dateStr, "日 $1")
 
 	// Replace Chinese date separators with dashes
 	dateStr = strings.ReplaceAll(dateStr, "年", "-")

@@ -84,6 +84,10 @@ RUN python3 -m pip install --break-system-packages --upgrade pip setuptools whee
     python3 -m pip install --break-system-packages --no-cache-dir rapidocr_onnxruntime 2>/dev/null || \
     echo "RapidOCR installation skipped - using Tesseract for OCR"
 
+# Verify Python and RapidOCR installation
+RUN python3 --version && \
+    (python3 -c "import rapidocr_onnxruntime; print('RapidOCR OK')" || echo "RapidOCR not available")
+
 # Ensure supervisord is accessible at /usr/bin/supervisord
 RUN if [ ! -f /usr/bin/supervisord ]; then \
         SUPERVISOR_PATH=$(which supervisord 2>/dev/null); \

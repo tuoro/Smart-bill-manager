@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/ledongthuc/pdf"
@@ -39,6 +41,10 @@ const (
 
 	// digitsWhitelist defines characters allowed for digit-only OCR
 	digitsWhitelist = "0123456789.-¥￥,"
+
+	// PaddleOCR service configuration
+	defaultPaddleOCRURL = "http://localhost:5000"
+	paddleOCRTimeout    = 30 * time.Second
 )
 
 var (
@@ -100,6 +106,22 @@ type InvoiceExtractedData struct {
 	RawText       string   `json:"raw_text"`
 }
 
+// PaddleOCRResponse represents the response from PaddleOCR service
+type PaddleOCRResponse struct {
+	Success   bool            `json:"success"`
+	Text      string          `json:"text"`
+	Lines     []PaddleOCRLine `json:"lines"`
+	LineCount int             `json:"line_count"`
+	Error     string          `json:"error,omitempty"`
+}
+
+// PaddleOCRLine represents a single line of OCR result
+type PaddleOCRLine struct {
+	Text       string      `json:"text"`
+	Confidence float64     `json:"confidence"`
+	Box        [][]float64 `json:"box"`
+}
+
 // RecognizeImage performs OCR on an image file with enhanced configuration
 func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
 	client := gosseract.NewClient()
@@ -159,10 +181,88 @@ func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 	return text, nil
 }
 
+// RecognizeWithPaddleOCR sends image to PaddleOCR service for recognition
+func (s *OCRService) RecognizeWithPaddleOCR(imagePath string) (string, error) {
+	paddleOCRURL := os.Getenv("PADDLEOCR_URL")
+	if paddleOCRURL == "" {
+		paddleOCRURL = defaultPaddleOCRURL
+	}
+
+	// Create request body
+	requestBody := map[string]string{
+		"image_path": imagePath,
+	}
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Create HTTP request
+	client := &http.Client{Timeout: paddleOCRTimeout}
+	req, err := http.NewRequest("POST", paddleOCRURL+"/ocr/path", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Send request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("PaddleOCR request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Parse response
+	var ocrResp PaddleOCRResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ocrResp); err != nil {
+		return "", fmt.Errorf("failed to decode PaddleOCR response: %w", err)
+	}
+
+	if !ocrResp.Success {
+		return "", fmt.Errorf("PaddleOCR error: %s", ocrResp.Error)
+	}
+
+	fmt.Printf("[OCR] PaddleOCR extracted %d lines, %d characters\n", ocrResp.LineCount, len(ocrResp.Text))
+	return ocrResp.Text, nil
+}
+
+// isPaddleOCRAvailable checks if PaddleOCR service is running
+func (s *OCRService) isPaddleOCRAvailable() bool {
+	paddleOCRURL := os.Getenv("PADDLEOCR_URL")
+	if paddleOCRURL == "" {
+		paddleOCRURL = defaultPaddleOCRURL
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(paddleOCRURL + "/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
+}
+
 // RecognizePaymentScreenshot performs OCR optimized for payment screenshots
-// It tries multiple preprocessing strategies and merges results
+// It prioritizes PaddleOCR if available, falls back to Tesseract with multiple strategies
 func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error) {
 	fmt.Printf("[OCR] Starting payment screenshot recognition for: %s\n", imagePath)
+
+	// Strategy 1: Try PaddleOCR first (best for Chinese payment screenshots)
+	if s.isPaddleOCRAvailable() {
+		fmt.Printf("[OCR] PaddleOCR service available, using it\n")
+		text, err := s.RecognizeWithPaddleOCR(imagePath)
+		if err == nil && strings.TrimSpace(text) != "" {
+			fmt.Printf("[OCR] PaddleOCR succeeded with %d characters\n", len(text))
+			return text, nil
+		}
+		fmt.Printf("[OCR] PaddleOCR failed or returned empty: %v, falling back to Tesseract\n", err)
+	} else {
+		fmt.Printf("[OCR] PaddleOCR service not available, using Tesseract\n")
+	}
+
+	// Fallback: Use Tesseract with multiple strategies (existing code)
+	fmt.Printf("[OCR] Using Tesseract fallback strategies\n")
 
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "payment-ocr-*")

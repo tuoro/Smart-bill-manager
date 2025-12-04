@@ -67,9 +67,11 @@ var (
 	chineseDateTimePattern = regexp.MustCompile(`日(\d)`)
 
 	// Amount detection patterns for merging OCR results
+	// Note: First pattern uses \d{3,} to prioritize large amounts (e.g., 1700.00)
+	// which are more likely to be the main transaction amount in payment screenshots
 	amountDetectionPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`), // Numbers like 1700.00 or -1700.00
-		regexp.MustCompile(`[¥￥]-?\d+\.?\d*`),    // Currency symbol with amount
+		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`), // Large amounts like 1700.00 or -1700.00
+		regexp.MustCompile(`[¥￥]-?\d+\.?\d*`),    // Currency symbol with amount (any size)
 	}
 )
 
@@ -297,11 +299,15 @@ func (s *OCRService) ocrWithConfig(imagePath string, psm gosseract.PageSegMode) 
 func (s *OCRService) createBinaryImage(inputPath, tempDir string) string {
 	outputPath := filepath.Join(tempDir, "binary.png")
 
+	// Double negation technique: invert -> threshold -> invert back
+	// This ensures dark text on light background gets properly thresholded
+	// First negate makes dark text light, threshold creates clean binary,
+	// second negate restores proper polarity for Tesseract OCR
 	cmd := exec.Command("convert", inputPath,
 		"-colorspace", "Gray",
-		"-negate",           // Invert colors
-		"-threshold", "40%", // Aggressive threshold
-		"-negate", // Invert back
+		"-negate",           // Invert colors (dark text becomes light)
+		"-threshold", "40%", // Aggressive threshold for clean binary
+		"-negate", // Invert back (restore dark text on light background)
 		outputPath)
 
 	if _, err := cmd.CombinedOutput(); err != nil {

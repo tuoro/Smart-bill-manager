@@ -3,6 +3,8 @@ package services
 import (
 	"strings"
 	"testing"
+
+	"github.com/otiai10/gosseract/v2"
 )
 
 // TestOcrWithConfig tests OCR with different page segmentation modes
@@ -13,7 +15,7 @@ func TestOcrWithConfig(t *testing.T) {
 	// Actual testing requires a real image file with Tesseract installed
 	t.Run("Returns empty string on error", func(t *testing.T) {
 		// Non-existent file should return empty string
-		result := service.ocrWithConfig("/nonexistent/file.png", 3)
+		result := service.ocrWithConfig("/nonexistent/file.png", gosseract.PSM_AUTO)
 		if result != "" {
 			t.Errorf("Expected empty string for non-existent file, got: %s", result)
 		}

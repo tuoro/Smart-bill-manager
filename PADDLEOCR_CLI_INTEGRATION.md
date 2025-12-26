@@ -8,7 +8,7 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
 ### New Files Created
 
 1. **scripts/paddleocr_cli.py**
-   - Python CLI script that wraps RapidOCR (`rapidocr_onnxruntime`)
+   - Python CLI script that wraps RapidOCR v3 (`rapidocr` + `onnxruntime`)
    - Takes image path as command-line argument
    - Returns JSON output with OCR results
    - Features:
@@ -38,8 +38,8 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
      - Checks: scripts/, ../scripts/, /app/scripts/, ./
    - **Modified**: `isRapidOCRAvailable()` function
      - Checks for script existence
-     - Verifies Python and RapidOCR module availability
-     - Uses `python -c "import rapidocr_onnxruntime"` for quick check
+     - Verifies Python and RapidOCR v3 module availability
+     - Uses `python -c "import rapidocr, onnxruntime"` for quick check
 
 2. **Dockerfile**
    - **Added**: Python 3 and pip installation (py3-pip package)
@@ -52,7 +52,7 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
      
       # After: Added Python and RapidOCR
       RUN apk add --no-cache supervisor tesseract-ocr ... python3 py3-pip
-      RUN python3 -m pip install --no-cache-dir rapidocr_onnxruntime
+      RUN python3 -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime
       COPY scripts/paddleocr_cli.py /app/scripts/
      ```
 
@@ -82,7 +82,7 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
 3. **Easier Maintenance**
    - Single codebase to manage
    - Fewer moving parts
-   - Simple installation: `pip install rapidocr_onnxruntime`
+   - Simple installation: `pip install "rapidocr==3.*" onnxruntime`
 
 4. **Better Integration**
    - Direct file access (no HTTP overhead)
@@ -95,7 +95,7 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
 
 ```bash
 # Install dependencies
-pip3 install rapidocr_onnxruntime
+pip3 install "rapidocr==3.*" onnxruntime
 
 # Or use the helper script
 ./scripts/install_paddleocr.sh

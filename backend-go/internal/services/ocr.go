@@ -297,12 +297,12 @@ func (s *OCRService) isRapidOCRAvailable() bool {
 		return false
 	}
 
-	// RapidOCR only
-	if s.checkPythonModule("rapidocr_onnxruntime") {
+	// RapidOCR v3 requires both rapidocr and onnxruntime
+	if s.checkPythonModule("rapidocr") && s.checkPythonModule("onnxruntime") {
 		return true
 	}
 
-	fmt.Printf("[OCR] RapidOCR is not available\n")
+	fmt.Printf("[OCR] RapidOCR v3 is not available\n")
 	return false
 }
 

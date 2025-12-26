@@ -81,12 +81,12 @@ RUN apk add --no-cache mesa-gl glib libstdc++ 2>/dev/null || true
 
 # Install Python OCR dependencies (optional, will fall back to Tesseract if fails)
 RUN python3 -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || true && \
-    python3 -m pip install --break-system-packages --no-cache-dir rapidocr_onnxruntime 2>/dev/null || \
-    echo "RapidOCR installation skipped - using Tesseract for OCR"
+    python3 -m pip install --break-system-packages --no-cache-dir "rapidocr==3.*" onnxruntime 2>/dev/null || \
+    echo "RapidOCR v3 installation skipped - using Tesseract for OCR"
 
 # Verify Python and RapidOCR installation
 RUN python3 --version && \
-    (python3 -c "import rapidocr_onnxruntime; print('RapidOCR OK')" || echo "RapidOCR not available")
+    (python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')" || echo "RapidOCR v3 not available")
 
 # Ensure supervisord is accessible at /usr/bin/supervisord
 RUN if [ ! -f /usr/bin/supervisord ]; then \

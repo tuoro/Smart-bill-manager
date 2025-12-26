@@ -228,53 +228,67 @@ func (s *InvoiceService) SuggestPayments(invoiceID string, limit int, debug bool
 		dScore  float64
 		mScore  float64
 	}
-	scoredList := make([]scored, 0, len(candidates))
+	scoredAll := make([]scored, 0, len(candidates))
 	for _, p := range candidates {
 		if _, ok := linkedIDs[p.ID]; ok {
 			continue
 		}
 		score, aScore, dScore, mScore := computeInvoicePaymentScoreBreakdown(invoice, &p)
-		// Drop extremely low-score candidates to reduce noise.
-		if score < 0.15 {
-			continue
-		}
-		scoredList = append(scoredList, scored{payment: p, score: score, aScore: aScore, dScore: dScore, mScore: mScore})
+		scoredAll = append(scoredAll, scored{payment: p, score: score, aScore: aScore, dScore: dScore, mScore: mScore})
 	}
 
-	sort.Slice(scoredList, func(i, j int) bool {
-		if scoredList[i].score == scoredList[j].score {
-			return scoredList[i].payment.TransactionTime > scoredList[j].payment.TransactionTime
+	sort.Slice(scoredAll, func(i, j int) bool {
+		if scoredAll[i].score == scoredAll[j].score {
+			return scoredAll[i].payment.TransactionTime > scoredAll[j].payment.TransactionTime
 		}
-		return scoredList[i].score > scoredList[j].score
+		return scoredAll[i].score > scoredAll[j].score
 	})
 
+	minScore := 0.15
+	if invoice.Amount == nil || (invoice.Amount != nil && *invoice.Amount <= 0) {
+		minScore = 0.05
+	}
+
 	out := make([]models.Payment, 0, limit)
-	for _, s := range scoredList {
+	for _, s := range scoredAll {
+		if s.score < minScore {
+			continue
+		}
 		out = append(out, s.payment)
 		if len(out) >= limit {
 			break
 		}
 	}
 
+	// If thresholding produced no matches, return the best-scoring candidates anyway (better UX for debugging).
+	if len(out) == 0 {
+		for _, s := range scoredAll {
+			out = append(out, s.payment)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+
 	if debug {
 		top := 10
-		if len(scoredList) < top {
-			top = len(scoredList)
+		if len(scoredAll) < top {
+			top = len(scoredAll)
 		}
 		for i := 0; i < top; i++ {
-			p := scoredList[i].payment
+			p := scoredAll[i].payment
 			log.Printf(
 				"[MATCH] invoice=%s rank=%d payment=%s score=%.3f amount=%.2f merchant=%q time=%q parts(a=%.3f d=%.3f m=%.3f)",
 				invoiceID,
 				i+1,
 				p.ID,
-				scoredList[i].score,
+				scoredAll[i].score,
 				p.Amount,
 				strPtrVal(p.Merchant),
 				p.TransactionTime,
-				scoredList[i].aScore,
-				scoredList[i].dScore,
-				scoredList[i].mScore,
+				scoredAll[i].aScore,
+				scoredAll[i].dScore,
+				scoredAll[i].mScore,
 			)
 		}
 	}

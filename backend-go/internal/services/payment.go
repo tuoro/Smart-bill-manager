@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
@@ -163,8 +164,13 @@ func (s *PaymentService) CreateFromScreenshotBestEffort(input CreateFromScreensh
 	}
 
 	// Set amount if extracted
-	if extracted.Amount != nil && *extracted.Amount > 0 {
-		payment.Amount = *extracted.Amount
+	if extracted.Amount != nil {
+		absAmount := math.Abs(*extracted.Amount)
+		if absAmount > 0 {
+			payment.Amount = absAmount
+			// Normalize for UI/matching: store expenses as positive amounts.
+			extracted.Amount = &absAmount
+		}
 	}
 
 	// Set transaction time if extracted
@@ -236,52 +242,66 @@ func (s *PaymentService) SuggestInvoices(paymentID string, limit int, debug bool
 		dScore  float64
 		mScore  float64
 	}
-	scoredList := make([]scored, 0, len(candidates))
+	scoredAll := make([]scored, 0, len(candidates))
 	for _, inv := range candidates {
 		if _, ok := linkedIDs[inv.ID]; ok {
 			continue
 		}
 		score, aScore, dScore, mScore := computeInvoicePaymentScoreBreakdown(&inv, payment)
-		if score < 0.15 {
-			continue
-		}
-		scoredList = append(scoredList, scored{invoice: inv, score: score, aScore: aScore, dScore: dScore, mScore: mScore})
+		scoredAll = append(scoredAll, scored{invoice: inv, score: score, aScore: aScore, dScore: dScore, mScore: mScore})
 	}
 
-	sort.Slice(scoredList, func(i, j int) bool {
-		if scoredList[i].score == scoredList[j].score {
-			return scoredList[i].invoice.CreatedAt.After(scoredList[j].invoice.CreatedAt)
+	sort.Slice(scoredAll, func(i, j int) bool {
+		if scoredAll[i].score == scoredAll[j].score {
+			return scoredAll[i].invoice.CreatedAt.After(scoredAll[j].invoice.CreatedAt)
 		}
-		return scoredList[i].score > scoredList[j].score
+		return scoredAll[i].score > scoredAll[j].score
 	})
 
+	minScore := 0.15
+	if payment.Amount == 0 {
+		minScore = 0.05
+	}
+
 	out := make([]models.Invoice, 0, limit)
-	for _, s := range scoredList {
+	for _, s := range scoredAll {
+		if s.score < minScore {
+			continue
+		}
 		out = append(out, s.invoice)
 		if len(out) >= limit {
 			break
 		}
 	}
 
+	if len(out) == 0 {
+		for _, s := range scoredAll {
+			out = append(out, s.invoice)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+
 	if debug {
 		top := 10
-		if len(scoredList) < top {
-			top = len(scoredList)
+		if len(scoredAll) < top {
+			top = len(scoredAll)
 		}
 		for i := 0; i < top; i++ {
-			inv := scoredList[i].invoice
+			inv := scoredAll[i].invoice
 			log.Printf(
 				"[MATCH] payment=%s rank=%d invoice=%s score=%.3f amount=%v seller=%v invoice_date=%v parts(a=%.3f d=%.3f m=%.3f)",
 				paymentID,
 				i+1,
 				inv.ID,
-				scoredList[i].score,
+				scoredAll[i].score,
 				valueOrNil(inv.Amount),
 				strValueOrNil(inv.SellerName),
 				strValueOrNil(inv.InvoiceDate),
-				scoredList[i].aScore,
-				scoredList[i].dScore,
-				scoredList[i].mScore,
+				scoredAll[i].aScore,
+				scoredAll[i].dScore,
+				scoredAll[i].mScore,
 			)
 		}
 	}

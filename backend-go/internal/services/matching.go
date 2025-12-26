@@ -132,6 +132,7 @@ func amountScore(invoiceAmount *float64, paymentAmount float64) float64 {
 	if invoiceAmount == nil || *invoiceAmount <= 0 || paymentAmount <= 0 {
 		return 0
 	}
+	paymentAmount = math.Abs(paymentAmount)
 	diff := math.Abs(paymentAmount-*invoiceAmount) / *invoiceAmount
 	switch {
 	case diff <= 0.01:

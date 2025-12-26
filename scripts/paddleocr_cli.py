@@ -8,7 +8,33 @@ Output: JSON with extracted text
 import sys
 import json
 import os
+import contextlib
 from importlib import metadata
+
+
+@contextlib.contextmanager
+def suppress_child_output():
+    """
+    Suppress any third-party stdout/stderr noise (e.g. RapidOCR logs) so this CLI
+    prints strict JSON only. This is required because the Go backend parses the
+    entire process output as JSON.
+    """
+    devnull = open(os.devnull, "w")
+    old_stdout_fd = os.dup(1)
+    old_stderr_fd = os.dup(2)
+    try:
+        os.dup2(devnull.fileno(), 1)
+        os.dup2(devnull.fileno(), 2)
+        yield
+    finally:
+        try:
+            os.dup2(old_stdout_fd, 1)
+            os.dup2(old_stderr_fd, 2)
+        finally:
+            os.close(old_stdout_fd)
+            os.close(old_stderr_fd)
+            devnull.close()
+
 
 def main():
     if len(sys.argv) < 2:
@@ -23,16 +49,17 @@ def main():
     
     # RapidOCR v3 (rapidocr + onnxruntime)
     try:
-        from rapidocr import RapidOCR
+        with suppress_child_output():
+            from rapidocr import RapidOCR
 
-        rapidocr_version = "unknown"
-        try:
-            rapidocr_version = metadata.version("rapidocr")
-        except metadata.PackageNotFoundError:
-            pass
+            rapidocr_version = "unknown"
+            try:
+                rapidocr_version = metadata.version("rapidocr")
+            except metadata.PackageNotFoundError:
+                pass
 
-        ocr = RapidOCR()
-        out = ocr(image_path)
+            ocr = RapidOCR()
+            out = ocr(image_path)
 
         txts = getattr(out, "txts", None) or ()
         scores = getattr(out, "scores", None) or ()

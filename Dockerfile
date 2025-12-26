@@ -23,12 +23,15 @@ RUN npx vue-tsc -b && npx vite build
 # ============================================
 # Stage 2: Build Backend (Go)
 # ============================================
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.24 AS backend-builder
 
 WORKDIR /app/backend
 
 # Install build dependencies (CGO is required for sqlite)
-RUN apk add --no-cache gcc g++ musl-dev ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy go mod files
 COPY backend-go/go.mod backend-go/go.sum ./
@@ -45,38 +48,26 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
 # ============================================
 # Stage 3: Production Image
 # ============================================
-FROM nginx:alpine AS production
+FROM nginx:stable AS production
 
-# Install packages - split into multiple RUN commands for better debugging
-# Install supervisor first and verify
-RUN apk add --no-cache supervisor && \
-    which supervisord && \
-    ls -la $(which supervisord)
-
-# Install core dependencies (required)
-RUN apk add --no-cache \
+# Install runtime dependencies (Debian-based image).
+# Note: onnxruntime wheels are built for glibc; Alpine (musl) often fails to install/build them.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    supervisor \
     ca-certificates \
     poppler-utils \
-    poppler-data \
     python3 \
-    py3-pip \
-    mesa-gl \
-    glib \
-    libstdc++
+    python3-pip \
+    libgomp1 \
+    libstdc++6 \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python OCR dependencies (RapidOCR v3)
-RUN python3 -m pip install --break-system-packages --upgrade pip setuptools wheel && \
-    python3 -m pip install --break-system-packages --no-cache-dir "rapidocr==3.*" onnxruntime && \
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    python3 -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime && \
     python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
-
-# Ensure supervisord is accessible at /usr/bin/supervisord
-RUN if [ ! -f /usr/bin/supervisord ]; then \
-        SUPERVISOR_PATH=$(which supervisord 2>/dev/null); \
-        if [ -n "$SUPERVISOR_PATH" ]; then \
-            ln -sf "$SUPERVISOR_PATH" /usr/bin/supervisord; \
-        fi; \
-    fi && \
-    test -x /usr/bin/supervisord || (echo "supervisord not found!" && exit 1)
 
 WORKDIR /app
 

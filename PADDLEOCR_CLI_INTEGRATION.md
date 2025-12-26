@@ -1,14 +1,14 @@
-# PaddleOCR CLI Integration - Implementation Summary
+# RapidOCR CLI Integration - Implementation Summary
 
 ## Overview
-Successfully converted PaddleOCR from a separate HTTP service to a command-line interface (CLI) integrated directly into the Go backend.
+Uses a command-line interface (CLI) integrated directly into the Go backend to run **RapidOCR** (RapidOCR only).
 
 ## Changes Implemented
 
 ### New Files Created
 
-1. **scripts/paddleocr_cli.py** (73 lines)
-   - Python CLI script that wraps PaddleOCR functionality
+1. **scripts/paddleocr_cli.py**
+   - Python CLI script that wraps RapidOCR (`rapidocr_onnxruntime`)
    - Takes image path as command-line argument
    - Returns JSON output with OCR results
    - Features:
@@ -17,8 +17,8 @@ Successfully converted PaddleOCR from a separate HTTP service to a command-line 
      - Returns structured JSON with text, lines, and confidence scores
      - Graceful error messages
 
-2. **scripts/install_paddleocr.sh** (16 lines)
-   - Helper script for installing PaddleOCR dependencies
+2. **scripts/install_paddleocr.sh**
+   - Helper script for installing RapidOCR dependencies
    - Automatically detects pip3/pip
    - Provides clear error messages if Python is not available
 
@@ -28,7 +28,7 @@ Successfully converted PaddleOCR from a separate HTTP service to a command-line 
    - **Removed**: HTTP client code for calling PaddleOCR service
    - **Removed**: `net/http` import and `defaultPaddleOCRURL` constant
    - **Added**: `context` import for timeout management
-   - **Modified**: `RecognizeWithPaddleOCR()` function
+   - **Modified**: `RecognizeWithRapidOCR()` function
      - Now executes Python script via `exec.CommandContext`
      - Uses 60-second timeout (increased from 30s for CLI execution)
      - Tries both `python3` and `python` commands for compatibility
@@ -36,24 +36,24 @@ Successfully converted PaddleOCR from a separate HTTP service to a command-line 
    - **Added**: `findPaddleOCRScript()` function
      - Searches common locations for the script
      - Checks: scripts/, ../scripts/, /app/scripts/, ./
-   - **Modified**: `isPaddleOCRAvailable()` function
+   - **Modified**: `isRapidOCRAvailable()` function
      - Checks for script existence
-     - Verifies Python and PaddleOCR module availability
-     - Uses `python -c "import paddleocr"` for quick check
+     - Verifies Python and RapidOCR module availability
+     - Uses `python -c "import rapidocr_onnxruntime"` for quick check
 
 2. **Dockerfile**
    - **Added**: Python 3 and pip installation (py3-pip package)
-   - **Added**: PaddleOCR installation via pip
+   - **Added**: RapidOCR installation via pip (optional)
    - **Added**: Script directory creation and copying
    - **Changes**:
      ```dockerfile
      # Before: Only tesseract and imagemagick
      RUN apk add --no-cache supervisor tesseract-ocr ...
      
-     # After: Added Python and PaddleOCR
-     RUN apk add --no-cache supervisor tesseract-ocr ... python3 py3-pip
-     RUN pip3 install --no-cache-dir paddlepaddle paddleocr
-     COPY scripts/paddleocr_cli.py /app/scripts/
+      # After: Added Python and RapidOCR
+      RUN apk add --no-cache supervisor tesseract-ocr ... python3 py3-pip
+      RUN python3 -m pip install --no-cache-dir rapidocr_onnxruntime
+      COPY scripts/paddleocr_cli.py /app/scripts/
      ```
 
 3. **backend-go/internal/services/ocr_paddleocr_test.go**
@@ -76,13 +76,13 @@ Successfully converted PaddleOCR from a separate HTTP service to a command-line 
    - Reduced complexity in docker-compose setup
 
 2. **Automatic Fallback**
-   - If PaddleOCR is not available, system automatically falls back to Tesseract
+   - If RapidOCR is not available, system automatically falls back to Tesseract
    - No breaking changes for existing deployments
 
 3. **Easier Maintenance**
    - Single codebase to manage
    - Fewer moving parts
-   - Simple installation: `pip install paddlepaddle paddleocr`
+   - Simple installation: `pip install rapidocr_onnxruntime`
 
 4. **Better Integration**
    - Direct file access (no HTTP overhead)
@@ -95,7 +95,7 @@ Successfully converted PaddleOCR from a separate HTTP service to a command-line 
 
 ```bash
 # Install dependencies
-pip3 install paddlepaddle paddleocr
+pip3 install rapidocr_onnxruntime
 
 # Or use the helper script
 ./scripts/install_paddleocr.sh
@@ -107,7 +107,7 @@ go run cmd/server/main.go
 
 ### Docker Deployment
 
-The Dockerfile automatically includes PaddleOCR. Just build and run:
+The Dockerfile automatically includes RapidOCR (best-effort). Just build and run:
 
 ```bash
 # Build the image
@@ -117,7 +117,7 @@ docker build -t smart-bill-manager .
 docker run -p 80:80 smart-bill-manager
 ```
 
-The backend will automatically detect and use PaddleOCR if available.
+The backend will automatically detect and use RapidOCR if available.
 
 ## Testing the CLI Script
 
@@ -130,7 +130,7 @@ python3 scripts/paddleocr_cli.py /tmp/test.png
 python3 scripts/paddleocr_cli.py
 # Output: {"success": false, "error": "No image path provided"}
 
-# Test with real image (if PaddleOCR is installed)
+# Test with real image (if RapidOCR is installed)
 python3 scripts/paddleocr_cli.py /path/to/image.png
 # Output: {"success": true, "text": "...", "lines": [...], "line_count": N}
 ```
@@ -148,8 +148,8 @@ The following can be optionally removed as they are no longer needed:
      - `README.md`
 
 2. **docker-compose.yml** modifications needed:
-   - Remove the `paddleocr` service definition
-   - Remove `PADDLEOCR_URL` environment variable from `smart-bill-manager` service
+   - Remove the `paddleocr` service definition (HTTP service mode)
+   - Remove `PADDLEOCR_URL` environment variable
    - Remove `depends_on: paddleocr` dependency
 
 3. **Documentation updates**:
@@ -188,8 +188,8 @@ For existing deployments using the HTTP service:
 - **CLI overhead**: ~100-200ms additional startup time per request
 - **First request**: 2-3 seconds (model loading, same as HTTP service)
 - **Subsequent requests**: ~500ms-1s (similar to HTTP service)
-- **Memory**: 1-2GB for PaddleOCR (same as before)
+- **Memory**: typically lower than PaddleOCR (depends on model/runtime)
 
 ## Conclusion
 
-The PaddleOCR CLI integration successfully simplifies the deployment architecture while maintaining all functionality. The implementation is production-ready, secure, and fully backward compatible with automatic fallback to Tesseract.
+The RapidOCR CLI integration simplifies the deployment architecture while maintaining all functionality. The implementation is production-ready, and remains backward compatible with automatic fallback to Tesseract.

@@ -1,16 +1,16 @@
 #!/bin/bash
-# Install PaddleOCR dependencies
+# Install RapidOCR dependencies (RapidOCR only)
 
-echo "Installing PaddleOCR..."
+echo "Installing RapidOCR (rapidocr_onnxruntime)..."
 
 # Check if pip is available
 if command -v pip3 &> /dev/null; then
-    pip3 install paddlepaddle paddleocr
+    pip3 install rapidocr_onnxruntime
 elif command -v pip &> /dev/null; then
-    pip install paddlepaddle paddleocr
+    pip install rapidocr_onnxruntime
 else
     echo "Error: pip not found. Please install Python first."
     exit 1
 fi
 
-echo "PaddleOCR installed successfully!"
+echo "RapidOCR installed successfully!"

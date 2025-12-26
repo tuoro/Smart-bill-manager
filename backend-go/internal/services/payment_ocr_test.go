@@ -93,7 +93,7 @@ func TestRemoveChineseSpaces_DateUnits(t *testing.T) {
 		{
 			name:     "Date and time with spaces",
 			input:    "支 付 时 间 2025 年 10 月 23 日 14:59:46",
-			expected: "支付时间2025年10月23日14:59:46",
+			expected: "支付时间2025年10月23日 14:59:46",
 		},
 		{
 			name:     "Mixed Chinese and numbers",

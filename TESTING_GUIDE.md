@@ -15,6 +15,11 @@ tesseract --list-langs
 
 应该看到 `chi_sim` (中文简体) 和 `eng` (英文) 在列表中。
 
+（可选）为了提升支付截图识别效果，建议安装 RapidOCR：
+```bash
+python3 -m pip install rapidocr_onnxruntime
+```
+
 ### 2. 支付截图识别测试
 
 #### 准备测试数据

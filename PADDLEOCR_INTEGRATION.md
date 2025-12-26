@@ -3,6 +3,8 @@
 ## Overview
 This implementation adds PaddleOCR as a powerful OCR solution for recognizing Chinese payment screenshots, particularly those with large font amounts that Tesseract struggles to recognize (e.g., `-1700.00`).
 
+> Note: This document describes the legacy HTTP-service integration. The current project uses **RapidOCR (CLI)** for payment screenshots and no longer requires a separate `paddleocr-service`. See `PADDLEOCR_CLI_INTEGRATION.md`.
+
 ## Architecture
 
 ```

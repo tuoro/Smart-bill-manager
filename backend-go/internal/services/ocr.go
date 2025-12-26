@@ -42,8 +42,8 @@ const (
 	// digitsWhitelist defines characters allowed for digit-only OCR
 	digitsWhitelist = "0123456789.-¥￥,"
 
-	// PaddleOCR CLI configuration
-	paddleOCRTimeout = 60 * time.Second
+	// RapidOCR CLI configuration
+	rapidOCRTimeout = 60 * time.Second
 )
 
 var (
@@ -105,17 +105,18 @@ type InvoiceExtractedData struct {
 	RawText       string   `json:"raw_text"`
 }
 
-// PaddleOCRResponse represents the response from PaddleOCR service
-type PaddleOCRResponse struct {
+// OCRCLIResponse represents the response from the Python OCR CLI script.
+type OCRCLIResponse struct {
 	Success   bool            `json:"success"`
 	Text      string          `json:"text"`
-	Lines     []PaddleOCRLine `json:"lines"`
+	Lines     []OCRCLILine    `json:"lines"`
 	LineCount int             `json:"line_count"`
+	Engine    string          `json:"engine,omitempty"`
 	Error     string          `json:"error,omitempty"`
 }
 
-// PaddleOCRLine represents a single line of OCR result
-type PaddleOCRLine struct {
+// OCRCLILine represents a single line of OCR result
+type OCRCLILine struct {
 	Text       string      `json:"text"`
 	Confidence float64     `json:"confidence"`
 	Box        [][]float64 `json:"box"`
@@ -123,15 +124,20 @@ type PaddleOCRLine struct {
 
 // RecognizeImage performs OCR on an image file with enhanced configuration
 func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
-	client := gosseract.NewClient()
-	defer client.Close()
+	client, err := newTesseractClient()
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = client.Close() }()
 
 	// Set language to Chinese simplified and English
-	client.SetLanguage("chi_sim", "eng")
+	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
+		return "", err
+	}
 
 	// Set page segmentation mode for better recognition of mixed layouts
 	// PSM_AUTO (3): Fully automatic page segmentation, but no OSD
-	client.SetPageSegMode(gosseract.PSM_AUTO)
+	_ = client.SetPageSegMode(gosseract.PSM_AUTO)
 
 	if err := client.SetImage(imagePath); err != nil {
 		return "", fmt.Errorf("failed to set image: %w", err)
@@ -161,11 +167,16 @@ func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 	// Preprocess image
 	processedPath := s.preprocessImage(imagePath, tempDir, 0)
 
-	client := gosseract.NewClient()
-	defer client.Close()
+	client, err := newTesseractClient()
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = client.Close() }()
 
-	client.SetLanguage("chi_sim", "eng")
-	client.SetPageSegMode(gosseract.PSM_AUTO)
+	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
+		return "", err
+	}
+	_ = client.SetPageSegMode(gosseract.PSM_AUTO)
 
 	if err := client.SetImage(processedPath); err != nil {
 		return "", fmt.Errorf("failed to set image: %w", err)
@@ -180,10 +191,9 @@ func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 	return text, nil
 }
 
-// RecognizeWithPaddleOCR executes the paddleocr_cli.py script for OCR recognition
-// The script supports both RapidOCR and PaddleOCR, trying RapidOCR first and falling back to PaddleOCR
-func (s *OCRService) RecognizeWithPaddleOCR(imagePath string) (string, error) {
-	fmt.Printf("[OCR] Running PaddleOCR CLI for: %s\n", imagePath)
+// RecognizeWithRapidOCR executes the paddleocr_cli.py script for OCR recognition (RapidOCR only).
+func (s *OCRService) RecognizeWithRapidOCR(imagePath string) (string, error) {
+	fmt.Printf("[OCR] Running RapidOCR CLI for: %s\n", imagePath)
 
 	// Find the paddleocr_cli.py script
 	scriptPath := s.findPaddleOCRScript()
@@ -192,31 +202,41 @@ func (s *OCRService) RecognizeWithPaddleOCR(imagePath string) (string, error) {
 	}
 
 	// Execute Python script
-	ctx, cancel := context.WithTimeout(context.Background(), paddleOCRTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), rapidOCRTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "python3", scriptPath, imagePath)
-	output, err := cmd.Output()
-	if err != nil {
+	run := func(python string) ([]byte, error) {
+		cmd := exec.CommandContext(ctx, python, scriptPath, imagePath)
+		return cmd.CombinedOutput()
+	}
+
+	output, execErr := run("python3")
+	if execErr != nil {
 		// Try with "python" if "python3" fails
-		cmd = exec.CommandContext(ctx, "python", scriptPath, imagePath)
-		output, err = cmd.Output()
-		if err != nil {
-			return "", fmt.Errorf("failed to execute PaddleOCR: %w", err)
+		if altOut, altErr := run("python"); altErr == nil || len(altOut) > 0 {
+			output = altOut
+			execErr = altErr
 		}
 	}
 
 	// Parse JSON output
-	var result PaddleOCRResponse
+	var result OCRCLIResponse
 	if err := json.Unmarshal(output, &result); err != nil {
-		return "", fmt.Errorf("failed to parse PaddleOCR output: %w", err)
+		if execErr != nil {
+			return "", fmt.Errorf("failed to execute RapidOCR CLI: %w (output: %s)", execErr, string(output))
+		}
+		return "", fmt.Errorf("failed to parse OCR CLI output: %w (output: %s)", err, string(output))
 	}
 
 	if !result.Success {
-		return "", fmt.Errorf("PaddleOCR error: %s", result.Error)
+		return "", fmt.Errorf("RapidOCR error: %s", result.Error)
 	}
 
-	fmt.Printf("[OCR] PaddleOCR extracted %d lines, %d characters\n", result.LineCount, len(result.Text))
+	engine := result.Engine
+	if engine == "" {
+		engine = "rapidocr"
+	}
+	fmt.Printf("[OCR] RapidOCR extracted %d lines, %d characters (engine=%s)\n", result.LineCount, len(result.Text), engine)
 	return result.Text, nil
 }
 
@@ -268,10 +288,8 @@ func (s *OCRService) checkPythonModule(moduleName string) bool {
 	return false
 }
 
-// isPaddleOCRAvailable checks if RapidOCR or PaddleOCR is available
-// Priority: RapidOCR (rapidocr_onnxruntime) > PaddleOCR (paddleocr)
-// RapidOCR is preferred as it's lighter weight and better suited for Alpine Linux
-func (s *OCRService) isPaddleOCRAvailable() bool {
+// isRapidOCRAvailable checks if RapidOCR is available (Python module).
+func (s *OCRService) isRapidOCRAvailable() bool {
 	// Check if script exists
 	scriptPath := s.findPaddleOCRScript()
 	if scriptPath == "" {
@@ -279,22 +297,17 @@ func (s *OCRService) isPaddleOCRAvailable() bool {
 		return false
 	}
 
-	// First check for RapidOCR (preferred, lighter weight)
+	// RapidOCR only
 	if s.checkPythonModule("rapidocr_onnxruntime") {
 		return true
 	}
 
-	// Fall back to PaddleOCR
-	if s.checkPythonModule("paddleocr") {
-		return true
-	}
-
-	fmt.Printf("[OCR] Neither RapidOCR nor PaddleOCR is available\n")
+	fmt.Printf("[OCR] RapidOCR is not available\n")
 	return false
 }
 
 // RecognizePaymentScreenshot performs OCR optimized for payment screenshots
-// It prioritizes PaddleOCR/RapidOCR if available, falls back to Tesseract with multiple strategies
+// It prioritizes RapidOCR if available, falls back to Tesseract with multiple strategies
 func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error) {
 	fmt.Printf("[OCR] Starting payment screenshot recognition for: %s\n", imagePath)
 
@@ -302,17 +315,17 @@ func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error
 	scriptPath := s.findPaddleOCRScript()
 	fmt.Printf("[OCR] Script path: %s\n", scriptPath)
 
-	// Strategy 1: Try PaddleOCR/RapidOCR first (best for Chinese payment screenshots)
-	if s.isPaddleOCRAvailable() {
-		fmt.Printf("[OCR] RapidOCR/PaddleOCR available, attempting to use it\n")
-		text, err := s.RecognizeWithPaddleOCR(imagePath)
+	// Strategy 1: Try RapidOCR first (best for Chinese payment screenshots)
+	if s.isRapidOCRAvailable() {
+		fmt.Printf("[OCR] RapidOCR available, attempting to use it\n")
+		text, err := s.RecognizeWithRapidOCR(imagePath)
 		if err == nil && strings.TrimSpace(text) != "" {
-			fmt.Printf("[OCR] RapidOCR/PaddleOCR succeeded with %d characters\n", len(text))
+			fmt.Printf("[OCR] RapidOCR succeeded with %d characters\n", len(text))
 			return text, nil
 		}
-		fmt.Printf("[OCR] RapidOCR/PaddleOCR failed or returned empty: %v, falling back to Tesseract\n", err)
+		fmt.Printf("[OCR] RapidOCR failed or returned empty: %v, falling back to Tesseract\n", err)
 	} else {
-		fmt.Printf("[OCR] RapidOCR/PaddleOCR not available, using Tesseract\n")
+		fmt.Printf("[OCR] RapidOCR not available, using Tesseract\n")
 	}
 
 	// Fallback: Use Tesseract with multiple strategies (existing code)
@@ -431,11 +444,16 @@ func (s *OCRService) preprocessPaymentScreenshotAlt(inputPath, tempDir string) s
 
 // ocrWithConfig performs OCR with specific page segmentation mode
 func (s *OCRService) ocrWithConfig(imagePath string, psm gosseract.PageSegMode) string {
-	client := gosseract.NewClient()
-	defer client.Close()
+	client, err := newTesseractClient()
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = client.Close() }()
 
-	client.SetLanguage("chi_sim", "eng")
-	client.SetPageSegMode(psm)
+	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
+		return ""
+	}
+	_ = client.SetPageSegMode(psm)
 
 	if err := client.SetImage(imagePath); err != nil {
 		return ""
@@ -492,29 +510,42 @@ func (s *OCRService) mergeOCRResults(results []string) string {
 
 	var bestResult string
 	var bestScore int
+	var hasAmountCandidate bool
 
 	for _, result := range results {
-		score := 0
+		amountMatches := 0
 		for _, pattern := range amountDetectionPatterns {
-			matches := pattern.FindAllString(result, -1)
-			score += len(matches)
+			amountMatches += len(pattern.FindAllString(result, -1))
 		}
-		// Also score based on Chinese character count (we want good text recognition)
+
+		chineseChars := 0
 		for _, r := range result {
 			if unicode.Is(unicode.Han, r) {
-				score++
+				chineseChars++
 			}
 		}
 
-		if score > bestScore {
-			bestScore = score
+		if amountMatches > 0 {
+			// Strongly prioritize results that contain amounts, then use Chinese character
+			// count as a tie-breaker.
+			score := amountMatches*1000 + chineseChars
+			if !hasAmountCandidate || score > bestScore {
+				hasAmountCandidate = true
+				bestScore = score
+				bestResult = result
+			}
+			continue
+		}
+
+		// No-amount candidate: score only by Chinese character count
+		if !hasAmountCandidate && chineseChars > bestScore {
+			bestScore = chineseChars
 			bestResult = result
 		}
 	}
 
-	// If best result has amount, use it as base
-	// Otherwise, concatenate all unique lines
-	if bestScore > 0 {
+	// If we found any amount-containing result, return the best one.
+	if hasAmountCandidate {
 		return bestResult
 	}
 
@@ -538,14 +569,19 @@ func (s *OCRService) mergeOCRResults(results []string) string {
 
 // ocrDigitsOnly performs OCR configured specifically for digit recognition
 func (s *OCRService) ocrDigitsOnly(imagePath string) string {
-	client := gosseract.NewClient()
-	defer client.Close()
+	client, err := newTesseractClient()
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = client.Close() }()
 
 	// Use only English for digit recognition
-	client.SetLanguage("eng")
-	client.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
+	if err := client.SetLanguage("eng"); err != nil {
+		return ""
+	}
+	_ = client.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
 	// Whitelist only digits and common amount characters
-	client.SetVariable("tessedit_char_whitelist", digitsWhitelist)
+	_ = client.SetWhitelist(digitsWhitelist)
 
 	if err := client.SetImage(imagePath); err != nil {
 		return ""
@@ -741,14 +777,19 @@ func (s *OCRService) enhancedPdfToImageOCR(pdfPath string) (string, error) {
 	sort.Strings(files)
 
 	// Step 2: Preprocess images and perform OCR
-	client := gosseract.NewClient()
-	defer client.Close()
+	client, err := newTesseractClient()
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = client.Close() }()
 
 	// Configure Tesseract for better Chinese recognition
 	// PSM_AUTO: Automatic page segmentation (best for most invoices with mixed layouts)
 	// Alternative: PSM_SINGLE_BLOCK can be used for simple single-column invoices
-	client.SetLanguage("chi_sim", "eng")
-	client.SetPageSegMode(gosseract.PSM_AUTO)
+	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
+		return "", err
+	}
+	_ = client.SetPageSegMode(gosseract.PSM_AUTO)
 
 	var allText strings.Builder
 
@@ -759,7 +800,10 @@ func (s *OCRService) enhancedPdfToImageOCR(pdfPath string) (string, error) {
 		processedPath := s.preprocessImage(imgPath, tempDir, i)
 
 		// Perform OCR
-		client.SetImage(processedPath)
+		if err := client.SetImage(processedPath); err != nil {
+			fmt.Printf("[OCR] OCR failed to set image for page %d: %v\n", i+1, err)
+			continue
+		}
 		text, err := client.Text()
 		if err != nil {
 			fmt.Printf("[OCR] OCR failed for page %d: %v\n", i+1, err)
@@ -937,9 +981,14 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] PDF converted to %d images\n", len(files))
 
 	// Initialize gosseract client for OCR
-	client := gosseract.NewClient()
-	defer client.Close()
-	client.SetLanguage("chi_sim", "eng")
+	client, err := newTesseractClient()
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = client.Close() }()
+	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
+		return "", err
+	}
 
 	var allText strings.Builder
 
@@ -948,7 +997,10 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
 
 		// Perform OCR on the image
-		client.SetImage(imgPath)
+		if err := client.SetImage(imgPath); err != nil {
+			fmt.Printf("[OCR] OCR failed to set image for page %d: %v\n", i+1, err)
+			continue
+		}
 		text, err := client.Text()
 
 		if err != nil {
@@ -1012,8 +1064,17 @@ func removeChineseSpaces(text string) string {
 			if unicode.Is(unicode.Han, prev) && unicode.Is(unicode.Han, next) {
 				skipSpace = true
 			}
+			// Skip space between Chinese and digits (e.g. "支付时间 2025")
+			// BUT preserve space after '日' when followed by a digit (likely time)
+			if prev != '日' && unicode.Is(unicode.Han, prev) && unicode.IsDigit(next) {
+				skipSpace = true
+			}
 			// Skip space if previous is digit and next is date unit (年/月/日)
 			if unicode.IsDigit(prev) && (next == '年' || next == '月' || next == '日' || next == '时' || next == '分' || next == '秒') {
+				skipSpace = true
+			}
+			// Skip space between digits and Chinese (e.g. "1700 元")
+			if unicode.IsDigit(prev) && unicode.Is(unicode.Han, next) {
 				skipSpace = true
 			}
 			// Skip space if previous is date unit (年/月) and next is digit

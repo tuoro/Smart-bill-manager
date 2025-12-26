@@ -1,24 +1,4 @@
 services:
-  paddleocr:
-    build:
-      context: ./paddleocr-service
-      dockerfile: Dockerfile
-    container_name: paddleocr-service
-    ports:
-      - "5000:5000"
-    volumes:
-      - app-uploads:/app/uploads:ro  # Share uploads directory for image access
-    environment:
-      - PADDLEOCR_HOST=0.0.0.0
-      - PADDLEOCR_PORT=5000
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
   smart-bill-manager:
     build:
       context: .
@@ -32,13 +12,9 @@ services:
       # - JWT_SECRET=your-secure-random-secret-key
       # Optional: Set admin password (otherwise a random password is generated)
       # - ADMIN_PASSWORD=your-admin-password
-      - PADDLEOCR_URL=http://paddleocr:5000
     volumes:
       - app-data:/app/backend/data
       - app-uploads:/app/backend/uploads
-    depends_on:
-      paddleocr:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/api/health"]
       interval: 30s

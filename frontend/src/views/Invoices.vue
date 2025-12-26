@@ -363,6 +363,7 @@ const loadingLinkedPayments = ref(false)
 const linkedPayments = ref<Payment[]>([])
 const suggestedPayments = ref<Payment[]>([])
 const loadingSuggestedPayments = ref(false)
+const linkingPayment = ref(false)
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -485,20 +486,30 @@ const loadLinkedPayments = async (invoiceId: string) => {
   }
 }
 
-const refreshSuggestedPayments = async (invoiceId: string) => {
+const refreshSuggestedPayments = async (
+  invoiceId: string,
+  opts?: { showToast?: boolean }
+) => {
   loadingSuggestedPayments.value = true
   try {
     const suggestedRes = await invoiceApi.getSuggestedPayments(invoiceId, { debug: true })
     suggestedPayments.value = suggestedRes.data.success && suggestedRes.data.data ? suggestedRes.data.data : []
-    if (suggestedPayments.value.length > 0) {
-      ElMessage.success(`推荐到 ${suggestedPayments.value.length} 条可关联的支付记录`)
-    } else {
-      ElMessage.warning('没有找到可推荐的支付记录')
+    if (opts?.showToast) {
+      if (suggestedPayments.value.length > 0) {
+        ElMessage.success(`推荐到 ${suggestedPayments.value.length} 条可关联的支付记录`)
+      } else {
+        // If user just linked a payment, the suggestions becoming empty is expected.
+        if (!linkingPayment.value && linkedPayments.value.length === 0) {
+          ElMessage.warning('没有找到可推荐的支付记录')
+        }
+      }
     }
   } catch (error) {
     console.error('Load suggested payments failed:', error)
     suggestedPayments.value = []
-    ElMessage.error('推荐匹配失败')
+    if (opts?.showToast) {
+      ElMessage.error('推荐匹配失败')
+    }
   } finally {
     loadingSuggestedPayments.value = false
   }
@@ -506,7 +517,7 @@ const refreshSuggestedPayments = async (invoiceId: string) => {
 
 const handleRecommendMatch = async () => {
   if (!previewInvoice.value) return
-  await refreshSuggestedPayments(previewInvoice.value.id)
+  await refreshSuggestedPayments(previewInvoice.value.id, { showToast: true })
 }
 
 // Link a payment to the current invoice
@@ -514,14 +525,17 @@ const handleLinkPayment = async (paymentId: string) => {
   if (!previewInvoice.value) return
   
   try {
+    linkingPayment.value = true
     await invoiceApi.linkPayment(previewInvoice.value.id, paymentId)
     ElMessage.success('关联成功')
     // Reload linked payments
     await loadLinkedPayments(previewInvoice.value.id)
-    await refreshSuggestedPayments(previewInvoice.value.id)
+    await refreshSuggestedPayments(previewInvoice.value.id, { showToast: false })
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
     ElMessage.error(err.response?.data?.message || '关联失败')
+  } finally {
+    linkingPayment.value = false
   }
 }
 

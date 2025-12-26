@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"smart-bill-manager/internal/models"
@@ -186,8 +187,57 @@ func (s *InvoiceService) SuggestPayments(invoiceID string, limit int) ([]models.
 		return nil, err
 	}
 
-	// Get suggestions based on amount and date proximity
-	return s.repo.SuggestPayments(invoice, limit)
+	linked, _ := s.repo.GetLinkedPayments(invoiceID)
+	linkedIDs := make(map[string]struct{}, len(linked))
+	for _, p := range linked {
+		linkedIDs[p.ID] = struct{}{}
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+	maxCandidates := limit * 50
+	if maxCandidates < 200 {
+		maxCandidates = 200
+	}
+
+	candidates, err := s.repo.SuggestPayments(invoice, maxCandidates)
+	if err != nil {
+		return nil, err
+	}
+
+	type scored struct {
+		payment models.Payment
+		score   float64
+	}
+	scoredList := make([]scored, 0, len(candidates))
+	for _, p := range candidates {
+		if _, ok := linkedIDs[p.ID]; ok {
+			continue
+		}
+		score := computeInvoicePaymentScore(invoice, &p)
+		// Drop extremely low-score candidates to reduce noise.
+		if score < 0.15 {
+			continue
+		}
+		scoredList = append(scoredList, scored{payment: p, score: score})
+	}
+
+	sort.Slice(scoredList, func(i, j int) bool {
+		if scoredList[i].score == scoredList[j].score {
+			return scoredList[i].payment.TransactionTime > scoredList[j].payment.TransactionTime
+		}
+		return scoredList[i].score > scoredList[j].score
+	})
+
+	out := make([]models.Payment, 0, limit)
+	for _, s := range scoredList {
+		out = append(out, s.payment)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 // parseInvoicePDF is a helper method that parses a PDF invoice and returns the extracted data

@@ -36,4 +36,8 @@ export const paymentApi = {
   // Get invoices linked to a payment
   getPaymentInvoices: (paymentId: string) =>
     api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/invoices`),
+
+  // Get suggested invoices for a payment (smart matching)
+  getSuggestedInvoices: (paymentId: string) =>
+    api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/suggest-invoices`),
 }

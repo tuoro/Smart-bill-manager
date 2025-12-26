@@ -137,8 +137,8 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 	
 	// If invoice has amount, filter by similar amounts (within 10% range)
 	if invoice.Amount != nil {
-		minAmount := *invoice.Amount * 0.9
-		maxAmount := *invoice.Amount * 1.1
+		minAmount := *invoice.Amount * 0.8
+		maxAmount := *invoice.Amount * 1.2
 		query = query.Where("amount >= ? AND amount <= ?", minAmount, maxAmount)
 	}
 	
@@ -149,10 +149,8 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 		query = query.Where("transaction_time LIKE ?", dateStr+"%")
 	}
 	
-	// Order by closest amount match
-	if invoice.Amount != nil {
-		query = query.Order(gorm.Expr("ABS(amount - ?) ASC", *invoice.Amount))
-	}
+	// Default: newest first (service will apply scoring on top)
+	query = query.Order("transaction_time DESC")
 	
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -160,4 +158,26 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 	
 	err := query.Find(&payments).Error
 	return payments, err
+}
+
+// SuggestInvoices suggests invoices that might match a payment (used by payment-side recommendations).
+func (r *InvoiceRepository) SuggestInvoices(payment *models.Payment, limit int) ([]models.Invoice, error) {
+	var invoices []models.Invoice
+
+	query := database.GetDB().Model(&models.Invoice{})
+
+	if payment != nil && payment.Amount > 0 {
+		minAmount := payment.Amount * 0.8
+		maxAmount := payment.Amount * 1.2
+		query = query.Where("amount >= ? AND amount <= ?", minAmount, maxAmount)
+	}
+
+	query = query.Order("created_at DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&invoices).Error
+	return invoices, err
 }

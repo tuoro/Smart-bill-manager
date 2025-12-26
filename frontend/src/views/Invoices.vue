@@ -228,6 +228,16 @@
         </el-descriptions-item>
         <el-descriptions-item label="关联支付记录" :span="2">
           <div class="linked-payments-section">
+            <div class="match-actions">
+              <el-button
+                type="primary"
+                size="small"
+                :loading="loadingSuggestedPayments"
+                @click="handleRecommendMatch"
+              >
+                推荐匹配
+              </el-button>
+            </div>
             <!-- Linked Payments -->
             <div v-if="linkedPayments.length > 0" class="linked-payments">
               <div class="section-title">已关联支付记录</div>
@@ -260,7 +270,19 @@
 
             <!-- Suggested Payments -->
             <div v-if="suggestedPayments.length > 0" class="suggested-payments">
-              <div class="section-title">智能匹配建议</div>
+              <div class="section-title">
+                智能匹配建议
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  :loading="loadingSuggestedPayments"
+                  @click="handleRecommendMatch"
+                  style="margin-left: 8px"
+                >
+                  推荐匹配
+                </el-button>
+              </div>
               <el-table :data="suggestedPayments" size="small" max-height="200">
                 <el-table-column label="金额">
                   <template #default="{ row }">
@@ -290,7 +312,15 @@
 
             <!-- No linked payments message -->
             <div v-if="linkedPayments.length === 0 && suggestedPayments.length === 0" class="no-data">
-              <el-empty description="暂无关联的支付记录" :image-size="60" />
+              <el-empty description="暂无关联的支付记录" :image-size="60">
+                <el-button
+                  type="primary"
+                  :loading="loadingSuggestedPayments"
+                  @click="handleRecommendMatch"
+                >
+                  推荐匹配
+                </el-button>
+              </el-empty>
             </div>
 
             <!-- Loading state -->
@@ -332,6 +362,7 @@ const uploadRef = ref<UploadInstance>()
 const loadingLinkedPayments = ref(false)
 const linkedPayments = ref<Payment[]>([])
 const suggestedPayments = ref<Payment[]>([])
+const loadingSuggestedPayments = ref(false)
 
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -387,16 +418,21 @@ const handleUpload = async () => {
 
   uploading.value = true
   try {
+    let createdInvoice: Invoice | null = null
     const files = fileList.value.map(f => f.raw as File)
     if (files.length === 1) {
-      await invoiceApi.upload(files[0])
+      const res = await invoiceApi.upload(files[0])
+      createdInvoice = res.data?.data || null
     } else {
-      await invoiceApi.uploadMultiple(files)
+      const res = await invoiceApi.uploadMultiple(files)
+      const createdList = res.data?.data || []
+      createdInvoice = createdList.length > 0 ? createdList[0] : null
     }
     ElMessage.success('上传成功')
     cancelUpload()
     loadInvoices()
     loadStats()
+    if (createdInvoice) openPreview(createdInvoice)
   } catch {
     ElMessage.error('上传失败')
   } finally {
@@ -442,19 +478,33 @@ const loadLinkedPayments = async (invoiceId: string) => {
     if (linkedRes.data.success && linkedRes.data.data) {
       linkedPayments.value = linkedRes.data.data
     }
-    
-    // Load suggested payments only if no linked payments
-    if (linkedPayments.value.length === 0) {
-      const suggestedRes = await invoiceApi.getSuggestedPayments(invoiceId)
-      if (suggestedRes.data.success && suggestedRes.data.data) {
-        suggestedPayments.value = suggestedRes.data.data
-      }
-    }
   } catch (error) {
     console.error('Load linked payments failed:', error)
   } finally {
     loadingLinkedPayments.value = false
   }
+}
+
+const refreshSuggestedPayments = async (invoiceId: string) => {
+  loadingSuggestedPayments.value = true
+  try {
+    const suggestedRes = await invoiceApi.getSuggestedPayments(invoiceId)
+    if (suggestedRes.data.success && suggestedRes.data.data) {
+      suggestedPayments.value = suggestedRes.data.data
+    } else {
+      suggestedPayments.value = []
+    }
+  } catch (error) {
+    console.error('Load suggested payments failed:', error)
+    suggestedPayments.value = []
+  } finally {
+    loadingSuggestedPayments.value = false
+  }
+}
+
+const handleRecommendMatch = async () => {
+  if (!previewInvoice.value) return
+  await refreshSuggestedPayments(previewInvoice.value.id)
 }
 
 // Link a payment to the current invoice
@@ -906,6 +956,12 @@ onMounted(() => {
 /* Linked payments section */
 .linked-payments-section {
   width: 100%;
+}
+
+.match-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .linked-payments,

@@ -326,6 +326,16 @@
       width="800px"
       destroy-on-close
     >
+      <div class="match-actions">
+        <el-button
+          type="primary"
+          :loading="loadingSuggestedInvoices"
+          @click="refreshSuggestedInvoices"
+        >
+          推荐匹配
+        </el-button>
+      </div>
+
       <el-table 
         v-loading="loadingLinkedInvoices"
         :data="linkedInvoices"
@@ -361,6 +371,53 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <el-divider>智能匹配建议</el-divider>
+      <el-table
+        v-loading="loadingSuggestedInvoices"
+        :data="suggestedInvoices"
+        max-height="300px"
+      >
+        <el-table-column label="文件名" show-overflow-tooltip>
+          <template #default="{ row }">
+            <div class="filename">
+              <el-icon color="#1890ff"><Document /></el-icon>
+              {{ row.original_name }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="invoice_number" label="发票号码">
+          <template #default="{ row }">
+            {{ row.invoice_number || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="金额">
+          <template #default="{ row }">
+            <span v-if="row.amount" class="amount">¥{{ row.amount.toFixed(2) }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="seller_name" label="销售方" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.seller_name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="开票日期">
+          <template #default="{ row }">
+            {{ row.invoice_date || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="80">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click="handleLinkInvoiceToPayment(row.id)">
+              关联
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0" class="no-data">
+        <el-empty description="暂无推荐" :image-size="60" />
+      </div>
 
       <template #footer>
         <el-button @click="linkedInvoicesModalVisible = false">关闭</el-button>
@@ -443,7 +500,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadRawFile } from 'element-plus'
 import { Plus, Edit, Delete, Wallet, ShoppingCart, Upload, UploadFilled, Document, View, Refresh } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { paymentApi, FILE_BASE_URL } from '@/api'
+import { paymentApi, invoiceApi, FILE_BASE_URL } from '@/api'
 import type { Payment, Invoice } from '@/types'
 
 // Interface for OCR extracted data
@@ -491,6 +548,8 @@ const loadingLinkedInvoices = ref(false)
 const linkedInvoices = ref<Invoice[]>([])
 const linkedInvoicesCount = ref<Record<string, number>>({})
 const currentPaymentForInvoices = ref<Payment | null>(null)
+const loadingSuggestedInvoices = ref(false)
+const suggestedInvoices = ref<Invoice[]>([])
 
 // Payment detail state
 const paymentDetailVisible = ref(false)
@@ -787,6 +846,7 @@ const viewLinkedInvoices = async (payment: Payment) => {
   currentPaymentForInvoices.value = payment
   linkedInvoicesModalVisible.value = true
   loadingLinkedInvoices.value = true
+  suggestedInvoices.value = []
   
   try {
     const res = await paymentApi.getPaymentInvoices(payment.id)
@@ -797,6 +857,41 @@ const viewLinkedInvoices = async (payment: Payment) => {
     ElMessage.error('加载关联发票失败')
   } finally {
     loadingLinkedInvoices.value = false
+  }
+
+  await refreshSuggestedInvoices()
+}
+
+const refreshSuggestedInvoices = async () => {
+  if (!currentPaymentForInvoices.value) return
+
+  loadingSuggestedInvoices.value = true
+  try {
+    const res = await paymentApi.getSuggestedInvoices(currentPaymentForInvoices.value.id)
+    if (res.data.success && res.data.data) {
+      suggestedInvoices.value = res.data.data
+    } else {
+      suggestedInvoices.value = []
+    }
+  } catch {
+    suggestedInvoices.value = []
+  } finally {
+    loadingSuggestedInvoices.value = false
+  }
+}
+
+const handleLinkInvoiceToPayment = async (invoiceId: string) => {
+  if (!currentPaymentForInvoices.value) return
+
+  try {
+    await invoiceApi.linkPayment(invoiceId, currentPaymentForInvoices.value.id)
+    ElMessage.success('关联成功')
+    // Refresh lists and counts
+    await viewLinkedInvoices(currentPaymentForInvoices.value)
+    loadLinkedInvoicesCount()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    ElMessage.error(err.response?.data?.message || '关联失败')
   }
 }
 
@@ -892,6 +987,16 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.match-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.no-data {
+  padding: 12px 0;
 }
 
 .header-controls {

@@ -30,6 +30,7 @@ func (h *PaymentHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/stats", h.GetStats)
 	r.GET("/:id", h.GetByID)
 	r.GET("/:id/invoices", h.GetLinkedInvoices)
+	r.GET("/:id/suggest-invoices", h.SuggestInvoices)
 	r.POST("", h.Create)
 	r.POST("/upload-screenshot", h.UploadScreenshot)
 	r.POST("/:id/reparse", h.ReparseScreenshot)
@@ -214,6 +215,19 @@ func (h *PaymentHandler) GetLinkedInvoices(c *gin.Context) {
 	invoices, err := h.paymentService.GetLinkedInvoices(id)
 	if err != nil {
 		utils.Error(c, 500, "获取关联发票失败", err)
+		return
+	}
+
+	utils.SuccessData(c, invoices)
+}
+
+func (h *PaymentHandler) SuggestInvoices(c *gin.Context) {
+	id := c.Param("id")
+	limit := 10
+
+	invoices, err := h.paymentService.SuggestInvoices(id, limit)
+	if err != nil {
+		utils.Error(c, 500, "èŽ·å–å»ºè®®å‘ç¥¨å¤±è´¥", err)
 		return
 	}
 

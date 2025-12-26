@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sort"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
@@ -9,13 +10,15 @@ import (
 
 type PaymentService struct {
 	repo       *repository.PaymentRepository
+	invoiceRepo *repository.InvoiceRepository
 	ocrService *OCRService
 }
 
 func NewPaymentService() *PaymentService {
 	return &PaymentService{
-		repo:       repository.NewPaymentRepository(),
-		ocrService: NewOCRService(),
+		repo:        repository.NewPaymentRepository(),
+		invoiceRepo: repository.NewInvoiceRepository(),
+		ocrService:  NewOCRService(),
 	}
 }
 
@@ -183,6 +186,65 @@ func (s *PaymentService) CreateFromScreenshotBestEffort(input CreateFromScreensh
 // GetLinkedInvoices returns all invoices linked to a payment
 func (s *PaymentService) GetLinkedInvoices(paymentID string) ([]models.Invoice, error) {
 	return s.repo.GetLinkedInvoices(paymentID)
+}
+
+// SuggestInvoices suggests invoices that might match this payment using amount/seller/date signals.
+func (s *PaymentService) SuggestInvoices(paymentID string, limit int) ([]models.Invoice, error) {
+	payment, err := s.repo.FindByID(paymentID)
+	if err != nil {
+		return nil, err
+	}
+
+	linked, _ := s.repo.GetLinkedInvoices(paymentID)
+	linkedIDs := make(map[string]struct{}, len(linked))
+	for _, inv := range linked {
+		linkedIDs[inv.ID] = struct{}{}
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+	maxCandidates := limit * 50
+	if maxCandidates < 200 {
+		maxCandidates = 200
+	}
+
+	candidates, err := s.invoiceRepo.SuggestInvoices(payment, maxCandidates)
+	if err != nil {
+		return nil, err
+	}
+
+	type scored struct {
+		invoice models.Invoice
+		score   float64
+	}
+	scoredList := make([]scored, 0, len(candidates))
+	for _, inv := range candidates {
+		if _, ok := linkedIDs[inv.ID]; ok {
+			continue
+		}
+		score := computeInvoicePaymentScore(&inv, payment)
+		if score < 0.15 {
+			continue
+		}
+		scoredList = append(scoredList, scored{invoice: inv, score: score})
+	}
+
+	sort.Slice(scoredList, func(i, j int) bool {
+		if scoredList[i].score == scoredList[j].score {
+			return scoredList[i].invoice.CreatedAt.After(scoredList[j].invoice.CreatedAt)
+		}
+		return scoredList[i].score > scoredList[j].score
+	})
+
+	out := make([]models.Invoice, 0, limit)
+	for _, s := range scoredList {
+		out = append(out, s.invoice)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 // ReparseScreenshot re-parses the screenshot for a payment record

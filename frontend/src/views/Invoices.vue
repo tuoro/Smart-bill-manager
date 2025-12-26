@@ -67,7 +67,7 @@
         </el-table-column>
         <el-table-column prop="invoice_date" label="&#24320;&#31080;&#26102;&#38388;" sortable>
           <template #default="{ row }">
-            {{ formatDate(row.invoice_date) }}
+            {{ formatInvoiceDate(row.invoice_date) }}
           </template>
         </el-table-column>
         <el-table-column label="金额">
@@ -510,9 +510,24 @@ const formatDateTime = (date?: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
-const formatDate = (date?: string) => {
+const formatInvoiceDate = (date?: string) => {
   if (!date) return '-'
-  return dayjs(date).format('YYYY-MM-DD')
+
+  // Prefer parsing standard timestamps/ISO strings.
+  const parsed = dayjs(date)
+  if (parsed.isValid()) return parsed.format('YYYY-MM-DD')
+
+  // Fallback for common invoice formats like "2025年10月11日" / "2025/10/11" / "2025.10.11".
+  const m = String(date).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/)
+  if (m) {
+    const y = m[1]
+    const mm = m[2].padStart(2, '0')
+    const dd = m[3].padStart(2, '0')
+    return `${y}-${mm}-${dd}`
+  }
+
+  // If we still can't parse, show the original string instead of "Invalid Date".
+  return date
 }
 
 const getParseStatusLabel = (status?: string) => {

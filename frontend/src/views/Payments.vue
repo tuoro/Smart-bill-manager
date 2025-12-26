@@ -738,7 +738,8 @@ const handleSaveOcrResult = async () => {
         ElMessage.success('支付记录创建成功')
       }
       
-      cancelScreenshotUpload()
+      // Important: do not delete the payment record after saving
+      resetScreenshotUploadState()
       loadPayments()
       loadStats()
       loadLinkedInvoicesCount()
@@ -750,16 +751,7 @@ const handleSaveOcrResult = async () => {
   })
 }
 
-const cancelScreenshotUpload = () => {
-  // If user cancels, delete the created payment record
-  if (uploadedPaymentId.value) {
-    paymentApi.delete(uploadedPaymentId.value).catch((error) => {
-      // Log deletion errors for debugging, but don't show to user
-      console.error('Failed to delete payment record:', error)
-    })
-  }
-  
-  // Clear all state
+const resetScreenshotUploadState = () => {
   uploadedPaymentId.value = null
   screenshotFileList.value = []
   ocrResult.value = null
@@ -771,6 +763,17 @@ const cancelScreenshotUpload = () => {
   ocrForm.transaction_time = new Date()
   ocrForm.order_number = ''
   uploadScreenshotModalVisible.value = false
+}
+
+const cancelScreenshotUpload = () => {
+  // If user cancels after uploading, delete the created payment record
+  if (uploadedPaymentId.value) {
+    paymentApi.delete(uploadedPaymentId.value).catch((error) => {
+      // Log deletion errors for debugging, but don't show to user
+      console.error('Failed to delete payment record:', error)
+    })
+  }
+  resetScreenshotUploadState()
 }
 
 // Linked invoices functions

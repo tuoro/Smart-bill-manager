@@ -14,9 +14,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	"github.com/ledongthuc/pdf"
-	"github.com/otiai10/gosseract/v2"
 )
 
 // OCRService provides OCR functionality
@@ -122,73 +119,14 @@ type OCRCLILine struct {
 	Box        [][]float64 `json:"box"`
 }
 
-// RecognizeImage performs OCR on an image file with enhanced configuration
+// RecognizeImage performs OCR on an image file (RapidOCR v3 only).
 func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
-	client, err := newTesseractClient()
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = client.Close() }()
-
-	// Set language to Chinese simplified and English
-	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
-		return "", err
-	}
-
-	// Set page segmentation mode for better recognition of mixed layouts
-	// PSM_AUTO (3): Fully automatic page segmentation, but no OSD
-	_ = client.SetPageSegMode(gosseract.PSM_AUTO)
-
-	if err := client.SetImage(imagePath); err != nil {
-		return "", fmt.Errorf("failed to set image: %w", err)
-	}
-
-	text, err := client.Text()
-	if err != nil {
-		return "", fmt.Errorf("failed to recognize text: %w", err)
-	}
-
-	return text, nil
+	return s.RecognizeWithRapidOCR(imagePath)
 }
 
-// RecognizeImageEnhanced performs OCR with image preprocessing for better accuracy
+// RecognizeImageEnhanced performs OCR without any local image preprocessing (RapidOCR v3 only).
 func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
-	fmt.Printf("[OCR] Starting enhanced image recognition for: %s\n", imagePath)
-
-	// Create temporary directory for preprocessed image
-	tempDir, err := os.MkdirTemp("", "ocr-enhanced-*")
-	if err != nil {
-		// Fallback to basic recognition
-		fmt.Printf("[OCR] Failed to create temp dir, falling back to basic recognition: %v\n", err)
-		return s.RecognizeImage(imagePath)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Preprocess image
-	processedPath := s.preprocessImage(imagePath, tempDir, 0)
-
-	client, err := newTesseractClient()
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = client.Close() }()
-
-	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
-		return "", err
-	}
-	_ = client.SetPageSegMode(gosseract.PSM_AUTO)
-
-	if err := client.SetImage(processedPath); err != nil {
-		return "", fmt.Errorf("failed to set image: %w", err)
-	}
-
-	text, err := client.Text()
-	if err != nil {
-		return "", fmt.Errorf("failed to recognize text: %w", err)
-	}
-
-	fmt.Printf("[OCR] Enhanced recognition extracted %d characters\n", len(text))
-	return text, nil
+	return s.RecognizeWithRapidOCR(imagePath)
 }
 
 // RecognizeWithRapidOCR executes the paddleocr_cli.py script for OCR recognition (RapidOCR only).
@@ -306,293 +244,22 @@ func (s *OCRService) isRapidOCRAvailable() bool {
 	return false
 }
 
-// RecognizePaymentScreenshot performs OCR optimized for payment screenshots
-// It prioritizes RapidOCR if available, falls back to Tesseract with multiple strategies
+// RecognizePaymentScreenshot performs OCR for payment screenshots (RapidOCR v3 only).
 func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error) {
 	fmt.Printf("[OCR] Starting payment screenshot recognition for: %s\n", imagePath)
 
-	// Log script path
-	scriptPath := s.findPaddleOCRScript()
-	fmt.Printf("[OCR] Script path: %s\n", scriptPath)
-
-	// Strategy 1: Try RapidOCR first (best for Chinese payment screenshots)
-	if s.isRapidOCRAvailable() {
-		fmt.Printf("[OCR] RapidOCR available, attempting to use it\n")
-		text, err := s.RecognizeWithRapidOCR(imagePath)
-		if err == nil && strings.TrimSpace(text) != "" {
-			fmt.Printf("[OCR] RapidOCR succeeded with %d characters\n", len(text))
-			return text, nil
-		}
-		fmt.Printf("[OCR] RapidOCR failed or returned empty: %v, falling back to Tesseract\n", err)
-	} else {
-		fmt.Printf("[OCR] RapidOCR not available, using Tesseract\n")
+	if !s.isRapidOCRAvailable() {
+		return "", fmt.Errorf("RapidOCR v3 is not available (install rapidocr==3.* and onnxruntime)")
 	}
 
-	// Fallback: Use Tesseract with multiple strategies (existing code)
-	fmt.Printf("[OCR] Using Tesseract fallback strategies\n")
-
-	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "payment-ocr-*")
+	text, err := s.RecognizeWithRapidOCR(imagePath)
 	if err != nil {
-		return s.RecognizeImageEnhanced(imagePath)
+		return "", err
 	}
-	defer os.RemoveAll(tempDir)
-
-	var results []string
-
-	// Strategy 1: Original image with PSM_SINGLE_BLOCK (good for large text)
-	if text := s.ocrWithConfig(imagePath, gosseract.PSM_SINGLE_BLOCK); text != "" {
-		results = append(results, text)
-		fmt.Printf("[OCR] Strategy 1 (PSM_SINGLE_BLOCK) extracted %d chars\n", len(text))
+	if strings.TrimSpace(text) == "" {
+		return "", fmt.Errorf("RapidOCR returned empty text")
 	}
-
-	// Strategy 2: Payment-specific preprocessing with PSM_AUTO
-	processedPath := s.preprocessPaymentScreenshot(imagePath, tempDir)
-	if text := s.ocrWithConfig(processedPath, gosseract.PSM_AUTO); text != "" {
-		results = append(results, text)
-		fmt.Printf("[OCR] Strategy 2 (preprocessed + PSM_AUTO) extracted %d chars\n", len(text))
-	}
-
-	// Strategy 3: High contrast binary image with PSM_SINGLE_BLOCK
-	binaryPath := s.createBinaryImage(imagePath, tempDir)
-	if binaryPath != imagePath {
-		if text := s.ocrWithConfig(binaryPath, gosseract.PSM_SINGLE_BLOCK); text != "" {
-			results = append(results, text)
-			fmt.Printf("[OCR] Strategy 3 (binary + PSM_SINGLE_BLOCK) extracted %d chars\n", len(text))
-		}
-	}
-
-	// Strategy 4: Inverted image (white text on black background issues)
-	invertedPath := s.createInvertedImage(imagePath, tempDir)
-	if invertedPath != imagePath {
-		if text := s.ocrWithConfig(invertedPath, gosseract.PSM_AUTO); text != "" {
-			results = append(results, text)
-			fmt.Printf("[OCR] Strategy 4 (inverted) extracted %d chars\n", len(text))
-		}
-	}
-
-	// Merge all results - combine unique content
-	mergedText := s.mergeOCRResults(results)
-	fmt.Printf("[OCR] Merged result: %d characters from %d strategies\n", len(mergedText), len(results))
-
-	if mergedText == "" {
-		// Fallback to enhanced recognition
-		return s.RecognizeImageEnhanced(imagePath)
-	}
-
-	return mergedText, nil
-}
-
-// preprocessPaymentScreenshot applies specialized preprocessing for payment screenshots
-// Payment screenshots typically have large amount text that needs special handling
-func (s *OCRService) preprocessPaymentScreenshot(inputPath, tempDir string) string {
-	outputPath := filepath.Join(tempDir, "payment-processed.png")
-
-	// Check if ImageMagick is available
-	_, err := exec.LookPath("convert")
-	if err != nil {
-		fmt.Printf("[OCR] ImageMagick not found, skipping preprocessing\n")
-		return inputPath
-	}
-
-	// For payment screenshots, we need more aggressive preprocessing:
-	// 1. Resize to larger size for better recognition of large fonts
-	// 2. Convert to grayscale
-	// 3. High contrast with thresholding to make text stand out
-	// 4. Sharpen edges
-	// 5. Remove noise
-	cmd := exec.Command("convert", inputPath,
-		"-resize", "200%", // Scale up for better recognition
-		"-colorspace", "Gray", // Convert to grayscale
-		"-sigmoidal-contrast", "10,50%", // Increase contrast (S-curve)
-		"-threshold", "50%", // Binary threshold for clean text
-		"-morphology", "Close", "Square:1", // Close small gaps in characters
-		"-sharpen", "0x2", // Sharpen edges
-		outputPath)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("[OCR] Payment screenshot preprocessing failed: %v (output: %s)\n", err, string(output))
-		// Try alternative preprocessing
-		return s.preprocessPaymentScreenshotAlt(inputPath, tempDir)
-	}
-
-	fmt.Printf("[OCR] Payment screenshot preprocessed: %s\n", outputPath)
-	return outputPath
-}
-
-// preprocessPaymentScreenshotAlt provides alternative preprocessing for payment screenshots
-func (s *OCRService) preprocessPaymentScreenshotAlt(inputPath, tempDir string) string {
-	outputPath := filepath.Join(tempDir, "payment-processed-alt.png")
-
-	// Alternative preprocessing without threshold (for colored text)
-	cmd := exec.Command("convert", inputPath,
-		"-resize", "150%",
-		"-colorspace", "Gray",
-		"-contrast-stretch", "2%x2%", // Aggressive contrast stretch
-		"-unsharp", "0x5", // Unsharp mask for edge enhancement
-		"-despeckle", // Remove noise
-		outputPath)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("[OCR] Alternative preprocessing failed: %v (output: %s), using original\n", err, string(output))
-		return inputPath
-	}
-
-	fmt.Printf("[OCR] Alternative preprocessing successful: %s\n", outputPath)
-	return outputPath
-}
-
-// ocrWithConfig performs OCR with specific page segmentation mode
-func (s *OCRService) ocrWithConfig(imagePath string, psm gosseract.PageSegMode) string {
-	client, err := newTesseractClient()
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = client.Close() }()
-
-	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
-		return ""
-	}
-	_ = client.SetPageSegMode(psm)
-
-	if err := client.SetImage(imagePath); err != nil {
-		return ""
-	}
-
-	text, err := client.Text()
-	if err != nil {
-		return ""
-	}
-
-	return text
-}
-
-// createBinaryImage creates a high-contrast binary image
-func (s *OCRService) createBinaryImage(inputPath, tempDir string) string {
-	outputPath := filepath.Join(tempDir, "binary.png")
-
-	// Double negation technique: invert -> threshold -> invert back
-	// This ensures dark text on light background gets properly thresholded
-	// First negate makes dark text light, threshold creates clean binary,
-	// second negate restores proper polarity for Tesseract OCR
-	cmd := exec.Command("convert", inputPath,
-		"-colorspace", "Gray",
-		"-negate",           // Invert colors (dark text becomes light)
-		"-threshold", "40%", // Aggressive threshold for clean binary
-		"-negate", // Invert back (restore dark text on light background)
-		outputPath)
-
-	if _, err := cmd.CombinedOutput(); err != nil {
-		return inputPath
-	}
-	return outputPath
-}
-
-// createInvertedImage creates an inverted version of the image
-func (s *OCRService) createInvertedImage(inputPath, tempDir string) string {
-	outputPath := filepath.Join(tempDir, "inverted.png")
-
-	cmd := exec.Command("convert", inputPath,
-		"-negate",
-		outputPath)
-
-	if _, err := cmd.CombinedOutput(); err != nil {
-		return inputPath
-	}
-	return outputPath
-}
-
-// mergeOCRResults merges multiple OCR results, prioritizing amount extraction
-func (s *OCRService) mergeOCRResults(results []string) string {
-	if len(results) == 0 {
-		return ""
-	}
-
-	var bestResult string
-	var bestScore int
-	var hasAmountCandidate bool
-
-	for _, result := range results {
-		amountMatches := 0
-		for _, pattern := range amountDetectionPatterns {
-			amountMatches += len(pattern.FindAllString(result, -1))
-		}
-
-		chineseChars := 0
-		for _, r := range result {
-			if unicode.Is(unicode.Han, r) {
-				chineseChars++
-			}
-		}
-
-		if amountMatches > 0 {
-			// Strongly prioritize results that contain amounts, then use Chinese character
-			// count as a tie-breaker.
-			score := amountMatches*1000 + chineseChars
-			if !hasAmountCandidate || score > bestScore {
-				hasAmountCandidate = true
-				bestScore = score
-				bestResult = result
-			}
-			continue
-		}
-
-		// No-amount candidate: score only by Chinese character count
-		if !hasAmountCandidate && chineseChars > bestScore {
-			bestScore = chineseChars
-			bestResult = result
-		}
-	}
-
-	// If we found any amount-containing result, return the best one.
-	if hasAmountCandidate {
-		return bestResult
-	}
-
-	// Merge unique lines from all results
-	seen := make(map[string]bool)
-	var merged strings.Builder
-	for _, result := range results {
-		lines := strings.Split(result, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" && !seen[line] {
-				seen[line] = true
-				merged.WriteString(line)
-				merged.WriteString("\n")
-			}
-		}
-	}
-
-	return merged.String()
-}
-
-// ocrDigitsOnly performs OCR configured specifically for digit recognition
-func (s *OCRService) ocrDigitsOnly(imagePath string) string {
-	client, err := newTesseractClient()
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = client.Close() }()
-
-	// Use only English for digit recognition
-	if err := client.SetLanguage("eng"); err != nil {
-		return ""
-	}
-	_ = client.SetPageSegMode(gosseract.PSM_SINGLE_LINE)
-	// Whitelist only digits and common amount characters
-	_ = client.SetWhitelist(digitsWhitelist)
-
-	if err := client.SetImage(imagePath); err != nil {
-		return ""
-	}
-
-	text, err := client.Text()
-	if err != nil {
-		return ""
-	}
-
-	return strings.TrimSpace(text)
+	return text, nil
 }
 
 // isGarbledText checks if extracted text contains mostly garbled/unrecognizable characters
@@ -704,11 +371,11 @@ func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 		return pdftotextResult, nil
 	}
 
-	// Method 2: Use enhanced OCR to get Chinese characters
-	fmt.Printf("[OCR] pdftotext result lacks Chinese content, performing enhanced OCR\n")
-	ocrResult, ocrErr = s.enhancedPdfToImageOCR(pdfPath)
+	// Method 2: Use RapidOCR v3 OCR to get Chinese characters (for scanned PDFs)
+	fmt.Printf("[OCR] pdftotext result lacks Chinese content, performing RapidOCR v3 OCR\n")
+	ocrResult, ocrErr = s.pdfToImageOCR(pdfPath)
 	if ocrErr != nil {
-		fmt.Printf("[OCR] Enhanced OCR failed: %v\n", ocrErr)
+		fmt.Printf("[OCR] RapidOCR v3 PDF OCR failed: %v\n", ocrErr)
 		// If OCR also failed, return pdftotext result if available
 		if pdftotextErr == nil && strings.TrimSpace(pdftotextResult) != "" {
 			return pdftotextResult, nil
@@ -749,103 +416,6 @@ func (s *OCRService) getChineseCharRatio(text string) float64 {
 		return 0
 	}
 	return float64(chineseChars) / float64(totalChars)
-}
-
-// enhancedPdfToImageOCR converts PDF to images with preprocessing and performs OCR
-func (s *OCRService) enhancedPdfToImageOCR(pdfPath string) (string, error) {
-	fmt.Printf("[OCR] Starting enhanced PDF to image OCR: %s\n", pdfPath)
-
-	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "pdf-ocr-enhanced-*")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Step 1: Convert PDF to high-resolution images (400 DPI)
-	outputPrefix := filepath.Join(tempDir, "page")
-	cmd := exec.Command("pdftoppm", "-png", "-r", "400", pdfPath, outputPrefix)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("pdftoppm failed: %w (output: %s)", err, string(output))
-	}
-
-	// Find generated images
-	files, err := filepath.Glob(filepath.Join(tempDir, "page-*.png"))
-	if err != nil || len(files) == 0 {
-		return "", fmt.Errorf("no images generated from PDF")
-	}
-	sort.Strings(files)
-
-	// Step 2: Preprocess images and perform OCR
-	client, err := newTesseractClient()
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = client.Close() }()
-
-	// Configure Tesseract for better Chinese recognition
-	// PSM_AUTO: Automatic page segmentation (best for most invoices with mixed layouts)
-	// Alternative: PSM_SINGLE_BLOCK can be used for simple single-column invoices
-	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
-		return "", err
-	}
-	_ = client.SetPageSegMode(gosseract.PSM_AUTO)
-
-	var allText strings.Builder
-
-	for i, imgPath := range files {
-		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
-
-		// Preprocess image using ImageMagick (if available)
-		processedPath := s.preprocessImage(imgPath, tempDir, i)
-
-		// Perform OCR
-		if err := client.SetImage(processedPath); err != nil {
-			fmt.Printf("[OCR] OCR failed to set image for page %d: %v\n", i+1, err)
-			continue
-		}
-		text, err := client.Text()
-		if err != nil {
-			fmt.Printf("[OCR] OCR failed for page %d: %v\n", i+1, err)
-			continue
-		}
-
-		fmt.Printf("[OCR] Extracted %d characters from page %d\n", len(text), i+1)
-		allText.WriteString(text)
-		allText.WriteString("\n")
-	}
-
-	return allText.String(), nil
-}
-
-// preprocessImage applies image enhancements using ImageMagick
-func (s *OCRService) preprocessImage(inputPath, tempDir string, pageNum int) string {
-	outputPath := filepath.Join(tempDir, fmt.Sprintf("processed-%d.png", pageNum))
-
-	// Check if ImageMagick is available
-	_, err := exec.LookPath("convert")
-	if err != nil {
-		fmt.Printf("[OCR] ImageMagick not found, skipping preprocessing\n")
-		return inputPath
-	}
-
-	// Apply preprocessing: grayscale, contrast enhancement, adaptive sharpening, denoise, normalize
-	// Command: convert input.png -colorspace Gray -contrast-stretch 0.1x0.1% -adaptive-sharpen 0x1 -median 1 -normalize output.png
-	cmd := exec.Command("convert", inputPath,
-		"-colorspace", "Gray", // Convert to grayscale
-		"-contrast-stretch", "0.1x0.1%", // Enhance contrast
-		"-adaptive-sharpen", "0x1", // Sharpen edges
-		"-median", "1", // Denoise
-		"-normalize", // Normalize histogram
-		outputPath)
-
-	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("[OCR] Image preprocessing failed: %v (output: %s), using original\n", err, string(output))
-		return inputPath
-	}
-
-	fmt.Printf("[OCR] Image preprocessed successfully: %s\n", outputPath)
-	return outputPath
 }
 
 // mergeExtractionResults combines pdftotext and OCR results
@@ -898,46 +468,18 @@ func (s *OCRService) extractDates(text string) []string {
 	return dates
 }
 
-// extractTextFromPDF extracts text from a PDF file
-func (s *OCRService) extractTextFromPDF(pdfPath string) (string, error) {
-	fmt.Printf("[OCR] Opening PDF file: %s\n", pdfPath)
-
-	f, r, err := pdf.Open(pdfPath)
-	if err != nil {
-		fmt.Printf("[OCR] Failed to open PDF: %v\n", err)
-		return "", fmt.Errorf("failed to open PDF: %w", err)
-	}
-	defer f.Close()
-
-	var buf bytes.Buffer
-	totalPage := r.NumPage()
-	fmt.Printf("[OCR] PDF has %d pages\n", totalPage)
-
-	for pageIndex := 1; pageIndex <= totalPage; pageIndex++ {
-		p := r.Page(pageIndex)
-		if p.V.IsNull() {
-			fmt.Printf("[OCR] Page %d is null, skipping\n", pageIndex)
-			continue
-		}
-
-		text, err := p.GetPlainText(nil)
-		if err != nil {
-			fmt.Printf("[OCR] Failed to extract text from page %d: %v\n", pageIndex, err)
-			continue
-		}
-		fmt.Printf("[OCR] Extracted %d characters from page %d\n", len(text), pageIndex)
-		buf.WriteString(text)
-		buf.WriteString("\n")
-	}
-
-	result := buf.String()
-	fmt.Printf("[OCR] Total extracted text length: %d characters\n", len(result))
-	return result, nil
-}
-
 // pdfToImageOCR converts PDF pages to images and performs OCR
 func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
-	fmt.Printf("[OCR] Converting PDF to images for OCR: %s\n", pdfPath)
+	fmt.Printf("[OCR] Converting PDF to images for RapidOCR v3: %s\n", pdfPath)
+
+	if !s.isRapidOCRAvailable() {
+		return "", fmt.Errorf("RapidOCR v3 is not available (install rapidocr==3.* and onnxruntime)")
+	}
+
+	// Check if pdftoppm is available
+	if _, err := exec.LookPath("pdftoppm"); err != nil {
+		return "", fmt.Errorf("pdftoppm not found in PATH: %w", err)
+	}
 
 	// Validate PDF file exists and is a regular file
 	fileInfo, err := os.Stat(pdfPath)
@@ -980,31 +522,19 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 
 	fmt.Printf("[OCR] PDF converted to %d images\n", len(files))
 
-	// Initialize gosseract client for OCR
-	client, err := newTesseractClient()
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = client.Close() }()
-	if err := client.SetLanguage("chi_sim", "eng"); err != nil {
-		return "", err
-	}
-
 	var allText strings.Builder
 
 	// Process each image
 	for i, imgPath := range files {
 		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
 
-		// Perform OCR on the image
-		if err := client.SetImage(imgPath); err != nil {
-			fmt.Printf("[OCR] OCR failed to set image for page %d: %v\n", i+1, err)
+		text, err := s.RecognizeWithRapidOCR(imgPath)
+		if err != nil {
+			fmt.Printf("[OCR] RapidOCR v3 failed for page %d: %v\n", i+1, err)
 			continue
 		}
-		text, err := client.Text()
-
-		if err != nil {
-			fmt.Printf("[OCR] OCR failed for page %d: %v\n", i+1, err)
+		if strings.TrimSpace(text) == "" {
+			fmt.Printf("[OCR] RapidOCR v3 returned empty text for page %d\n", i+1)
 			continue
 		}
 

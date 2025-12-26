@@ -196,7 +196,7 @@ func TestRecognizePaymentScreenshotWithRapidOCR(t *testing.T) {
 		// So we just verify the function doesn't panic
 	})
 
-	t.Run("Falls back to Tesseract when RapidOCR unavailable", func(t *testing.T) {
+	t.Run("Returns error when RapidOCR unavailable", func(t *testing.T) {
 		// Create a temporary directory without the script
 		tempDir, err := os.MkdirTemp("", "ocr-test-*")
 		if err != nil {
@@ -209,14 +209,14 @@ func TestRecognizePaymentScreenshotWithRapidOCR(t *testing.T) {
 		os.Chdir(tempDir)
 		defer os.Chdir(originalWd)
 
-		// This will try RapidOCR (fail), then fall back to Tesseract
-		// We expect an error since the image doesn't exist, but it should be from Tesseract fallback
+		// RapidOCR-only: expect an error since the script is not present.
 		_, err = service.RecognizePaymentScreenshot("/nonexistent/image.png")
 
-		// We expect an error since the image doesn't exist
-		// The error should not mention RapidOCR specifically (since it fell back)
 		if err == nil {
-			t.Log("Expected an error for nonexistent image")
+			t.Fatalf("expected an error")
+		}
+		if !strings.Contains(err.Error(), "RapidOCR") {
+			t.Fatalf("expected error to mention RapidOCR, got: %v", err)
 		}
 	})
 }

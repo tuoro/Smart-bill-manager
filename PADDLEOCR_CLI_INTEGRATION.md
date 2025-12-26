@@ -42,19 +42,19 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
      - Uses `python -c "import rapidocr, onnxruntime"` for quick check
 
 2. **Dockerfile**
-   - **Added**: Python 3 and pip installation (py3-pip package)
-   - **Added**: RapidOCR installation via pip (optional)
-   - **Added**: Script directory creation and copying
-   - **Changes**:
-     ```dockerfile
-     # Before: Only tesseract and imagemagick
-     RUN apk add --no-cache supervisor tesseract-ocr ...
-     
-      # After: Added Python and RapidOCR
-      RUN apk add --no-cache supervisor tesseract-ocr ... python3 py3-pip
-      RUN python3 -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime
-      COPY scripts/paddleocr_cli.py /app/scripts/
-     ```
+    - **Added**: Python 3 and pip installation (py3-pip package)
+    - **Added**: RapidOCR v3 installation via pip
+    - **Added**: Script directory creation and copying
+    - **Changes**:
+      ```dockerfile
+      # Before: System OCR (tesseract/imagemagick)
+      RUN apk add --no-cache supervisor tesseract-ocr imagemagick ...
+      
+       # After: RapidOCR v3 only
+       RUN apk add --no-cache supervisor poppler-utils python3 py3-pip mesa-gl glib libstdc++
+       RUN python3 -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime
+       COPY scripts/paddleocr_cli.py /app/scripts/
+      ```
 
 3. **backend-go/internal/services/ocr_paddleocr_test.go**
    - Completely rewritten for CLI mode
@@ -62,11 +62,11 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
    - **Removed**: `net/http/httptest` dependency
    - **Added**: CLI-based tests with mock Python scripts
    - **Fixed**: Replaced deprecated `ioutil` with `os` functions
-   - Tests now:
-     - Verify script finding logic
-     - Test with mock Python scripts that return JSON
-     - Validate error handling for missing scripts
-     - Check fallback behavior
+    - Tests now:
+      - Verify script finding logic
+      - Test with mock Python scripts that return JSON
+      - Validate error handling for missing scripts
+      - Validate RapidOCR-only behavior
 
 ## Benefits
 
@@ -75,9 +75,9 @@ Uses a command-line interface (CLI) integrated directly into the Go backend to r
    - All functionality in a single container
    - Reduced complexity in docker-compose setup
 
-2. **Automatic Fallback**
-   - If RapidOCR is not available, system automatically falls back to Tesseract
-   - No breaking changes for existing deployments
+2. **Single OCR Engine**
+   - Drops Tesseract/ImageMagick code paths
+   - Removes slow local image preprocessing
 
 3. **Easier Maintenance**
    - Single codebase to manage
@@ -181,7 +181,7 @@ For existing deployments using the HTTP service:
 - ✅ Added clarifying comments for language parameter
 - ✅ Proper error handling throughout
 - ✅ Clean separation of concerns
-- ✅ Backward compatible (falls back to Tesseract)
+- ✅ RapidOCR v3 only (no Tesseract fallback)
 
 ## Performance
 
@@ -192,4 +192,4 @@ For existing deployments using the HTTP service:
 
 ## Conclusion
 
-The RapidOCR CLI integration simplifies the deployment architecture while maintaining all functionality. The implementation is production-ready, and remains backward compatible with automatic fallback to Tesseract.
+The RapidOCR CLI integration simplifies the deployment architecture while maintaining all functionality. The implementation is production-ready and uses RapidOCR v3 only.

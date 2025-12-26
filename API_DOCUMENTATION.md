@@ -172,8 +172,8 @@
 - 支持更多发票格式（增值税电子普通发票、增值税电子专用发票等）
 
 **使用专业PDF解析库:**
-- 使用 `ledongthuc/pdf` 进行文本提取
-- 使用 Tesseract OCR 处理扫描件PDF
+- 使用 `pdftotext` (poppler-utils) 进行文本提取
+- 扫描件PDF：使用 `pdftoppm` 转图后交给 RapidOCR v3 识别
 - 支持中英文混合识别
 
 **响应示例:**
@@ -242,18 +242,14 @@
 
 ### PDF 文本提取方法
 
-系统使用三层回退机制处理PDF发票：
+系统使用两层回退机制处理PDF发票：
 
 1. **pdftotext (poppler-utils)** - 优先使用
    - 对CID字体（如 UniGB-UCS2-H）有最佳支持
    - 适用于电子发票（STSong-Light、KaiTi_GB2312、SimSun等字体）
    - 速度快，提取准确
 
-2. **ledongthuc/pdf 库** - 次选方案
-   - Go原生PDF解析库
-   - 适用于标准PDF格式
-
-3. **OCR (pdftoppm + Tesseract)** - 最后回退
+2. **OCR (pdftoppm + RapidOCR v3)** - 扫描件回退
    - 将PDF转换为图片后识别
    - 适用于扫描件或其他方法失败的情况
 
@@ -385,10 +381,8 @@ curl -X GET http://localhost:3001/api/payments/payment-id/invoices \
 
 ## 技术栈
 
-- **OCR引擎**: Tesseract 5.3.4
-- **Go绑定**: gosseract v2
+- **OCR引擎**: RapidOCR v3（Python + ONNXRuntime）
 - **PDF文本提取**: poppler-utils (pdftotext)
-- **PDF解析库**: ledongthuc/pdf
 - **PDF转图片**: poppler-utils (pdftoppm)
 - **语言支持**: 中文简体(chi_sim), 英文(eng)
 

@@ -8,8 +8,6 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/otiai10/gosseract/v2 v2.4.1
 	golang.org/x/crypto v0.45.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1

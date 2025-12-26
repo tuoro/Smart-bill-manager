@@ -27,9 +27,8 @@ FROM golang:1.24-alpine AS backend-builder
 
 WORKDIR /app/backend
 
-# Install build dependencies including Tesseract and poppler-utils
-# Note: tesseract-ocr-dev requires leptonica-dev, and pkgconfig helps with library discovery
-RUN apk add --no-cache gcc g++ musl-dev tesseract-ocr-dev leptonica-dev pkgconfig ca-certificates poppler-utils
+# Install build dependencies (CGO is required for sqlite)
+RUN apk add --no-cache gcc g++ musl-dev ca-certificates
 
 # Copy go mod files
 COPY backend-go/go.mod backend-go/go.sum ./
@@ -56,37 +55,19 @@ RUN apk add --no-cache supervisor && \
 
 # Install core dependencies (required)
 RUN apk add --no-cache \
-    tesseract-ocr \
     ca-certificates \
     poppler-utils \
     poppler-data \
-    imagemagick \
     python3 \
-    py3-pip
+    py3-pip \
+    mesa-gl \
+    glib \
+    libstdc++
 
-# Install Tesseract language data
-RUN apk add --no-cache tesseract-ocr-data-chi_sim tesseract-ocr-data-eng 2>/dev/null || \
-    (apk add --no-cache wget && \
-     TESSDATA_DIR=/usr/share/tessdata && \
-     mkdir -p $TESSDATA_DIR && \
-     wget -q -O $TESSDATA_DIR/chi_sim.traineddata \
-         https://github.com/tesseract-ocr/tessdata_fast/raw/main/chi_sim.traineddata && \
-     wget -q -O $TESSDATA_DIR/eng.traineddata \
-         https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata && \
-     apk del wget)
-
-# Install optional libraries for RapidOCR (mesa-gl for OpenGL, glib for GLib, libstdc++ for C++ runtime)
-# Allows failures since RapidOCR is optional and will fall back to Tesseract
-RUN apk add --no-cache mesa-gl glib libstdc++ 2>/dev/null || true
-
-# Install Python OCR dependencies (optional, will fall back to Tesseract if fails)
-RUN python3 -m pip install --break-system-packages --upgrade pip setuptools wheel 2>/dev/null || true && \
-    python3 -m pip install --break-system-packages --no-cache-dir "rapidocr==3.*" onnxruntime 2>/dev/null || \
-    echo "RapidOCR v3 installation skipped - using Tesseract for OCR"
-
-# Verify Python and RapidOCR installation
-RUN python3 --version && \
-    (python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')" || echo "RapidOCR v3 not available")
+# Install Python OCR dependencies (RapidOCR v3)
+RUN python3 -m pip install --break-system-packages --upgrade pip setuptools wheel && \
+    python3 -m pip install --break-system-packages --no-cache-dir "rapidocr==3.*" onnxruntime && \
+    python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
 
 # Ensure supervisord is accessible at /usr/bin/supervisord
 RUN if [ ! -f /usr/bin/supervisord ]; then \

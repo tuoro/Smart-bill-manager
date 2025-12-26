@@ -4,21 +4,14 @@
 
 ### 1. 环境准备
 
-确保系统已安装 Tesseract OCR:
+确保系统已安装 RapidOCR v3（Python + ONNXRuntime）：
 ```bash
-# 检查 Tesseract 版本
-tesseract --version
-
-# 检查可用语言
-tesseract --list-langs
-```
-
-应该看到 `chi_sim` (中文简体) 和 `eng` (英文) 在列表中。
-
-（可选）为了提升支付截图识别效果，建议安装 RapidOCR v3：
-```bash
+# 安装/检查 RapidOCR v3
 python3 -m pip install "rapidocr==3.*" onnxruntime
+python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
 ```
+
+PDF 文本提取依赖 poppler-utils（需提供 `pdftotext`/`pdftoppm`）。
 
 ### 2. 支付截图识别测试
 
@@ -156,9 +149,11 @@ docker run -d \
 # 进入容器
 docker exec -it smart-bill-test sh
 
-# 检查 Tesseract
-tesseract --version
-tesseract --list-langs
+# 检查 RapidOCR v3
+python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
+
+# 检查 poppler-utils
+pdftotext -v
 
 # 退出
 exit
@@ -236,14 +231,14 @@ time curl -X POST http://localhost:3001/api/payments/upload-screenshot \
 
 1. **扫描PDF**: 目前扫描PDF的OCR功能未完全实现，建议先转换为图片
 2. **复杂背景**: 背景复杂的截图可能影响识别准确度
-3. **手写文字**: Tesseract对手写文字识别效果较差
+3. **手写文字**: RapidOCR 对手写文字识别效果可能较差
 4. **特殊格式**: 某些特殊格式的发票可能识别不完整
 
 ### 10. 故障排查
 
 #### OCR识别失败
-1. 检查Tesseract是否正确安装：`tesseract --version`
-2. 检查语言包：`tesseract --list-langs`
+1. 检查 RapidOCR v3 是否正确安装：`python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"`
+2. 检查 poppler-utils：`pdftotext -v`
 3. 查看服务器日志了解详细错误
 4. 确认图片格式和大小符合要求
 

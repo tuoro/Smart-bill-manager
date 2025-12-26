@@ -1,5 +1,7 @@
 # OCR Payment Screenshot Enhancement - Implementation Summary
 
+> Note: This document describes the legacy Tesseract/ImageMagick approach. The project now uses RapidOCR v3 only and has removed local preprocessing and Tesseract fallback.
+
 ## Overview
 This implementation adds specialized OCR preprocessing and multi-strategy recognition for payment screenshots to handle large font amounts that were previously unrecognized by standard Tesseract OCR.
 

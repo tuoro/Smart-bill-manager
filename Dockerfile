@@ -59,6 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
+    python-is-python3 \
     libgomp1 \
     libstdc++6 \
     libgl1 \
@@ -69,10 +70,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m venv /opt/venv
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
-RUN ln -sf /opt/venv/bin/python /opt/venv/bin/python3
-RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    python -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime && \
-    python -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
+RUN ln -sf /opt/venv/bin/python3 /opt/venv/bin/python
+RUN /opt/venv/bin/python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    /opt/venv/bin/python3 -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime && \
+    /opt/venv/bin/python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
 
 WORKDIR /app
 

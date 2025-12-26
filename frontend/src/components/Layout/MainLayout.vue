@@ -2,7 +2,7 @@
   <el-container class="layout-container">
     <el-aside :width="isCollapsed ? '64px' : '200px'" class="sidebar">
       <div class="logo">
-        {{ isCollapsed ? '💰' : '💰 智能账单管理' }}
+        {{ isCollapsed ? '\uD83D\uDCB0' : '\uD83D\uDCB0 \u667A\u80FD\u8D26\u5355\u7BA1\u7406' }}
       </div>
       <el-menu
         :default-active="currentRoute"
@@ -16,27 +16,27 @@
       >
         <el-menu-item index="/dashboard">
           <el-icon><Odometer /></el-icon>
-          <template #title>仪表盘</template>
+          <template #title>&#x4EEA;&#x8868;&#x76D8;</template>
         </el-menu-item>
         <el-menu-item index="/payments">
           <el-icon><Wallet /></el-icon>
-          <template #title>支付记录</template>
+          <template #title>&#x652F;&#x4ED8;&#x8BB0;&#x5F55;</template>
         </el-menu-item>
         <el-menu-item index="/invoices">
           <el-icon><Document /></el-icon>
-          <template #title>发票管理</template>
+          <template #title>&#x53D1;&#x7968;&#x7BA1;&#x7406;</template>
         </el-menu-item>
         <el-menu-item index="/email">
           <el-icon><Message /></el-icon>
-          <template #title>邮箱监控</template>
+          <template #title>&#x90AE;&#x7BB1;&#x76D1;&#x63A7;</template>
         </el-menu-item>
         <el-menu-item index="/dingtalk">
           <el-icon><ChatDotRound /></el-icon>
-          <template #title>钉钉机器人</template>
+          <template #title>&#x9489;&#x9489;&#x673A;&#x5668;&#x4EBA;</template>
         </el-menu-item>
         <el-menu-item index="/logs">
-          <el-icon><Tickets /></el-icon>
-          <template #title>日志</template>
+          <el-icon><Document /></el-icon>
+          <template #title>&#x65E5;&#x5FD7;</template>
         </el-menu-item>
       </el-menu>
       <div class="collapse-trigger" @click="isCollapsed = !isCollapsed">
@@ -44,7 +44,7 @@
         <el-icon v-else><Fold /></el-icon>
       </div>
     </el-aside>
-    
+
     <el-container>
       <el-header class="header">
         <h2 class="page-title">{{ pageTitle }}</h2>
@@ -58,42 +58,38 @@
               <el-dropdown-menu>
                 <el-dropdown-item disabled>
                   <el-icon><User /></el-icon>
-                  {{ authStore.user?.username || '用户' }}
+                  {{ authStore.user?.username || '\u7528\u6237' }}
                 </el-dropdown-item>
                 <el-dropdown-item command="change-password">
                   <el-icon><Key /></el-icon>
-                  修改密码
+                  &#x4FEE;&#x6539;&#x5BC6;&#x7801;
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
-                  退出登录
+                  &#x9000;&#x51FA;&#x767B;&#x5F55;
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
       </el-header>
-      
+
       <el-main class="main-content">
         <router-view />
       </el-main>
     </el-container>
-    
-    <!-- Change Password Dialog -->
+
     <ChangePassword v-model="showChangePasswordDialog" />
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { 
-  Odometer, Wallet, Document, Message, ChatDotRound,
-  Tickets, User, Key, SwitchButton, Expand, Fold
-} from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
+import { ChatDotRound, Document, Expand, Fold, Key, Message, Odometer, SwitchButton, User, Wallet } from '@element-plus/icons-vue'
 import ChangePassword from '@/components/ChangePassword.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -106,14 +102,14 @@ const currentRoute = computed(() => route.path)
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
-    '/dashboard': '仪表盘',
-    '/payments': '支付记录',
-    '/invoices': '发票管理',
-    '/email': '邮箱监控',
-    '/dingtalk': '钉钉机器人'
-    '/logs': '日志',
+    '/dashboard': '\u4EEA\u8868\u76D8',
+    '/payments': '\u652F\u4ED8\u8BB0\u5F55',
+    '/invoices': '\u53D1\u7968\u7BA1\u7406',
+    '/email': '\u90AE\u7BB1\u76D1\u63A7',
+    '/dingtalk': '\u9489\u9489\u673A\u5668\u4EBA',
+    '/logs': '\u65E5\u5FD7',
   }
-  return titles[route.path] || '仪表盘'
+  return titles[route.path] || titles['/dashboard']
 })
 
 const handleMenuSelect = (index: string) => {
@@ -123,7 +119,7 @@ const handleMenuSelect = (index: string) => {
 const handleUserCommand = (command: string) => {
   if (command === 'logout') {
     authStore.logout()
-    ElMessage.success('已退出登录')
+    ElMessage.success('\u5DF2\u9000\u51FA\u767B\u5F55')
     router.push('/login')
   } else if (command === 'change-password') {
     showChangePasswordDialog.value = true
@@ -351,13 +347,14 @@ const handleUserCommand = (command: string) => {
   .header {
     padding: 0 16px;
   }
-  
+
   .page-title {
     font-size: 18px;
   }
-  
+
   .username {
     display: none;
   }
 }
 </style>
+

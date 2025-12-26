@@ -7,70 +7,64 @@ const routes: RouteRecordRaw[] = [
     path: '/setup',
     name: 'Setup',
     component: () => import('@/views/Setup.vue'),
-    meta: { requiresAuth: false }
+    meta: { requiresAuth: false },
   },
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
-    meta: { requiresAuth: false }
+    meta: { requiresAuth: false },
   },
   {
     path: '/',
     component: () => import('@/components/Layout/MainLayout.vue'),
     meta: { requiresAuth: true },
     children: [
-      {
-        path: '',
-        redirect: '/dashboard'
-      },
+      { path: '', redirect: '/dashboard' },
       {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/Dashboard.vue'),
-        meta: { title: '仪表盘' }
+        meta: { title: '\u4EEA\u8868\u76D8' },
       },
       {
         path: 'payments',
         name: 'Payments',
         component: () => import('@/views/Payments.vue'),
-        meta: { title: '支付记录' }
+        meta: { title: '\u652F\u4ED8\u8BB0\u5F55' },
       },
       {
         path: 'invoices',
         name: 'Invoices',
         component: () => import('@/views/Invoices.vue'),
-        meta: { title: '发票管理' }
+        meta: { title: '\u53D1\u7968\u7BA1\u7406' },
       },
       {
         path: 'email',
         name: 'EmailMonitor',
         component: () => import('@/views/EmailMonitor.vue'),
-        meta: { title: '邮箱监控' }
+        meta: { title: '\u90AE\u7BB1\u76D1\u63A7' },
       },
       {
         path: 'dingtalk',
         name: 'DingTalk',
         component: () => import('@/views/DingTalk.vue'),
-        meta: { title: '钉钉机器人' }
+        meta: { title: '\u9489\u9489\u673A\u5668\u4EBA' },
       },
       {
         path: 'logs',
         name: 'Logs',
         component: () => import('@/views/Logs.vue'),
-        meta: { title: '日志' }
-      }
-    ]
+        meta: { title: '\u65E5\u5FD7' },
+      },
+    ],
   },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
-  }
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 // Set up auth error handler to redirect to login
@@ -80,27 +74,23 @@ setAuthErrorHandler(() => {
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
-  
+
   // Check if setup is required
   let setupCheckFailed = false
   try {
     const setupResponse = await authStore.checkSetupRequired()
-    
+
     if (setupResponse === null) {
-      // API call failed or returned invalid data
       setupCheckFailed = true
       console.warn('Setup check returned null - setup status unknown')
     } else if (setupResponse.setupRequired) {
-      // Setup is required - redirect to setup page
       if (to.path !== '/setup') {
         next('/setup')
         return
       }
-      // Allow access to setup page
       next()
       return
     } else {
-      // Setup is not required - don't allow access to setup page
       if (to.path === '/setup') {
         next('/login')
         return
@@ -110,20 +100,17 @@ router.beforeEach(async (to, _from, next) => {
     console.error('Failed to check setup status:', error)
     setupCheckFailed = true
   }
-  
+
   // If setup check failed, allow access to setup page to prevent lockout
   if (setupCheckFailed && to.path === '/setup') {
     next()
     return
   }
-  
+
   if (to.meta.requiresAuth !== false) {
     if (!authStore.isAuthenticated) {
-      // Try to verify existing token
       const verified = await authStore.verifyToken()
       if (!verified) {
-        // If setup check failed and user is not authenticated,
-        // redirect to setup page as a fallback
         if (setupCheckFailed) {
           next('/setup')
           return
@@ -133,13 +120,9 @@ router.beforeEach(async (to, _from, next) => {
       }
     }
   }
-  
-  if (to.path === '/login' && authStore.isAuthenticated) {
-    next('/dashboard')
-    return
-  }
-  
+
   next()
 })
 
 export default router
+

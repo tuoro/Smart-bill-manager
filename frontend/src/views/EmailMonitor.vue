@@ -1,258 +1,295 @@
 <template>
-  <div>
-    <!-- Info Alert -->
-    <el-alert
-      title="QQ邮箱配置说明"
-      type="info"
-      :closable="false"
-      class="info-alert"
-    >
-      <template #default>
-        <p>1. 登录QQ邮箱，进入「设置」→「账户」</p>
-        <p>2. 找到「IMAP/SMTP服务」并开启</p>
-        <p>3. 生成「授权码」（不是QQ密码）</p>
-        <p>4. 在下方配置中使用邮箱地址和授权码</p>
-      </template>
-    </el-alert>
+  <div class="page">
+    <Message severity="info" :closable="false" class="info">
+      <div class="info-title">QQ &#37038;&#31665;&#37197;&#32622;&#35828;&#26126;</div>
+      <div class="info-body">
+        <p>1. &#30331;&#24405; QQ &#37038;&#31665;&#65292;&#36827;&#20837;&#8220;&#35774;&#32622;&#8221; &#8594; &#8220;&#36134;&#25143;&#8221;</p>
+        <p>2. &#25214;&#21040;&#8220;IMAP/SMTP &#26381;&#21153;&#8221;&#24182;&#24320;&#21551;</p>
+        <p>3. &#29983;&#25104;&#8220;&#25480;&#26435;&#30721;&#8221;&#65288;&#19981;&#26159; QQ &#23494;&#30721;&#65289;</p>
+        <p>4. &#22312;&#19979;&#26041;&#37197;&#32622;&#20013;&#20351;&#29992;&#37038;&#31665;&#22320;&#22336;&#21644;&#25480;&#26435;&#30721;</p>
+      </div>
+    </Message>
 
-    <!-- Email Config Card -->
-    <el-card class="config-card">
-      <template #header>
-        <div class="card-header">
-          <span>邮箱配置</span>
-          <el-button type="primary" :icon="Plus" @click="openModal">
-            添加邮箱
-          </el-button>
+    <Card class="panel">
+      <template #title>
+        <div class="panel-title">
+          <span>&#37038;&#31665;&#37197;&#32622;</span>
+          <div class="panel-actions">
+            <Button :label="'\u5237\u65B0'" icon="pi pi-refresh" class="p-button-outlined" @click="loadAll" />
+            <Button :label="'\u6DFB\u52A0\u90AE\u7BB1'" icon="pi pi-plus" @click="openModal" />
+          </div>
         </div>
       </template>
-
-      <el-table v-loading="loading" :data="configs">
-        <el-table-column label="邮箱地址">
-          <template #default="{ row }">
-            <div class="email-cell">
-              <el-icon color="#1890ff"><Message /></el-icon>
-              {{ row.email }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="imap_host" label="IMAP服务器" />
-        <el-table-column prop="imap_port" label="端口" width="80" />
-        <el-table-column label="状态">
-          <template #default="{ row }">
-            <el-tag v-if="monitorStatus[row.id] === 'running'" type="success">
-              <el-icon><VideoPlay /></el-icon> 监控中
-            </el-tag>
-            <el-tag v-else type="info">已停止</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="最后检查">
-          <template #default="{ row }">
-            {{ row.last_check ? formatDateTime(row.last_check) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="250">
-          <template #default="{ row }">
-            <el-tooltip v-if="monitorStatus[row.id] === 'running'" content="停止监控">
-              <el-button type="danger" link :icon="VideoPause" @click="handleStopMonitor(row.id)" />
-            </el-tooltip>
-            <el-tooltip v-else content="启动监控">
-              <el-button type="success" link :icon="VideoPlay" @click="handleStartMonitor(row.id)" />
-            </el-tooltip>
-            <el-tooltip content="手动检查">
-              <el-button 
-                type="primary" 
-                link 
-                :icon="Refresh"
-                :loading="checkLoading === row.id"
-                @click="handleManualCheck(row.id)"
+      <template #content>
+        <DataTable :value="configs" :loading="loading" :paginator="true" :rows="10" responsiveLayout="scroll">
+          <Column :header="'\u90AE\u7BB1\u5730\u5740'">
+            <template #body="{ data: row }">
+              <div class="email-cell">
+                <i class="pi pi-envelope" />
+                <span>{{ row.email }}</span>
+              </div>
+            </template>
+          </Column>
+          <Column field="imap_host" :header="'IMAP \u670D\u52A1\u5668'" />
+          <Column field="imap_port" :header="'\u7AEF\u53E3'" :style="{ width: '90px' }" />
+          <Column :header="'\u72B6\u6001'" :style="{ width: '120px' }">
+            <template #body="{ data: row }">
+              <Tag
+                :severity="monitorStatus[row.id] === 'running' ? 'success' : 'secondary'"
+                :value="monitorStatus[row.id] === 'running' ? '\u76D1\u63A7\u4E2D' : '\u5DF2\u505C\u6B62'"
               />
-            </el-tooltip>
-            <el-popconfirm
-              title="确定删除这个邮箱配置吗？"
-              @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button type="danger" link :icon="Delete" />
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+            </template>
+          </Column>
+          <Column :header="'\u6700\u540E\u68C0\u67E5'" :style="{ width: '160px' }">
+            <template #body="{ data: row }">
+              {{ row.last_check ? formatDateTime(row.last_check) : '-' }}
+            </template>
+          </Column>
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '260px' }">
+            <template #body="{ data: row }">
+              <div class="actions">
+                <Button
+                  v-if="monitorStatus[row.id] === 'running'"
+                  size="small"
+                  severity="danger"
+                  class="p-button-outlined"
+                  icon="pi pi-stop"
+                  :label="'\u505C\u6B62'"
+                  @click="handleStopMonitor(row.id)"
+                />
+                <Button
+                  v-else
+                  size="small"
+                  severity="success"
+                  class="p-button-outlined"
+                  icon="pi pi-play"
+                  :label="'\u542F\u52A8'"
+                  @click="handleStartMonitor(row.id)"
+                />
 
-    <!-- Email Logs Card -->
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>邮件处理日志</span>
-          <el-button :icon="Refresh" @click="loadLogs">刷新</el-button>
+                <Button
+                  size="small"
+                  class="p-button-outlined"
+                  icon="pi pi-bolt"
+                  :label="'\u68C0\u67E5'"
+                  :loading="checkLoading === row.id"
+                  @click="handleManualCheck(row.id)"
+                />
+
+                <Button
+                  size="small"
+                  severity="danger"
+                  class="p-button-text"
+                  icon="pi pi-trash"
+                  @click="confirmDelete(row.id)"
+                />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </template>
+    </Card>
+
+    <Card class="panel">
+      <template #title>
+        <div class="panel-title">
+          <span>&#37038;&#20214;&#22788;&#29702;&#26085;&#24535;</span>
+          <Button :label="'\u5237\u65B0'" icon="pi pi-refresh" class="p-button-outlined" @click="loadLogs" />
         </div>
       </template>
-
-      <el-table :data="logs">
-        <el-table-column prop="subject" label="主题" show-overflow-tooltip />
-        <el-table-column prop="from_address" label="发件人" width="180" show-overflow-tooltip />
-        <el-table-column label="附件" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.has_attachment" type="primary" size="small">
-              <el-icon><CircleCheck /></el-icon> {{ row.attachment_count }}个
-            </el-tag>
-            <el-tag v-else size="small">
-              <el-icon><CircleClose /></el-icon> 无
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="接收时间" width="150">
-          <template #default="{ row }">
-            {{ row.received_date ? formatDateTime(row.received_date) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'processed' ? 'success' : 'warning'">
-              {{ row.status === 'processed' ? '已处理' : row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="logs.length"
-        layout="total, sizes, prev, pager, next"
-        class="pagination"
-      />
-    </el-card>
-
-    <!-- Add Config Modal -->
-    <el-dialog
-      v-model="modalVisible"
-      title="添加邮箱配置"
-      width="500px"
-      destroy-on-close
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="100px"
-      >
-        <el-form-item label="快速选择">
-          <el-select 
-            v-model="selectedPreset" 
-            placeholder="选择邮箱类型自动填充服务器配置"
-            clearable
-            @change="handlePresetSelect"
-          >
-            <el-option 
-              v-for="p in EMAIL_PRESETS" 
-              :key="p.name" 
-              :label="p.name" 
-              :value="p.name" 
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="邮箱地址" prop="email">
-          <el-input v-model="form.email" placeholder="example@qq.com" />
-        </el-form-item>
-
-        <el-form-item label="IMAP服务器" prop="imap_host">
-          <el-input v-model="form.imap_host" placeholder="imap.qq.com" />
-        </el-form-item>
-
-        <el-form-item label="IMAP端口" prop="imap_port">
-          <el-input-number v-model="form.imap_port" :min="1" :max="65535" style="width: 100%" />
-        </el-form-item>
-
-        <el-form-item label="授权码/密码" prop="password">
-          <el-input 
-            v-model="form.password" 
-            type="password" 
-            placeholder="请输入授权码"
-            show-password 
-          />
-          <template #extra>
-            <span class="form-tip">QQ邮箱请使用授权码，不是QQ密码</span>
-          </template>
-        </el-form-item>
-
-        <el-form-item label="启用状态">
-          <el-switch v-model="form.is_active" active-text="启用" inactive-text="禁用" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button :loading="testLoading" @click="handleTest">测试连接</el-button>
-        <el-button @click="modalVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">保存配置</el-button>
+      <template #content>
+        <DataTable :value="logs" :paginator="true" :rows="10" responsiveLayout="scroll">
+          <Column field="subject" :header="'\u4E3B\u9898'" />
+          <Column field="from_address" :header="'\u53D1\u4EF6\u4EBA'" :style="{ width: '220px' }" />
+          <Column :header="'\u9644\u4EF6'" :style="{ width: '110px' }">
+            <template #body="{ data: row }">
+              <Tag
+                v-if="row.has_attachment"
+                severity="info"
+                :value="`${row.attachment_count}\u4E2A`"
+              />
+              <Tag v-else severity="secondary" :value="'\u65E0'" />
+            </template>
+          </Column>
+          <Column :header="'\u63A5\u6536\u65F6\u95F4'" :style="{ width: '170px' }">
+            <template #body="{ data: row }">
+              {{ row.received_date ? formatDateTime(row.received_date) : '-' }}
+            </template>
+          </Column>
+          <Column :header="'\u72B6\u6001'" :style="{ width: '120px' }">
+            <template #body="{ data: row }">
+              <Tag
+                :severity="row.status === 'processed' ? 'success' : 'warning'"
+                :value="row.status === 'processed' ? '\u5DF2\u5904\u7406' : row.status"
+              />
+            </template>
+          </Column>
+        </DataTable>
       </template>
-    </el-dialog>
+    </Card>
+
+    <Dialog v-model:visible="modalVisible" modal :header="'\u6DFB\u52A0\u90AE\u7BB1'" :style="{ width: '620px', maxWidth: '92vw' }">
+      <form class="p-fluid" @submit.prevent="handleSubmit">
+        <div class="grid-form">
+          <div class="field col-span-2">
+            <label for="email">&#37038;&#31665;&#22320;&#22336;</label>
+            <InputText id="email" v-model.trim="form.email" autocomplete="email" />
+            <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
+          </div>
+
+          <div class="field col-span-2">
+            <label for="preset">&#24555;&#25463;&#37197;&#32622;</label>
+            <Dropdown
+              id="preset"
+              v-model="selectedPreset"
+              :options="EMAIL_PRESETS"
+              optionLabel="name"
+              optionValue="name"
+              :showClear="true"
+              :placeholder="'\u9009\u62E9\u90AE\u7BB1\u63D0\u4F9B\u5546 ( \u53EF\u9009 )'"
+              @change="handlePresetSelect"
+            />
+          </div>
+
+          <div class="field">
+            <label for="host">IMAP Host</label>
+            <InputText id="host" v-model.trim="form.imap_host" />
+            <small v-if="errors.imap_host" class="p-error">{{ errors.imap_host }}</small>
+          </div>
+
+          <div class="field">
+            <label for="port">&#31471;&#21475;</label>
+            <InputNumber id="port" v-model="form.imap_port" :min="1" :useGrouping="false" />
+            <small v-if="errors.imap_port" class="p-error">{{ errors.imap_port }}</small>
+          </div>
+
+          <div class="field col-span-2">
+            <label for="password">&#25480;&#26435;&#30721; / &#23494;&#30721;</label>
+            <Password id="password" v-model="form.password" toggleMask :feedback="false" autocomplete="current-password" />
+            <small v-if="errors.password" class="p-error">{{ errors.password }}</small>
+          </div>
+        </div>
+
+        <div class="switch-row">
+          <span class="switch-label">&#21551;&#29992;</span>
+          <InputSwitch v-model="form.is_active" />
+        </div>
+
+        <div class="footer">
+          <Button
+            type="button"
+            class="p-button-outlined"
+            severity="secondary"
+            :label="'\u6D4B\u8BD5\u8FDE\u63A5'"
+            icon="pi pi-link"
+            :loading="testLoading"
+            @click="handleTest"
+          />
+          <div class="footer-right">
+            <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="modalVisible = false" />
+            <Button type="submit" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="saving" />
+          </div>
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { 
-  Plus, Message, VideoPlay, VideoPause, Refresh, Delete, 
-  CircleCheck, CircleClose 
-} from '@element-plus/icons-vue'
+import { onMounted, reactive, ref } from 'vue'
+import Card from 'primevue/card'
+import Button from 'primevue/button'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
+import Dialog from 'primevue/dialog'
+import Dropdown from 'primevue/dropdown'
+import InputNumber from 'primevue/inputnumber'
+import InputSwitch from 'primevue/inputswitch'
+import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
+import Password from 'primevue/password'
+import Tag from 'primevue/tag'
+import { useConfirm } from 'primevue/useconfirm'
+import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { emailApi } from '@/api'
 import type { EmailConfig, EmailLog } from '@/types'
 
+const toast = useToast()
+const confirm = useConfirm()
+
 const EMAIL_PRESETS = [
-  { name: 'QQ邮箱', host: 'imap.qq.com', port: 993 },
-  { name: '163邮箱', host: 'imap.163.com', port: 993 },
-  { name: '126邮箱', host: 'imap.126.com', port: 993 },
+  { name: 'QQ \u90AE\u7BB1', host: 'imap.qq.com', port: 993 },
+  { name: '163 \u90AE\u7BB1', host: 'imap.163.com', port: 993 },
+  { name: '126 \u90AE\u7BB1', host: 'imap.126.com', port: 993 },
   { name: 'Gmail', host: 'imap.gmail.com', port: 993 },
   { name: 'Outlook', host: 'imap-mail.outlook.com', port: 993 },
-  { name: '新浪邮箱', host: 'imap.sina.com', port: 993 },
+  { name: '\u65B0\u6D6A\u90AE\u7BB1', host: 'imap.sina.com', port: 993 },
 ]
 
 const loading = ref(false)
+const saving = ref(false)
 const configs = ref<EmailConfig[]>([])
 const logs = ref<EmailLog[]>([])
 const monitorStatus = ref<Record<string, string>>({})
 const modalVisible = ref(false)
 const testLoading = ref(false)
 const checkLoading = ref<string | null>(null)
-const formRef = ref<FormInstance>()
-const selectedPreset = ref('')
-
-const currentPage = ref(1)
-const pageSize = ref(10)
+const selectedPreset = ref<string | null>(null)
 
 const form = reactive({
   email: '',
   imap_host: '',
   imap_port: 993,
   password: '',
-  is_active: true
+  is_active: true,
 })
 
-const rules: FormRules = {
-  email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
-  ],
-  imap_host: [{ required: true, message: '请输入IMAP服务器地址', trigger: 'blur' }],
-  imap_port: [{ required: true, message: '请输入端口号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入授权码或密码', trigger: 'blur' }]
+const errors = reactive({
+  email: '',
+  imap_host: '',
+  imap_port: '',
+  password: '',
+})
+
+const resetForm = () => {
+  form.email = ''
+  form.imap_host = ''
+  form.imap_port = 993
+  form.password = ''
+  form.is_active = true
+  selectedPreset.value = null
+  errors.email = ''
+  errors.imap_host = ''
+  errors.imap_port = ''
+  errors.password = ''
+}
+
+const validate = () => {
+  errors.email = ''
+  errors.imap_host = ''
+  errors.imap_port = ''
+  errors.password = ''
+
+  if (!form.email) {
+    errors.email = '\u8BF7\u8F93\u5165\u90AE\u7BB1\u5730\u5740'
+  } else if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) {
+    errors.email = '\u8BF7\u8F93\u5165\u6709\u6548\u7684\u90AE\u7BB1\u5730\u5740'
+  }
+  if (!form.imap_host) errors.imap_host = '\u8BF7\u8F93\u5165 IMAP \u670D\u52A1\u5668\u5730\u5740'
+  if (!form.imap_port || form.imap_port < 1) errors.imap_port = '\u8BF7\u8F93\u5165\u7AEF\u53E3\u53F7'
+  if (!form.password) errors.password = '\u8BF7\u8F93\u5165\u6388\u6743\u7801\u6216\u5BC6\u7801'
+
+  return !errors.email && !errors.imap_host && !errors.imap_port && !errors.password
 }
 
 const loadConfigs = async () => {
   loading.value = true
   try {
     const res = await emailApi.getConfigs()
-    if (res.data.success && res.data.data) {
-      configs.value = res.data.data
-    }
+    if (res.data.success && res.data.data) configs.value = res.data.data
   } catch {
-    ElMessage.error('加载邮箱配置失败')
+    toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u90AE\u7BB1\u914D\u7F6E\u5931\u8D25', life: 3000 })
   } finally {
     loading.value = false
   }
@@ -261,9 +298,7 @@ const loadConfigs = async () => {
 const loadLogs = async () => {
   try {
     const res = await emailApi.getLogs(undefined, 50)
-    if (res.data.success && res.data.data) {
-      logs.value = res.data.data
-    }
+    if (res.data.success && res.data.data) logs.value = res.data.data
   } catch (error) {
     console.error('Load logs failed:', error)
   }
@@ -274,7 +309,7 @@ const loadMonitorStatus = async () => {
     const res = await emailApi.getMonitoringStatus()
     if (res.data.success && res.data.data) {
       const statusMap: Record<string, string> = {}
-      res.data.data.forEach(item => {
+      res.data.data.forEach((item: any) => {
         statusMap[item.configId] = item.status
       })
       monitorStatus.value = statusMap
@@ -284,18 +319,19 @@ const loadMonitorStatus = async () => {
   }
 }
 
+const loadAll = async () => {
+  await Promise.all([loadConfigs(), loadLogs(), loadMonitorStatus()])
+}
+
 const openModal = () => {
-  form.email = ''
-  form.imap_host = ''
-  form.imap_port = 993
-  form.password = ''
-  form.is_active = true
-  selectedPreset.value = ''
+  resetForm()
   modalVisible.value = true
 }
 
-const handlePresetSelect = (preset: string) => {
-  const selected = EMAIL_PRESETS.find(p => p.name === preset)
+const handlePresetSelect = () => {
+  const name = selectedPreset.value
+  if (!name) return
+  const selected = EMAIL_PRESETS.find((p) => p.name === name)
   if (selected) {
     form.imap_host = selected.host
     form.imap_port = selected.port
@@ -303,85 +339,92 @@ const handlePresetSelect = (preset: string) => {
 }
 
 const handleTest = async () => {
-  if (!formRef.value) return
-  
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    
-    testLoading.value = true
-    try {
-      const res = await emailApi.testConnection({
-        email: form.email,
-        imap_host: form.imap_host,
-        imap_port: form.imap_port,
-        password: form.password
-      })
-      if (res.data.success) {
-        ElMessage.success('连接测试成功！')
-      } else {
-        ElMessage.error(res.data.message || '连接测试失败')
-      }
-    } catch {
-      ElMessage.error('连接测试失败')
-    } finally {
-      testLoading.value = false
+  if (!validate()) return
+  testLoading.value = true
+  try {
+    const res = await emailApi.testConnection({
+      email: form.email,
+      imap_host: form.imap_host,
+      imap_port: form.imap_port,
+      password: form.password,
+    })
+    if (res.data.success) {
+      toast.add({ severity: 'success', summary: '\u8FDE\u63A5\u6D4B\u8BD5\u6210\u529F', life: 2200 })
+    } else {
+      toast.add({ severity: 'error', summary: res.data.message || '\u8FDE\u63A5\u6D4B\u8BD5\u5931\u8D25', life: 3500 })
     }
-  })
+  } catch {
+    toast.add({ severity: 'error', summary: '\u8FDE\u63A5\u6D4B\u8BD5\u5931\u8D25', life: 3500 })
+  } finally {
+    testLoading.value = false
+  }
 }
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!validate()) return
+  saving.value = true
+  try {
+    await emailApi.createConfig({
+      email: form.email,
+      imap_host: form.imap_host,
+      imap_port: form.imap_port,
+      password: form.password,
+      is_active: form.is_active ? 1 : 0,
+    })
+    toast.add({ severity: 'success', summary: '\u90AE\u7BB1\u914D\u7F6E\u521B\u5EFA\u6210\u529F', life: 2200 })
+    modalVisible.value = false
+    await loadAll()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    toast.add({
+      severity: 'error',
+      summary: err.response?.data?.message || '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25',
+      life: 3500,
+    })
+  } finally {
+    saving.value = false
+  }
+}
 
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    try {
-      await emailApi.createConfig({
-        email: form.email,
-        imap_host: form.imap_host,
-        imap_port: form.imap_port,
-        password: form.password,
-        is_active: form.is_active ? 1 : 0
-      })
-      ElMessage.success('邮箱配置创建成功')
-      modalVisible.value = false
-      loadConfigs()
-      loadMonitorStatus()
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } }
-      ElMessage.error(err.response?.data?.message || '创建配置失败')
-    }
+const confirmDelete = (id: string) => {
+  confirm.require({
+    message: '\u786E\u5B9A\u5220\u9664\u8BE5\u90AE\u7BB1\u914D\u7F6E\u5417\uFF1F',
+    header: '\u5220\u9664\u786E\u8BA4',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '\u5220\u9664',
+    rejectLabel: '\u53D6\u6D88',
+    acceptClass: 'p-button-danger',
+    accept: () => handleDelete(id),
   })
 }
 
 const handleDelete = async (id: string) => {
   try {
     await emailApi.deleteConfig(id)
-    ElMessage.success('删除成功')
-    loadConfigs()
-    loadMonitorStatus()
+    toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    await loadAll()
   } catch {
-    ElMessage.error('删除失败')
+    toast.add({ severity: 'error', summary: '\u5220\u9664\u5931\u8D25', life: 3000 })
   }
 }
 
 const handleStartMonitor = async (id: string) => {
   try {
     await emailApi.startMonitoring(id)
-    ElMessage.success('监控已启动')
-    loadMonitorStatus()
+    toast.add({ severity: 'success', summary: '\u76D1\u63A7\u5DF2\u542F\u52A8', life: 2000 })
+    await loadMonitorStatus()
   } catch {
-    ElMessage.error('启动监控失败')
+    toast.add({ severity: 'error', summary: '\u542F\u52A8\u76D1\u63A7\u5931\u8D25', life: 3000 })
   }
 }
 
 const handleStopMonitor = async (id: string) => {
   try {
     await emailApi.stopMonitoring(id)
-    ElMessage.success('监控已停止')
-    loadMonitorStatus()
+    toast.add({ severity: 'success', summary: '\u76D1\u63A7\u5DF2\u505C\u6B62', life: 2000 })
+    await loadMonitorStatus()
   } catch {
-    ElMessage.error('停止监控失败')
+    toast.add({ severity: 'error', summary: '\u505C\u6B62\u76D1\u63A7\u5931\u8D25', life: 3000 })
   }
 }
 
@@ -390,257 +433,134 @@ const handleManualCheck = async (id: string) => {
   try {
     const res = await emailApi.manualCheck(id)
     if (res.data.success) {
-      ElMessage.success(res.data.message || '检查完成')
+      toast.add({ severity: 'success', summary: res.data.message || '\u68C0\u67E5\u5B8C\u6210', life: 2200 })
       if (res.data.data && res.data.data.newEmails > 0) {
-        loadLogs()
+        await loadLogs()
       }
     } else {
-      ElMessage.error(res.data.message || '检查失败')
+      toast.add({ severity: 'error', summary: res.data.message || '\u68C0\u67E5\u5931\u8D25', life: 3500 })
     }
   } catch {
-    ElMessage.error('检查邮件失败')
+    toast.add({ severity: 'error', summary: '\u68C0\u67E5\u90AE\u4EF6\u5931\u8D25', life: 3500 })
   } finally {
     checkLoading.value = null
   }
 }
 
-const formatDateTime = (date: string) => {
-  return dayjs(date).format('MM-DD HH:mm')
-}
+const formatDateTime = (date: string) => dayjs(date).format('MM-DD HH:mm')
 
 onMounted(() => {
-  loadConfigs()
-  loadLogs()
-  loadMonitorStatus()
+  loadAll()
 })
 </script>
 
 <style scoped>
-.info-alert {
-  margin-bottom: 16px;
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.info {
   border-radius: var(--radius-lg);
-  border: none;
-  background: linear-gradient(135deg, rgba(79, 172, 254, 0.08), rgba(0, 242, 254, 0.08));
-  box-shadow: var(--shadow-sm);
 }
 
-.info-alert :deep(.el-alert__content) {
-  padding: 4px 0;
+.info-title {
+  font-weight: 800;
+  margin-bottom: 6px;
 }
 
-.info-alert p {
+.info-body p {
   margin: 6px 0;
   color: var(--color-text-secondary);
   line-height: 1.6;
 }
 
-.info-alert p:first-child {
-  margin-top: 0;
-}
-
-.config-card {
-  margin-bottom: 16px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-}
-
-/* Enhanced table styles */
-:deep(.el-table) {
+.panel {
   border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
-:deep(.el-table thead) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.06), rgba(118, 75, 162, 0.06));
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-:deep(.el-table th) {
-  background: transparent !important;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
-}
-
-:deep(.el-table td) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-:deep(.el-table tbody tr:nth-child(even)) {
-  background: rgba(0, 0, 0, 0.02);
-}
-
-:deep(.el-table tbody tr) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-table tbody tr:hover) {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08)) !important;
-  transform: scale(1.002);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .email-cell {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 500;
-}
-
-.email-cell :deep(.el-icon) {
-  transition: transform var(--transition-base);
-}
-
-.email-cell:hover :deep(.el-icon) {
-  transform: scale(1.1);
-}
-
-/* Enhanced tags */
-:deep(.el-tag) {
-  border-radius: var(--radius-sm);
-  font-weight: 500;
-  border: none;
-  padding: 4px 10px;
-  transition: all var(--transition-base);
-}
-
-:deep(.el-tag:hover) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-tag.el-tag--success) {
-  background: linear-gradient(135deg, rgba(67, 233, 123, 0.15), rgba(56, 249, 215, 0.15));
-  color: #43e97b;
-}
-
-:deep(.el-tag.el-tag--primary) {
-  background: linear-gradient(135deg, rgba(79, 172, 254, 0.15), rgba(0, 242, 254, 0.15));
-  color: #4facfe;
-}
-
-/* Tooltip buttons */
-:deep(.el-button.is-link) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-button.is-link:hover) {
-  transform: scale(1.1);
-}
-
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-:deep(.el-pagination) {
-  gap: 8px;
-}
-
-:deep(.el-pagination button),
-:deep(.el-pagination .el-pager li) {
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-pagination button:hover),
-:deep(.el-pagination .el-pager li:hover) {
-  transform: translateY(-1px);
-}
-
-:deep(.el-pagination .el-pager li.is-active) {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-}
-
-/* Modal enhancements */
-:deep(.el-dialog) {
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 20px 24px;
-}
-
-:deep(.el-dialog__title) {
   font-weight: 600;
-  font-size: 18px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-:deep(.el-dialog__body) {
-  padding: 24px;
-}
-
-:deep(.el-dialog__footer) {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 16px 24px;
-}
-
-/* Form enhancements */
-:deep(.el-form-item__label) {
-  font-weight: 500;
   color: var(--color-text-primary);
 }
 
-:deep(.el-input__wrapper),
-:deep(.el-input-number) {
+.email-cell i {
+  color: var(--color-primary);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.col-span-2 {
+  grid-column: span 2 / span 2;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
   border-radius: var(--radius-md);
-  transition: all var(--transition-base);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+  margin-top: 12px;
 }
 
-:deep(.el-input__wrapper:hover) {
-  box-shadow: var(--shadow-sm);
+.switch-label {
+  font-weight: 700;
+  color: var(--color-text-secondary);
 }
 
-:deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
 }
 
-:deep(.el-input-number) {
-  width: 100%;
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.form-tip {
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-  line-height: 1.5;
-  margin-top: 4px;
-}
-
-/* Card enhancement */
-:deep(.el-card) {
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-card__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 18px 20px;
-  font-weight: 600;
-}
-
-/* Loading state */
-:deep(.el-loading-mask) {
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-@media (max-width: 768px) {
-  :deep(.el-table) {
-    font-size: 13px;
+@media (max-width: 540px) {
+  .grid-form {
+    grid-template-columns: 1fr;
+  }
+  .col-span-2 {
+    grid-column: auto;
   }
 }
 </style>
+

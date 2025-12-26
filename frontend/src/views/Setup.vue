@@ -1,207 +1,174 @@
 <template>
-  <div class="setup-container">
-    <el-card class="setup-card">
-      <div class="setup-header">
-        <h2 class="title">💰 初始化设置</h2>
-        <p class="subtitle">欢迎使用智能账单管理系统</p>
-        <p class="description">请创建管理员账户以开始使用</p>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="header">
+        <h2 class="title">&#128176; &#21021;&#22987;&#21270;&#35774;&#32622;</h2>
+        <p class="subtitle">&#27426;&#36814;&#20351;&#29992;&#26234;&#33021;&#36134;&#21333;&#31649;&#29702;&#31995;&#32479;</p>
+        <p class="desc">&#35831;&#21019;&#24314;&#31649;&#29702;&#21592;&#36134;&#25143;&#20197;&#24320;&#22987;&#20351;&#29992;</p>
       </div>
-      
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-position="top"
-        size="large"
-        @submit.prevent="handleSetup"
-      >
-        <el-form-item label="用户名" prop="username">
-          <el-input
-            v-model="form.username"
-            placeholder="请输入管理员用户名 (3-50字符)"
-            :prefix-icon="User"
-            autocomplete="username"
-          />
-        </el-form-item>
-        
-        <el-form-item label="密码" prop="password">
-          <el-input
+
+      <form class="p-fluid" @submit.prevent="handleSetup">
+        <div class="field">
+          <label for="username">&#29992;&#25143;&#21517;</label>
+          <span class="p-input-icon-left">
+            <i class="pi pi-user" />
+            <InputText id="username" v-model.trim="form.username" autocomplete="username" />
+          </span>
+          <small v-if="errors.username" class="p-error">{{ errors.username }}</small>
+        </div>
+
+        <div class="field">
+          <label for="password">&#23494;&#30721;</label>
+          <Password
+            id="password"
             v-model="form.password"
-            type="password"
-            placeholder="请输入密码 (至少6位)"
-            :prefix-icon="Lock"
+            toggleMask
+            :feedback="false"
             autocomplete="new-password"
-            show-password
             @input="updatePasswordStrength"
           />
+          <small v-if="errors.password" class="p-error">{{ errors.password }}</small>
           <div v-if="form.password" class="password-strength">
             <span :class="['strength-indicator', passwordStrength.level]">
-              密码强度: {{ passwordStrength.text }}
+              &#23494;&#30721;&#24378;&#24230;: {{ passwordStrength.text }}
             </span>
           </div>
-        </el-form-item>
-        
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input
+        </div>
+
+        <div class="field">
+          <label for="confirmPassword">&#30830;&#35748;&#23494;&#30721;</label>
+          <Password
+            id="confirmPassword"
             v-model="form.confirmPassword"
-            type="password"
-            placeholder="请再次输入密码"
-            :prefix-icon="Lock"
+            toggleMask
+            :feedback="false"
             autocomplete="new-password"
-            show-password
           />
-        </el-form-item>
-        
-        <el-form-item label="邮箱 (可选)" prop="email">
-          <el-input
-            v-model="form.email"
-            placeholder="请输入邮箱地址"
-            :prefix-icon="Message"
-            autocomplete="email"
-          />
-        </el-form-item>
-        
-        <el-form-item>
-          <el-button
-            type="primary"
-            :loading="loading"
-            class="setup-button"
-            native-type="submit"
-          >
-            创建管理员账户
-          </el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+          <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
+        </div>
+
+        <div class="field">
+          <label for="email">&#37038;&#31665; (&#21487;&#36873;)</label>
+          <span class="p-input-icon-left">
+            <i class="pi pi-envelope" />
+            <InputText id="email" v-model.trim="form.email" autocomplete="email" />
+          </span>
+          <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
+        </div>
+
+        <Button type="submit" class="submit-btn" :label="'\u521B\u5EFA\u7BA1\u7406\u5458\u8D26\u6237'" :loading="loading" />
+      </form>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Lock, Message } from '@element-plus/icons-vue'
-import { authApi, setToken, setStoredUser } from '@/api/auth'
+import InputText from 'primevue/inputtext'
+import Password from 'primevue/password'
+import Button from 'primevue/button'
+import { useToast } from 'primevue/usetoast'
+import { authApi, setStoredUser, setToken } from '@/api/auth'
 import { checkPasswordStrength, type PasswordStrength } from '@/utils/password'
 
 const router = useRouter()
+const toast = useToast()
 
-const formRef = ref<FormInstance>()
 const loading = ref(false)
-
 const form = reactive({
   username: '',
   password: '',
   confirmPassword: '',
-  email: ''
+  email: '',
+})
+
+const errors = reactive({
+  username: '',
+  password: '',
+  confirmPassword: '',
+  email: '',
 })
 
 const passwordStrength = ref<PasswordStrength>({
   level: 'weak',
-  text: '弱'
+  text: '\u5F31',
 })
 
 const updatePasswordStrength = () => {
   passwordStrength.value = checkPasswordStrength(form.password)
 }
 
-const validatePassword = (_rule: any, value: string, callback: any) => {
-  if (value === '') {
-    callback(new Error('请输入密码'))
-  } else if (value.length < 6) {
-    callback(new Error('密码长度至少6个字符'))
-  } else {
-    callback()
-  }
-}
+const validate = () => {
+  errors.username = ''
+  errors.password = ''
+  errors.confirmPassword = ''
+  errors.email = ''
 
-const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
-  if (value === '') {
-    callback(new Error('请再次输入密码'))
-  } else if (value !== form.password) {
-    callback(new Error('两次输入密码不一致'))
-  } else {
-    callback()
+  if (!form.username) {
+    errors.username = '\u8BF7\u8F93\u5165\u7528\u6237\u540D'
+  } else if (form.username.length < 3 || form.username.length > 50) {
+    errors.username = '\u7528\u6237\u540D\u957F\u5EA6\u5E94\u4E3A 3-50 \u4E2A\u5B57\u7B26'
   }
-}
 
-const validateEmail = (_rule: any, value: string, callback: any) => {
-  if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-    callback(new Error('请输入有效的邮箱地址'))
-  } else {
-    callback()
+  if (!form.password) {
+    errors.password = '\u8BF7\u8F93\u5165\u5BC6\u7801'
+  } else if (form.password.length < 6) {
+    errors.password = '\u5BC6\u7801\u957F\u5EA6\u81F3\u5C11 6 \u4E2A\u5B57\u7B26'
   }
-}
 
-const rules: FormRules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 50, message: '用户名长度应为3-50个字符', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, validator: validatePassword, trigger: 'blur' }
-  ],
-  confirmPassword: [
-    { required: true, validator: validateConfirmPassword, trigger: 'blur' }
-  ],
-  email: [
-    { validator: validateEmail, trigger: 'blur' }
-  ]
+  if (!form.confirmPassword) {
+    errors.confirmPassword = '\u8BF7\u518D\u6B21\u8F93\u5165\u5BC6\u7801'
+  } else if (form.confirmPassword !== form.password) {
+    errors.confirmPassword = '\u4E24\u6B21\u8F93\u5165\u7684\u5BC6\u7801\u4E0D\u4E00\u81F4'
+  }
+
+  if (form.email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) {
+    errors.email = '\u8BF7\u8F93\u5165\u6709\u6548\u7684\u90AE\u7BB1\u5730\u5740'
+  }
+
+  return !errors.username && !errors.password && !errors.confirmPassword && !errors.email
 }
 
 const handleSetup = async () => {
-  if (!formRef.value) return
-  
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    
-    loading.value = true
-    try {
-      const response = await authApi.setup(
-        form.username,
-        form.password,
-        form.email || undefined
-      )
-      
-      if (response.data.success) {
-        // Save token and user
-        if (response.data.token) {
-          setToken(response.data.token)
-        }
-        if (response.data.user) {
-          setStoredUser(response.data.user)
-        }
-        
-        ElMessage.success('管理员账户创建成功！')
-        setTimeout(() => {
-          router.push('/dashboard')
-        }, 500)
-      } else {
-        ElMessage.error(response.data.message || '创建失败')
-      }
-    } catch (error: any) {
-      console.error('Setup error:', error)
-      ElMessage.error(error.response?.data?.message || '创建失败，请稍后重试')
-    } finally {
-      loading.value = false
+  if (!validate()) return
+
+  loading.value = true
+  try {
+    const response = await authApi.setup(form.username, form.password, form.email || undefined)
+    if (response.data.success) {
+      if (response.data.token) setToken(response.data.token)
+      if (response.data.user) setStoredUser(response.data.user)
+      toast.add({ severity: 'success', summary: '\u7BA1\u7406\u5458\u8D26\u6237\u521B\u5EFA\u6210\u529F', life: 2200 })
+      setTimeout(() => router.push('/dashboard'), 300)
+      return
     }
-  })
+    toast.add({ severity: 'error', summary: response.data.message || '\u521B\u5EFA\u5931\u8D25', life: 3500 })
+  } catch (error: any) {
+    console.error('Setup error:', error)
+    toast.add({
+      severity: 'error',
+      summary: error.response?.data?.message || '\u521B\u5EFA\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5',
+      life: 3500,
+    })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <style scoped>
-.setup-container {
+.auth-page {
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: grid;
+  place-items: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   position: relative;
   overflow: hidden;
+  padding: 20px;
 }
 
-/* Animated background */
-.setup-container::before {
+.auth-page::before {
   content: '';
   position: absolute;
   width: 200%;
@@ -222,42 +189,23 @@ const handleSetup = async () => {
   }
 }
 
-/* Floating orbs */
-.setup-container::after {
-  content: '';
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent);
-  border-radius: 50%;
-  top: 10%;
-  right: 10%;
-  animation: float 6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.setup-card {
-  width: 500px;
-  max-width: 90vw;
+.auth-card {
+  width: 520px;
+  max-width: 92vw;
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   position: relative;
   z-index: 1;
-  animation: scaleIn 0.5s ease;
-  padding: 32px 24px;
+  padding: 30px 26px;
 }
 
-.setup-card :deep(.el-card__body) {
-  padding: 0;
-}
-
-.setup-header {
+.header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 18px;
 }
 
 .title {
@@ -266,53 +214,33 @@ const handleSetup = async () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
 }
 
 .subtitle {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   color: var(--color-text-primary);
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.description {
-  margin: 8px 0 0;
-  color: var(--color-text-tertiary);
   font-size: 14px;
+  font-weight: 700;
 }
 
-.setup-card :deep(.el-form-item) {
-  margin-bottom: 24px;
+.desc {
+  margin: 6px 0 0;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
 }
 
-.setup-card :deep(.el-input__wrapper) {
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+.field {
+  margin-bottom: 14px;
 }
 
-.setup-card :deep(.el-input__wrapper:hover) {
-  border-color: rgba(102, 126, 234, 0.3);
-  box-shadow: 0 2px 12px rgba(102, 126, 234, 0.15);
-}
-
-.setup-card :deep(.el-input__wrapper.is-focus) {
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.setup-card :deep(.el-input__inner) {
-  font-size: 15px;
-}
-
-.setup-card :deep(.el-form-item__label) {
-  font-weight: 500;
-  color: var(--color-text-primary);
+.field label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 
 .password-strength {
@@ -343,57 +271,26 @@ const handleSetup = async () => {
   background: linear-gradient(135deg, rgba(103, 194, 58, 0.15), rgba(56, 249, 215, 0.15));
 }
 
-.setup-button {
+.submit-btn {
   width: 100%;
-  height: 48px;
-  font-size: 16px;
-  font-weight: 600;
+  height: 46px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.4);
-  transition: all var(--transition-base);
-  position: relative;
-  overflow: hidden;
 }
 
-.setup-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
+:deep(.p-password input) {
   width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transition: left 0.5s;
-}
-
-.setup-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-  background: linear-gradient(135deg, #5a6fd6 0%, #6a4291 100%);
-}
-
-.setup-button:hover::before {
-  left: 100%;
-}
-
-.setup-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 @media (max-width: 480px) {
-  .setup-card {
-    padding: 24px 16px;
+  .auth-card {
+    padding: 24px 18px;
   }
-  
   .title {
-    font-size: 24px;
-  }
-  
-  .subtitle {
-    font-size: 15px;
+    font-size: 22px;
   }
 }
 </style>
+

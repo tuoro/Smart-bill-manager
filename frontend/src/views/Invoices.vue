@@ -1,362 +1,283 @@
 <template>
-  <div>
-    <!-- Statistics Cards -->
-    <el-row :gutter="16" class="stats-row">
-      <el-col :xs="24" :sm="8">
-        <el-card>
-          <el-statistic title="发票总数" :value="stats?.totalCount || 0">
-            <template #prefix>
-              <el-icon color="#1890ff"><Document /></el-icon>
-            </template>
-            <template #suffix>张</template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="8">
-        <el-card>
-          <el-statistic title="发票总金额" :value="stats?.totalAmount || 0" :precision="2">
-            <template #suffix>¥</template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="8">
-        <el-card>
-          <div class="source-stats">
-            <el-statistic title="手动上传" :value="stats?.bySource?.upload || 0">
-              <template #suffix>张</template>
-            </el-statistic>
-            <el-statistic title="邮件下载" :value="stats?.bySource?.email || 0">
-              <template #suffix>张</template>
-            </el-statistic>
-            <el-statistic title="钉钉机器人" :value="stats?.bySource?.dingtalk || 0">
-              <template #suffix>张</template>
-            </el-statistic>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <!-- Invoice List Card -->
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>发票列表</span>
-          <el-button type="primary" :icon="Upload" @click="uploadModalVisible = true">
-            上传发票
-          </el-button>
-        </div>
-      </template>
-
-      <el-table 
-        v-loading="loading"
-        :data="invoices"
-        :default-sort="{ prop: 'created_at', order: 'descending' }"
-      >
-        <el-table-column label="文件名" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="filename">
-              <el-icon color="#1890ff"><Document /></el-icon>
-              {{ row.original_name }}
+  <div class="page">
+    <div class="grid">
+      <div class="col-12 md:col-4">
+        <Card>
+          <template #content>
+            <div class="stat">
+              <div>
+                <div class="stat-title">&#21457;&#31080;&#24635;&#25968;</div>
+                <div class="stat-value">{{ stats?.totalCount || 0 }}</div>
+              </div>
+              <i class="pi pi-file stat-icon info" />
             </div>
           </template>
-        </el-table-column>
-        <el-table-column prop="invoice_number" label="发票号码">
-          <template #default="{ row }">
-            {{ row.invoice_number || '-' }}
+        </Card>
+      </div>
+      <div class="col-12 md:col-4">
+        <Card>
+          <template #content>
+            <div class="stat">
+              <div>
+                <div class="stat-title">&#21457;&#31080;&#24635;&#37329;&#39069;</div>
+                <div class="stat-value">{{ `\u00A5${(stats?.totalAmount || 0).toFixed(2)}` }}</div>
+              </div>
+              <i class="pi pi-receipt stat-icon success" />
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column prop="invoice_date" label="&#24320;&#31080;&#26102;&#38388;" sortable>
-          <template #default="{ row }">
-            {{ formatInvoiceDate(row.invoice_date) }}
+        </Card>
+      </div>
+      <div class="col-12 md:col-4">
+        <Card>
+          <template #content>
+            <div class="stat">
+              <div>
+                <div class="stat-title">&#26469;&#28304;&#20998;&#24067;</div>
+                <div class="source-row">
+                  <Tag severity="success" :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`" />
+                  <Tag severity="info" :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`" />
+                  <Tag severity="warning" :value="`\u9489\u9489 ${sourceStats.dingtalk || 0}`" />
+                </div>
+              </div>
+              <i class="pi pi-chart-pie stat-icon secondary" />
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column label="金额">
-          <template #default="{ row }">
-            <span v-if="row.amount" class="amount">¥{{ row.amount.toFixed(2) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="seller_name" label="销售方" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.seller_name || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="来源">
-          <template #default="{ row }">
-            <el-tag :type="getSourceType(row.source)">{{ getSourceLabel(row.source) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="上传时间" sortable prop="created_at">
-          <template #default="{ row }">
-            {{ formatDateTime(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150">
-          <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="openPreview(row)" />
-            <el-button type="primary" link :icon="Download" @click="downloadFile(row)" />
-            <el-popconfirm
-              title="确定删除这张发票吗？"
-              @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button type="danger" link :icon="Delete" />
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
+        </Card>
+      </div>
+    </div>
 
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="invoices.length"
-        layout="total, sizes, prev, pager, next"
-        class="pagination"
-      />
-    </el-card>
-
-    <!-- Upload Modal -->
-    <el-dialog
-      v-model="uploadModalVisible"
-      title="上传发票"
-      width="500px"
-      destroy-on-close
-    >
-      <el-upload
-        ref="uploadRef"
-        v-model:file-list="fileList"
-        class="upload-area"
-        drag
-        multiple
-        accept=".pdf"
-        :auto-upload="false"
-        :on-change="handleFileChange"
-        :before-upload="beforeUpload"
-      >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">
-          点击或拖拽文件到此区域上传
+    <Card>
+      <template #title>
+        <div class="header">
+          <span>&#21457;&#31080;&#21015;&#34920;</span>
+          <Button :label="'\u4E0A\u4F20\u53D1\u7968'" icon="pi pi-upload" @click="openUploadModal" />
         </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            支持单个或批量上传PDF发票文件，系统将自动解析发票信息
+      </template>
+      <template #content>
+        <DataTable
+          :value="invoices"
+          :loading="loading"
+          :paginator="true"
+          :rows="pageSize"
+          :rowsPerPageOptions="[10, 20, 50, 100]"
+          responsiveLayout="scroll"
+          sortField="created_at"
+          :sortOrder="-1"
+        >
+          <Column field="original_name" :header="'\u6587\u4EF6\u540D'">
+            <template #body="{ data: row }">
+              <div class="filecell">
+                <i class="pi pi-file" />
+                <span>{{ row.original_name }}</span>
+              </div>
+            </template>
+          </Column>
+          <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '170px' }">
+            <template #body="{ data: row }">{{ row.invoice_number || '-' }}</template>
+          </Column>
+          <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" sortable :style="{ width: '140px' }">
+            <template #body="{ data: row }">{{ formatInvoiceDate(row.invoice_date) }}</template>
+          </Column>
+          <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+            <template #body="{ data: row }">{{ row.amount ? `\u00A5${row.amount.toFixed(2)}` : '-' }}</template>
+          </Column>
+          <Column field="seller_name" :header="'\u9500\u552E\u65B9'">
+            <template #body="{ data: row }">{{ row.seller_name || '-' }}</template>
+          </Column>
+          <Column :header="'\u6765\u6E90'" :style="{ width: '120px' }">
+            <template #body="{ data: row }">
+              <Tag :severity="getSourceSeverity(row.source)" :value="getSourceLabel(row.source)" />
+            </template>
+          </Column>
+          <Column field="created_at" :header="'\u4E0A\u4F20\u65F6\u95F4'" sortable :style="{ width: '170px' }">
+            <template #body="{ data: row }">{{ formatDateTime(row.created_at) }}</template>
+          </Column>
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '160px' }">
+            <template #body="{ data: row }">
+              <div class="row-actions">
+                <Button class="p-button-text" icon="pi pi-eye" @click="openPreview(row)" />
+                <Button class="p-button-text" icon="pi pi-download" @click="downloadFile(row)" />
+                <Button class="p-button-text p-button-danger" icon="pi pi-trash" @click="confirmDelete(row.id)" />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </template>
+    </Card>
+
+    <Dialog v-model:visible="uploadModalVisible" modal :header="'\u4E0A\u4F20\u53D1\u7968'" :style="{ width: '620px', maxWidth: '92vw' }" :closable="!uploading">
+      <div class="upload-box">
+        <FileUpload
+          name="files"
+          accept="application/pdf"
+          :multiple="true"
+          :maxFileSize="20_971_520"
+          :customUpload="true"
+          :chooseLabel="'\u9009\u62E9 PDF'"
+          @select="onSelectFiles"
+        />
+        <div v-if="selectedFiles.length > 0" class="file-hint">
+          &#24050;&#36873;&#25321; {{ selectedFiles.length }} &#20010;&#25991;&#20214;
+        </div>
+      </div>
+      <template #footer>
+        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" :disabled="uploading" @click="uploadModalVisible = false" />
+        <Button type="button" :label="'\u4E0A\u4F20'" icon="pi pi-check" :loading="uploading" @click="handleUpload" />
+      </template>
+    </Dialog>
+
+    <Dialog v-model:visible="previewVisible" modal :header="'\u53D1\u7968\u8BE6\u60C5'" :style="{ width: '980px', maxWidth: '96vw' }">
+      <div v-if="previewInvoice" class="preview">
+        <div class="header-row">
+          <div class="title">
+            <i class="pi pi-file" />
+            <span>{{ previewInvoice.original_name }}</span>
           </div>
-        </template>
-      </el-upload>
+          <div class="actions">
+            <Button class="p-button-outlined" severity="secondary" icon="pi pi-external-link" :label="'\u67E5\u770B PDF'" @click="downloadFile(previewInvoice)" />
+            <Button class="p-button-outlined" severity="secondary" icon="pi pi-refresh" :label="'\u91CD\u65B0\u89E3\u6790'" :loading="parseStatusPending" @click="handleReparse(previewInvoice.id)" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#21457;&#31080;&#21495;</div><div class="v">{{ previewInvoice.invoice_number || '-' }}</div></div>
+          </div>
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#24320;&#31080;&#26102;&#38388;</div><div class="v">{{ formatInvoiceDate(previewInvoice.invoice_date) }}</div></div>
+          </div>
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#37329;&#39069;</div><div class="v money">{{ previewInvoice.amount ? `\u00A5${previewInvoice.amount.toFixed(2)}` : '-' }}</div></div>
+          </div>
+          <div class="col-12 md:col-6">
+            <div class="kv">
+              <div class="k">&#35299;&#26512;&#29366;&#24577;</div>
+              <div class="v">
+                <Tag :severity="getParseStatusSeverity(previewInvoice.parse_status)" :value="getParseStatusLabel(previewInvoice.parse_status)" />
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="kv"><div class="k">&#38144;&#21806;&#26041;</div><div class="v">{{ previewInvoice.seller_name || '-' }}</div></div>
+          </div>
+          <div class="col-12">
+            <div class="kv"><div class="k">&#36141;&#20080;&#26041;</div><div class="v">{{ previewInvoice.buyer_name || '-' }}</div></div>
+          </div>
+        </div>
+
+        <Divider />
+
+        <div class="match-actions">
+          <Button :label="'\u63A8\u8350\u5339\u914D'" icon="pi pi-star" :loading="loadingSuggestedPayments" @click="handleRecommendMatch" />
+        </div>
+
+        <div class="grid">
+          <div class="col-12 md:col-6">
+            <Card>
+              <template #title>&#24050;&#20851;&#32852;&#30340;&#25903;&#20184;</template>
+              <template #content>
+                <DataTable :value="linkedPayments" :loading="loadingLinkedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
+                  <Column :header="'\u91D1\u989D'" :style="{ width: '110px' }">
+                    <template #body="{ data: row }">{{ `\u00A5${row.amount.toFixed(2)}` }}</template>
+                  </Column>
+                  <Column field="merchant" :header="'\u5546\u5BB6'" />
+                  <Column field="transaction_time" :header="'\u65F6\u95F4'" :style="{ width: '160px' }">
+                    <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+                  </Column>
+                  <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
+                    <template #body="{ data: row }">
+                      <Button size="small" class="p-button-text p-button-danger" icon="pi pi-times" @click="handleUnlinkPayment(row.id)" />
+                    </template>
+                  </Column>
+                </DataTable>
+              </template>
+            </Card>
+          </div>
+          <div class="col-12 md:col-6">
+            <Card>
+              <template #title>
+                <div class="suggest-title">
+                  <span>&#26234;&#33021;&#25512;&#33616;</span>
+                  <Tag severity="info" :value="`${suggestedPayments.length}\u6761`" />
+                </div>
+              </template>
+              <template #content>
+                <DataTable :value="suggestedPayments" :loading="loadingSuggestedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
+                  <Column :header="'\u91D1\u989D'" :style="{ width: '110px' }">
+                    <template #body="{ data: row }">{{ `\u00A5${row.amount.toFixed(2)}` }}</template>
+                  </Column>
+                  <Column field="merchant" :header="'\u5546\u5BB6'" />
+                  <Column field="transaction_time" :header="'\u65F6\u95F4'" :style="{ width: '160px' }">
+                    <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+                  </Column>
+                  <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
+                    <template #body="{ data: row }">
+                      <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingPayment" @click="handleLinkPayment(row.id)" />
+                    </template>
+                  </Column>
+                </DataTable>
+                <div v-if="!loadingSuggestedPayments && suggestedPayments.length === 0" class="no-data">
+                  <i class="pi pi-info-circle" />
+                  <span>&#26242;&#26080;&#25512;&#33616;</span>
+                </div>
+              </template>
+            </Card>
+          </div>
+        </div>
+
+        <Divider />
+
+        <div v-if="getInvoiceRawText(previewInvoice)" class="raw-section">
+          <div class="raw-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
+          <Accordion>
+            <AccordionTab :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
+              <pre class="raw-text">{{ getInvoiceRawText(previewInvoice) }}</pre>
+            </AccordionTab>
+          </Accordion>
+        </div>
+      </div>
 
       <template #footer>
-        <el-button @click="cancelUpload">取消</el-button>
-        <el-button 
-          type="primary" 
-          :loading="uploading"
-          :disabled="fileList.length === 0"
-          @click="handleUpload"
-        >
-          上传
-        </el-button>
+        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="previewVisible = false" />
       </template>
-    </el-dialog>
-
-    <!-- Preview Modal -->
-    <el-dialog
-      v-model="previewVisible"
-      title="发票详情"
-      width="700px"
-      destroy-on-close
-    >
-      <el-descriptions v-if="previewInvoice" :column="2" border>
-        <el-descriptions-item label="文件名" :span="2">
-          {{ previewInvoice.original_name }}
-        </el-descriptions-item>
-        <el-descriptions-item label="解析状态" :span="2">
-          <el-tag 
-            :type="getParseStatusType(previewInvoice.parse_status)"
-            :icon="(previewInvoice.parse_status === 'parsing' || parseStatusPending) ? Loading : undefined"
-          >
-            {{ getParseStatusLabel(previewInvoice.parse_status) }}
-          </el-tag>
-          <el-button 
-            v-if="previewInvoice.parse_status !== 'parsing'"
-            type="primary" 
-            link 
-            :icon="Refresh"
-            :loading="parseStatusPending"
-            :disabled="parseStatusPending"
-            @click="handleReparse(previewInvoice.id)"
-            style="margin-left: 8px"
-          >
-            重新解析
-          </el-button>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="previewInvoice.parse_error" label="解析错误" :span="2">
-          <el-text type="danger">{{ previewInvoice.parse_error }}</el-text>
-        </el-descriptions-item>
-        <el-descriptions-item label="发票号码">
-          {{ previewInvoice.invoice_number || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="开票日期">
-          {{ previewInvoice.invoice_date || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="金额">
-          {{ previewInvoice.amount ? `¥${previewInvoice.amount.toFixed(2)}` : '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="文件大小">
-          {{ previewInvoice.file_size ? `${(previewInvoice.file_size / 1024).toFixed(2)} KB` : '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="销售方" :span="2">
-          {{ previewInvoice.seller_name || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="购买方" :span="2">
-          {{ previewInvoice.buyer_name || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="来源">
-          <el-tag :type="getSourceType(previewInvoice.source)">
-            {{ getSourceLabel(previewInvoice.source) }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="上传时间">
-          {{ formatDateTime(previewInvoice.created_at) }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="previewInvoice.raw_text" label="OCR原始文本" :span="2">
-          <el-collapse>
-            <el-collapse-item title="点击查看提取的原始文本" name="1">
-              <pre class="raw-text">{{ previewInvoice.raw_text }}</pre>
-            </el-collapse-item>
-          </el-collapse>
-        </el-descriptions-item>
-        <el-descriptions-item label="关联支付记录" :span="2">
-          <div class="linked-payments-section">
-            <div class="match-actions">
-              <el-button
-                type="primary"
-                size="small"
-                :loading="loadingSuggestedPayments"
-                @click="handleRecommendMatch"
-              >
-                推荐匹配
-              </el-button>
-            </div>
-            <!-- Linked Payments -->
-            <div v-if="linkedPayments.length > 0" class="linked-payments">
-              <div class="section-title">已关联支付记录</div>
-              <el-table :data="linkedPayments" size="small" max-height="200">
-                <el-table-column label="金额">
-                  <template #default="{ row }">
-                    <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="merchant" label="商家" show-overflow-tooltip />
-                <el-table-column label="交易时间">
-                  <template #default="{ row }">
-                    {{ formatDateTime(row.transaction_time) }}
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="80">
-                  <template #default="{ row }">
-                    <el-popconfirm
-                      title="确定取消关联吗？"
-                      @confirm="handleUnlinkPayment(row.id)"
-                    >
-                      <template #reference>
-                        <el-button type="danger" link size="small">取消关联</el-button>
-                      </template>
-                    </el-popconfirm>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-
-            <!-- Suggested Payments -->
-            <div v-if="suggestedPayments.length > 0" class="suggested-payments">
-              <div class="section-title">
-                智能匹配建议
-                <el-button
-                  type="primary"
-                  link
-                  size="small"
-                  :loading="loadingSuggestedPayments"
-                  @click="handleRecommendMatch"
-                  style="margin-left: 8px"
-                >
-                  推荐匹配
-                </el-button>
-              </div>
-              <el-table :data="suggestedPayments" size="small" max-height="200">
-                <el-table-column label="金额">
-                  <template #default="{ row }">
-                    <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="merchant" label="商家" show-overflow-tooltip />
-                <el-table-column label="交易时间">
-                  <template #default="{ row }">
-                    {{ formatDateTime(row.transaction_time) }}
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="80">
-                  <template #default="{ row }">
-                    <el-button 
-                      type="primary" 
-                      link 
-                      size="small"
-                      @click="handleLinkPayment(row.id)"
-                    >
-                      关联
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-
-            <!-- No linked payments message -->
-            <div v-if="linkedPayments.length === 0 && suggestedPayments.length === 0" class="no-data">
-              <el-empty description="暂无关联的支付记录" :image-size="60">
-                <el-button
-                  type="primary"
-                  :loading="loadingSuggestedPayments"
-                  @click="handleRecommendMatch"
-                >
-                  推荐匹配
-                </el-button>
-              </el-empty>
-            </div>
-
-            <!-- Loading state -->
-            <div v-if="loadingLinkedPayments" class="loading-state">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>加载中...</span>
-            </div>
-          </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="预览" :span="2">
-          <el-button type="primary" @click="downloadFile(previewInvoice)">
-            查看PDF文件
-          </el-button>
-        </el-descriptions-item>
-      </el-descriptions>
-    </el-dialog>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, type UploadInstance, type UploadFile, type UploadRawFile } from 'element-plus'
-import { Document, Upload, View, Download, Delete, UploadFilled, Refresh, Loading } from '@element-plus/icons-vue'
+import { computed, onMounted, ref } from 'vue'
 import dayjs from 'dayjs'
+import Accordion from 'primevue/accordion'
+import AccordionTab from 'primevue/accordiontab'
+import Button from 'primevue/button'
+import Card from 'primevue/card'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
+import Dialog from 'primevue/dialog'
+import Divider from 'primevue/divider'
+import FileUpload from 'primevue/fileupload'
+import Tag from 'primevue/tag'
+import { useConfirm } from 'primevue/useconfirm'
+import { useToast } from 'primevue/usetoast'
 import { invoiceApi, FILE_BASE_URL } from '@/api'
 import type { Invoice, Payment } from '@/types'
 
+const toast = useToast()
+const confirm = useConfirm()
+
 const loading = ref(false)
 const invoices = ref<Invoice[]>([])
+const pageSize = ref(10)
+
+const stats = ref<{ totalCount: number; totalAmount: number; bySource: Record<string, number> } | null>(null)
+
 const uploadModalVisible = ref(false)
+const uploading = ref(false)
+const selectedFiles = ref<File[]>([])
+
 const previewVisible = ref(false)
 const previewInvoice = ref<Invoice | null>(null)
-const uploading = ref(false)
 const parseStatusPending = ref(false)
-const fileList = ref<UploadFile[]>([])
-const uploadRef = ref<UploadInstance>()
 
 // Linked payments state
 const loadingLinkedPayments = ref(false)
@@ -365,24 +286,13 @@ const suggestedPayments = ref<Payment[]>([])
 const loadingSuggestedPayments = ref(false)
 const linkingPayment = ref(false)
 
-const currentPage = ref(1)
-const pageSize = ref(10)
-
-const stats = ref<{
-  totalCount: number
-  totalAmount: number
-  bySource: Record<string, number>
-} | null>(null)
-
 const loadInvoices = async () => {
   loading.value = true
   try {
     const res = await invoiceApi.getAll()
-    if (res.data.success && res.data.data) {
-      invoices.value = res.data.data
-    }
+    if (res.data.success && res.data.data) invoices.value = res.data.data
   } catch {
-    ElMessage.error('加载发票列表失败')
+    toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u53D1\u7968\u5217\u8868\u5931\u8D25', life: 3000 })
   } finally {
     loading.value = false
   }
@@ -391,69 +301,71 @@ const loadInvoices = async () => {
 const loadStats = async () => {
   try {
     const res = await invoiceApi.getStats()
-    if (res.data.success && res.data.data) {
-      stats.value = res.data.data
-    }
+    if (res.data.success && res.data.data) stats.value = res.data.data
   } catch (error) {
     console.error('Load stats failed:', error)
   }
 }
 
-const handleFileChange = (_file: UploadFile, uploadFiles: UploadFile[]) => {
-  fileList.value = uploadFiles
+const openUploadModal = () => {
+  selectedFiles.value = []
+  uploadModalVisible.value = true
 }
 
-const beforeUpload = (rawFile: UploadRawFile) => {
-  if (rawFile.type !== 'application/pdf') {
-    ElMessage.error('只支持PDF文件')
-    return false
-  }
-  return true
+const onSelectFiles = (event: any) => {
+  selectedFiles.value = Array.isArray(event?.files) ? (event.files as File[]) : []
 }
 
 const handleUpload = async () => {
-  if (fileList.value.length === 0) {
-    ElMessage.warning('请选择文件')
+  if (selectedFiles.value.length === 0) {
+    toast.add({ severity: 'warn', summary: '\u8BF7\u9009\u62E9\u6587\u4EF6', life: 2200 })
     return
   }
 
   uploading.value = true
   try {
     let createdInvoice: Invoice | null = null
-    const files = fileList.value.map(f => f.raw as File)
-    if (files.length === 1) {
-      const res = await invoiceApi.upload(files[0])
+    if (selectedFiles.value.length === 1) {
+      const res = await invoiceApi.upload(selectedFiles.value[0])
       createdInvoice = res.data?.data || null
     } else {
-      const res = await invoiceApi.uploadMultiple(files)
+      const res = await invoiceApi.uploadMultiple(selectedFiles.value)
       const createdList = res.data?.data || []
       createdInvoice = createdList.length > 0 ? createdList[0] : null
     }
-    ElMessage.success('上传成功')
-    cancelUpload()
-    loadInvoices()
-    loadStats()
+    toast.add({ severity: 'success', summary: '\u4E0A\u4F20\u6210\u529F', life: 2000 })
+    uploadModalVisible.value = false
+    selectedFiles.value = []
+    await loadInvoices()
+    await loadStats()
     if (createdInvoice) openPreview(createdInvoice)
   } catch {
-    ElMessage.error('上传失败')
+    toast.add({ severity: 'error', summary: '\u4E0A\u4F20\u5931\u8D25', life: 3000 })
   } finally {
     uploading.value = false
   }
 }
 
-const cancelUpload = () => {
-  fileList.value = []
-  uploadModalVisible.value = false
+const confirmDelete = (id: string) => {
+  confirm.require({
+    message: '\u786E\u5B9A\u5220\u9664\u8FD9\u5F20\u53D1\u7968\u5417\uFF1F',
+    header: '\u5220\u9664\u786E\u8BA4',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '\u5220\u9664',
+    rejectLabel: '\u53D6\u6D88',
+    acceptClass: 'p-button-danger',
+    accept: () => handleDelete(id),
+  })
 }
 
 const handleDelete = async (id: string) => {
   try {
     await invoiceApi.delete(id)
-    ElMessage.success('删除成功')
-    loadInvoices()
-    loadStats()
+    toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    await loadInvoices()
+    await loadStats()
   } catch {
-    ElMessage.error('删除失败')
+    toast.add({ severity: 'error', summary: '\u5220\u9664\u5931\u8D25', life: 3000 })
   }
 }
 
@@ -467,18 +379,13 @@ const downloadFile = (invoice: Invoice) => {
   window.open(`${FILE_BASE_URL}/${invoice.file_path}`, '_blank')
 }
 
-// Load linked payments and suggestions when invoice preview is opened
 const loadLinkedPayments = async (invoiceId: string) => {
   loadingLinkedPayments.value = true
   linkedPayments.value = []
   suggestedPayments.value = []
-  
   try {
-    // Load linked payments
     const linkedRes = await invoiceApi.getLinkedPayments(invoiceId)
-    if (linkedRes.data.success && linkedRes.data.data) {
-      linkedPayments.value = linkedRes.data.data
-    }
+    if (linkedRes.data.success && linkedRes.data.data) linkedPayments.value = linkedRes.data.data
   } catch (error) {
     console.error('Load linked payments failed:', error)
   } finally {
@@ -486,30 +393,22 @@ const loadLinkedPayments = async (invoiceId: string) => {
   }
 }
 
-const refreshSuggestedPayments = async (
-  invoiceId: string,
-  opts?: { showToast?: boolean }
-) => {
+const refreshSuggestedPayments = async (invoiceId: string, opts?: { showToast?: boolean }) => {
   loadingSuggestedPayments.value = true
   try {
     const suggestedRes = await invoiceApi.getSuggestedPayments(invoiceId, { debug: true })
     suggestedPayments.value = suggestedRes.data.success && suggestedRes.data.data ? suggestedRes.data.data : []
     if (opts?.showToast) {
       if (suggestedPayments.value.length > 0) {
-        ElMessage.success(`推荐到 ${suggestedPayments.value.length} 条可关联的支付记录`)
-      } else {
-        // If user just linked a payment, the suggestions becoming empty is expected.
-        if (!linkingPayment.value && linkedPayments.value.length === 0) {
-          ElMessage.warning('没有找到可推荐的支付记录')
-        }
+        toast.add({ severity: 'success', summary: `\u63A8\u8350\u5230 ${suggestedPayments.value.length} \u6761\u53EF\u5173\u8054\u7684\u652F\u4ED8\u8BB0\u5F55`, life: 2500 })
+      } else if (!linkingPayment.value && linkedPayments.value.length === 0) {
+        toast.add({ severity: 'warn', summary: '\u6CA1\u6709\u627E\u5230\u53EF\u63A8\u8350\u7684\u652F\u4ED8\u8BB0\u5F55', life: 2500 })
       }
     }
   } catch (error) {
     console.error('Load suggested payments failed:', error)
     suggestedPayments.value = []
-    if (opts?.showToast) {
-      ElMessage.error('推荐匹配失败')
-    }
+    if (opts?.showToast) toast.add({ severity: 'error', summary: '\u63A8\u8350\u5339\u914D\u5931\u8D25', life: 3000 })
   } finally {
     loadingSuggestedPayments.value = false
   }
@@ -520,56 +419,50 @@ const handleRecommendMatch = async () => {
   await refreshSuggestedPayments(previewInvoice.value.id, { showToast: true })
 }
 
-// Link a payment to the current invoice
 const handleLinkPayment = async (paymentId: string) => {
   if (!previewInvoice.value) return
-  
   try {
     linkingPayment.value = true
     await invoiceApi.linkPayment(previewInvoice.value.id, paymentId)
-    ElMessage.success('关联成功')
-    // Reload linked payments
+    toast.add({ severity: 'success', summary: '\u5173\u8054\u6210\u529F', life: 2000 })
     await loadLinkedPayments(previewInvoice.value.id)
     await refreshSuggestedPayments(previewInvoice.value.id, { showToast: false })
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
-    ElMessage.error(err.response?.data?.message || '关联失败')
+    toast.add({ severity: 'error', summary: err.response?.data?.message || '\u5173\u8054\u5931\u8D25', life: 3500 })
   } finally {
     linkingPayment.value = false
   }
 }
 
-// Unlink a payment from the current invoice
 const handleUnlinkPayment = async (paymentId: string) => {
   if (!previewInvoice.value) return
-  
   try {
     await invoiceApi.unlinkPayment(previewInvoice.value.id, paymentId)
-    ElMessage.success('取消关联成功')
-    // Reload linked payments
-    loadLinkedPayments(previewInvoice.value.id)
+    toast.add({ severity: 'success', summary: '\u53D6\u6D88\u5173\u8054\u6210\u529F', life: 2000 })
+    await loadLinkedPayments(previewInvoice.value.id)
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
-    ElMessage.error(err.response?.data?.message || '取消关联失败')
+    toast.add({ severity: 'error', summary: err.response?.data?.message || '\u53D6\u6D88\u5173\u8054\u5931\u8D25', life: 3500 })
   }
 }
 
 const getSourceLabel = (source?: string) => {
   const labels: Record<string, string> = {
-    email: '邮件下载',
-    dingtalk: '钉钉机器人',
-    upload: '手动上传'
+    email: '\u90AE\u4EF6\u4E0B\u8F7D',
+    dingtalk: '\u9489\u9489\u673A\u5668\u4EBA',
+    upload: '\u624B\u52A8\u4E0A\u4F20',
   }
-  return labels[source || ''] || source || '未知'
+  return labels[source || ''] || source || '\u672A\u77E5'
 }
 
-const getSourceType = (source?: string): 'primary' | 'success' | 'warning' | 'info' => {
-  const types: Record<string, 'primary' | 'success' | 'warning' | 'info'> = {
-    email: 'primary',
+const getSourceSeverity = (source?: string): 'info' | 'success' | 'warning' | 'secondary' => {
+  const types: Record<string, 'info' | 'success' | 'warning' | 'secondary'> = {
+    email: 'info',
     dingtalk: 'warning',
-    upload: 'success'
+    upload: 'success',
   }
-  return types[source || ''] || 'info'
+  return types[source || ''] || 'secondary'
 }
 
 const formatDateTime = (date?: string) => {
@@ -579,42 +472,48 @@ const formatDateTime = (date?: string) => {
 
 const formatInvoiceDate = (date?: string) => {
   if (!date) return '-'
-
-  // Prefer parsing standard timestamps/ISO strings.
   const parsed = dayjs(date)
   if (parsed.isValid()) return parsed.format('YYYY-MM-DD')
-
-  // Fallback for common invoice formats like "2025年10月11日" / "2025/10/11" / "2025.10.11".
-  const m = String(date).match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/)
+  const m = String(date).match(/(\\d{4})\\D+(\\d{1,2})\\D+(\\d{1,2})/)
   if (m) {
     const y = m[1]
     const mm = m[2].padStart(2, '0')
     const dd = m[3].padStart(2, '0')
     return `${y}-${mm}-${dd}`
   }
-
-  // If we still can't parse, show the original string instead of "Invalid Date".
   return date
 }
 
 const getParseStatusLabel = (status?: string) => {
   const labels: Record<string, string> = {
-    pending: '待解析',
-    parsing: '解析中',
-    success: '解析成功',
-    failed: '解析失败'
+    pending: '\u5F85\u89E3\u6790',
+    parsing: '\u89E3\u6790\u4E2D',
+    success: '\u89E3\u6790\u6210\u529F',
+    failed: '\u89E3\u6790\u5931\u8D25',
   }
-  return labels[status || 'pending'] || '未知'
+  return labels[status || 'pending'] || '\u672A\u77E5'
 }
 
-const getParseStatusType = (status?: string): 'info' | 'warning' | 'success' | 'danger' => {
+const getParseStatusSeverity = (status?: string): 'info' | 'warning' | 'success' | 'danger' => {
   const types: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
     pending: 'info',
     parsing: 'warning',
     success: 'success',
-    failed: 'danger'
+    failed: 'danger',
   }
   return types[status || 'pending'] || 'info'
+}
+
+const getInvoiceRawText = (invoice: Invoice | null) => {
+  if (!invoice) return ''
+  if (invoice.raw_text) return invoice.raw_text
+  if (!invoice.extracted_data) return ''
+  try {
+    const data = JSON.parse(invoice.extracted_data)
+    return data.raw_text || ''
+  } catch {
+    return invoice.extracted_data || ''
+  }
 }
 
 const handleReparse = async (id: string) => {
@@ -622,18 +521,18 @@ const handleReparse = async (id: string) => {
   try {
     const res = await invoiceApi.parse(id)
     if (res.data.success && res.data.data) {
-      ElMessage.success('发票解析完成')
-      // Update the preview invoice with new data
+      toast.add({ severity: 'success', summary: '\u53D1\u7968\u89E3\u6790\u5B8C\u6210', life: 2200 })
       previewInvoice.value = res.data.data
-      // Reload the invoices list
-      loadInvoices()
+      await loadInvoices()
     }
   } catch {
-    ElMessage.error('发票解析失败')
+    toast.add({ severity: 'error', summary: '\u53D1\u7968\u89E3\u6790\u5931\u8D25', life: 3000 })
   } finally {
     parseStatusPending.value = false
   }
 }
+
+const sourceStats = computed(() => stats.value?.bySource || {})
 
 onMounted(() => {
   loadInvoices()
@@ -642,403 +541,194 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.stats-row {
-  margin-bottom: 16px;
-}
-
-.stats-row :deep(.el-card) {
-  transition: all var(--transition-base);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-}
-
-.stats-row :deep(.el-card:hover) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.stats-row :deep(.el-statistic__head) {
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
-}
-
-.stats-row :deep(.el-statistic__content) {
-  font-weight: 700;
-}
-
-.stats-row :deep(.el-icon) {
-  transition: transform var(--transition-base);
-}
-
-.stats-row :deep(.el-card:hover .el-icon) {
-  transform: scale(1.1);
-}
-
-.source-stats {
+.page {
   display: flex;
-  justify-content: space-around;
+  flex-direction: column;
   gap: 16px;
 }
 
-.source-stats :deep(.el-statistic) {
-  flex: 1;
-  text-align: center;
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.source-stats :deep(.el-statistic__number) {
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filecell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.filecell i {
+  color: var(--color-primary);
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stat-title {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.stat-value {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.stat-icon {
   font-size: 20px;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.stat-icon.info {
+  background: rgba(24, 144, 255, 0.12);
+  color: #096dd9;
+}
+
+.stat-icon.success {
+  background: rgba(82, 196, 26, 0.12);
+  color: #389e0d;
+}
+
+.stat-icon.secondary {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.source-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.upload-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed rgba(102, 126, 234, 0.35);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.03), rgba(118, 75, 162, 0.03));
+}
+
+.file-hint {
+  color: var(--color-text-secondary);
   font-weight: 700;
 }
 
-.source-stats :deep(.el-statistic__head) {
-  font-size: 13px;
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.card-header {
+.header-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-/* Enhanced table styles */
-:deep(.el-table) {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-:deep(.el-table thead) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.06), rgba(118, 75, 162, 0.06));
-}
-
-:deep(.el-table th) {
-  background: transparent !important;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
-}
-
-:deep(.el-table td) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-/* Zebra striping */
-:deep(.el-table tbody tr:nth-child(even)) {
-  background: rgba(0, 0, 0, 0.02);
-}
-
-/* Row hover effect */
-:deep(.el-table tbody tr) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-table tbody tr:hover) {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08)) !important;
-  transform: scale(1.002);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
-}
-
-.filename {
+.title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 500;
+  font-weight: 900;
   color: var(--color-text-primary);
 }
 
-.filename :deep(.el-icon) {
-  transition: transform var(--transition-base);
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.filename:hover :deep(.el-icon) {
-  transform: scale(1.1);
-}
-
-.amount {
-  color: #f5222d;
-  font-weight: bold;
-  font-size: 15px;
-  font-family: var(--font-mono);
-}
-
-/* Enhanced tags */
-:deep(.el-tag) {
-  border-radius: var(--radius-sm);
-  font-weight: 500;
-  border: none;
-  padding: 4px 10px;
-  transition: all var(--transition-base);
-}
-
-:deep(.el-tag:hover) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-tag.el-tag--primary) {
-  background: linear-gradient(135deg, rgba(79, 172, 254, 0.15), rgba(0, 242, 254, 0.15));
-  color: #4facfe;
-}
-
-:deep(.el-tag.el-tag--success) {
-  background: linear-gradient(135deg, rgba(67, 233, 123, 0.15), rgba(56, 249, 215, 0.15));
-  color: #43e97b;
-}
-
-:deep(.el-tag.el-tag--warning) {
-  background: linear-gradient(135deg, rgba(250, 112, 154, 0.15), rgba(254, 225, 64, 0.15));
-  color: #fa709a;
-}
-
-/* Button enhancements */
-:deep(.el-button) {
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-button.is-link) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-button.is-link:hover) {
-  transform: scale(1.1);
-}
-
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-:deep(.el-pagination) {
-  gap: 8px;
-}
-
-:deep(.el-pagination button),
-:deep(.el-pagination .el-pager li) {
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-pagination button:hover),
-:deep(.el-pagination .el-pager li:hover) {
-  transform: translateY(-1px);
-}
-
-:deep(.el-pagination .el-pager li.is-active) {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-}
-
-/* Upload Modal */
-:deep(.el-dialog) {
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 20px 24px;
-}
-
-:deep(.el-dialog__title) {
-  font-weight: 600;
-  font-size: 18px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-:deep(.el-dialog__body) {
-  padding: 24px;
-}
-
-:deep(.el-dialog__footer) {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 16px 24px;
-}
-
-.upload-area {
-  width: 100%;
-}
-
-.upload-area :deep(.el-upload) {
-  width: 100%;
-}
-
-.upload-area :deep(.el-upload-dragger) {
-  width: 100%;
-  border-radius: var(--radius-lg);
-  border: 2px dashed rgba(102, 126, 234, 0.3);
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.03), rgba(118, 75, 162, 0.03));
-  transition: all var(--transition-base);
-}
-
-.upload-area :deep(.el-upload-dragger:hover) {
-  border-color: #667eea;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
-  transform: translateY(-2px);
-}
-
-.upload-area :deep(.el-upload-dragger .el-icon) {
-  color: #667eea;
-  font-size: 48px;
-  transition: all var(--transition-base);
-}
-
-.upload-area :deep(.el-upload-dragger:hover .el-icon) {
-  transform: scale(1.1);
-}
-
-.upload-area :deep(.el-upload__text) {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.upload-area :deep(.el-upload__tip) {
-  margin-top: 8px;
-  color: var(--color-text-tertiary);
-  font-size: 13px;
-}
-
-/* Upload list */
-:deep(.el-upload-list) {
-  margin-top: 16px;
-}
-
-:deep(.el-upload-list__item) {
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
+.kv {
   border: 1px solid rgba(0, 0, 0, 0.06);
-  margin-bottom: 8px;
-}
-
-:deep(.el-upload-list__item:hover) {
-  background: rgba(102, 126, 234, 0.05);
-  border-color: rgba(102, 126, 234, 0.2);
-}
-
-/* Preview dialog */
-:deep(.el-dialog.preview-dialog) {
-  max-width: 90vw;
-  max-height: 90vh;
-}
-
-:deep(.el-dialog.preview-dialog .el-dialog__body) {
-  max-height: calc(90vh - 120px);
-  overflow: auto;
-  padding: 0;
-}
-
-:deep(.el-dialog.preview-dialog iframe) {
-  display: block;
-  border: none;
+  background: rgba(0, 0, 0, 0.02);
   border-radius: var(--radius-md);
+  padding: 10px 12px;
 }
 
-/* Card enhancement */
-:deep(.el-card) {
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-card__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 18px 20px;
-  font-weight: 600;
-}
-
-/* Loading state */
-:deep(.el-loading-mask) {
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-.raw-text {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  max-height: 300px;
-  overflow-y: auto;
-  background: #f5f5f5;
-  padding: 12px;
-  border-radius: var(--radius-md);
+.k {
   font-size: 12px;
-  line-height: 1.6;
-  font-family: var(--font-mono);
+  font-weight: 800;
+  color: var(--color-text-tertiary);
 }
 
-/* Linked payments section */
-.linked-payments-section {
-  width: 100%;
+.v {
+  margin-top: 6px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.money {
+  color: #cf1322;
+  font-weight: 900;
 }
 
 .match-actions {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 12px;
 }
 
-.linked-payments,
-.suggested-payments {
-  margin-bottom: 16px;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin-bottom: 8px;
-  padding-bottom: 4px;
-  border-bottom: 2px solid rgba(102, 126, 234, 0.2);
-}
-
-.linked-payments .section-title {
-  color: #43e97b;
-  border-bottom-color: rgba(67, 233, 123, 0.3);
-}
-
-.suggested-payments .section-title {
-  color: #667eea;
-  border-bottom-color: rgba(102, 126, 234, 0.3);
+.suggest-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .no-data {
-  padding: 20px;
-  text-align: center;
-}
-
-.loading-state {
+  margin-top: 10px;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  padding: 20px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
+  font-weight: 700;
 }
 
-.loading-state .el-icon {
-  font-size: 18px;
+.raw-section {
+  margin-top: 4px;
 }
 
-@media (max-width: 768px) {
-  .source-stats {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  :deep(.el-table) {
-    font-size: 13px;
-  }
-  
-  .amount {
-    font-size: 14px;
-  }
-  
-  .filename {
-    font-size: 13px;
-  }
+.raw-title {
+  font-weight: 900;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+}
+
+.raw-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 10px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

@@ -1,180 +1,210 @@
 <template>
-  <div v-loading="loading" element-loading-text="加载中...">
-    <el-empty v-if="!loading && !data" description="暂无数据" />
-    
-    <template v-else-if="data">
-      <!-- Statistics Cards -->
-      <el-row :gutter="16" class="stats-row">
-        <el-col :xs="24" :sm="12" :lg="6">
-          <el-card class="stat-card gradient-purple">
-            <el-statistic title="本月支出" :value="data.payments.totalThisMonth" :precision="2">
-              <template #prefix>
-                <el-icon><Wallet /></el-icon>
-              </template>
-              <template #suffix>¥</template>
-            </el-statistic>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :lg="6">
-          <el-card class="stat-card gradient-pink">
-            <el-statistic title="支付笔数" :value="data.payments.countThisMonth">
-              <template #prefix>
-                <el-icon><TrendCharts /></el-icon>
-              </template>
-              <template #suffix>笔</template>
-            </el-statistic>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :lg="6">
-          <el-card class="stat-card gradient-blue">
-            <el-statistic title="发票总数" :value="data.invoices.totalCount">
-              <template #prefix>
-                <el-icon><Document /></el-icon>
-              </template>
-              <template #suffix>张</template>
-            </el-statistic>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :sm="12" :lg="6">
-          <el-card class="stat-card gradient-green">
-            <el-statistic title="发票金额" :value="data.invoices.totalAmount" :precision="2">
-              <template #prefix>
-                <el-icon><Document /></el-icon>
-              </template>
-              <template #suffix>¥</template>
-            </el-statistic>
-          </el-card>
-        </el-col>
-      </el-row>
+  <div class="page">
+    <div v-if="loading" class="loading">
+      <ProgressSpinner />
+      <div class="loading-text">&#21152;&#36733;&#20013;...</div>
+    </div>
 
-      <!-- Charts Row -->
-      <el-row :gutter="16" class="charts-row">
-        <el-col :xs="24" :lg="16">
-          <el-card>
-            <template #header>
-              <div class="card-header">
-                <span>每日支出趋势</span>
-                <el-button text @click="loadData">刷新</el-button>
+    <Card v-else-if="!data" class="empty-card">
+      <template #content>
+        <div class="empty">
+          <i class="pi pi-inbox empty-icon" />
+          <div class="empty-title">&#26242;&#26080;&#25968;&#25454;</div>
+        </div>
+      </template>
+    </Card>
+
+    <template v-else>
+      <div class="stats-grid">
+        <Card class="stat-card gradient-purple">
+          <template #content>
+            <div class="stat">
+              <div class="stat-left">
+                <div class="stat-title">&#26412;&#26376;&#25903;&#20986;</div>
+                <div class="stat-value">{{ formatMoney(data.payments.totalThisMonth) }}</div>
               </div>
-            </template>
-            <div v-if="dailyData.length > 0" class="chart-container">
+              <div class="stat-icon">
+                <i class="pi pi-wallet" />
+              </div>
+            </div>
+          </template>
+        </Card>
+
+        <Card class="stat-card gradient-pink">
+          <template #content>
+            <div class="stat">
+              <div class="stat-left">
+                <div class="stat-title">&#25903;&#20184;&#31508;&#25968;</div>
+                <div class="stat-value">{{ data.payments.countThisMonth }}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="pi pi-chart-line" />
+              </div>
+            </div>
+          </template>
+        </Card>
+
+        <Card class="stat-card gradient-blue">
+          <template #content>
+            <div class="stat">
+              <div class="stat-left">
+                <div class="stat-title">&#21457;&#31080;&#24635;&#25968;</div>
+                <div class="stat-value">{{ data.invoices.totalCount }}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="pi pi-file" />
+              </div>
+            </div>
+          </template>
+        </Card>
+
+        <Card class="stat-card gradient-green">
+          <template #content>
+            <div class="stat">
+              <div class="stat-left">
+                <div class="stat-title">&#21457;&#31080;&#37329;&#39069;</div>
+                <div class="stat-value">{{ formatMoney(data.invoices.totalAmount) }}</div>
+              </div>
+              <div class="stat-icon">
+                <i class="pi pi-receipt" />
+              </div>
+            </div>
+          </template>
+        </Card>
+      </div>
+
+      <div class="grid">
+        <Card class="panel col-span-2">
+          <template #title>
+            <div class="panel-title">
+              <span>&#27599;&#26085;&#25903;&#20986;&#36235;&#21183;</span>
+              <Button
+                :label="'\u5237\u65B0'"
+                icon="pi pi-refresh"
+                class="p-button-text"
+                @click="loadData"
+              />
+            </div>
+          </template>
+          <template #content>
+            <div v-if="dailyData.length > 0" class="chart">
               <v-chart :option="lineChartOption" autoresize />
             </div>
-            <el-empty v-else description="暂无数据" :image-size="100" />
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :lg="8">
-          <el-card class="pie-card">
-            <template #header>
-              <span>支出分类</span>
-            </template>
-            <div v-if="categoryData.length > 0" class="chart-container">
+            <div v-else class="empty-mini">&#26242;&#26080;&#25968;&#25454;</div>
+          </template>
+        </Card>
+
+        <Card class="panel">
+          <template #title>
+            <span>&#25903;&#20986;&#20998;&#31867;</span>
+          </template>
+          <template #content>
+            <div v-if="categoryData.length > 0" class="chart">
               <v-chart :option="pieChartOption" autoresize />
             </div>
-            <el-empty v-else description="暂无数据" :image-size="100" />
-          </el-card>
-        </el-col>
-      </el-row>
+            <div v-else class="empty-mini">&#26242;&#26080;&#25968;&#25454;</div>
+          </template>
+        </Card>
+      </div>
 
-      <!-- Email Status and Logs Row -->
-      <el-row :gutter="16" class="status-row">
-        <el-col :xs="24" :lg="12">
-          <el-card>
-            <template #header>
-              <span><el-icon><Message /></el-icon> 邮箱监控状态</span>
-            </template>
-            <div v-if="data.email.monitoringStatus.length > 0">
-              <div v-for="(item, index) in data.email.monitoringStatus" :key="index" class="monitor-item">
-                <span class="monitor-label">邮箱 {{ index + 1 }}:</span>
-                <el-tag v-if="item.status === 'running'" type="success">
-                  <el-icon><CircleCheck /></el-icon> 运行中
-                </el-tag>
-                <el-tag v-else type="info">
-                  <el-icon><CircleClose /></el-icon> 已停止
-                </el-tag>
-                <el-progress 
-                  :percentage="item.status === 'running' ? 100 : 0"
-                  :status="item.status === 'running' ? undefined : 'exception'"
-                  class="monitor-progress"
+      <div class="grid">
+        <Card class="panel">
+          <template #title>
+            <span><i class="pi pi-envelope" /> &#37038;&#31665;&#30417;&#25511;&#29366;&#24577;</span>
+          </template>
+          <template #content>
+            <div v-if="data.email.monitoringStatus.length > 0" class="monitor-list">
+              <div v-for="(item, index) in data.email.monitoringStatus" :key="item.configId || index" class="monitor-item">
+                <div class="monitor-left">
+                  <div class="monitor-label">&#37038;&#31665; {{ index + 1 }}</div>
+                  <Tag
+                    :severity="item.status === 'running' ? 'success' : 'info'"
+                    :value="item.status === 'running' ? '\u8FD0\u884C\u4E2D' : '\u5DF2\u505C\u6B62'"
+                  />
+                </div>
+                <ProgressBar
+                  :value="item.status === 'running' ? 100 : 0"
+                  :showValue="false"
+                  style="height: 10px"
                 />
               </div>
             </div>
-            <el-empty v-else description="暂无配置邮箱" :image-size="60" />
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :lg="12">
-          <el-card>
-            <template #header>
-              <span>最近邮件</span>
-            </template>
-            <el-table :data="data.email.recentLogs" size="small" :show-header="true">
-              <el-table-column prop="subject" label="主题" show-overflow-tooltip />
-              <el-table-column prop="from_address" label="发件人" width="150" show-overflow-tooltip />
-              <el-table-column label="附件" width="80">
-                <template #default="{ row }">
-                  <el-tag v-if="row.has_attachment" type="primary" size="small">{{ row.attachment_count }}个</el-tag>
-                  <el-tag v-else size="small">无</el-tag>
+            <div v-else class="empty-mini">&#26242;&#26080;&#37197;&#32622;&#37038;&#31665;</div>
+          </template>
+        </Card>
+
+        <Card class="panel">
+          <template #title>
+            <span>&#26368;&#36817;&#37038;&#20214;</span>
+          </template>
+          <template #content>
+            <DataTable :value="data.email.recentLogs" size="small" :rows="6" responsiveLayout="scroll">
+              <Column field="subject" :header="'\u4E3B\u9898'" />
+              <Column field="from_address" :header="'\u53D1\u4EF6\u4EBA'" />
+              <Column :header="'\u9644\u4EF6'">
+                <template #body="{ data: row }">
+                  <Tag
+                    v-if="row.has_attachment"
+                    severity="info"
+                    :value="`${row.attachment_count}\u4E2A`"
+                  />
+                  <Tag v-else severity="secondary" :value="'\u65E0'" />
                 </template>
-              </el-table-column>
-              <el-table-column label="时间" width="100">
-                <template #default="{ row }">
+              </Column>
+              <Column :header="'\u65F6\u95F4'">
+                <template #body="{ data: row }">
                   {{ row.received_date ? formatDate(row.received_date) : '-' }}
                 </template>
-              </el-table-column>
-            </el-table>
-          </el-card>
-        </el-col>
-      </el-row>
+              </Column>
+            </DataTable>
+          </template>
+        </Card>
+      </div>
 
-      <!-- Invoice Source Distribution -->
-      <el-row :gutter="16" class="source-row">
-        <el-col :span="24">
-          <el-card>
-            <template #header>
-              <span>发票来源分布</span>
-            </template>
-            <el-row :gutter="16" v-if="Object.keys(data.invoices.bySource || {}).length > 0">
-              <el-col 
-                v-for="(count, source, index) in data.invoices.bySource" 
-                :key="source"
-                :xs="12" :sm="8" :md="6"
-              >
-                <el-card 
-                  class="source-card"
-                  :style="{ background: `${COLORS[index % COLORS.length]}15` }"
-                  shadow="never"
-                >
-                  <el-statistic 
-                    :title="getSourceLabel(source as string)" 
-                    :value="count"
-                  >
-                    <template #suffix>张</template>
-                  </el-statistic>
-                </el-card>
-              </el-col>
-            </el-row>
-            <el-empty v-else description="暂无发票" :image-size="60" />
-          </el-card>
-        </el-col>
-      </el-row>
+      <Card class="panel">
+        <template #title>
+          <span>&#21457;&#31080;&#26469;&#28304;&#20998;&#24067;</span>
+        </template>
+        <template #content>
+          <div v-if="Object.keys(data.invoices.bySource || {}).length > 0" class="source-grid">
+            <Card
+              v-for="(count, source, index) in data.invoices.bySource"
+              :key="source"
+              class="source-card"
+              :style="{ background: `${COLORS[index % COLORS.length]}12` }"
+            >
+              <template #content>
+                <div class="source-title">{{ getSourceLabel(source as string) }}</div>
+                <div class="source-value">{{ count }}</div>
+              </template>
+            </Card>
+          </div>
+          <div v-else class="empty-mini">&#26242;&#26080;&#21457;&#31080;</div>
+        </template>
+      </Card>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import dayjs from 'dayjs'
-import { Wallet, Document, TrendCharts, Message, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import Card from 'primevue/card'
+import Button from 'primevue/button'
+import Tag from 'primevue/tag'
+import ProgressBar from 'primevue/progressbar'
+import ProgressSpinner from 'primevue/progressspinner'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
 import { dashboardApi } from '@/api'
 import { CHART_COLORS } from '@/utils/constants'
 import type { DashboardData } from '@/types'
 
-// Register ECharts components
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
 
 const COLORS = CHART_COLORS
@@ -187,7 +217,7 @@ const dailyData = computed(() => {
   return Object.entries(data.value.payments.dailyStats)
     .map(([date, amount]) => ({
       date: dayjs(date).format('MM-DD'),
-      amount
+      amount,
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
 })
@@ -196,7 +226,7 @@ const categoryData = computed(() => {
   if (!data.value?.payments.categoryStats) return []
   return Object.entries(data.value.payments.categoryStats).map(([name, value]) => ({
     name,
-    value
+    value,
   }))
 })
 
@@ -205,71 +235,75 @@ const lineChartOption = computed(() => ({
     trigger: 'axis',
     formatter: (params: { name: string; value: number }[]) => {
       const item = params[0]
-      return `${item.name}<br/>支出: ¥${item.value.toFixed(2)}`
-    }
+      return `${item.name}<br/>\u652F\u51FA: \u00A5${item.value.toFixed(2)}`
+    },
   },
   grid: {
     left: '3%',
     right: '4%',
     bottom: '3%',
-    containLabel: true
+    containLabel: true,
   },
   xAxis: {
     type: 'category',
-    data: dailyData.value.map(d => d.date),
-    boundaryGap: false
+    data: dailyData.value.map((d) => d.date),
+    boundaryGap: false,
   },
   yAxis: {
-    type: 'value'
+    type: 'value',
   },
-  series: [{
-    data: dailyData.value.map(d => d.amount),
-    type: 'line',
-    smooth: true,
-    areaStyle: {
-      color: {
-        type: 'linear',
-        x: 0,
-        y: 0,
-        x2: 0,
-        y2: 1,
-        colorStops: [
-          { offset: 0, color: 'rgba(24, 144, 255, 0.3)' },
-          { offset: 1, color: 'rgba(24, 144, 255, 0.05)' }
-        ]
-      }
+  series: [
+    {
+      data: dailyData.value.map((d) => d.amount),
+      type: 'line',
+      smooth: true,
+      areaStyle: {
+        color: {
+          type: 'linear',
+          x: 0,
+          y: 0,
+          x2: 0,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(24, 144, 255, 0.3)' },
+            { offset: 1, color: 'rgba(24, 144, 255, 0.05)' },
+          ],
+        },
+      },
+      lineStyle: {
+        color: '#1890ff',
+        width: 2,
+      },
+      itemStyle: {
+        color: '#1890ff',
+      },
     },
-    lineStyle: {
-      color: '#1890ff',
-      width: 2
-    },
-    itemStyle: {
-      color: '#1890ff'
-    }
-  }]
+  ],
 }))
 
 const pieChartOption = computed(() => ({
   tooltip: {
     trigger: 'item',
-    formatter: '{b}: ¥{c} ({d}%)'
+    formatter: '{b}: \u00A5{c} ({d}%)',
   },
-  series: [{
-    type: 'pie',
-    radius: ['40%', '70%'],
-    avoidLabelOverlap: false,
-    label: {
-      show: true,
-      formatter: '{b} {d}%'
+  series: [
+    {
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      label: {
+        show: true,
+        formatter: '{b} {d}%',
+      },
+      labelLine: {
+        show: true,
+      },
+      data: categoryData.value.map((item, index) => ({
+        ...item,
+        itemStyle: { color: COLORS[index % COLORS.length] },
+      })),
     },
-    labelLine: {
-      show: true
-    },
-    data: categoryData.value.map((item, index) => ({
-      ...item,
-      itemStyle: { color: COLORS[index % COLORS.length] }
-    }))
-  }]
+  ],
 }))
 
 const loadData = async () => {
@@ -278,26 +312,29 @@ const loadData = async () => {
     const res = await dashboardApi.getSummary()
     if (res.data.success && res.data.data) {
       data.value = res.data.data
+    } else {
+      data.value = null
     }
   } catch (error) {
     console.error('Failed to load dashboard data:', error)
+    data.value = null
   } finally {
     loading.value = false
   }
 }
 
-const formatDate = (date: string) => {
-  return dayjs(date).format('MM-DD HH:mm')
-}
+const formatDate = (date: string) => dayjs(date).format('MM-DD HH:mm')
 
 const getSourceLabel = (source: string) => {
   const labels: Record<string, string> = {
-    upload: '手动上传',
-    email: '邮件下载',
-    dingtalk: '钉钉机器人'
+    upload: '\u624B\u52A8\u4E0A\u4F20',
+    email: '\u90AE\u4EF6\u4E0B\u8F7D',
+    dingtalk: '\u9489\u9489\u673A\u5668\u4EBA',
   }
   return labels[source] || source
 }
+
+const formatMoney = (value: number) => `\u00A5${(value || 0).toFixed(2)}`
 
 onMounted(() => {
   loadData()
@@ -305,255 +342,200 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.stats-row {
-  margin-bottom: 16px;
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  padding: 60px 0;
+  gap: 10px;
+}
+
+.loading-text {
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.empty-card {
+  border-radius: var(--radius-lg);
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  gap: 8px;
+}
+
+.empty-icon {
+  font-size: 34px;
+  color: var(--color-text-tertiary);
+}
+
+.empty-title {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .stat-card {
   color: white;
   border: none;
-  transition: all var(--transition-base);
-  position: relative;
   overflow: hidden;
+  border-radius: var(--radius-lg);
 }
 
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%);
-  opacity: 0;
-  transition: opacity var(--transition-base);
+.stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.stat-card:hover::before {
-  opacity: 1;
-}
-
-.stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
-}
-
-.stat-card :deep(.el-statistic__head) {
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 500;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.stat-card :deep(.el-statistic__content) {
-  color: white;
+.stat-title {
+  opacity: 0.92;
   font-weight: 700;
+  font-size: 13px;
 }
 
-.stat-card :deep(.el-icon) {
-  transition: transform var(--transition-base);
+.stat-value {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+}
+
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.stat-icon i {
   font-size: 20px;
-}
-
-.stat-card:hover :deep(.el-icon) {
-  transform: scale(1.1) rotate(5deg);
 }
 
 .gradient-purple {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-}
-
-.gradient-purple:hover {
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
 }
 
 .gradient-pink {
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
-}
-
-.gradient-pink:hover {
-  box-shadow: 0 8px 25px rgba(240, 147, 251, 0.5);
 }
 
 .gradient-blue {
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
-}
-
-.gradient-blue:hover {
-  box-shadow: 0 8px 25px rgba(79, 172, 254, 0.5);
 }
 
 .gradient-green {
   background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-  box-shadow: 0 4px 15px rgba(67, 233, 123, 0.4);
 }
 
-.gradient-green:hover {
-  box-shadow: 0 8px 25px rgba(67, 233, 123, 0.5);
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
 }
 
-.charts-row {
-  margin-bottom: 16px;
+.col-span-2 {
+  grid-column: span 2 / span 2;
 }
 
-.el-card {
+.panel {
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
 }
 
-.el-card:not(.stat-card):hover {
-  box-shadow: var(--shadow-md);
-}
-
-.card-header {
+.panel-title {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
+  gap: 12px;
+}
+
+.chart {
+  height: 320px;
+}
+
+.empty-mini {
+  padding: 18px 0;
+  color: var(--color-text-tertiary);
   font-weight: 600;
-  color: var(--color-text-primary);
 }
 
-.card-header span {
+.monitor-list {
   display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.card-header :deep(.el-icon) {
-  color: var(--color-primary);
-}
-
-.chart-container {
-  height: 300px;
-  position: relative;
-}
-
-.pie-card {
-  height: 100%;
-}
-
-.status-row {
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .monitor-item {
   display: flex;
-  align-items: center;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.02);
   border-radius: var(--radius-md);
-  transition: all var(--transition-base);
+  background: rgba(0, 0, 0, 0.02);
 }
 
-.monitor-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-  transform: translateX(4px);
+.monitor-left {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .monitor-label {
-  margin-right: 8px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--color-text-secondary);
 }
 
-.monitor-progress {
-  flex: 1;
-  margin-left: 16px;
-}
-
-.source-row {
-  margin-bottom: 16px;
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .source-card {
-  text-align: center;
   border-radius: var(--radius-md);
-  transition: all var(--transition-base);
 }
 
-.source-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
-}
-
-.source-card :deep(.el-statistic__number) {
-  font-size: 20px;
+.source-title {
   font-weight: 700;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
 }
 
-.source-card :deep(.el-statistic__head) {
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-/* Table enhancements */
-:deep(.el-table) {
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-:deep(.el-table thead) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
-}
-
-:deep(.el-table th) {
-  background: transparent !important;
-  font-weight: 600;
+.source-value {
+  font-size: 20px;
+  font-weight: 900;
   color: var(--color-text-primary);
 }
 
-:deep(.el-table tbody tr) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-table tbody tr:hover > td) {
-  background: rgba(102, 126, 234, 0.05);
-}
-
-/* Tag enhancements */
-:deep(.el-tag) {
-  border-radius: var(--radius-sm);
-  font-weight: 500;
-  transition: all var(--transition-base);
-}
-
-:deep(.el-tag:hover) {
-  transform: scale(1.05);
-}
-
-/* Progress bar enhancements */
-:deep(.el-progress__text) {
-  font-weight: 600;
-}
-
-/* Empty state */
-:deep(.el-empty) {
-  padding: 40px 0;
-}
-
-:deep(.el-empty__description) {
-  color: var(--color-text-tertiary);
-  font-weight: 500;
-}
-
-/* Loading animation */
-:deep(.el-loading-spinner) {
-  font-size: 32px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .chart-container {
-    height: 250px;
+@media (max-width: 1100px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  
-  .stat-card :deep(.el-statistic__content) {
-    font-size: 20px;
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .col-span-2 {
+    grid-column: auto;
+  }
+  .source-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
+

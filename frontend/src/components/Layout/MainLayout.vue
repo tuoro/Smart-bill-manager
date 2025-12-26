@@ -1,102 +1,90 @@
 <template>
-  <el-container class="layout-container">
-    <el-aside :width="isCollapsed ? '64px' : '200px'" class="sidebar">
-      <div class="logo">
-        {{ isCollapsed ? '\uD83D\uDCB0' : '\uD83D\uDCB0 \u667A\u80FD\u8D26\u5355\u7BA1\u7406' }}
+  <div class="layout">
+    <aside class="sidebar" :class="{ collapsed: isCollapsed }">
+      <div class="brand" @click="router.push('/dashboard')">
+        <span class="brand-icon">\uD83D\uDCB0</span>
+        <span v-if="!isCollapsed" class="brand-text">&#26234;&#33021;&#36134;&#21333;&#31649;&#29702;</span>
       </div>
-      <el-menu
-        :default-active="currentRoute"
-        class="sidebar-menu"
-        :collapse="isCollapsed"
-        :collapse-transition="false"
-        background-color="transparent"
-        text-color="rgba(255,255,255,0.85)"
-        active-text-color="#1890ff"
-        @select="handleMenuSelect"
-      >
-        <el-menu-item index="/dashboard">
-          <el-icon><Odometer /></el-icon>
-          <template #title>&#x4EEA;&#x8868;&#x76D8;</template>
-        </el-menu-item>
-        <el-menu-item index="/payments">
-          <el-icon><Wallet /></el-icon>
-          <template #title>&#x652F;&#x4ED8;&#x8BB0;&#x5F55;</template>
-        </el-menu-item>
-        <el-menu-item index="/invoices">
-          <el-icon><Document /></el-icon>
-          <template #title>&#x53D1;&#x7968;&#x7BA1;&#x7406;</template>
-        </el-menu-item>
-        <el-menu-item index="/email">
-          <el-icon><Message /></el-icon>
-          <template #title>&#x90AE;&#x7BB1;&#x76D1;&#x63A7;</template>
-        </el-menu-item>
-        <el-menu-item index="/dingtalk">
-          <el-icon><ChatDotRound /></el-icon>
-          <template #title>&#x9489;&#x9489;&#x673A;&#x5668;&#x4EBA;</template>
-        </el-menu-item>
-        <el-menu-item index="/logs">
-          <el-icon><Document /></el-icon>
-          <template #title>&#x65E5;&#x5FD7;</template>
-        </el-menu-item>
-      </el-menu>
-      <div class="collapse-trigger" @click="isCollapsed = !isCollapsed">
-        <el-icon v-if="isCollapsed"><Expand /></el-icon>
-        <el-icon v-else><Fold /></el-icon>
-      </div>
-    </el-aside>
 
-    <el-container>
-      <el-header class="header">
-        <h2 class="page-title">{{ pageTitle }}</h2>
-        <div class="header-right">
-          <el-dropdown @command="handleUserCommand">
-            <div class="user-info">
-              <el-avatar :size="32" :icon="User" />
-              <span class="username">{{ authStore.user?.username }}</span>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item disabled>
-                  <el-icon><User /></el-icon>
-                  {{ authStore.user?.username || '\u7528\u6237' }}
-                </el-dropdown-item>
-                <el-dropdown-item command="change-password">
-                  <el-icon><Key /></el-icon>
-                  &#x4FEE;&#x6539;&#x5BC6;&#x7801;
-                </el-dropdown-item>
-                <el-dropdown-item divided command="logout">
-                  <el-icon><SwitchButton /></el-icon>
-                  &#x9000;&#x51FA;&#x767B;&#x5F55;
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+      <nav class="nav">
+        <button class="nav-item" :class="{ active: currentRoute === '/dashboard' }" @click="router.push('/dashboard')">
+          <i class="pi pi-chart-bar" />
+          <span v-if="!isCollapsed">&#20202;&#34920;&#30424;</span>
+        </button>
+        <button class="nav-item" :class="{ active: currentRoute === '/payments' }" @click="router.push('/payments')">
+          <i class="pi pi-wallet" />
+          <span v-if="!isCollapsed">&#25903;&#20184;&#35760;&#24405;</span>
+        </button>
+        <button class="nav-item" :class="{ active: currentRoute === '/invoices' }" @click="router.push('/invoices')">
+          <i class="pi pi-file" />
+          <span v-if="!isCollapsed">&#21457;&#31080;&#31649;&#29702;</span>
+        </button>
+        <button class="nav-item" :class="{ active: currentRoute === '/email' }" @click="router.push('/email')">
+          <i class="pi pi-inbox" />
+          <span v-if="!isCollapsed">&#37038;&#31665;&#30417;&#25511;</span>
+        </button>
+        <button class="nav-item" :class="{ active: currentRoute === '/dingtalk' }" @click="router.push('/dingtalk')">
+          <i class="pi pi-comments" />
+          <span v-if="!isCollapsed">&#38025;&#38025;&#26426;&#22120;&#20154;</span>
+        </button>
+        <button class="nav-item" :class="{ active: currentRoute === '/logs' }" @click="router.push('/logs')">
+          <i class="pi pi-book" />
+          <span v-if="!isCollapsed">&#26085;&#24535;</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <Button
+          class="collapse-btn"
+          severity="secondary"
+          :icon="isCollapsed ? 'pi pi-angle-double-right' : 'pi pi-angle-double-left'"
+          @click="isCollapsed = !isCollapsed"
+        />
+      </div>
+    </aside>
+
+    <div class="content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 class="page-title">{{ pageTitle }}</h2>
         </div>
-      </el-header>
+        <div class="topbar-right">
+          <button class="user-button" type="button" @click="toggleUserMenu">
+            <Avatar :label="userInitial" shape="circle" class="user-avatar" />
+            <span class="username">{{ authStore.user?.username || '\u7528\u6237' }}</span>
+            <i class="pi pi-angle-down" />
+          </button>
+          <Menu ref="userMenu" :model="userMenuItems" popup />
+        </div>
+      </header>
 
-      <el-main class="main-content">
+      <main class="main">
         <router-view />
-      </el-main>
-    </el-container>
+      </main>
+    </div>
 
     <ChangePassword v-model="showChangePasswordDialog" />
-  </el-container>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ChatDotRound, Document, Expand, Fold, Key, Message, Odometer, SwitchButton, User, Wallet } from '@element-plus/icons-vue'
+import Button from 'primevue/button'
+import Avatar from 'primevue/avatar'
+import Menu from 'primevue/menu'
+import { useToast } from 'primevue/usetoast'
 import ChangePassword from '@/components/ChangePassword.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const toast = useToast()
 
 const isCollapsed = ref(false)
 const showChangePasswordDialog = ref(false)
+const userMenu = ref<InstanceType<typeof Menu> | null>(null)
 
 const currentRoute = computed(() => route.path)
 
@@ -112,33 +100,61 @@ const pageTitle = computed(() => {
   return titles[route.path] || titles['/dashboard']
 })
 
-const handleMenuSelect = (index: string) => {
-  router.push(index)
-}
+const userInitial = computed(() => {
+  const name = authStore.user?.username || ''
+  const trimmed = name.trim()
+  if (!trimmed) return '?'
+  return trimmed[0].toUpperCase()
+})
 
-const handleUserCommand = (command: string) => {
-  if (command === 'logout') {
-    authStore.logout()
-    ElMessage.success('\u5DF2\u9000\u51FA\u767B\u5F55')
-    router.push('/login')
-  } else if (command === 'change-password') {
-    showChangePasswordDialog.value = true
-  }
+const userMenuItems = computed(() => [
+  {
+    label: authStore.user?.username || '\u7528\u6237',
+    icon: 'pi pi-user',
+    disabled: true,
+  },
+  {
+    label: '\u4FEE\u6539\u5BC6\u7801',
+    icon: 'pi pi-key',
+    command: () => {
+      showChangePasswordDialog.value = true
+    },
+  },
+  { separator: true },
+  {
+    label: '\u9000\u51FA\u767B\u5F55',
+    icon: 'pi pi-sign-out',
+    command: () => {
+      authStore.logout()
+      toast.add({ severity: 'success', summary: '\u5DF2\u9000\u51FA\u767B\u5F55', life: 2000 })
+      router.push('/login')
+    },
+  },
+])
+
+const toggleUserMenu = (event: MouseEvent) => {
+  userMenu.value?.toggle(event)
 }
 </script>
 
 <style scoped>
-.layout-container {
+.layout {
   min-height: 100vh;
+  display: flex;
 }
 
 .sidebar {
+  width: 260px;
   background: linear-gradient(180deg, #001529 0%, #003a70 100%);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   transition: width var(--transition-base);
   position: relative;
+}
+
+.sidebar.collapsed {
+  width: 76px;
 }
 
 /* Glassmorphism overlay for sidebar */
@@ -153,110 +169,126 @@ const handleUserCommand = (command: string) => {
   pointer-events: none;
 }
 
-.logo {
+.brand {
   height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 18px;
-  font-weight: bold;
+  font-size: 16px;
+  font-weight: 700;
   border-bottom: 1px solid rgba(255,255,255,0.1);
   white-space: nowrap;
   overflow: hidden;
   transition: all var(--transition-base);
   position: relative;
   z-index: 1;
-}
-
-.sidebar-menu {
-  flex: 1;
-  border-right: none;
-  padding: 8px 0;
-}
-
-.sidebar-menu:not(.el-menu--collapse) {
-  width: 200px;
-}
-
-:deep(.el-menu-item) {
-  margin: 4px 8px;
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-  position: relative;
-  overflow: hidden;
-}
-
-:deep(.el-menu-item::before) {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: #1890ff;
-  transform: scaleY(0);
-  transition: transform var(--transition-base);
-}
-
-:deep(.el-menu-item:hover) {
-  background: rgba(255, 255, 255, 0.08) !important;
-  transform: translateX(2px);
-}
-
-:deep(.el-menu-item.is-active) {
-  background: rgba(24, 144, 255, 0.15) !important;
-  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.2);
-}
-
-:deep(.el-menu-item.is-active::before) {
-  transform: scaleY(1);
-}
-
-:deep(.el-menu-item .el-icon) {
-  transition: all var(--transition-base);
-}
-
-:deep(.el-menu-item:hover .el-icon),
-:deep(.el-menu-item.is-active .el-icon) {
-  transform: scale(1.1);
-}
-
-.collapse-trigger {
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.2);
-  color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
-  transition: all var(--transition-base);
+  gap: 10px;
+  user-select: none;
+}
+
+.brand-icon {
+  font-size: 22px;
+}
+
+.brand-text {
+  letter-spacing: 0.2px;
+}
+
+.nav {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   position: relative;
   z-index: 1;
 }
 
-.collapse-trigger:hover {
-  color: #1890ff;
-  background: rgba(24, 144, 255, 0.1);
+.nav-item {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-align: left;
 }
 
-.collapse-trigger .el-icon {
-  transition: transform var(--transition-base);
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
 }
 
-.collapse-trigger:hover .el-icon {
-  transform: scale(1.2);
+.nav-item i {
+  font-size: 18px;
 }
 
-.header {
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
+}
+
+.nav-item.active {
+  background: rgba(24, 144, 255, 0.15);
+  box-shadow: 0 2px 10px rgba(24, 144, 255, 0.25);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 3px;
+  height: 28px;
+  border-radius: 999px;
+  background: #1890ff;
+}
+
+.sidebar-footer {
+  padding: 12px 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.collapse-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
   background: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 0 20px;
+  height: 64px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   position: relative;
-  z-index: 10;
+  z-index: 20;
 }
 
 .page-title {
@@ -270,84 +302,50 @@ const handleUserCommand = (command: string) => {
   animation: slideInLeft 0.3s ease;
 }
 
-.header-right {
+.topbar-right {
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.user-info {
+.user-button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  border-radius: 999px;
   transition: all var(--transition-base);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.7);
 }
 
-.user-info:hover {
-  background: rgba(0, 0, 0, 0.04);
+.user-button:hover {
+  background: rgba(102, 126, 234, 0.06);
+  border-color: rgba(102, 126, 234, 0.25);
 }
 
-.user-info :deep(.el-avatar) {
-  transition: all var(--transition-base);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.user-info:hover :deep(.el-avatar) {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+.user-avatar {
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.25);
 }
 
 .username {
   color: var(--color-text-primary);
-  font-weight: 500;
-  transition: color var(--transition-base);
+  font-weight: 600;
 }
 
-.user-info:hover .username {
-  color: var(--color-primary);
+.user-button i {
+  color: var(--color-text-tertiary);
 }
 
-.main-content {
+.main {
   background: var(--color-bg-primary);
-  padding: 24px;
-  min-height: 280px;
-  overflow-y: auto;
-  animation: fadeIn 0.3s ease;
-}
-
-/* Page transition */
-.main-content > * {
-  animation: fadeIn 0.4s ease;
-}
-
-/* Dropdown menu enhancements */
-:deep(.el-dropdown-menu__item) {
-  transition: all var(--transition-base);
-  border-radius: var(--radius-sm);
-  margin: 4px 8px;
-}
-
-:deep(.el-dropdown-menu__item:hover) {
-  background: rgba(102, 126, 234, 0.1);
-  transform: translateX(2px);
-}
-
-:deep(.el-dropdown-menu__item .el-icon) {
-  transition: all var(--transition-base);
-}
-
-:deep(.el-dropdown-menu__item:hover .el-icon) {
-  transform: scale(1.1);
+  padding: 20px;
+  flex: 1;
+  overflow: auto;
 }
 
 @media (max-width: 768px) {
-  .header {
-    padding: 0 16px;
-  }
-
   .page-title {
     font-size: 18px;
   }
@@ -357,4 +355,3 @@ const handleUserCommand = (command: string) => {
   }
 }
 </style>
-

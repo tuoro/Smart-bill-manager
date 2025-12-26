@@ -1,509 +1,389 @@
 <template>
-  <div>
-    <!-- Statistics Cards -->
-    <el-row :gutter="16" class="stats-row">
-      <el-col :xs="24" :sm="8">
-        <el-card>
-          <el-statistic title="总支出" :value="stats?.totalAmount || 0" :precision="2">
-            <template #prefix>
-              <el-icon color="#cf1322"><Wallet /></el-icon>
-            </template>
-            <template #suffix>¥</template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="8">
-        <el-card>
-          <el-statistic title="交易笔数" :value="stats?.totalCount || 0">
-            <template #prefix>
-              <el-icon color="#3f8600"><ShoppingCart /></el-icon>
-            </template>
-            <template #suffix>笔</template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="8">
-        <el-card>
-          <el-statistic 
-            title="平均每笔" 
-            :value="stats?.totalCount ? (stats.totalAmount / stats.totalCount) : 0"
-            :precision="2"
-          >
-            <template #suffix>¥</template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-    </el-row>
+  <div class="page">
+    <div class="grid">
+      <div class="col-12 md:col-4">
+        <Card>
+          <template #content>
+            <div class="stat">
+              <div>
+                <div class="stat-title">&#24635;&#25903;&#20986;</div>
+                <div class="stat-value">{{ formatMoney(stats?.totalAmount || 0) }}</div>
+              </div>
+              <i class="pi pi-wallet stat-icon danger" />
+            </div>
+          </template>
+        </Card>
+      </div>
+      <div class="col-12 md:col-4">
+        <Card>
+          <template #content>
+            <div class="stat">
+              <div>
+                <div class="stat-title">&#20132;&#26131;&#31508;&#25968;</div>
+                <div class="stat-value">{{ stats?.totalCount || 0 }}</div>
+              </div>
+              <i class="pi pi-shopping-cart stat-icon success" />
+            </div>
+          </template>
+        </Card>
+      </div>
+      <div class="col-12 md:col-4">
+        <Card>
+          <template #content>
+            <div class="stat">
+              <div>
+                <div class="stat-title">&#24179;&#22343;&#27599;&#31508;</div>
+                <div class="stat-value">{{ formatMoney(avgAmount) }}</div>
+              </div>
+              <i class="pi pi-chart-line stat-icon info" />
+            </div>
+          </template>
+        </Card>
+      </div>
+    </div>
 
-    <!-- Payment List Card -->
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>支付记录</span>
-          <div class="header-controls">
-            <el-date-picker
+    <Card>
+      <template #title>
+        <div class="header">
+          <span>&#25903;&#20184;&#35760;&#24405;</span>
+          <div class="toolbar">
+            <Calendar
               v-model="dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              value-format="YYYY-MM-DD"
-              @change="handleDateChange"
+              selectionMode="range"
+              :manualInput="false"
+              :placeholder="'\u65E5\u671F\u8303\u56F4'"
+              @update:modelValue="handleDateChange"
             />
-            <el-select 
-              v-model="categoryFilter" 
-              placeholder="选择分类" 
-              clearable
-              style="width: 120px"
+            <Dropdown
+              v-model="categoryFilter"
+              :options="CATEGORIES"
+              :placeholder="'\u9009\u62E9\u5206\u7C7B'"
+              :showClear="true"
               @change="handleFilterChange"
-            >
-              <el-option v-for="c in CATEGORIES" :key="c" :label="c" :value="c" />
-            </el-select>
-            <el-button type="success" :icon="Upload" @click="uploadScreenshotModalVisible = true">
-              上传截图
-            </el-button>
-            <el-button type="primary" :icon="Plus" @click="openModal()">
-              添加记录
-            </el-button>
-          </div>
-        </div>
-      </template>
-
-      <el-table 
-        v-loading="loading"
-        :data="payments"
-        :default-sort="{ prop: 'transaction_time', order: 'descending' }"
-      >
-        <el-table-column label="金额" sortable prop="amount">
-          <template #default="{ row }">
-            <span class="amount">¥{{ row.amount.toFixed(2) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="merchant" label="商家" show-overflow-tooltip />
-        <el-table-column label="分类">
-          <template #default="{ row }">
-            <el-tag v-if="row.category" type="primary">{{ row.category }}</el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="支付方式">
-          <template #default="{ row }">
-            <el-tag v-if="row.payment_method" type="success">{{ row.payment_method }}</el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="备注" show-overflow-tooltip />
-        <el-table-column label="交易时间" sortable prop="transaction_time">
-          <template #default="{ row }">
-            {{ formatDateTime(row.transaction_time) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="关联发票" width="100">
-          <template #default="{ row }">
-            <el-button 
-              type="primary" 
-              link 
-              @click="viewLinkedInvoices(row)"
-            >
-              查看 ({{ linkedInvoicesCount[row.id] || 0 }})
-            </el-button>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150">
-          <template #default="{ row }">
-            <el-button type="primary" link :icon="View" @click="openPaymentDetail(row)" />
-            <el-button type="primary" link :icon="Edit" @click="openModal(row)" />
-            <el-popconfirm
-              title="确定删除这条记录吗？"
-              @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button type="danger" link :icon="Delete" />
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="payments.length"
-        layout="total, sizes, prev, pager, next"
-        class="pagination"
-      />
-    </el-card>
-
-    <!-- Add/Edit Modal -->
-    <el-dialog
-      v-model="modalVisible"
-      :title="editingPayment ? '编辑支付记录' : '添加支付记录'"
-      width="500px"
-      destroy-on-close
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="80px"
-      >
-        <el-form-item label="金额" prop="amount">
-          <el-input-number
-            v-model="form.amount"
-            :min="0"
-            :precision="2"
-            :controls="false"
-            style="width: 100%"
-            placeholder="请输入金额"
-          >
-            <template #prefix>¥</template>
-          </el-input-number>
-        </el-form-item>
-
-        <el-form-item label="商家" prop="merchant">
-          <el-input v-model="form.merchant" placeholder="请输入商家名称" />
-        </el-form-item>
-
-        <el-form-item label="分类" prop="category">
-          <el-select v-model="form.category" placeholder="请选择分类" clearable style="width: 100%">
-            <el-option v-for="c in CATEGORIES" :key="c" :label="c" :value="c" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="支付方式" prop="payment_method">
-          <el-select v-model="form.payment_method" placeholder="请选择支付方式" clearable style="width: 100%">
-            <el-option v-for="m in PAYMENT_METHODS" :key="m" :label="m" :value="m" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="备注" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="2" placeholder="请输入备注" />
-        </el-form-item>
-
-        <el-form-item label="交易时间" prop="transaction_time">
-          <el-date-picker
-            v-model="form.transaction_time"
-            type="datetime"
-            placeholder="请选择交易时间"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="modalVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">
-          {{ editingPayment ? '更新' : '添加' }}
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <!-- Upload Screenshot Modal -->
-    <el-dialog
-      v-model="uploadScreenshotModalVisible"
-      title="上传支付截图"
-      width="600px"
-      destroy-on-close
-    >
-      <el-upload
-        ref="uploadRef"
-        v-model:file-list="screenshotFileList"
-        class="upload-area"
-        drag
-        accept=".jpg,.jpeg,.png"
-        :auto-upload="false"
-        :limit="1"
-        :on-change="handleScreenshotChange"
-        :before-upload="beforeScreenshotUpload"
-      >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">
-          点击或拖拽文件到此区域上传
-        </div>
-        <template #tip>
-          <div class="el-upload__tip">
-            支持格式：JPG、JPEG、PNG，最大文件大小：10MB
-          </div>
-        </template>
-      </el-upload>
-
-      <!-- OCR Result Preview -->
-      <el-card v-if="ocrResult" class="ocr-result" shadow="never">
-        <template #header>
-          <span>识别结果（请确认或修改）</span>
-        </template>
-        <el-form
-          ref="ocrFormRef"
-          :model="ocrForm"
-          :rules="rules"
-          label-width="80px"
-        >
-          <el-form-item label="金额" prop="amount">
-            <el-input-number
-              v-model="ocrForm.amount"
-              :min="0"
-              :precision="2"
-              :controls="false"
-              style="width: 100%"
-              placeholder="请输入金额"
-            >
-              <template #prefix>¥</template>
-            </el-input-number>
-          </el-form-item>
-
-          <el-form-item label="商家" prop="merchant">
-            <el-input v-model="ocrForm.merchant" placeholder="请输入商家名称" />
-          </el-form-item>
-
-          <el-form-item label="支付方式" prop="payment_method">
-            <el-select v-model="ocrForm.payment_method" placeholder="请选择支付方式" clearable style="width: 100%">
-              <el-option v-for="m in PAYMENT_METHODS" :key="m" :label="m" :value="m" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="订单号">
-            <el-input v-model="ocrForm.order_number" placeholder="订单号" disabled />
-          </el-form-item>
-
-          <el-form-item label="交易时间" prop="transaction_time">
-            <el-date-picker
-              v-model="ocrForm.transaction_time"
-              type="datetime"
-              placeholder="请选择交易时间"
-              style="width: 100%"
             />
-          </el-form-item>
-
-          <el-form-item label="分类" prop="category">
-            <el-select v-model="ocrForm.category" placeholder="请选择分类" clearable style="width: 100%">
-              <el-option v-for="c in CATEGORIES" :key="c" :label="c" :value="c" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="备注" prop="description">
-            <el-input v-model="ocrForm.description" type="textarea" :rows="2" placeholder="请输入备注" />
-          </el-form-item>
-        </el-form>
-
-        <!-- OCR Raw Text Section -->
-        <el-divider v-if="ocrResult?.raw_text" />
-        <div v-if="ocrResult?.raw_text" class="ocr-raw-text-section">
-          <el-collapse>
-            <el-collapse-item title="点击查看 OCR 识别的原始文本" name="1">
-              <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
-            </el-collapse-item>
-          </el-collapse>
+            <Button :label="'\u4E0A\u4F20\u622A\u56FE'" icon="pi pi-image" severity="success" @click="openScreenshotModal" />
+            <Button :label="'\u6DFB\u52A0\u8BB0\u5F55'" icon="pi pi-plus" @click="openModal()" />
+          </div>
         </div>
-      </el-card>
+      </template>
+      <template #content>
+        <DataTable
+          :value="payments"
+          :loading="loading"
+          :paginator="true"
+          :rows="pageSize"
+          :rowsPerPageOptions="[10, 20, 50, 100]"
+          responsiveLayout="scroll"
+          sortField="transaction_time"
+          :sortOrder="-1"
+        >
+          <Column field="amount" :header="'\u91D1\u989D'" sortable :style="{ width: '120px' }">
+            <template #body="{ data: row }">
+              <span class="amount">{{ formatMoney(row.amount) }}</span>
+            </template>
+          </Column>
+          <Column field="merchant" :header="'\u5546\u5BB6'" />
+          <Column :header="'\u5206\u7C7B'" :style="{ width: '130px' }">
+            <template #body="{ data: row }">
+              <Tag v-if="row.category" severity="info" :value="row.category" />
+              <span v-else>-</span>
+            </template>
+          </Column>
+          <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '160px' }">
+            <template #body="{ data: row }">
+              <Tag v-if="row.payment_method" severity="success" :value="row.payment_method" />
+              <span v-else>-</span>
+            </template>
+          </Column>
+          <Column field="description" :header="'\u5907\u6CE8'" />
+          <Column field="transaction_time" :header="'\u4EA4\u6613\u65F6\u95F4'" sortable :style="{ width: '170px' }">
+            <template #body="{ data: row }">
+              {{ formatDateTime(row.transaction_time) }}
+            </template>
+          </Column>
+          <Column :header="'\u5173\u8054\u53D1\u7968'" :style="{ width: '130px' }">
+            <template #body="{ data: row }">
+              <Button class="p-button-text" :label="`\u67E5\u770B (${linkedInvoicesCount[row.id] || 0})`" @click="viewLinkedInvoices(row)" />
+            </template>
+          </Column>
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '170px' }">
+            <template #body="{ data: row }">
+              <div class="row-actions">
+                <Button class="p-button-text" icon="pi pi-eye" @click="openPaymentDetail(row)" />
+                <Button class="p-button-text" icon="pi pi-pencil" @click="openModal(row)" />
+                <Button class="p-button-text p-button-danger" icon="pi pi-trash" @click="confirmDelete(row.id)" />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </template>
+    </Card>
+
+    <Dialog
+      v-model:visible="modalVisible"
+      modal
+      :header="editingPayment ? '\u7F16\u8F91\u652F\u4ED8\u8BB0\u5F55' : '\u6DFB\u52A0\u652F\u4ED8\u8BB0\u5F55'"
+      :style="{ width: '620px', maxWidth: '92vw' }"
+    >
+      <form class="p-fluid" @submit.prevent="handleSubmit">
+        <div class="grid">
+          <div class="col-12 md:col-6 field">
+            <label for="amount">&#37329;&#39069;</label>
+            <InputNumber id="amount" v-model="form.amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0" />
+            <small v-if="errors.amount" class="p-error">{{ errors.amount }}</small>
+          </div>
+          <div class="col-12 md:col-6 field">
+            <label for="merchant">&#5546;&#23478;</label>
+            <InputText id="merchant" v-model.trim="form.merchant" />
+          </div>
+          <div class="col-12 md:col-6 field">
+            <label for="category">&#20998;&#31867;</label>
+            <Dropdown id="category" v-model="form.category" :options="CATEGORIES" :showClear="true" />
+          </div>
+          <div class="col-12 md:col-6 field">
+            <label for="method">&#25903;&#20184;&#26041;&#24335;</label>
+            <Dropdown id="method" v-model="form.payment_method" :options="PAYMENT_METHODS" :showClear="true" />
+          </div>
+          <div class="col-12 field">
+            <label for="time">&#20132;&#26131;&#26102;&#38388;</label>
+            <Calendar id="time" v-model="form.transaction_time" showTime :manualInput="false" />
+            <small v-if="errors.transaction_time" class="p-error">{{ errors.transaction_time }}</small>
+          </div>
+          <div class="col-12 field">
+            <label for="desc">&#22791;&#27880;</label>
+            <Textarea id="desc" v-model="form.description" autoResize rows="3" />
+          </div>
+        </div>
+        <div class="footer">
+          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="modalVisible = false" />
+          <Button type="submit" :label="'\u4FDD\u5B58'" icon="pi pi-check" />
+        </div>
+      </form>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="uploadScreenshotModalVisible"
+      modal
+      :header="'\u4E0A\u4F20\u652F\u4ED8\u622A\u56FE'"
+      :style="{ width: '880px', maxWidth: '96vw' }"
+      :closable="!uploadingScreenshot && !savingOcrResult"
+    >
+      <div class="grid">
+        <div class="col-12 md:col-6">
+          <div class="upload-box">
+            <FileUpload
+              mode="basic"
+              name="file"
+              accept="image/png,image/jpeg"
+              :maxFileSize="10_485_760"
+              :customUpload="true"
+              :chooseLabel="'\u9009\u62E9\u622A\u56FE'"
+              @select="onScreenshotSelected"
+            />
+            <div v-if="selectedScreenshotName" class="file-name">{{ selectedScreenshotName }}</div>
+            <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
+          </div>
+          <div v-if="ocrResult?.raw_text" class="raw">
+            <div class="raw-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
+            <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
+          </div>
+        </div>
+
+        <div class="col-12 md:col-6">
+          <Message v-if="!ocrResult" severity="info" :closable="false">
+            &#35831;&#36873;&#25321;&#25130;&#22270;&#65292;&#28857;&#20987;&#8220;&#35782;&#21035;&#8221;&#29983;&#25104;&#24405;&#20837;&#24314;&#35758;&#12290;
+          </Message>
+
+          <form v-else class="p-fluid" @submit.prevent="handleSaveOcrResult">
+            <div class="grid">
+              <div class="col-12 md:col-6 field">
+                <label for="ocr_amount">&#37329;&#39069;</label>
+                <InputNumber id="ocr_amount" v-model="ocrForm.amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0" />
+                <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label for="ocr_merchant">&#5546;&#23478;</label>
+                <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label for="ocr_category">&#20998;&#31867;</label>
+                <Dropdown id="ocr_category" v-model="ocrForm.category" :options="CATEGORIES" :showClear="true" />
+              </div>
+              <div class="col-12 md:col-6 field">
+                <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
+                <Dropdown id="ocr_method" v-model="ocrForm.payment_method" :options="PAYMENT_METHODS" :showClear="true" />
+              </div>
+              <div class="col-12 field">
+                <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
+                <Calendar id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
+                <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
+              </div>
+              <div class="col-12 field">
+                <label for="ocr_order">&#20132;&#26131;&#21333;&#21495; (&#21487;&#36873;)</label>
+                <InputText id="ocr_order" v-model.trim="ocrForm.order_number" />
+              </div>
+              <div class="col-12 field">
+                <label for="ocr_desc">&#22791;&#27880;</label>
+                <Textarea id="ocr_desc" v-model="ocrForm.description" autoResize rows="3" />
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <template #footer>
-        <el-button @click="cancelScreenshotUpload">取消</el-button>
-        <el-button 
+        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="cancelScreenshotUpload" />
+        <Button
           v-if="!ocrResult"
-          type="primary" 
+          type="button"
+          :label="'\u8BC6\u522B'"
+          icon="pi pi-search"
           :loading="uploadingScreenshot"
-          :disabled="screenshotFileList.length === 0"
+          :disabled="!selectedScreenshotFile"
           @click="handleScreenshotUpload"
-        >
-          识别
-        </el-button>
-        <el-button 
+        />
+        <Button
           v-else
-          type="primary" 
+          type="button"
+          :label="'\u4FDD\u5B58'"
+          icon="pi pi-check"
           :loading="savingOcrResult"
           @click="handleSaveOcrResult"
-        >
-          保存
-        </el-button>
+        />
       </template>
-    </el-dialog>
+    </Dialog>
 
-    <!-- Linked Invoices Modal -->
-    <el-dialog
-      v-model="linkedInvoicesModalVisible"
-      title="关联的发票"
-      width="800px"
-      destroy-on-close
-    >
+    <Dialog v-model:visible="linkedInvoicesModalVisible" modal :header="'\u5173\u8054\u7684\u53D1\u7968'" :style="{ width: '980px', maxWidth: '96vw' }">
       <div class="match-actions">
-        <el-button
-          type="primary"
-          :loading="loadingSuggestedInvoices"
-          @click="handleRecommendInvoices"
-        >
-          推荐匹配
-        </el-button>
+        <Button :label="'\u63A8\u8350\u5339\u914D'" icon="pi pi-star" :loading="loadingSuggestedInvoices" @click="handleRecommendInvoices" />
       </div>
-
-      <el-table 
-        v-loading="loadingLinkedInvoices"
-        :data="linkedInvoices"
-        max-height="400px"
-      >
-        <el-table-column label="文件名" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="filename">
-              <el-icon color="#1890ff"><Document /></el-icon>
-              {{ row.original_name }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="invoice_number" label="发票号码">
-          <template #default="{ row }">
-            {{ row.invoice_number || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="金额">
-          <template #default="{ row }">
-            <span v-if="row.amount" class="amount">¥{{ row.amount.toFixed(2) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="seller_name" label="销售方" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.seller_name || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="开票日期">
-          <template #default="{ row }">
-            {{ row.invoice_date || '-' }}
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-divider>智能匹配建议</el-divider>
-      <el-table
-        v-loading="loadingSuggestedInvoices"
-        :data="suggestedInvoices"
-        max-height="300px"
-      >
-        <el-table-column label="文件名" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="filename">
-              <el-icon color="#1890ff"><Document /></el-icon>
-              {{ row.original_name }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="invoice_number" label="发票号码">
-          <template #default="{ row }">
-            {{ row.invoice_number || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="金额">
-          <template #default="{ row }">
-            <span v-if="row.amount" class="amount">¥{{ row.amount.toFixed(2) }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="seller_name" label="销售方" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.seller_name || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="开票日期">
-          <template #default="{ row }">
-            {{ row.invoice_date || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="80">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleLinkInvoiceToPayment(row.id)">
-              关联
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0" class="no-data">
-        <el-empty description="暂无推荐" :image-size="60" />
+      <div class="grid">
+        <div class="col-12 md:col-6">
+          <Card>
+            <template #title>&#24050;&#20851;&#32852;</template>
+            <template #content>
+              <DataTable :value="linkedInvoices" :loading="loadingLinkedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
+                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" />
+                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" />
+                <Column :header="'\u91D1\u989D'">
+                  <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
+                </Column>
+                <Column field="seller_name" :header="'\u9500\u552E\u65B9'" />
+                <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" />
+              </DataTable>
+            </template>
+          </Card>
+        </div>
+        <div class="col-12 md:col-6">
+          <Card>
+            <template #title>
+              <div class="suggest-title">
+                <span>&#26234;&#33021;&#25512;&#33616;</span>
+                <Tag severity="info" :value="`${suggestedInvoices.length}\u6761`" />
+              </div>
+            </template>
+            <template #content>
+              <DataTable :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
+                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" />
+                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" />
+                <Column :header="'\u91D1\u989D'">
+                  <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
+                </Column>
+                <Column field="seller_name" :header="'\u9500\u552E\u65B9'" />
+                <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" />
+                <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
+                  <template #body="{ data: row }">
+                    <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
+                  </template>
+                </Column>
+              </DataTable>
+              <div v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0" class="no-data">
+                <i class="pi pi-info-circle" />
+                <span>&#26242;&#26080;&#25512;&#33616;</span>
+              </div>
+            </template>
+          </Card>
+        </div>
       </div>
-
       <template #footer>
-        <el-button @click="linkedInvoicesModalVisible = false">关闭</el-button>
+        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="linkedInvoicesModalVisible = false" />
       </template>
-    </el-dialog>
+    </Dialog>
 
-    <!-- Payment Detail Modal -->
-    <el-dialog
-      v-model="paymentDetailVisible"
-      title="支付记录详情"
-      width="700px"
-      destroy-on-close
-    >
-      <el-descriptions v-if="detailPayment" :column="2" border>
-        <el-descriptions-item label="金额" :span="2">
-          <span class="amount">¥{{ detailPayment.amount?.toFixed(2) || '0.00' }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="商家">
-          {{ detailPayment.merchant || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="支付方式">
-          <el-tag v-if="detailPayment.payment_method" type="success">
-            {{ detailPayment.payment_method }}
-          </el-tag>
-          <span v-else>-</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="分类">
-          <el-tag v-if="detailPayment.category" type="primary">
-            {{ detailPayment.category }}
-          </el-tag>
-          <span v-else>-</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="交易时间">
-          {{ formatDateTime(detailPayment.transaction_time) }}
-        </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">
-          {{ detailPayment.description || '-' }}
-        </el-descriptions-item>
-        
-        <!-- 截图预览 -->
-        <el-descriptions-item v-if="detailPayment.screenshot_path" label="支付截图" :span="2">
-          <el-image 
-            :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`"
-            :preview-src-list="[`${FILE_BASE_URL}/${detailPayment.screenshot_path}`]"
-            fit="contain"
-            style="max-width: 300px; max-height: 400px; cursor: pointer;"
-          />
-        </el-descriptions-item>
-        
-        <!-- OCR 原始文本 -->
-        <el-descriptions-item v-if="detailPayment.extracted_data" label="OCR原始文本" :span="2">
-          <div class="ocr-section">
-            <el-button 
-              type="primary" 
-              link 
-              :icon="Refresh"
-              :loading="reparsingOcr"
-              @click="handleReparseOcr(detailPayment.id)"
-            >
-              重新解析
-            </el-button>
-            <el-collapse>
-              <el-collapse-item title="点击查看 OCR 识别的原始文本" name="1">
-                <pre class="raw-text">{{ getExtractedRawText(detailPayment.extracted_data) }}</pre>
-              </el-collapse-item>
-            </el-collapse>
+    <Dialog v-model:visible="paymentDetailVisible" modal :header="'\u652F\u4ED8\u8BB0\u5F55\u8BE6\u60C5'" :style="{ width: '820px', maxWidth: '96vw' }">
+      <div v-if="detailPayment">
+        <div class="grid">
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#37329;&#39069;</div><div class="v amount">{{ formatMoney(detailPayment.amount || 0) }}</div></div>
           </div>
-        </el-descriptions-item>
-      </el-descriptions>
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#5546;&#23478;</div><div class="v">{{ detailPayment.merchant || '-' }}</div></div>
+          </div>
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#25903;&#20184;&#26041;&#24335;</div><div class="v"><Tag v-if="detailPayment.payment_method" severity="success" :value="detailPayment.payment_method" /><span v-else>-</span></div></div>
+          </div>
+          <div class="col-12 md:col-6">
+            <div class="kv"><div class="k">&#20998;&#31867;</div><div class="v"><Tag v-if="detailPayment.category" severity="info" :value="detailPayment.category" /><span v-else>-</span></div></div>
+          </div>
+          <div class="col-12">
+            <div class="kv"><div class="k">&#20132;&#26131;&#26102;&#38388;</div><div class="v">{{ formatDateTime(detailPayment.transaction_time) }}</div></div>
+          </div>
+          <div class="col-12">
+            <div class="kv"><div class="k">&#22791;&#27880;</div><div class="v">{{ detailPayment.description || '-' }}</div></div>
+          </div>
+        </div>
 
+        <Divider />
+
+        <div v-if="detailPayment.screenshot_path" class="section">
+          <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
+          <Image :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`" preview />
+        </div>
+
+        <div v-if="detailPayment.extracted_data" class="section">
+          <div class="section-title-row">
+            <div class="section-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
+            <Button class="p-button-text" icon="pi pi-refresh" :label="'\u91CD\u65B0\u89E3\u6790'" :loading="reparsingOcr" @click="handleReparseOcr(detailPayment.id)" />
+          </div>
+          <Accordion>
+            <AccordionTab :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
+              <pre class="raw-text">{{ getExtractedRawText(detailPayment.extracted_data || null) }}</pre>
+            </AccordionTab>
+          </Accordion>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="paymentDetailVisible = false">关闭</el-button>
+        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="paymentDetailVisible = false" />
       </template>
-    </el-dialog>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules, type UploadFile, type UploadRawFile } from 'element-plus'
-import { Plus, Edit, Delete, Wallet, ShoppingCart, Upload, UploadFilled, Document, View, Refresh } from '@element-plus/icons-vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import dayjs from 'dayjs'
-import { paymentApi, invoiceApi, FILE_BASE_URL } from '@/api'
-import type { Payment, Invoice } from '@/types'
+import Accordion from 'primevue/accordion'
+import AccordionTab from 'primevue/accordiontab'
+import Button from 'primevue/button'
+import Calendar from 'primevue/calendar'
+import Card from 'primevue/card'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
+import Dialog from 'primevue/dialog'
+import Divider from 'primevue/divider'
+import Dropdown from 'primevue/dropdown'
+import FileUpload from 'primevue/fileupload'
+import Image from 'primevue/image'
+import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
+import Tag from 'primevue/tag'
+import Textarea from 'primevue/textarea'
+import { useConfirm } from 'primevue/useconfirm'
+import { useToast } from 'primevue/usetoast'
+import { invoiceApi, paymentApi, FILE_BASE_URL } from '@/api'
+import type { Invoice, Payment } from '@/types'
 
-// Interface for OCR extracted data
 interface OcrExtractedData {
   amount?: number
   merchant?: string
@@ -513,36 +393,61 @@ interface OcrExtractedData {
   raw_text?: string
 }
 
-const CATEGORIES = ['餐饮', '交通', '购物', '娱乐', '住房', '医疗', '教育', '通讯', '其他']
-const PAYMENT_METHODS = ['微信支付', '支付宝', '银行卡', '现金', '信用卡', '其他']
+const toast = useToast()
+const confirm = useConfirm()
+
+const CATEGORIES = ['\u9910\u996E', '\u4EA4\u901A', '\u8D2D\u7269', '\u5A31\u4E50', '\u4F4F\u623F', '\u533B\u7597', '\u6559\u80B2', '\u901A\u8BAF', '\u5176\u4ED6']
+const PAYMENT_METHODS = ['\u5FAE\u4FE1\u652F\u4ED8', '\u652F\u4ED8\u5B9D', '\u94F6\u884C\u5361', '\u73B0\u91D1', '\u4FE1\u7528\u5361', '\u5176\u4ED6']
 
 const loading = ref(false)
 const payments = ref<Payment[]>([])
-const modalVisible = ref(false)
-const editingPayment = ref<Payment | null>(null)
-const formRef = ref<FormInstance>()
-
-const currentPage = ref(1)
 const pageSize = ref(10)
-const dateRange = ref<[string, string] | null>(null)
+const dateRange = ref<Date[] | null>(null)
 const categoryFilter = ref<string | null>(null)
 
-const stats = ref<{
-  totalAmount: number
-  totalCount: number
-  categoryStats: Record<string, number>
-} | null>(null)
+const stats = ref<{ totalAmount: number; totalCount: number; categoryStats: Record<string, number> } | null>(null)
+const avgAmount = computed(() => {
+  const count = stats.value?.totalCount || 0
+  const total = stats.value?.totalAmount || 0
+  return count ? total / count : 0
+})
 
-// Screenshot upload state
+// Payment CRUD dialog
+const modalVisible = ref(false)
+const editingPayment = ref<Payment | null>(null)
+
+const form = reactive({
+  amount: 0,
+  merchant: '',
+  category: '',
+  payment_method: '',
+  description: '',
+  transaction_time: new Date(),
+})
+const errors = reactive({ amount: '', transaction_time: '' })
+
+// Screenshot upload + OCR
 const uploadScreenshotModalVisible = ref(false)
 const uploadingScreenshot = ref(false)
 const savingOcrResult = ref(false)
-const screenshotFileList = ref<UploadFile[]>([])
+const selectedScreenshotFile = ref<File | null>(null)
+const selectedScreenshotName = ref('')
+const screenshotError = ref('')
 const ocrResult = ref<OcrExtractedData | null>(null)
-const ocrFormRef = ref<FormInstance>()
 const uploadedPaymentId = ref<string | null>(null)
 
-// Linked invoices state
+const ocrForm = reactive({
+  amount: 0,
+  merchant: '',
+  category: '',
+  payment_method: '',
+  description: '',
+  transaction_time: new Date(),
+  order_number: '',
+})
+const ocrErrors = reactive({ amount: '', transaction_time: '' })
+
+// Linked invoices
 const linkedInvoicesModalVisible = ref(false)
 const loadingLinkedInvoices = ref(false)
 const linkedInvoices = ref<Invoice[]>([])
@@ -552,52 +457,40 @@ const loadingSuggestedInvoices = ref(false)
 const suggestedInvoices = ref<Invoice[]>([])
 const linkingInvoiceToPayment = ref(false)
 
-// Payment detail state
+// Detail dialog
 const paymentDetailVisible = ref(false)
 const detailPayment = ref<Payment | null>(null)
 const reparsingOcr = ref(false)
 
-const form = reactive({
-  amount: 0,
-  merchant: '',
-  category: '',
-  payment_method: '',
-  description: '',
-  transaction_time: new Date()
-})
+const validatePaymentForm = () => {
+  errors.amount = ''
+  errors.transaction_time = ''
+  if (form.amount === null || Number.isNaN(Number(form.amount)) || Number(form.amount) <= 0) errors.amount = '\u8BF7\u8F93\u5165\u91D1\u989D'
+  if (!form.transaction_time) errors.transaction_time = '\u8BF7\u9009\u62E9\u4EA4\u6613\u65F6\u95F4'
+  return !errors.amount && !errors.transaction_time
+}
 
-const ocrForm = reactive({
-  amount: 0,
-  merchant: '',
-  category: '',
-  payment_method: '',
-  description: '',
-  transaction_time: new Date(),
-  order_number: ''
-})
-
-const rules: FormRules = {
-  amount: [{ required: true, message: '请输入金额', trigger: 'blur' }],
-  transaction_time: [{ required: true, message: '请选择交易时间', trigger: 'change' }]
+const validateOcrForm = () => {
+  ocrErrors.amount = ''
+  ocrErrors.transaction_time = ''
+  if (ocrForm.amount === null || Number.isNaN(Number(ocrForm.amount)) || Number(ocrForm.amount) <= 0) ocrErrors.amount = '\u8BF7\u8F93\u5165\u91D1\u989D'
+  if (!ocrForm.transaction_time) ocrErrors.transaction_time = '\u8BF7\u9009\u62E9\u4EA4\u6613\u65F6\u95F4'
+  return !ocrErrors.amount && !ocrErrors.transaction_time
 }
 
 const loadPayments = async () => {
   loading.value = true
   try {
     const params: Record<string, string> = {}
-    if (dateRange.value) {
+    if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
       params.startDate = dayjs(dateRange.value[0]).startOf('day').toISOString()
       params.endDate = dayjs(dateRange.value[1]).endOf('day').toISOString()
     }
-    if (categoryFilter.value) {
-      params.category = categoryFilter.value
-    }
+    if (categoryFilter.value) params.category = categoryFilter.value
     const res = await paymentApi.getAll(params)
-    if (res.data.success && res.data.data) {
-      payments.value = res.data.data
-    }
+    if (res.data.success && res.data.data) payments.value = res.data.data
   } catch {
-    ElMessage.error('加载支付记录失败')
+    toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u652F\u4ED8\u8BB0\u5F55\u5931\u8D25', life: 3000 })
   } finally {
     loading.value = false
   }
@@ -605,18 +498,52 @@ const loadPayments = async () => {
 
 const loadStats = async () => {
   try {
-    const startDate = dateRange.value ? dayjs(dateRange.value[0]).startOf('day').toISOString() : undefined
-    const endDate = dateRange.value ? dayjs(dateRange.value[1]).endOf('day').toISOString() : undefined
+    const startDate = dateRange.value?.[0] ? dayjs(dateRange.value[0]).startOf('day').toISOString() : undefined
+    const endDate = dateRange.value?.[1] ? dayjs(dateRange.value[1]).endOf('day').toISOString() : undefined
     const res = await paymentApi.getStats(startDate, endDate)
-    if (res.data.success && res.data.data) {
-      stats.value = res.data.data
-    }
+    if (res.data.success && res.data.data) stats.value = res.data.data
   } catch (error) {
     console.error('Load stats failed:', error)
   }
 }
 
+const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
+const formatMoney = (value: number) => `\u00A5${(value || 0).toFixed(2)}`
+
+const loadLinkedInvoicesCount = async () => {
+  try {
+    const counts: Record<string, number> = {}
+    for (const payment of payments.value) {
+      try {
+        const res = await paymentApi.getPaymentInvoices(payment.id)
+        if (res.data.success && res.data.data) counts[payment.id] = res.data.data.length
+      } catch {
+        counts[payment.id] = 0
+      }
+    }
+    linkedInvoicesCount.value = counts
+  } catch (error) {
+    console.error('Load linked invoices count failed:', error)
+  }
+}
+
+const loadPaymentsWithCount = async () => {
+  await loadPayments()
+  await loadLinkedInvoicesCount()
+}
+
+const handleDateChange = () => {
+  loadPaymentsWithCount()
+  loadStats()
+}
+
+const handleFilterChange = () => {
+  loadPaymentsWithCount()
+}
+
 const openModal = (payment?: Payment) => {
+  errors.amount = ''
+  errors.transaction_time = ''
   if (payment) {
     editingPayment.value = payment
     form.amount = payment.amount
@@ -638,188 +565,170 @@ const openModal = (payment?: Payment) => {
 }
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    try {
-      const payload = {
-        amount: form.amount,
-        merchant: form.merchant,
-        category: form.category,
-        payment_method: form.payment_method,
-        description: form.description,
-        transaction_time: dayjs(form.transaction_time).toISOString()
-      }
-
-      if (editingPayment.value) {
-        await paymentApi.update(editingPayment.value.id, payload)
-        ElMessage.success('支付记录更新成功')
-      } else {
-        await paymentApi.create(payload)
-        ElMessage.success('支付记录创建成功')
-      }
-
-      modalVisible.value = false
-      loadPayments()
-      loadStats()
-    } catch {
-      ElMessage.error('操作失败')
+  if (!validatePaymentForm()) return
+  try {
+    const payload = {
+      amount: Number(form.amount),
+      merchant: form.merchant,
+      category: form.category,
+      payment_method: form.payment_method,
+      description: form.description,
+      transaction_time: dayjs(form.transaction_time).toISOString(),
     }
+    if (editingPayment.value) {
+      await paymentApi.update(editingPayment.value.id, payload)
+      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
+    } else {
+      await paymentApi.create(payload)
+      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u521B\u5EFA\u6210\u529F', life: 2000 })
+    }
+    modalVisible.value = false
+    await loadPaymentsWithCount()
+    await loadStats()
+  } catch {
+    toast.add({ severity: 'error', summary: '\u64CD\u4F5C\u5931\u8D25', life: 3000 })
+  }
+}
+
+const confirmDelete = (id: string) => {
+  confirm.require({
+    message: '\u786E\u5B9A\u5220\u9664\u8BE5\u6761\u8BB0\u5F55\u5417\uFF1F',
+    header: '\u5220\u9664\u786E\u8BA4',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '\u5220\u9664',
+    rejectLabel: '\u53D6\u6D88',
+    acceptClass: 'p-button-danger',
+    accept: () => handleDelete(id),
   })
 }
 
 const handleDelete = async (id: string) => {
   try {
     await paymentApi.delete(id)
-    ElMessage.success('删除成功')
-    loadPayments()
-    loadStats()
+    toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    await loadPaymentsWithCount()
+    await loadStats()
   } catch {
-    ElMessage.error('删除失败')
+    toast.add({ severity: 'error', summary: '\u5220\u9664\u5931\u8D25', life: 3000 })
   }
 }
 
-const handleDateChange = () => {
-  loadPayments()
-  loadStats()
+const openScreenshotModal = () => {
+  resetScreenshotUploadState()
+  uploadScreenshotModalVisible.value = true
 }
 
-const handleFilterChange = () => {
-  loadPayments()
-}
-
-const formatDateTime = (date: string) => {
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
-}
-
-// Load linked invoices count for all payments
-const loadLinkedInvoicesCount = async () => {
-  try {
-    const counts: Record<string, number> = {}
-    for (const payment of payments.value) {
-      try {
-        const res = await paymentApi.getPaymentInvoices(payment.id)
-        if (res.data.success && res.data.data) {
-          counts[payment.id] = res.data.data.length
-        }
-      } catch {
-        counts[payment.id] = 0
-      }
-    }
-    linkedInvoicesCount.value = counts
-  } catch (error) {
-    console.error('Load linked invoices count failed:', error)
+const onScreenshotSelected = (event: any) => {
+  screenshotError.value = ''
+  const file: File | undefined = event?.files?.[0]
+  if (!file) {
+    selectedScreenshotFile.value = null
+    selectedScreenshotName.value = ''
+    return
   }
-}
 
-// Screenshot upload functions
-const handleScreenshotChange = (_file: UploadFile, uploadFiles: UploadFile[]) => {
-  screenshotFileList.value = uploadFiles
-}
-
-const beforeScreenshotUpload = (rawFile: UploadRawFile) => {
   const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
-  if (!validTypes.includes(rawFile.type)) {
-    ElMessage.error('只支持 JPG、JPEG、PNG 格式的图片')
-    return false
+  if (!validTypes.includes(file.type)) {
+    screenshotError.value = '\u53EA\u652F\u6301 JPG\u3001JPEG\u3001PNG \u683C\u5F0F\u7684\u56FE\u7247'
+    selectedScreenshotFile.value = null
+    selectedScreenshotName.value = ''
+    return
   }
-  const maxSize = 10 * 1024 * 1024 // 10MB
-  if (rawFile.size > maxSize) {
-    ElMessage.error('文件大小不能超过 10MB')
-    return false
+
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    screenshotError.value = '\u6587\u4EF6\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 10MB'
+    selectedScreenshotFile.value = null
+    selectedScreenshotName.value = ''
+    return
   }
-  return true
+
+  selectedScreenshotFile.value = file
+  selectedScreenshotName.value = file.name
 }
 
 const handleScreenshotUpload = async () => {
-  if (screenshotFileList.value.length === 0) {
-    ElMessage.warning('请选择文件')
+  if (!selectedScreenshotFile.value) {
+    toast.add({ severity: 'warn', summary: '\u8BF7\u9009\u62E9\u6587\u4EF6', life: 2200 })
     return
   }
 
   uploadingScreenshot.value = true
   try {
-    const file = screenshotFileList.value[0].raw as File
-    const res = await paymentApi.uploadScreenshot(file)
+    const res = await paymentApi.uploadScreenshot(selectedScreenshotFile.value)
     if (res.data.success && res.data.data) {
       const { payment, extracted, ocr_error } = res.data.data as any
-      
-      // Save payment ID for later update
       uploadedPaymentId.value = payment.id
-      
       ocrResult.value = extracted
-      
-      // Fill OCR form with extracted data
+
       ocrForm.amount = extracted.amount || 0
       ocrForm.merchant = extracted.merchant || ''
       ocrForm.payment_method = extracted.payment_method || ''
       ocrForm.order_number = extracted.order_number || ''
-      ocrForm.transaction_time = extracted.transaction_time 
-        ? new Date(extracted.transaction_time) 
-        : new Date()
+      ocrForm.transaction_time = extracted.transaction_time ? new Date(extracted.transaction_time) : new Date()
       ocrForm.category = ''
       ocrForm.description = ''
-      
+
       if (ocr_error) {
-        ElMessage.warning(`截图上传成功，但 OCR 识别失败：${ocr_error}`)
+        toast.add({
+          severity: 'warn',
+          summary: `\u622A\u56FE\u4E0A\u4F20\u6210\u529F\uFF0C\u4F46 OCR \u8BC6\u522B\u5931\u8D25\uFF1A${ocr_error}`,
+          life: 5000,
+        })
       } else {
-        ElMessage.success('截图识别成功，请确认或修改识别结果')
+        toast.add({
+          severity: 'success',
+          summary: '\u622A\u56FE\u8BC6\u522B\u6210\u529F\uFF0C\u8BF7\u786E\u8BA4\u6216\u4FEE\u6539\u8BC6\u522B\u7ED3\u679C',
+          life: 2500,
+        })
       }
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string; error?: string } } }
-    const message = err.response?.data?.message || '截图识别失败'
+    const message = err.response?.data?.message || '\u622A\u56FE\u8BC6\u522B\u5931\u8D25'
     const detail = err.response?.data?.error
-    ElMessage.error(detail ? `${message}：${detail}` : message)
+    toast.add({ severity: 'error', summary: detail ? `${message}\uFF1A${detail}` : message, life: 5000 })
   } finally {
     uploadingScreenshot.value = false
   }
 }
 
 const handleSaveOcrResult = async () => {
-  if (!ocrFormRef.value) return
-
-  await ocrFormRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    savingOcrResult.value = true
-    try {
-      const payload = {
-        amount: ocrForm.amount,
-        merchant: ocrForm.merchant,
-        category: ocrForm.category,
-        payment_method: ocrForm.payment_method,
-        description: ocrForm.description,
-        transaction_time: dayjs(ocrForm.transaction_time).toISOString()
-      }
-
-      // Update the existing payment record instead of creating a new one
-      if (uploadedPaymentId.value) {
-        await paymentApi.update(uploadedPaymentId.value, payload)
-        ElMessage.success('支付记录更新成功')
-      } else {
-        await paymentApi.create(payload)
-        ElMessage.success('支付记录创建成功')
-      }
-      
-      // Important: do not delete the payment record after saving
-      resetScreenshotUploadState()
-      loadPayments()
-      loadStats()
-      loadLinkedInvoicesCount()
-    } catch {
-      ElMessage.error('保存失败')
-    } finally {
-      savingOcrResult.value = false
+  if (!validateOcrForm()) return
+  savingOcrResult.value = true
+  try {
+    const payload = {
+      amount: Number(ocrForm.amount),
+      merchant: ocrForm.merchant,
+      category: ocrForm.category,
+      payment_method: ocrForm.payment_method,
+      description: ocrForm.description,
+      transaction_time: dayjs(ocrForm.transaction_time).toISOString(),
     }
-  })
+
+    if (uploadedPaymentId.value) {
+      await paymentApi.update(uploadedPaymentId.value, payload)
+      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
+    } else {
+      await paymentApi.create(payload)
+      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u521B\u5EFA\u6210\u529F', life: 2000 })
+    }
+
+    resetScreenshotUploadState()
+    await loadPaymentsWithCount()
+    await loadStats()
+  } catch {
+    toast.add({ severity: 'error', summary: '\u4FDD\u5B58\u5931\u8D25', life: 3000 })
+  } finally {
+    savingOcrResult.value = false
+  }
 }
 
 const resetScreenshotUploadState = () => {
   uploadedPaymentId.value = null
-  screenshotFileList.value = []
+  selectedScreenshotFile.value = null
+  selectedScreenshotName.value = ''
+  screenshotError.value = ''
   ocrResult.value = null
   ocrForm.amount = 0
   ocrForm.merchant = ''
@@ -832,59 +741,44 @@ const resetScreenshotUploadState = () => {
 }
 
 const cancelScreenshotUpload = () => {
-  // If user cancels after uploading, delete the created payment record
   if (uploadedPaymentId.value) {
-    paymentApi.delete(uploadedPaymentId.value).catch((error) => {
-      // Log deletion errors for debugging, but don't show to user
-      console.error('Failed to delete payment record:', error)
-    })
+    paymentApi.delete(uploadedPaymentId.value).catch((error) => console.error('Failed to delete payment record:', error))
   }
   resetScreenshotUploadState()
 }
 
-// Linked invoices functions
 const viewLinkedInvoices = async (payment: Payment) => {
   currentPaymentForInvoices.value = payment
   linkedInvoicesModalVisible.value = true
   loadingLinkedInvoices.value = true
   suggestedInvoices.value = []
-  
   try {
     const res = await paymentApi.getPaymentInvoices(payment.id)
-    if (res.data.success && res.data.data) {
-      linkedInvoices.value = res.data.data
-    }
+    if (res.data.success && res.data.data) linkedInvoices.value = res.data.data
   } catch {
-    ElMessage.error('加载关联发票失败')
+    toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u5173\u8054\u53D1\u7968\u5931\u8D25', life: 3000 })
   } finally {
     loadingLinkedInvoices.value = false
   }
-
   await refreshSuggestedInvoices({ showToast: false })
 }
 
 const refreshSuggestedInvoices = async (opts?: { showToast?: boolean }) => {
   if (!currentPaymentForInvoices.value) return
-
   loadingSuggestedInvoices.value = true
   try {
     const res = await paymentApi.getSuggestedInvoices(currentPaymentForInvoices.value.id, { debug: true })
     suggestedInvoices.value = res.data.success && res.data.data ? res.data.data : []
     if (opts?.showToast) {
       if (suggestedInvoices.value.length > 0) {
-        ElMessage.success(`推荐到 ${suggestedInvoices.value.length} 张可关联的发票`)
-      } else {
-        // If user just linked an invoice, empty suggestions are expected.
-        if (!linkingInvoiceToPayment.value && linkedInvoices.value.length === 0) {
-          ElMessage.warning('没有找到可推荐的发票')
-        }
+        toast.add({ severity: 'success', summary: `\u63A8\u8350\u5230 ${suggestedInvoices.value.length} \u5F20\u53EF\u5173\u8054\u7684\u53D1\u7968`, life: 2500 })
+      } else if (!linkingInvoiceToPayment.value && linkedInvoices.value.length === 0) {
+        toast.add({ severity: 'warn', summary: '\u6CA1\u6709\u627E\u5230\u53EF\u63A8\u8350\u7684\u53D1\u7968', life: 2500 })
       }
     }
   } catch {
     suggestedInvoices.value = []
-    if (opts?.showToast) {
-      ElMessage.error('推荐匹配失败')
-    }
+    if (opts?.showToast) toast.add({ severity: 'error', summary: '\u63A8\u8350\u5339\u914D\u5931\u8D25', life: 3000 })
   } finally {
     loadingSuggestedInvoices.value = false
   }
@@ -896,23 +790,20 @@ const handleRecommendInvoices = async () => {
 
 const handleLinkInvoiceToPayment = async (invoiceId: string) => {
   if (!currentPaymentForInvoices.value) return
-
   try {
     linkingInvoiceToPayment.value = true
     await invoiceApi.linkPayment(invoiceId, currentPaymentForInvoices.value.id)
-    ElMessage.success('关联成功')
-    // Refresh lists and counts
+    toast.add({ severity: 'success', summary: '\u5173\u8054\u6210\u529F', life: 2000 })
     await viewLinkedInvoices(currentPaymentForInvoices.value)
-    loadLinkedInvoicesCount()
+    await loadLinkedInvoicesCount()
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
-    ElMessage.error(err.response?.data?.message || '关联失败')
+    toast.add({ severity: 'error', summary: err.response?.data?.message || '\u5173\u8054\u5931\u8D25', life: 3500 })
   } finally {
     linkingInvoiceToPayment.value = false
   }
 }
 
-// Payment detail functions
 const openPaymentDetail = (payment: Payment) => {
   detailPayment.value = payment
   paymentDetailVisible.value = true
@@ -933,29 +824,19 @@ const handleReparseOcr = async (paymentId: string) => {
   try {
     const res = await paymentApi.reparseScreenshot(paymentId)
     if (res.data.success) {
-      ElMessage.success('重新解析成功')
-      // Refresh detail data
+      toast.add({ severity: 'success', summary: '\u91CD\u65B0\u89E3\u6790\u6210\u529F', life: 2000 })
       const detailRes = await paymentApi.getById(paymentId)
-      if (detailRes.data.success && detailRes.data.data) {
-        detailPayment.value = detailRes.data.data
-      }
-      // Refresh list
-      loadPayments()
+      if (detailRes.data.success && detailRes.data.data) detailPayment.value = detailRes.data.data
+      await loadPaymentsWithCount()
     }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string; error?: string } } }
-    const message = err.response?.data?.message || '重新解析失败'
+    const message = err.response?.data?.message || '\u91CD\u65B0\u89E3\u6790\u5931\u8D25'
     const detail = err.response?.data?.error
-    ElMessage.error(detail ? `${message}：${detail}` : message)
+    toast.add({ severity: 'error', summary: detail ? `${message}\uFF1A${detail}` : message, life: 5000 })
   } finally {
     reparsingOcr.value = false
   }
-}
-
-// Load linked invoices count when payments are loaded
-const loadPaymentsWithCount = async () => {
-  await loadPayments()
-  await loadLinkedInvoicesCount()
 }
 
 onMounted(() => {
@@ -965,386 +846,176 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.stats-row {
-  margin-bottom: 16px;
-}
-
-.stats-row :deep(.el-card) {
-  transition: all var(--transition-base);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-}
-
-.stats-row :deep(.el-card:hover) {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.stats-row :deep(.el-statistic__head) {
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
-}
-
-.stats-row :deep(.el-statistic__content) {
-  font-weight: 700;
-}
-
-.stats-row :deep(.el-icon) {
-  transition: transform var(--transition-base);
-}
-
-.stats-row :deep(.el-card:hover .el-icon) {
-  transform: scale(1.1);
-}
-
-.card-header {
+.page {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   flex-wrap: wrap;
-  gap: 12px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.amount {
+  font-weight: 900;
+  color: #cf1322;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.stat-title {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.stat-value {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.stat-icon {
+  font-size: 20px;
+  padding: 12px;
+  border-radius: 14px;
+}
+
+.stat-icon.danger {
+  background: rgba(245, 34, 45, 0.1);
+  color: #cf1322;
+}
+
+.stat-icon.success {
+  background: rgba(82, 196, 26, 0.12);
+  color: #389e0d;
+}
+
+.stat-icon.info {
+  background: rgba(24, 144, 255, 0.12);
+  color: #096dd9;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.upload-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed rgba(102, 126, 234, 0.35);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.03), rgba(118, 75, 162, 0.03));
+}
+
+.file-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
+}
+
+.raw-title {
+  font-weight: 800;
+  color: var(--color-text-secondary);
+  margin: 12px 0 6px;
+}
+
+.raw-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.03);
+  padding: 10px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .match-actions {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+.suggest-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .no-data {
-  padding: 12px 0;
-}
-
-.header-controls {
+  margin-top: 10px;
   display: flex;
-  gap: 12px;
   align-items: center;
-  flex-wrap: wrap;
-}
-
-.header-controls :deep(.el-date-editor) {
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-.header-controls :deep(.el-date-editor:hover) {
-  box-shadow: var(--shadow-md);
-}
-
-.header-controls :deep(.el-select) {
-  border-radius: var(--radius-md);
-}
-
-/* Enhanced table styles */
-:deep(.el-table) {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-:deep(.el-table thead) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.06), rgba(118, 75, 162, 0.06));
-}
-
-:deep(.el-table th) {
-  background: transparent !important;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
-}
-
-:deep(.el-table td) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-/* Zebra striping */
-:deep(.el-table tbody tr:nth-child(even)) {
-  background: rgba(0, 0, 0, 0.02);
-}
-
-/* Row hover effect */
-:deep(.el-table tbody tr) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-table tbody tr:hover) {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08)) !important;
-  transform: scale(1.002);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
-}
-
-.amount {
-  color: #f5222d;
-  font-weight: bold;
-  font-size: 15px;
-  font-family: var(--font-mono);
-}
-
-/* Enhanced tags */
-:deep(.el-tag) {
-  border-radius: var(--radius-sm);
-  font-weight: 500;
-  border: none;
-  padding: 4px 10px;
-  transition: all var(--transition-base);
-}
-
-:deep(.el-tag:hover) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-tag.el-tag--primary) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
-  color: #667eea;
-}
-
-:deep(.el-tag.el-tag--success) {
-  background: linear-gradient(135deg, rgba(67, 233, 123, 0.15), rgba(56, 249, 215, 0.15));
-  color: #43e97b;
-}
-
-/* Button enhancements */
-:deep(.el-button) {
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-button.is-link) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-button.is-link:hover) {
-  transform: scale(1.1);
-}
-
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-:deep(.el-pagination) {
   gap: 8px;
-}
-
-:deep(.el-pagination button),
-:deep(.el-pagination .el-pager li) {
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-pagination button:hover),
-:deep(.el-pagination .el-pager li:hover) {
-  transform: translateY(-1px);
-}
-
-:deep(.el-pagination .el-pager li.is-active) {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-}
-
-/* Modal enhancements */
-:deep(.el-dialog) {
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 20px 24px;
-}
-
-:deep(.el-dialog__title) {
-  font-weight: 600;
-  font-size: 18px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-:deep(.el-dialog__body) {
-  padding: 24px;
-}
-
-:deep(.el-dialog__footer) {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 16px 24px;
-}
-
-/* Form enhancements */
-:deep(.el-form-item__label) {
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-:deep(.el-input__wrapper),
-:deep(.el-textarea__inner),
-:deep(.el-input-number),
-:deep(.el-select .el-input__wrapper) {
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-input__wrapper:hover),
-:deep(.el-textarea__inner:hover) {
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-input__wrapper.is-focus),
-:deep(.el-textarea__inner:focus) {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-:deep(.el-input-number) {
-  width: 100%;
-}
-
-:deep(.el-input-number .el-input__wrapper) {
-  padding-left: 30px;
-}
-
-/* Popconfirm enhancement */
-:deep(.el-popconfirm__main) {
-  margin-bottom: 12px;
-}
-
-/* Card enhancement */
-:deep(.el-card) {
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-card__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 18px 20px;
-  font-weight: 600;
-}
-
-/* Loading state */
-:deep(.el-loading-mask) {
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-/* Upload area styles */
-.upload-area {
-  width: 100%;
-}
-
-.upload-area :deep(.el-upload) {
-  width: 100%;
-}
-
-.upload-area :deep(.el-upload-dragger) {
-  width: 100%;
-  border-radius: var(--radius-lg);
-  border: 2px dashed rgba(102, 126, 234, 0.3);
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.03), rgba(118, 75, 162, 0.03));
-  transition: all var(--transition-base);
-}
-
-.upload-area :deep(.el-upload-dragger:hover) {
-  border-color: #667eea;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
-  transform: translateY(-2px);
-}
-
-.upload-area :deep(.el-upload-dragger .el-icon) {
-  color: #667eea;
-  font-size: 48px;
-  transition: all var(--transition-base);
-}
-
-.upload-area :deep(.el-upload-dragger:hover .el-icon) {
-  transform: scale(1.1);
-}
-
-.upload-area :deep(.el-upload__text) {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.upload-area :deep(.el-upload__tip) {
-  margin-top: 8px;
   color: var(--color-text-tertiary);
-  font-size: 13px;
+  font-weight: 700;
 }
 
-/* OCR result card */
-.ocr-result {
-  margin-top: 16px;
-  border: 1px solid rgba(102, 126, 234, 0.2);
+.kv {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
 }
 
-.ocr-result :deep(.el-card__header) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
-  font-weight: 600;
-  color: #667eea;
+.k {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text-tertiary);
 }
 
-.filename {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
+.v {
+  margin-top: 6px;
+  font-weight: 700;
   color: var(--color-text-primary);
 }
 
-.filename :deep(.el-icon) {
-  transition: transform var(--transition-base);
+.section {
+  margin-top: 12px;
 }
 
-.filename:hover :deep(.el-icon) {
-  transform: scale(1.1);
-}
-
-@media (max-width: 768px) {
-  .header-controls {
-    width: 100%;
-  }
-  
-  .header-controls > * {
-    flex: 1;
-    min-width: 0;
-  }
-  
-  :deep(.el-table) {
-    font-size: 13px;
-  }
-  
-  .amount {
-    font-size: 14px;
-  }
-}
-
-/* OCR raw text section */
-.ocr-raw-text-section {
-  margin-top: 16px;
-}
-
-.raw-text {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  max-height: 300px;
-  overflow-y: auto;
-  background: #f5f5f5;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  line-height: 1.6;
-  font-family: var(--font-mono);
-}
-
-.ocr-section {
-  width: 100%;
-}
-
-.ocr-section .el-button {
+.section-title {
+  font-weight: 900;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
 }
 </style>

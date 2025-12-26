@@ -29,13 +29,13 @@
 }
 
 /* Card hover effects */
-.el-card {
+.p-card {
   transition: all var(--transition-base);
   border-radius: var(--radius-lg);
   animation: fadeIn 0.3s ease;
 }
 
-.el-card:hover {
+.p-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
@@ -175,16 +175,16 @@
 }
 
 /* Button enhancements */
-.el-button {
+.p-button {
   transition: all var(--transition-base);
 }
 
-.el-button:hover {
+.p-button:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
-.el-button:active {
+.p-button:active {
   transform: translateY(0);
 }
 
@@ -204,7 +204,7 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .el-main {
+  .main {
     padding: 12px !important;
   }
   

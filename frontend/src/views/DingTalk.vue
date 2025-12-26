@@ -1,236 +1,194 @@
 <template>
-  <div>
-    <!-- Info Alert -->
-    <el-alert
-      title="钉钉机器人配置说明"
-      type="info"
-      :closable="false"
-      class="info-alert"
-    >
-      <template #default>
-        <p><strong>1. 创建钉钉机器人：</strong></p>
-        <p>在钉钉群设置中添加「自定义机器人」，获取Webhook地址和安全设置</p>
-        <p><strong>2. 配置机器人：</strong></p>
-        <p>- 如需下载文件功能，请在钉钉开放平台创建企业内部应用获取App Key和App Secret</p>
-        <p>- 如需签名验证，请配置Webhook Token（机器人安全设置中的加签密钥）</p>
-        <p><strong>3. 设置回调地址：</strong></p>
-        <p>创建配置后，复制Webhook URL设置到钉钉机器人的消息接收地址</p>
-        <p><strong>4. 发送发票：</strong></p>
-        <p>在钉钉群中@机器人并发送PDF发票文件，系统将自动解析并保存</p>
-      </template>
-    </el-alert>
+  <div class="page">
+    <Message severity="info" :closable="false" class="info">
+      <div class="info-title">&#38025;&#38025;&#26426;&#22120;&#20154;&#37197;&#32622;&#35828;&#26126;</div>
+      <ul class="info-list">
+        <li>&#21019;&#24314;&#19968;&#20010;&#38025;&#38025;&#26426;&#22120;&#20154;&#65292;&#25214;&#21040;&#23427;&#30340; Webhook</li>
+        <li>&#22914;&#26524;&#24320;&#21551;&#20102;&#23433;&#20840;&#35774;&#32622;&#65288;&#22914;&#21152;&#31614;&#65289;&#65292;&#35831;&#22312;&#19979;&#26041;&#22635;&#20889;&#23545;&#24212;&#23383;&#27573;</li>
+        <li>&#20445;&#23384;&#21518;&#65292;&#28857;&#20987;&#8220;Copy Webhook URL&#8221; &#33719;&#21462;&#21518;&#21488;&#25509;&#25910;&#22320;&#22336;</li>
+      </ul>
+    </Message>
 
-    <!-- DingTalk Config Card -->
-    <el-card class="config-card">
-      <template #header>
-        <div class="card-header">
-          <span>钉钉机器人配置</span>
-          <el-button type="primary" :icon="Plus" @click="openModal">
-            添加机器人
-          </el-button>
+    <Card class="panel">
+      <template #title>
+        <div class="panel-title">
+          <span>&#38025;&#38025;&#37197;&#32622;</span>
+          <div class="panel-actions">
+            <Button :label="'\u5237\u65B0'" icon="pi pi-refresh" class="p-button-outlined" @click="loadConfigs" />
+            <Button :label="'\u6DFB\u52A0\u914D\u7F6E'" icon="pi pi-plus" @click="openModal" />
+          </div>
         </div>
       </template>
+      <template #content>
+        <DataTable :value="configs" :loading="loading" :paginator="true" :rows="10" responsiveLayout="scroll">
+          <Column field="name" :header="'\u914D\u7F6E\u540D\u79F0'" />
+          <Column :header="'\u72B6\u6001'">
+            <template #body="{ data: row }">
+              <Tag :severity="row.is_active ? 'success' : 'secondary'" :value="row.is_active ? '\u542F\u7528' : '\u7981\u7528'" />
+            </template>
+          </Column>
+          <Column :header="'Webhook'">
+            <template #body="{ data: row }">
+              <span class="webhook">{{ getWebhookUrl(row.id) }}</span>
+            </template>
+          </Column>
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '220px' }">
+            <template #body="{ data: row }">
+              <div class="actions">
+                <Button
+                  size="small"
+                  class="p-button-outlined"
+                  severity="secondary"
+                  icon="pi pi-copy"
+                  :label="'Copy Webhook URL'"
+                  @click="copyWebhookUrl(row.id)"
+                />
+                <Button
+                  size="small"
+                  severity="danger"
+                  class="p-button-text"
+                  icon="pi pi-trash"
+                  @click="confirmDelete(row.id)"
+                />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+      </template>
+    </Card>
 
-      <el-table v-loading="loading" :data="configs">
-        <el-table-column label="配置名称">
-          <template #default="{ row }">
-            <div class="config-name">
-              <el-icon color="#1890ff"><ChatDotRound /></el-icon>
-              {{ row.name }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="App Key">
-          <template #default="{ row }">
-            <el-text v-if="row.app_key" type="info" truncated>
-              {{ row.app_key.substring(0, 8) }}...
-            </el-text>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态">
-          <template #default="{ row }">
-            <el-tag v-if="row.is_active" type="success">启用</el-tag>
-            <el-tag v-else type="info">禁用</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间">
-          <template #default="{ row }">
-            {{ row.created_at ? formatDateTime(row.created_at) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200">
-          <template #default="{ row }">
-            <el-tooltip content="复制Webhook URL">
-              <el-button type="primary" link :icon="CopyDocument" @click="copyWebhookUrl(row.id)" />
-            </el-tooltip>
-            <el-popconfirm
-              title="确定删除这个钉钉配置吗？"
-              @confirm="handleDelete(row.id)"
-            >
-              <template #reference>
-                <el-button type="danger" link :icon="Delete" />
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
-    <!-- Message Logs Card -->
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>消息处理日志</span>
-          <el-button :icon="Refresh" @click="loadLogs">刷新</el-button>
+    <Card class="panel">
+      <template #title>
+        <div class="panel-title">
+          <span>&#26368;&#36817;&#22788;&#29702;&#26085;&#24535;</span>
+          <Button :label="'\u5237\u65B0'" icon="pi pi-refresh" class="p-button-outlined" @click="loadLogs" />
         </div>
       </template>
-
-      <el-table :data="logs">
-        <el-table-column label="消息类型" width="100">
-          <template #default="{ row }">
-            <el-tag>{{ row.message_type || 'unknown' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="sender_nick" label="发送者" width="120" />
-        <el-table-column prop="content" label="内容" show-overflow-tooltip />
-        <el-table-column label="附件" width="80">
-          <template #default="{ row }">
-            <el-tag v-if="row.has_attachment" type="primary" size="small">
-              <el-icon><CircleCheck /></el-icon> {{ row.attachment_count }}个
-            </el-tag>
-            <el-tag v-else size="small">
-              <el-icon><CircleClose /></el-icon> 无
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="时间" width="150">
-          <template #default="{ row }">
-            {{ row.created_at ? formatDateTime(row.created_at) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'processed' ? 'success' : 'warning'">
-              {{ row.status === 'processed' ? '已处理' : row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="logs.length"
-        layout="total, sizes, prev, pager, next"
-        class="pagination"
-      />
-    </el-card>
-
-    <!-- Add Config Modal -->
-    <el-dialog
-      v-model="modalVisible"
-      title="添加钉钉机器人配置"
-      width="600px"
-      destroy-on-close
-    >
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="120px"
-      >
-        <el-form-item label="配置名称" prop="name">
-          <el-input v-model="form.name" placeholder="例如：发票收集机器人" />
-        </el-form-item>
-
-        <el-form-item label="App Key">
-          <el-input v-model="form.app_key" placeholder="钉钉应用App Key（可选）" />
-          <template #extra>
-            <span class="form-tip">可选。如需下载文件功能，请在钉钉开放平台创建应用获取</span>
-          </template>
-        </el-form-item>
-
-        <el-form-item label="App Secret">
-          <el-input 
-            v-model="form.app_secret" 
-            type="password" 
-            placeholder="钉钉应用App Secret（可选）"
-            show-password 
-          />
-          <template #extra>
-            <span class="form-tip">可选。与App Key配合使用，用于获取访问令牌</span>
-          </template>
-        </el-form-item>
-
-        <el-form-item label="Webhook Token">
-          <el-input 
-            v-model="form.webhook_token" 
-            type="password" 
-            placeholder="机器人加签密钥（可选）"
-            show-password 
-          />
-          <template #extra>
-            <span class="form-tip">可选。如果机器人启用了加签验证，请填写加签密钥</span>
-          </template>
-        </el-form-item>
-
-        <el-form-item label="启用状态">
-          <el-switch v-model="form.is_active" active-text="启用" inactive-text="禁用" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="modalVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">保存配置</el-button>
+      <template #content>
+        <DataTable :value="logs" :paginator="true" :rows="10" responsiveLayout="scroll">
+          <Column field="message_type" :header="'\u7C7B\u578B'" />
+          <Column field="sender_nick" :header="'\u53D1\u9001\u4EBA'" />
+          <Column field="content" :header="'\u5185\u5BB9'" />
+          <Column :header="'\u9644\u4EF6'">
+            <template #body="{ data: row }">
+              <Tag v-if="row.has_attachment" severity="info" :value="`${row.attachment_count}\u4E2A`" />
+              <Tag v-else severity="secondary" :value="'\u65E0'" />
+            </template>
+          </Column>
+          <Column :header="'\u72B6\u6001'">
+            <template #body="{ data: row }">
+              <Tag :severity="row.status === 'processed' ? 'success' : 'warning'" :value="row.status" />
+            </template>
+          </Column>
+          <Column :header="'\u65F6\u95F4'">
+            <template #body="{ data: row }">
+              {{ row.created_at ? formatDateTime(row.created_at) : '-' }}
+            </template>
+          </Column>
+        </DataTable>
       </template>
-    </el-dialog>
+    </Card>
+
+    <Dialog v-model:visible="modalVisible" modal :header="'\u6DFB\u52A0\u914D\u7F6E'" :style="{ width: '620px', maxWidth: '92vw' }">
+      <form class="p-fluid" @submit.prevent="handleSubmit">
+        <div class="field">
+          <label for="name">&#37197;&#32622;&#21517;&#31216;</label>
+          <InputText id="name" v-model.trim="form.name" />
+          <small v-if="errors.name" class="p-error">{{ errors.name }}</small>
+        </div>
+
+        <div class="field">
+          <label for="app_key">AppKey (&#21487;&#36873;)</label>
+          <InputText id="app_key" v-model.trim="form.app_key" />
+        </div>
+
+        <div class="field">
+          <label for="app_secret">AppSecret (&#21487;&#36873;)</label>
+          <Password id="app_secret" v-model="form.app_secret" toggleMask :feedback="false" />
+        </div>
+
+        <div class="field">
+          <label for="webhook_token">Webhook Token (&#21487;&#36873;)</label>
+          <Password id="webhook_token" v-model="form.webhook_token" toggleMask :feedback="false" />
+          <small class="tip">&#22914;&#26524;&#26426;&#22120;&#20154;&#24320;&#21551;&#20102;&#21152;&#31614;&#65292;&#35831;&#22312;&#27492;&#22635;&#20889;&#21152;&#31614;&#23494;&#38053;</small>
+        </div>
+
+        <div class="switch-row">
+          <span class="switch-label">&#21551;&#29992;&#29366;&#24577;</span>
+          <InputSwitch v-model="form.is_active" />
+        </div>
+
+        <div class="footer">
+          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="modalVisible = false" />
+          <Button type="submit" :label="'\u4FDD\u5B58\u914D\u7F6E'" :loading="saving" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { 
-  Plus, ChatDotRound, CopyDocument, Delete, Refresh,
-  CircleCheck, CircleClose 
-} from '@element-plus/icons-vue'
+import { onMounted, reactive, ref } from 'vue'
+import Card from 'primevue/card'
+import Button from 'primevue/button'
+import Column from 'primevue/column'
+import DataTable from 'primevue/datatable'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import InputSwitch from 'primevue/inputswitch'
+import Message from 'primevue/message'
+import Password from 'primevue/password'
+import Tag from 'primevue/tag'
+import { useConfirm } from 'primevue/useconfirm'
+import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { dingtalkApi } from '@/api'
 import { getBackendBaseUrl } from '@/utils/constants'
 import type { DingtalkConfig, DingtalkLog } from '@/types'
 
+const toast = useToast()
+const confirm = useConfirm()
+
 const loading = ref(false)
+const saving = ref(false)
 const configs = ref<DingtalkConfig[]>([])
 const logs = ref<DingtalkLog[]>([])
 const modalVisible = ref(false)
-const formRef = ref<FormInstance>()
-
-const currentPage = ref(1)
-const pageSize = ref(10)
 
 const form = reactive({
   name: '',
   app_key: '',
   app_secret: '',
   webhook_token: '',
-  is_active: true
+  is_active: true,
 })
 
-const rules: FormRules = {
-  name: [{ required: true, message: '请输入配置名称', trigger: 'blur' }]
+const errors = reactive({
+  name: '',
+})
+
+const resetForm = () => {
+  form.name = ''
+  form.app_key = ''
+  form.app_secret = ''
+  form.webhook_token = ''
+  form.is_active = true
+  errors.name = ''
+}
+
+const validate = () => {
+  errors.name = ''
+  if (!form.name) errors.name = '\u8BF7\u8F93\u5165\u914D\u7F6E\u540D\u79F0'
+  return !errors.name
 }
 
 const loadConfigs = async () => {
   loading.value = true
   try {
     const res = await dingtalkApi.getConfigs()
-    if (res.data.success && res.data.data) {
-      configs.value = res.data.data
-    }
+    if (res.data.success && res.data.data) configs.value = res.data.data
   } catch {
-    ElMessage.error('加载钉钉配置失败')
+    toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u9489\u9489\u914D\u7F6E\u5931\u8D25', life: 3000 })
   } finally {
     loading.value = false
   }
@@ -239,70 +197,81 @@ const loadConfigs = async () => {
 const loadLogs = async () => {
   try {
     const res = await dingtalkApi.getLogs(undefined, 50)
-    if (res.data.success && res.data.data) {
-      logs.value = res.data.data
-    }
+    if (res.data.success && res.data.data) logs.value = res.data.data
   } catch (error) {
     console.error('Load logs failed:', error)
   }
 }
 
 const openModal = () => {
-  form.name = ''
-  form.app_key = ''
-  form.app_secret = ''
-  form.webhook_token = ''
-  form.is_active = true
+  resetForm()
   modalVisible.value = true
 }
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!validate()) return
+  saving.value = true
+  try {
+    await dingtalkApi.createConfig({
+      name: form.name,
+      app_key: form.app_key || undefined,
+      app_secret: form.app_secret || undefined,
+      webhook_token: form.webhook_token || undefined,
+      is_active: form.is_active ? 1 : 0,
+    })
+    toast.add({ severity: 'success', summary: '\u914D\u7F6E\u521B\u5EFA\u6210\u529F', life: 2200 })
+    modalVisible.value = false
+    await loadConfigs()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    toast.add({
+      severity: 'error',
+      summary: err.response?.data?.message || '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25',
+      life: 3500,
+    })
+  } finally {
+    saving.value = false
+  }
+}
 
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    try {
-      await dingtalkApi.createConfig({
-        name: form.name,
-        app_key: form.app_key || undefined,
-        app_secret: form.app_secret || undefined,
-        webhook_token: form.webhook_token || undefined,
-        is_active: form.is_active ? 1 : 0
-      })
-      ElMessage.success('钉钉机器人配置创建成功')
-      modalVisible.value = false
-      loadConfigs()
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } }
-      ElMessage.error(err.response?.data?.message || '创建配置失败')
-    }
+const confirmDelete = (id: string) => {
+  confirm.require({
+    message: '\u786E\u5B9A\u5220\u9664\u8BE5\u914D\u7F6E\u5417\uFF1F',
+    header: '\u5220\u9664\u786E\u8BA4',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '\u5220\u9664',
+    rejectLabel: '\u53D6\u6D88',
+    acceptClass: 'p-button-danger',
+    accept: () => handleDelete(id),
   })
 }
 
 const handleDelete = async (id: string) => {
   try {
     await dingtalkApi.deleteConfig(id)
-    ElMessage.success('删除成功')
-    loadConfigs()
+    toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    await loadConfigs()
   } catch {
-    ElMessage.error('删除失败')
+    toast.add({ severity: 'error', summary: '\u5220\u9664\u5931\u8D25', life: 3000 })
   }
 }
 
-const copyWebhookUrl = (id: string) => {
+const getWebhookUrl = (id: string) => {
   const baseUrl = getBackendBaseUrl()
-  const webhookUrl = `${baseUrl}/api/dingtalk/webhook/${id}`
-  navigator.clipboard.writeText(webhookUrl).then(() => {
-    ElMessage.success('Webhook URL已复制到剪贴板')
-  }).catch(() => {
-    ElMessage.info(`Webhook URL: ${webhookUrl}`)
-  })
+  return `${baseUrl}/api/dingtalk/webhook/${id}`
 }
 
-const formatDateTime = (date: string) => {
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
+const copyWebhookUrl = async (id: string) => {
+  const webhookUrl = getWebhookUrl(id)
+  try {
+    await navigator.clipboard.writeText(webhookUrl)
+    toast.add({ severity: 'success', summary: 'Webhook URL \u5DF2\u590D\u5236', life: 2000 })
+  } catch {
+    toast.add({ severity: 'info', summary: `Webhook URL: ${webhookUrl}`, life: 4500 })
+  }
 }
+
+const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 
 onMounted(() => {
   loadConfigs()
@@ -311,242 +280,86 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.info-alert {
-  margin-bottom: 16px;
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.info {
   border-radius: var(--radius-lg);
-  border: none;
-  background: linear-gradient(135deg, rgba(250, 112, 154, 0.08), rgba(254, 225, 64, 0.08));
-  box-shadow: var(--shadow-sm);
 }
 
-.info-alert :deep(.el-alert__content) {
-  padding: 4px 0;
+.info-title {
+  font-weight: 800;
+  margin-bottom: 6px;
 }
 
-.info-alert p {
-  margin: 6px 0;
+.info-list {
+  margin: 0;
+  padding-left: 18px;
   color: var(--color-text-secondary);
-  line-height: 1.6;
 }
 
-.info-alert p:first-child {
-  margin-top: 0;
-}
-
-.info-alert strong {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-
-.config-card {
-  margin-bottom: 16px;
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-}
-
-/* Enhanced table styles */
-:deep(.el-table) {
+.panel {
   border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
-:deep(.el-table thead) {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.06), rgba(118, 75, 162, 0.06));
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-:deep(.el-table th) {
-  background: transparent !important;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-:deep(.el-table td) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-:deep(.el-table tbody tr:nth-child(even)) {
-  background: rgba(0, 0, 0, 0.02);
-}
-
-:deep(.el-table tbody tr) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-table tbody tr:hover) {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08)) !important;
-  transform: scale(1.002);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
-}
-
-.config-name {
+.actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 500;
 }
 
-.config-name :deep(.el-icon) {
-  transition: transform var(--transition-base);
-}
-
-.config-name:hover :deep(.el-icon) {
-  transform: scale(1.1);
-}
-
-/* Enhanced tags */
-:deep(.el-tag) {
-  border-radius: var(--radius-sm);
-  font-weight: 500;
-  border: none;
-  padding: 4px 10px;
-  transition: all var(--transition-base);
-}
-
-:deep(.el-tag:hover) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-tag.el-tag--success) {
-  background: linear-gradient(135deg, rgba(67, 233, 123, 0.15), rgba(56, 249, 215, 0.15));
-  color: #43e97b;
-}
-
-:deep(.el-tag.el-tag--primary) {
-  background: linear-gradient(135deg, rgba(250, 112, 154, 0.15), rgba(254, 225, 64, 0.15));
-  color: #fa709a;
-}
-
-/* Tooltip buttons */
-:deep(.el-button.is-link) {
-  transition: all var(--transition-fast);
-}
-
-:deep(.el-button.is-link:hover) {
-  transform: scale(1.1);
-}
-
-/* Text truncated */
-:deep(.el-text) {
+.webhook {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  word-break: break-all;
 }
 
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-:deep(.el-pagination) {
-  gap: 8px;
-}
-
-:deep(.el-pagination button),
-:deep(.el-pagination .el-pager li) {
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-pagination button:hover),
-:deep(.el-pagination .el-pager li:hover) {
-  transform: translateY(-1px);
-}
-
-:deep(.el-pagination .el-pager li.is-active) {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
-}
-
-/* Modal enhancements */
-:deep(.el-dialog) {
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-}
-
-:deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 20px 24px;
-}
-
-:deep(.el-dialog__title) {
-  font-weight: 600;
-  font-size: 18px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-:deep(.el-dialog__body) {
-  padding: 24px;
-}
-
-:deep(.el-dialog__footer) {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 16px 24px;
-}
-
-/* Form enhancements */
-:deep(.el-form-item__label) {
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-:deep(.el-input__wrapper),
-:deep(.el-input-number) {
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-input__wrapper:hover) {
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-:deep(.el-input-number) {
-  width: 100%;
-}
-
-.form-tip {
+.tip {
+  display: block;
+  margin-top: 6px;
   color: var(--color-text-tertiary);
   font-size: 12px;
-  line-height: 1.5;
-  margin-top: 4px;
 }
 
-/* Card enhancement */
-:deep(.el-card) {
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-base);
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+  margin-top: 10px;
 }
 
-:deep(.el-card__header) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 18px 20px;
-  font-weight: 600;
+.switch-label {
+  font-weight: 700;
+  color: var(--color-text-secondary);
 }
 
-/* Loading state */
-:deep(.el-loading-mask) {
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-@media (max-width: 768px) {
-  :deep(.el-table) {
-    font-size: 13px;
-  }
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
 }
 </style>
+

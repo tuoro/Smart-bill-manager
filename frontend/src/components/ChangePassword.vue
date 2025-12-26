@@ -1,67 +1,77 @@
 <template>
-  <el-dialog
-    v-model="visible"
-    title="修改密码"
-    width="500px"
-    :close-on-click-modal="false"
-    @close="handleClose"
+  <Dialog
+    v-model:visible="visible"
+    modal
+    :header="'\u4FEE\u6539\u5BC6\u7801'"
+    :style="{ width: '520px', maxWidth: '92vw' }"
+    :closable="!loading"
+    :closeOnEscape="!loading"
+    @hide="handleClose"
   >
-    <el-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-width="100px"
-      @submit.prevent="handleSubmit"
-    >
-      <el-form-item label="原密码" prop="oldPassword">
-        <el-input
+    <form class="p-fluid" @submit.prevent="handleSubmit">
+      <div class="field">
+        <label for="oldPassword">&#21407;&#23494;&#30721;</label>
+        <Password
+          id="oldPassword"
           v-model="form.oldPassword"
-          type="password"
-          placeholder="请输入原密码"
-          show-password
+          toggleMask
+          :feedback="false"
           autocomplete="current-password"
         />
-      </el-form-item>
-      
-      <el-form-item label="新密码" prop="newPassword">
-        <el-input
+        <small v-if="errors.oldPassword" class="p-error">{{ errors.oldPassword }}</small>
+      </div>
+
+      <div class="field">
+        <label for="newPassword">&#26032;&#23494;&#30721;</label>
+        <Password
+          id="newPassword"
           v-model="form.newPassword"
-          type="password"
-          placeholder="请输入新密码 (至少6位)"
-          show-password
+          toggleMask
+          :feedback="false"
           autocomplete="new-password"
           @input="updatePasswordStrength"
         />
+        <small v-if="errors.newPassword" class="p-error">{{ errors.newPassword }}</small>
         <div v-if="form.newPassword" class="password-strength">
           <span :class="['strength-indicator', passwordStrength.level]">
-            密码强度: {{ passwordStrength.text }}
+            &#23494;&#30721;&#24378;&#24230;: {{ passwordStrength.text }}
           </span>
         </div>
-      </el-form-item>
-      
-      <el-form-item label="确认新密码" prop="confirmPassword">
-        <el-input
+      </div>
+
+      <div class="field">
+        <label for="confirmPassword">&#30830;&#35748;&#26032;&#23494;&#30721;</label>
+        <Password
+          id="confirmPassword"
           v-model="form.confirmPassword"
-          type="password"
-          placeholder="请再次输入新密码"
-          show-password
+          toggleMask
+          :feedback="false"
           autocomplete="new-password"
         />
-      </el-form-item>
-    </el-form>
-    
-    <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="handleSubmit">
-        确定修改
-      </el-button>
-    </template>
-  </el-dialog>
+        <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
+      </div>
+
+      <div class="footer">
+        <Button
+          type="button"
+          :label="'\u53D6\u6D88'"
+          severity="secondary"
+          class="p-button-outlined"
+          :disabled="loading"
+          @click="handleClose"
+        />
+        <Button type="submit" :label="'\u786E\u5B9A\u4FEE\u6539'" :loading="loading" />
+      </div>
+    </form>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { reactive, ref, watch } from 'vue'
+import Dialog from 'primevue/dialog'
+import Button from 'primevue/button'
+import Password from 'primevue/password'
+import { useToast } from 'primevue/usetoast'
 import { authApi } from '@/api/auth'
 import { checkPasswordStrength, type PasswordStrength } from '@/utils/password'
 
@@ -76,98 +86,98 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const formRef = ref<FormInstance>()
+const toast = useToast()
 const loading = ref(false)
 const visible = ref(props.modelValue)
 
 const form = reactive({
   oldPassword: '',
   newPassword: '',
-  confirmPassword: ''
+  confirmPassword: '',
+})
+
+const errors = reactive({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: '',
 })
 
 const passwordStrength = ref<PasswordStrength>({
   level: 'weak',
-  text: '弱'
+  text: '\u5F31',
 })
 
 const updatePasswordStrength = () => {
   passwordStrength.value = checkPasswordStrength(form.newPassword)
 }
 
-const validateNewPassword = (_rule: any, value: string, callback: any) => {
-  if (value === '') {
-    callback(new Error('请输入新密码'))
-  } else if (value.length < 6) {
-    callback(new Error('新密码长度至少6个字符'))
-  } else if (value === form.oldPassword) {
-    callback(new Error('新密码不能与原密码相同'))
-  } else {
-    callback()
+const validate = () => {
+  errors.oldPassword = ''
+  errors.newPassword = ''
+  errors.confirmPassword = ''
+
+  if (!form.oldPassword) errors.oldPassword = '\u8BF7\u8F93\u5165\u539F\u5BC6\u7801'
+
+  if (!form.newPassword) {
+    errors.newPassword = '\u8BF7\u8F93\u5165\u65B0\u5BC6\u7801'
+  } else if (form.newPassword.length < 6) {
+    errors.newPassword = '\u65B0\u5BC6\u7801\u957F\u5EA6\u81F3\u5C11 6 \u4E2A\u5B57\u7B26'
+  } else if (form.newPassword === form.oldPassword) {
+    errors.newPassword = '\u65B0\u5BC6\u7801\u4E0D\u80FD\u4E0E\u539F\u5BC6\u7801\u76F8\u540C'
   }
-}
 
-const validateConfirmPassword = (_rule: any, value: string, callback: any) => {
-  if (value === '') {
-    callback(new Error('请再次输入新密码'))
-  } else if (value !== form.newPassword) {
-    callback(new Error('两次输入密码不一致'))
-  } else {
-    callback()
+  if (!form.confirmPassword) {
+    errors.confirmPassword = '\u8BF7\u518D\u6B21\u8F93\u5165\u65B0\u5BC6\u7801'
+  } else if (form.confirmPassword !== form.newPassword) {
+    errors.confirmPassword = '\u4E24\u6B21\u8F93\u5165\u7684\u5BC6\u7801\u4E0D\u4E00\u81F4'
   }
+
+  return !errors.oldPassword && !errors.newPassword && !errors.confirmPassword
 }
 
-const rules: FormRules = {
-  oldPassword: [
-    { required: true, message: '请输入原密码', trigger: 'blur' }
-  ],
-  newPassword: [
-    { required: true, validator: validateNewPassword, trigger: 'blur' }
-  ],
-  confirmPassword: [
-    { required: true, validator: validateConfirmPassword, trigger: 'blur' }
-  ]
-}
-
-watch(() => props.modelValue, (val) => {
-  visible.value = val
-})
+watch(
+  () => props.modelValue,
+  (val) => {
+    visible.value = val
+  },
+)
 
 watch(visible, (val) => {
   emit('update:modelValue', val)
 })
 
 const handleClose = () => {
-  formRef.value?.resetFields()
   form.oldPassword = ''
   form.newPassword = ''
   form.confirmPassword = ''
+  errors.oldPassword = ''
+  errors.newPassword = ''
+  errors.confirmPassword = ''
   visible.value = false
 }
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
-  
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    
-    loading.value = true
-    try {
-      const response = await authApi.changePassword(form.oldPassword, form.newPassword)
-      
-      if (response.data.success) {
-        ElMessage.success('密码修改成功')
-        handleClose()
-      } else {
-        ElMessage.error(response.data.message || '修改失败')
-      }
-    } catch (error: any) {
-      console.error('Change password error:', error)
-      ElMessage.error(error.response?.data?.message || '修改密码失败，请稍后重试')
-    } finally {
-      loading.value = false
+  if (!validate()) return
+
+  loading.value = true
+  try {
+    const response = await authApi.changePassword(form.oldPassword, form.newPassword)
+    if (response.data.success) {
+      toast.add({ severity: 'success', summary: '\u5BC6\u7801\u4FEE\u6539\u6210\u529F', life: 2000 })
+      handleClose()
+      return
     }
-  })
+    toast.add({ severity: 'error', summary: response.data.message || '\u4FEE\u6539\u5931\u8D25', life: 3000 })
+  } catch (error: any) {
+    console.error('Change password error:', error)
+    toast.add({
+      severity: 'error',
+      summary: error.response?.data?.message || '\u4FEE\u6539\u5BC6\u7801\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5',
+      life: 3500,
+    })
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -200,22 +210,11 @@ const handleSubmit = async () => {
   background: linear-gradient(135deg, rgba(103, 194, 58, 0.15), rgba(56, 249, 215, 0.15));
 }
 
-/* Form enhancements */
-:deep(.el-form-item__label) {
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-:deep(.el-input__wrapper) {
-  border-radius: var(--radius-md);
-  transition: all var(--transition-base);
-}
-
-:deep(.el-input__wrapper:hover) {
-  box-shadow: var(--shadow-sm);
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
 }
 </style>
+

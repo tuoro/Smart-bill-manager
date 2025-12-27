@@ -519,6 +519,25 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
 
 		qrInjected, qrHasHeader := s.injectInvoiceFieldsFromQRCode(imgPath)
+		partyInjected, buyerOK, sellerOK := s.injectInvoicePartiesFromRegions(tempDir, imgPath)
+
+		var parts []string
+		if qrInjected != "" {
+			parts = append(parts, qrInjected)
+		}
+		if partyInjected != "" {
+			parts = append(parts, partyInjected)
+		}
+
+		// If QR + ROI already provide core fields, skip expensive full-page OCR for speed.
+		if qrHasHeader && buyerOK && sellerOK {
+			text := strings.Join(parts, "\n")
+			fmt.Printf("[OCR] Skipping full-page OCR for page %d (QR+ROI core fields)\n", i+1)
+			fmt.Printf("[OCR] Extracted %d characters from page %d\n", len(text), i+1)
+			allText.WriteString(text)
+			allText.WriteString("\n")
+			continue
+		}
 
 		text, err := s.RecognizeWithRapidOCRProfile(imgPath, "pdf")
 		if err != nil {
@@ -530,8 +549,8 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 			continue
 		}
 
-		if qrInjected != "" {
-			text = qrInjected + "\n" + text
+		if len(parts) > 0 {
+			text = strings.Join(append(parts, text), "\n")
 		}
 
 		// If key header fields are missing (invoice code/number/date), run a second pass on the
@@ -558,6 +577,209 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	}
 
 	return result, nil
+}
+
+func (s *OCRService) injectInvoicePartiesFromRegions(tempDir, imgPath string) (injected string, buyerOK bool, sellerOK bool) {
+	// Heuristic crops (A4 invoice layouts):
+	// - Buyer: upper-left block under the QR code
+	// - Seller: bottom-left block
+	buyerText, err1 := s.ocrInvoiceRegion(tempDir, imgPath, "buyer", 0.03, 0.16, 0.62, 0.44)
+	sellerText, err2 := s.ocrInvoiceRegion(tempDir, imgPath, "seller", 0.03, 0.64, 0.72, 0.90)
+
+	if err1 != nil {
+		fmt.Printf("[OCR] Buyer ROI OCR failed: %v\n", err1)
+	}
+	if err2 != nil {
+		fmt.Printf("[OCR] Seller ROI OCR failed: %v\n", err2)
+	}
+
+	buyerName, buyerTax := extractPartyFromROICandidate(buyerText)
+	sellerName, sellerTax := extractPartyFromROICandidate(sellerText)
+
+	var parts []string
+	if buyerName != "" {
+		parts = append(parts, "购买方名称："+buyerName)
+		buyerOK = true
+	}
+	if buyerTax != "" {
+		parts = append(parts, "购买方纳税人识别号："+buyerTax)
+	}
+	if sellerName != "" {
+		parts = append(parts, "销售方名称："+sellerName)
+		sellerOK = true
+	}
+	if sellerTax != "" {
+		parts = append(parts, "销售方纳税人识别号："+sellerTax)
+	}
+
+	injected = strings.Join(parts, "\n")
+	return injected, buyerOK, sellerOK
+}
+
+func extractPartyFromROICandidate(text string) (name string, taxID string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", ""
+	}
+
+	// Tax ID: prefer unified social credit code if present.
+	if m := taxIDRegex.FindString(text); m != "" {
+		taxID = m
+	}
+
+	// Name: handle patterns like "名称: XXX" or "名 称 XXX".
+	nameRe := regexp.MustCompile(`(?m)^(?:名\s*称|名称)\s*[:：]?\s*([^\n\r]+)$`)
+	if match := nameRe.FindStringSubmatch(text); len(match) > 1 {
+		candidate := strings.TrimSpace(match[1])
+		// Filter obvious non-names.
+		if candidate != "" && !strings.Contains(candidate, "地址") && !strings.Contains(candidate, "电话") && len([]rune(candidate)) <= MaxMerchantNameLength {
+			name = candidate
+		}
+	}
+
+	// Fallback: sometimes "名称" is on its own line and the value is on the next line.
+	if name == "" {
+		lines := strings.Split(text, "\n")
+		for i := 0; i < len(lines); i++ {
+			l := strings.TrimSpace(lines[i])
+			if l == "名称" || strings.ReplaceAll(l, " ", "") == "名称" || strings.ReplaceAll(l, " ", "") == "名称:" || strings.ReplaceAll(l, " ", "") == "名称：" {
+				if i+1 < len(lines) {
+					candidate := strings.TrimSpace(lines[i+1])
+					if candidate != "" && !strings.Contains(candidate, "地址") && !strings.Contains(candidate, "电话") && len([]rune(candidate)) <= MaxMerchantNameLength {
+						name = candidate
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return name, taxID
+}
+
+func (s *OCRService) ocrInvoiceRegion(tempDir, imgPath, tag string, x0p, y0p, x1p, y1p float64) (string, error) {
+	f, err := os.Open(imgPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	src, _, err := image.Decode(f)
+	if err != nil {
+		return "", err
+	}
+
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w <= 0 || h <= 0 {
+		return "", fmt.Errorf("invalid image bounds")
+	}
+
+	x0 := b.Min.X + int(float64(w)*x0p)
+	y0 := b.Min.Y + int(float64(h)*y0p)
+	x1 := b.Min.X + int(float64(w)*x1p)
+	y1 := b.Min.Y + int(float64(h)*y1p)
+
+	if x0 < b.Min.X {
+		x0 = b.Min.X
+	}
+	if y0 < b.Min.Y {
+		y0 = b.Min.Y
+	}
+	if x1 > b.Max.X {
+		x1 = b.Max.X
+	}
+	if y1 > b.Max.Y {
+		y1 = b.Max.Y
+	}
+	if x1-x0 < 50 || y1-y0 < 50 {
+		return "", fmt.Errorf("crop region too small")
+	}
+
+	rect := image.Rect(x0, y0, x1, y1)
+	bin, err := binarizeRegion(src, rect)
+	if err != nil {
+		return "", err
+	}
+
+	outPath := filepath.Join(tempDir, fmt.Sprintf("roi-%s-%s.png", tag, filepath.Base(imgPath)))
+	of, err := os.Create(outPath)
+	if err != nil {
+		return "", err
+	}
+	if err := png.Encode(of, bin); err != nil {
+		_ = of.Close()
+		return "", err
+	}
+	_ = of.Close()
+
+	// Lower thresholds for small text in ROI.
+	return s.recognizeWithRapidOCRArgs(outPath, []string{"--profile", "pdf", "--min-height", "5", "--text-score", "0.25"})
+}
+
+func binarizeRegion(src image.Image, rect image.Rectangle) (*image.Gray, error) {
+	roi := image.NewRGBA(image.Rect(0, 0, rect.Dx(), rect.Dy()))
+	for y := 0; y < rect.Dy(); y++ {
+		for x := 0; x < rect.Dx(); x++ {
+			roi.Set(x, y, src.At(rect.Min.X+x, rect.Min.Y+y))
+		}
+	}
+
+	gray := image.NewGray(roi.Bounds())
+	hist := make([]int, 256)
+	for y := 0; y < gray.Bounds().Dy(); y++ {
+		for x := 0; x < gray.Bounds().Dx(); x++ {
+			r, g, b2, _ := roi.At(x, y).RGBA()
+			l := uint8((299*r + 587*g + 114*b2 + 500) / 1000 >> 8)
+			gray.SetGray(x, y, color.Gray{Y: l})
+			hist[int(l)]++
+		}
+	}
+
+	total := gray.Bounds().Dx() * gray.Bounds().Dy()
+	if total <= 0 {
+		return nil, fmt.Errorf("empty roi")
+	}
+	var sum int
+	for i := 0; i < 256; i++ {
+		sum += i * hist[i]
+	}
+	var (
+		sumB   int
+		wB     int
+		varMax float64
+		thr    int
+	)
+	for t := 0; t < 256; t++ {
+		wB += hist[t]
+		if wB == 0 {
+			continue
+		}
+		wF := total - wB
+		if wF == 0 {
+			break
+		}
+		sumB += t * hist[t]
+		mB := float64(sumB) / float64(wB)
+		mF := float64(sum-sumB) / float64(wF)
+		v := float64(wB) * float64(wF) * (mB - mF) * (mB - mF)
+		if v > varMax {
+			varMax = v
+			thr = t
+		}
+	}
+
+	bin := image.NewGray(gray.Bounds())
+	for y := 0; y < bin.Bounds().Dy(); y++ {
+		for x := 0; x < bin.Bounds().Dx(); x++ {
+			if gray.GrayAt(x, y).Y > uint8(thr) {
+				bin.SetGray(x, y, color.Gray{Y: 255})
+			} else {
+				bin.SetGray(x, y, color.Gray{Y: 0})
+			}
+		}
+	}
+	return bin, nil
 }
 
 type invoiceQRFields struct {

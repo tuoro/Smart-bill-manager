@@ -389,7 +389,14 @@
 
         <div v-if="detailPayment.screenshot_path" class="section">
           <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
-          <Image :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`" preview />
+          <div class="screenshot-wrap">
+            <Image
+              class="screenshot"
+              :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`"
+              preview
+              :imageStyle="{ maxWidth: '100%', height: 'auto' }"
+            />
+          </div>
         </div>
 
         <div v-if="detailPayment.extracted_data" class="section">
@@ -1154,5 +1161,20 @@ onMounted(() => {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 6px;
+}
+
+.screenshot-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.screenshot :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: var(--radius-md);
 }
 </style>

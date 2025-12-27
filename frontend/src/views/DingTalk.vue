@@ -359,6 +359,29 @@ onMounted(() => {
   gap: 16px;
 }
 
+.field {
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field label {
+  display: block;
+  font-weight: 700;
+  color: var(--p-text-color);
+}
+
+.field :deep(.p-inputtext),
+.field :deep(.p-password) {
+  width: 100%;
+}
+
+.field :deep(.p-password input) {
+  width: 100%;
+}
+
 .guide-list {
   margin: 0;
   padding-left: 18px;

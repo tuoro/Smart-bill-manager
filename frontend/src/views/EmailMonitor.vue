@@ -537,6 +537,32 @@ onMounted(() => {
   gap: 16px;
 }
 
+.grid-form .field {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.grid-form .field label {
+  display: block;
+  font-weight: 700;
+  color: var(--p-text-color);
+}
+
+.grid-form .field :deep(.p-inputtext),
+.grid-form .field :deep(.p-dropdown),
+.grid-form .field :deep(.p-inputnumber),
+.grid-form .field :deep(.p-password) {
+  width: 100%;
+}
+
+.grid-form .field :deep(.p-inputnumber-input),
+.grid-form .field :deep(.p-password input) {
+  width: 100%;
+}
+
 .guide-list {
   margin: 0;
   padding-left: 18px;

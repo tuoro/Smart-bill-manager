@@ -50,7 +50,7 @@ func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, erro
 	invoiceNumber, invoiceDate, sellerName, buyerName,
 		amount, taxAmount,
 		extractedData, rawText,
-		parseStatus, parseError := s.parseInvoicePDF(filePath, input.Filename)
+		parseStatus, parseError := s.parseInvoiceFile(filePath, input.Filename)
 
 	source := input.Source
 	if source == "" {
@@ -349,8 +349,10 @@ func strValueOrNil(v *string) interface{} {
 	return *v
 }
 
-// parseInvoicePDF is a helper method that parses a PDF invoice and returns the extracted data
-func (s *InvoiceService) parseInvoicePDF(filePath, filename string) (
+// parseInvoiceFile parses an invoice file and returns the extracted data.
+// - PDF: PyMuPDF fast-path (with RapidOCR fallback) via OCRService.RecognizePDF
+// - Images: RapidOCR v3 via OCRService.RecognizeImage
+func (s *InvoiceService) parseInvoiceFile(filePath, filename string) (
 	invoiceNumber, invoiceDate, sellerName, buyerName *string,
 	amount, taxAmount *float64,
 	extractedData, rawText *string,
@@ -359,15 +361,24 @@ func (s *InvoiceService) parseInvoicePDF(filePath, filename string) (
 ) {
 	parseStatus = "parsing"
 
-	if !strings.HasSuffix(strings.ToLower(filename), ".pdf") {
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext != ".pdf" && ext != ".png" && ext != ".jpg" && ext != ".jpeg" {
 		parseStatus = "failed"
-		errMsg := "Only PDF files can be parsed"
+		errMsg := "Only PDF/PNG/JPG files can be parsed"
 		parseError = &errMsg
 		return
 	}
 
 	// Use OCR service to extract text
-	text, err := s.ocrService.RecognizePDF(filePath)
+	var (
+		text string
+		err  error
+	)
+	if ext == ".pdf" {
+		text, err = s.ocrService.RecognizePDF(filePath)
+	} else {
+		text, err = s.ocrService.RecognizeImage(filePath)
+	}
 	if err != nil {
 		parseStatus = "failed"
 		errMsg := fmt.Sprintf("OCR recognition failed: %v", err)
@@ -427,7 +438,7 @@ func (s *InvoiceService) Reparse(id string) (*models.Invoice, error) {
 	invoiceNumber, invoiceDate, sellerName, buyerName,
 		amount, taxAmount,
 		extractedData, rawText,
-		parseStatus, parseError := s.parseInvoicePDF(filePath, invoice.Filename)
+		parseStatus, parseError := s.parseInvoiceFile(filePath, invoice.Filename)
 
 	// Update the invoice with parsed data
 	updateData := map[string]interface{}{

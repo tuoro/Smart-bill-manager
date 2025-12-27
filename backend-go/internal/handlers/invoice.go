@@ -6,11 +6,34 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"smart-bill-manager/internal/services"
 	"smart-bill-manager/internal/utils"
 )
+
+func contentTypeFromInvoiceFilename(filename string) string {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".pdf":
+		return "application/pdf"
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func isAllowedInvoiceExt(ext string) bool {
+	switch strings.ToLower(ext) {
+	case ".pdf", ".png", ".jpg", ".jpeg":
+		return true
+	default:
+		return false
+	}
+}
 
 type InvoiceHandler struct {
 	invoiceService *services.InvoiceService
@@ -97,7 +120,7 @@ func (h *InvoiceHandler) Download(c *gin.Context) {
 	}
 
 	c.Header("Content-Disposition", "attachment; filename="+invoice.OriginalName)
-	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Type", contentTypeFromInvoiceFilename(invoice.Filename))
 	c.File(filePath)
 }
 
@@ -120,19 +143,20 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 	}
 
 	// Check file type
-	if filepath.Ext(file.Filename) != ".pdf" {
-		utils.Error(c, 400, "只支持PDF文件", nil)
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if !isAllowedInvoiceExt(ext) {
+		utils.Error(c, 400, "只支持PDF或图片格式(PNG/JPG)", nil)
 		return
 	}
 
-	// Check file size (10MB)
-	if file.Size > 10*1024*1024 {
-		utils.Error(c, 400, "文件大小不能超过10MB", nil)
+	// Check file size (20MB)
+	if file.Size > 20*1024*1024 {
+		utils.Error(c, 400, "文件大小不能超过20MB", nil)
 		return
 	}
 
 	// Generate unique filename
-	filename := utils.GenerateUUID() + ".pdf"
+	filename := utils.GenerateUUID() + ext
 	filePath := filepath.Join(h.uploadsDir, filename)
 
 	// Ensure uploads directory exists
@@ -201,17 +225,18 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 	var invoices []interface{}
 	for _, file := range files {
 		// Check file type
-		if filepath.Ext(file.Filename) != ".pdf" {
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		if !isAllowedInvoiceExt(ext) {
 			continue
 		}
 
-		// Check file size (10MB)
-		if file.Size > 10*1024*1024 {
+		// Check file size (20MB)
+		if file.Size > 20*1024*1024 {
 			continue
 		}
 
 		// Generate unique filename
-		filename := utils.GenerateUUID() + ".pdf"
+		filename := utils.GenerateUUID() + ext
 		filePath := filepath.Join(h.uploadsDir, filename)
 
 		// Save file
@@ -266,11 +291,11 @@ func (h *InvoiceHandler) Delete(c *gin.Context) {
 
 func (h *InvoiceHandler) LinkPayment(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	var input struct {
 		PaymentID string `json:"payment_id" binding:"required"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&input); err != nil {
 		utils.Error(c, 400, "参数错误", err)
 		return
@@ -287,7 +312,7 @@ func (h *InvoiceHandler) LinkPayment(c *gin.Context) {
 func (h *InvoiceHandler) UnlinkPayment(c *gin.Context) {
 	id := c.Param("id")
 	paymentID := c.Query("payment_id")
-	
+
 	if paymentID == "" {
 		utils.Error(c, 400, "缺少 payment_id 参数", nil)
 		return
@@ -303,7 +328,7 @@ func (h *InvoiceHandler) UnlinkPayment(c *gin.Context) {
 
 func (h *InvoiceHandler) GetLinkedPayments(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	payments, err := h.invoiceService.GetLinkedPayments(id)
 	if err != nil {
 		utils.Error(c, 500, "获取关联支付记录失败", err)
@@ -337,7 +362,7 @@ func (h *InvoiceHandler) SuggestPayments(c *gin.Context) {
 
 func (h *InvoiceHandler) Parse(c *gin.Context) {
 	id := c.Param("id")
-	
+
 	invoice, err := h.invoiceService.Reparse(id)
 	if err != nil {
 		utils.Error(c, 500, "解析发票失败", err)

@@ -110,20 +110,20 @@
         <FileUpload
           ref="invoiceUploader"
           name="files"
-          accept="application/pdf"
+          accept="application/pdf,image/png,image/jpeg"
           :multiple="true"
           :maxFileSize="20_971_520"
           :customUpload="true"
           :showUploadButton="false"
           :showCancelButton="false"
-          :chooseLabel="'\u9009\u62E9 PDF'"
+          :chooseLabel="'\u9009\u62E9\u6587\u4EF6'"
           @select="onSelectFiles"
         >
           <template #empty>
             <div class="sbm-dropzone-empty">
               <i class="pi pi-cloud-upload" />
-              <div class="sbm-dropzone-title">&#25299;&#25321; PDF &#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-              <div class="sbm-dropzone-sub">&#25903;&#25345;&#25209;&#37327;&#19978;&#20256;&#65292;&#21333;&#20010;&#25991;&#20214;&#26368;&#22823; 20MB</div>
+              <div class="sbm-dropzone-title">&#25299;&#25321; PDF/&#22270;&#29255; &#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+              <div class="sbm-dropzone-sub">&#25903;&#25345; PDF&#12289;PNG&#12289;JPG&#65288;&#21487;&#25209;&#37327;&#65289;&#65292;&#21333;&#20010;&#25991;&#20214;&#26368;&#22823; 20MB</div>
             </div>
           </template>
         </FileUpload>
@@ -147,7 +147,7 @@
             <span>{{ previewInvoice.original_name }}</span>
           </div>
           <div class="actions">
-            <Button class="p-button-outlined" severity="secondary" icon="pi pi-external-link" :label="'\u67E5\u770B PDF'" @click="downloadFile(previewInvoice)" />
+            <Button class="p-button-outlined" severity="secondary" icon="pi pi-external-link" :label="'\u67E5\u770B\u539F\u6587\u4EF6'" @click="downloadFile(previewInvoice)" />
             <Button class="p-button-outlined" severity="secondary" icon="pi pi-refresh" :label="'\u91CD\u65B0\u89E3\u6790'" :loading="parseStatusPending" @click="handleReparse(previewInvoice.id)" />
           </div>
         </div>

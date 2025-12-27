@@ -15,7 +15,7 @@
     </Card>
 
     <template v-else>
-      <div class="hero sbm-gradient-border sbm-surface">
+      <div class="hero sbm-surface">
         <div class="hero-left">
           <div class="hero-kicker">&#26234;&#33021;&#36134;&#21333;&#31649;&#29702;</div>
           <div class="hero-title">Smart Bill Manager</div>
@@ -427,10 +427,7 @@ onMounted(() => {
   font-size: 30px;
   font-weight: 950;
   letter-spacing: -0.7px;
-  background: var(--sbm-hero-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--p-text-color);
 }
 
 .hero-subtitle {

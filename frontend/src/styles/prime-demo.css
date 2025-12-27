@@ -4,10 +4,9 @@
 */
 
 :root {
-  --sbm-hero-gradient: linear-gradient(135deg, #3b82f6 0%, #6366f1 45%, #a855f7 100%);
-  --sbm-hero-glow: radial-gradient(600px circle at 15% 10%, rgba(59, 130, 246, 0.22), transparent 55%),
-    radial-gradient(600px circle at 85% 15%, rgba(168, 85, 247, 0.18), transparent 55%),
-    radial-gradient(800px circle at 50% 100%, rgba(99, 102, 241, 0.14), transparent 60%);
+  --sbm-accent: var(--p-primary-500, #3b82f6);
+  --sbm-card-radius: 18px;
+  --sbm-card-shadow: 0 1px 2px rgba(2, 6, 23, 0.06), 0 12px 30px rgba(2, 6, 23, 0.06);
 }
 
 html,
@@ -16,61 +15,30 @@ body {
 }
 
 body {
-  position: relative;
-  background: var(--sbm-hero-glow), var(--p-surface-50);
+  background: var(--p-surface-50);
   color: var(--p-text-color);
-}
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.35;
-  background-image: radial-gradient(circle at 1px 1px, rgba(2, 6, 23, 0.08) 1px, transparent 0);
-  background-size: 22px 22px;
-  -webkit-mask-image: radial-gradient(ellipse at top, #000 0%, transparent 70%);
-  mask-image: radial-gradient(ellipse at top, #000 0%, transparent 70%);
 }
 
 /* Layout helpers */
 .sbm-surface {
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--p-surface-0);
   border: 1px solid rgba(2, 6, 23, 0.08);
-  background: color-mix(in srgb, var(--p-surface-0), transparent 8%);
   border: 1px solid color-mix(in srgb, var(--p-surface-200), transparent 20%);
-  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  border-radius: var(--sbm-card-radius);
+  box-shadow: var(--sbm-card-shadow);
 }
 
 .sbm-gradient-border {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.sbm-gradient-border::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: var(--sbm-hero-gradient);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  border-radius: var(--sbm-card-radius);
 }
 
 /* Prime components polish */
 .p-card {
-  border-radius: 16px;
+  border-radius: var(--sbm-card-radius);
 }
 
 .p-datatable {
-  border-radius: 14px;
+  border-radius: var(--sbm-card-radius);
   overflow: hidden;
 }
 
@@ -85,8 +53,8 @@ body::before {
 }
 
 .p-button.p-button-primary {
-  background: var(--sbm-hero-gradient);
-  border: none;
+  background: var(--sbm-accent);
+  border-color: var(--sbm-accent);
 }
 
 .p-button.p-button-primary:not(:disabled):hover {
@@ -117,10 +85,7 @@ body::before {
   font-size: 28px;
   font-weight: 900;
   letter-spacing: -0.6px;
-  background: var(--sbm-hero-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--p-text-color);
 }
 
 .sbm-auth-subtitle {

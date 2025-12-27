@@ -1,6 +1,6 @@
 <template>
   <div class="sbm-auth-bg">
-    <div class="sbm-auth-card sbm-gradient-border sbm-surface">
+    <div class="sbm-auth-card sbm-surface">
       <div class="header">
         <h2 class="sbm-auth-title">&#128176; &#26234;&#33021;&#36134;&#21333;&#31649;&#29702;</h2>
         <p class="sbm-auth-subtitle">Smart Bill Manager</p>

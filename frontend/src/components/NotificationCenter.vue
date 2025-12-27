@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import Button from 'primevue/button'
 import OverlayPanel from 'primevue/overlaypanel'
 import Tag from 'primevue/tag'
@@ -65,12 +65,31 @@ const toggle = (event: MouseEvent) => {
   panel.value?.toggle(event)
 }
 
-const handleItemClick = (id: string) => {
-  store.markRead(id)
+const realign = async () => {
+  await nextTick()
+  const p = panel.value
+  if (!p) return
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => p.alignOverlay())
+    return
+  }
+  p.alignOverlay()
 }
 
-const markAllRead = () => store.markAllRead()
-const clear = () => store.clear()
+const handleItemClick = async (id: string) => {
+  store.markRead(id)
+  await realign()
+}
+
+const markAllRead = async () => {
+  store.markAllRead()
+  await realign()
+}
+
+const clear = async () => {
+  store.clear()
+  await realign()
+}
 
 const formatTime = (ts: number) => {
   const d = new Date(ts)

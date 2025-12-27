@@ -68,11 +68,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ocl-icd-libopencl1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Optional Intel OpenCL runtime (often required for OpenVINO iGPU acceleration).
-# Note: `intel-opencl-icd` may live in non-free repos on Debian and might be unavailable in some build environments.
-RUN apt-get update && \
-    (apt-get install -y --no-install-recommends intel-opencl-icd || true) && \
-    rm -rf /var/lib/apt/lists/*
+# Optional Intel iGPU runtime for OpenVINO GPU plugin (UHD 630, etc).
+# NOTE: This may require Debian non-free repositories, so it is disabled by default to keep CI builds stable.
+ARG ENABLE_INTEL_GPU_RUNTIME=false
+RUN if [ "$ENABLE_INTEL_GPU_RUNTIME" = "true" ]; then \
+      set -eux; \
+      if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's/^Components:.*$/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources; \
+      elif [ -f /etc/apt/sources.list ]; then \
+        sed -i 's/ main$/ main contrib non-free non-free-firmware/' /etc/apt/sources.list || true; \
+      fi; \
+      apt-get update; \
+      apt-get install -y --no-install-recommends intel-opencl-icd clinfo || apt-get install -y --no-install-recommends intel-opencl-icd; \
+      rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Install Python OCR dependencies (RapidOCR v3) in a virtualenv to avoid Debian PEP 668 restrictions.
 RUN python3 -m venv /opt/venv

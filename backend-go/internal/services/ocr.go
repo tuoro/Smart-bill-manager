@@ -141,6 +141,12 @@ type OCRCLIResponse struct {
 	LineCount int          `json:"line_count"`
 	Engine    string       `json:"engine,omitempty"`
 	Profile   string       `json:"profile,omitempty"`
+	// OpenVINO debug fields (only present when SBM_OCR_ENGINE=openvino).
+	DeviceRequested string   `json:"device_requested,omitempty"`
+	DeviceEffective string   `json:"device_effective,omitempty"`
+	AvailableDevices []string `json:"available_devices,omitempty"`
+	CacheDir         string   `json:"cache_dir,omitempty"`
+	OpenVINO         string   `json:"openvino,omitempty"`
 	Error     string       `json:"error,omitempty"`
 }
 
@@ -225,7 +231,14 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	if profile == "" {
 		profile = "default"
 	}
-	fmt.Printf("[OCR] OCR extracted %d lines, %d characters (engine=%s profile=%s)\n", result.LineCount, len(result.Text), engine, profile)
+	if result.DeviceRequested != "" || result.DeviceEffective != "" {
+		fmt.Printf("[OCR] OCR extracted %d lines, %d characters (engine=%s profile=%s device=%s->%s openvino=%s devices=%v cache=%s)\n",
+			result.LineCount, len(result.Text), engine, profile,
+			result.DeviceRequested, result.DeviceEffective, result.OpenVINO, result.AvailableDevices, result.CacheDir,
+		)
+	} else {
+		fmt.Printf("[OCR] OCR extracted %d lines, %d characters (engine=%s profile=%s)\n", result.LineCount, len(result.Text), engine, profile)
+	}
 	return result.Text, nil
 }
 

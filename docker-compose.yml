@@ -20,6 +20,8 @@ services:
       # - SBM_OCR_ENGINE=openvino   # OpenVINO (Intel CPU/iGPU; requires OpenVINO deps in image)
       # - SBM_OPENVINO_DEVICE=CPU   # CPU|GPU|AUTO (when SBM_OCR_ENGINE=openvino)
       # - OPENVINO_CACHE_DIR=/app/backend/data/openvino-cache  # persist compiled model cache
+      # If you want iGPU acceleration, build with:
+      # - docker build --build-arg ENABLE_INTEL_GPU_RUNTIME=true ...
       # Invoice PDF OCR currently uses the same OCR engine as images (SBM_OCR_ENGINE).
     volumes:
       - app-data:/app/backend/data

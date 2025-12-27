@@ -93,6 +93,25 @@ func NewOCRService() *OCRService {
 	return &OCRService{}
 }
 
+func getOCREngine() string {
+	engine := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_OCR_ENGINE")))
+	if engine == "" {
+		engine = "rapidocr"
+	}
+	return engine
+}
+
+func ocrEngineInstallHint(engine string) string {
+	switch engine {
+	case "openvino":
+		return "install openvino and rapidocr-openvino"
+	case "rapidocr":
+		fallthrough
+	default:
+		return "install rapidocr==3.* and onnxruntime"
+	}
+}
+
 // PaymentExtractedData represents extracted payment information
 type PaymentExtractedData struct {
 	Amount          *float64 `json:"amount"`
@@ -156,7 +175,7 @@ func (s *OCRService) RecognizeWithRapidOCRProfile(imagePath, profile string) (st
 }
 
 func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []string) (string, error) {
-	fmt.Printf("[OCR] Running RapidOCR CLI for: %s\n", imagePath)
+	fmt.Printf("[OCR] Running OCR CLI for: %s (engine=%s)\n", imagePath, getOCREngine())
 
 	// Find the paddleocr_cli.py script
 	scriptPath := s.findPaddleOCRScript()
@@ -187,7 +206,7 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 
 	// Parse JSON output
 	var result OCRCLIResponse
-	if err := json.Unmarshal(output, &result); err != nil {
+	if err := unmarshalPossiblyNoisyJSON(output, &result); err != nil {
 		if execErr != nil {
 			return "", fmt.Errorf("failed to execute RapidOCR CLI: %w (output: %s)", execErr, string(output))
 		}
@@ -195,7 +214,7 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	}
 
 	if !result.Success {
-		return "", fmt.Errorf("RapidOCR error: %s", result.Error)
+		return "", fmt.Errorf("OCR error: %s", result.Error)
 	}
 
 	engine := result.Engine
@@ -206,8 +225,38 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	if profile == "" {
 		profile = "default"
 	}
-	fmt.Printf("[OCR] RapidOCR extracted %d lines, %d characters (engine=%s profile=%s)\n", result.LineCount, len(result.Text), engine, profile)
+	fmt.Printf("[OCR] OCR extracted %d lines, %d characters (engine=%s profile=%s)\n", result.LineCount, len(result.Text), engine, profile)
 	return result.Text, nil
+}
+
+func stripANSIEscapes(s string) string {
+	// Best-effort removal of ANSI escape sequences such as "\x1b[32m".
+	ansi := regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
+	return ansi.ReplaceAllString(s, "")
+}
+
+func unmarshalPossiblyNoisyJSON(output []byte, v any) error {
+	// 1) direct
+	if err := json.Unmarshal(output, v); err == nil {
+		return nil
+	}
+	// 2) strip ANSI and retry
+	cleaned := strings.TrimSpace(stripANSIEscapes(string(output)))
+	if cleaned != "" {
+		if err := json.Unmarshal([]byte(cleaned), v); err == nil {
+			return nil
+		}
+		// 3) try last JSON object (in case logs precede it)
+		if i := strings.LastIndex(cleaned, "{"); i >= 0 {
+			tail := strings.TrimSpace(cleaned[i:])
+			if tail != "" {
+				if err := json.Unmarshal([]byte(tail), v); err == nil {
+					return nil
+				}
+			}
+		}
+	}
+	return fmt.Errorf("invalid JSON")
 }
 
 // findPaddleOCRScript locates the paddleocr_cli.py script
@@ -267,13 +316,26 @@ func (s *OCRService) isRapidOCRAvailable() bool {
 		return false
 	}
 
-	// RapidOCR v3 requires both rapidocr and onnxruntime
-	if s.checkPythonModule("rapidocr") && s.checkPythonModule("onnxruntime") {
-		return true
-	}
+	engine := getOCREngine()
 
-	fmt.Printf("[OCR] RapidOCR v3 is not available\n")
-	return false
+	switch engine {
+	case "openvino":
+		// OpenVINO-based OCR (PP-OCR models).
+		if s.checkPythonModule("openvino") && s.checkPythonModule("rapidocr_openvino") {
+			return true
+		}
+		fmt.Printf("[OCR] OpenVINO OCR is not available\n")
+		return false
+	case "rapidocr":
+		fallthrough
+	default:
+		// RapidOCR v3 requires both rapidocr and onnxruntime
+		if s.checkPythonModule("rapidocr") && s.checkPythonModule("onnxruntime") {
+			return true
+		}
+		fmt.Printf("[OCR] RapidOCR v3 is not available\n")
+		return false
+	}
 }
 
 // RecognizePaymentScreenshot performs OCR for payment screenshots (RapidOCR v3 only).
@@ -281,7 +343,8 @@ func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error
 	fmt.Printf("[OCR] Starting payment screenshot recognition for: %s\n", imagePath)
 
 	if !s.isRapidOCRAvailable() {
-		return "", fmt.Errorf("RapidOCR v3 is not available (install rapidocr==3.* and onnxruntime)")
+		engine := getOCREngine()
+		return "", fmt.Errorf("OCR engine is not available (%s: %s)", engine, ocrEngineInstallHint(engine))
 	}
 
 	text, err := s.RecognizeWithRapidOCR(imagePath)
@@ -381,7 +444,7 @@ func (s *OCRService) extractTextWithPdftotext(pdfPath string) (string, error) {
 // RecognizePDF extracts text from PDF using RapidOCR v3 only (no PDF text extraction).
 func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
-	fmt.Printf("[OCR] Using RapidOCR v3 only (no pdftotext)\n")
+	fmt.Printf("[OCR] Using OCR CLI for PDF pages\n")
 	return s.pdfToImageOCR(pdfPath)
 }
 
@@ -462,10 +525,11 @@ func (s *OCRService) extractDates(text string) []string {
 
 // pdfToImageOCR converts PDF pages to images and performs OCR
 func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
-	fmt.Printf("[OCR] Converting PDF to images for RapidOCR v3: %s\n", pdfPath)
+	fmt.Printf("[OCR] Converting PDF to images for OCR: %s\n", pdfPath)
 
 	if !s.isRapidOCRAvailable() {
-		return "", fmt.Errorf("RapidOCR v3 is not available (install rapidocr==3.* and onnxruntime)")
+		engine := getOCREngine()
+		return "", fmt.Errorf("OCR engine is not available (%s: %s)", engine, ocrEngineInstallHint(engine))
 	}
 
 	// Check if pdftoppm is available

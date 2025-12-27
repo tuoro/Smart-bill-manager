@@ -62,6 +62,7 @@
 - golang.org/x/crypto/bcrypt (密码加密)
 - emersion/go-imap (邮箱IMAP协议)
 - **🆕 RapidOCR v3**（OCR识别引擎，Python + ONNXRuntime）✨
+- **🆕 OpenVINO（可选）**（Intel CPU/iGPU 推理加速；用于 OCR）✨
 - **🆕 poppler-utils** (PDF文本提取工具，支持CID字体) ✨
 - **🆕 ledongthuc/pdf** (专业PDF解析) ✨
 - gin-contrib/cors (CORS支持)
@@ -156,6 +157,18 @@ docker-compose down
 数据库和上传文件存储在 Docker 卷中：
 - `app-data`: 数据库文件
 - `app-uploads`: 上传的文件
+
+#### OpenVINO（Intel CPU/iGPU）OCR 加速（Docker）
+
+本项目支持在 Docker 中使用 OpenVINO 做 OCR 推理（适合 Intel CPU / iGPU，例如 UHD Graphics 630）。
+
+推荐环境变量：
+- `SBM_OCR_ENGINE=openvino`
+- `SBM_OPENVINO_DEVICE=CPU|GPU|AUTO`（默认 `CPU`；如要用 iGPU 通常需要额外映射设备）
+- `OPENVINO_CACHE_DIR=/app/backend/data/openvino-cache`（把编译缓存放进 `app-data`，避免重启后重复编译）
+
+iGPU（GPU 插件）通常还需要：
+- 容器映射 `/dev/dri`（例如 `--device /dev/dri:/dev/dri` 或在 compose 里配置）
 
 ### 方式三：从源码构建
 

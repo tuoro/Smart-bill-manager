@@ -7,11 +7,20 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+    # Optional: enable Intel iGPU access for OpenVINO GPU plugin
+    # devices:
+    #   - "/dev/dri:/dev/dri"
     environment:
       # Optional: Set a secure JWT secret (recommended for production)
       # - JWT_SECRET=your-secure-random-secret-key
       # Optional: Set admin password (otherwise a random password is generated)
       # - ADMIN_PASSWORD=your-admin-password
+      # OCR engine selection:
+      # - SBM_OCR_ENGINE=rapidocr   # default (onnxruntime)
+      # - SBM_OCR_ENGINE=openvino   # OpenVINO (Intel CPU/iGPU; requires OpenVINO deps in image)
+      # - SBM_OPENVINO_DEVICE=CPU   # CPU|GPU|AUTO (when SBM_OCR_ENGINE=openvino)
+      # - OPENVINO_CACHE_DIR=/app/backend/data/openvino-cache  # persist compiled model cache
+      # Invoice PDF OCR currently uses the same OCR engine as images (SBM_OCR_ENGINE).
     volumes:
       - app-data:/app/backend/data
       - app-uploads:/app/backend/uploads

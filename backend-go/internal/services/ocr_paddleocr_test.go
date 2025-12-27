@@ -175,8 +175,8 @@ sys.exit(1)
 		if err == nil {
 			t.Error("Expected RecognizeWithRapidOCR to return error for failed OCR")
 		}
-		if !strings.Contains(err.Error(), "RapidOCR error") {
-			t.Errorf("Expected error to mention 'RapidOCR error', got: %v", err)
+		if !strings.Contains(err.Error(), "OCR error") {
+			t.Errorf("Expected error to mention 'OCR error', got: %v", err)
 		}
 	})
 }
@@ -196,7 +196,7 @@ func TestRecognizePaymentScreenshotWithRapidOCR(t *testing.T) {
 		// So we just verify the function doesn't panic
 	})
 
-	t.Run("Returns error when RapidOCR unavailable", func(t *testing.T) {
+	t.Run("Returns error when OCR engine unavailable", func(t *testing.T) {
 		// Create a temporary directory without the script
 		tempDir, err := os.MkdirTemp("", "ocr-test-*")
 		if err != nil {
@@ -209,14 +209,14 @@ func TestRecognizePaymentScreenshotWithRapidOCR(t *testing.T) {
 		os.Chdir(tempDir)
 		defer os.Chdir(originalWd)
 
-		// RapidOCR-only: expect an error since the script is not present.
+		// Expect an error since the OCR script is not present.
 		_, err = service.RecognizePaymentScreenshot("/nonexistent/image.png")
 
 		if err == nil {
 			t.Fatalf("expected an error")
 		}
-		if !strings.Contains(err.Error(), "RapidOCR") {
-			t.Fatalf("expected error to mention RapidOCR, got: %v", err)
+		if !strings.Contains(err.Error(), "OCR engine is not available") {
+			t.Fatalf("expected error to mention OCR engine unavailable, got: %v", err)
 		}
 	})
 }

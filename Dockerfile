@@ -64,6 +64,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 \
     libgl1 \
     libglib2.0-0 \
+    libtbb12 \
+    ocl-icd-libopencl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python OCR dependencies (RapidOCR v3) in a virtualenv to avoid Debian PEP 668 restrictions.
@@ -73,7 +75,9 @@ ENV PATH="/opt/venv/bin:${PATH}"
 RUN ln -sf /opt/venv/bin/python3 /opt/venv/bin/python
 RUN /opt/venv/bin/python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
     /opt/venv/bin/python3 -m pip install --no-cache-dir "rapidocr==3.*" onnxruntime && \
-    /opt/venv/bin/python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
+    /opt/venv/bin/python3 -m pip install --no-cache-dir "openvino==2025.4.1" "rapidocr-openvino==1.2.3" && \
+    /opt/venv/bin/python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')" && \
+    /opt/venv/bin/python3 -c "import openvino, rapidocr_openvino; print('OpenVINO OCR OK')"
 
 WORKDIR /app
 

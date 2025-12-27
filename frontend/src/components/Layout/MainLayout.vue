@@ -181,20 +181,13 @@ const toggleUserMenu = (event: MouseEvent) => {
 
 <style scoped>
 .layout {
-  min-height: calc(100vh - 40px);
-  height: calc(100vh - 40px);
-  max-height: 1040px;
+  min-height: 100vh;
+  height: 100vh;
   display: flex;
-  gap: 24px;
-  padding: 24px;
-  margin: 20px auto;
-  width: min(1440px, calc(100vw - 40px));
-  background: var(--p-surface-0);
-  border: 1px solid rgba(2, 6, 23, 0.08);
-  border: 1px solid color-mix(in srgb, var(--p-surface-200), transparent 20%);
-  border-radius: 32px;
-  box-shadow: 0 25px 20px -5px rgba(0, 0, 0, 0.07), 0 10px 8px -6px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
+  gap: 20px;
+  padding: 20px;
+  width: 100%;
+  margin: 0;
 }
 
 .sidebar {
@@ -426,11 +419,6 @@ const toggleUserMenu = (event: MouseEvent) => {
 
 @media (max-width: 768px) {
   .layout {
-    height: 100vh;
-    min-height: 100vh;
-    margin: 0;
-    width: 100vw;
-    border-radius: 0;
     padding: 12px;
     gap: 12px;
   }

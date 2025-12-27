@@ -9,10 +9,7 @@
       <form class="p-fluid" @submit.prevent="handleLogin">
         <div class="field">
           <label class="sbm-field-label" for="username">&#29992;&#25143;&#21517;</label>
-          <span class="p-input-icon-left">
-            <i class="pi pi-user" />
-            <InputText id="username" v-model.trim="form.username" autocomplete="username" />
-          </span>
+          <InputText id="username" v-model.trim="form.username" autocomplete="username" />
         </div>
 
         <div class="field">
@@ -92,10 +89,6 @@ form {
   margin-bottom: 0;
   display: flex;
   flex-direction: column;
-}
-
-.field :deep(.p-input-icon-left) {
-  width: 100%;
 }
 
 .field :deep(.p-inputtext) {

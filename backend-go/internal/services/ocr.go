@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/liyue201/goqr"
 )
 
 // OCRService provides OCR functionality
@@ -44,6 +46,10 @@ const (
 
 	// RapidOCR CLI configuration
 	rapidOCRTimeout = 60 * time.Second
+
+	// pdfOCRDPI controls PDF->image rendering resolution; lower is faster.
+	// Key header fields can be recovered via QR and/or ROI fallback.
+	pdfOCRDPI = 220
 )
 
 var (
@@ -486,7 +492,7 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	// pdftoppm outputs files with pattern: outputPrefix-N.png where N is page number
 	outputPrefix := filepath.Join(tempDir, "page")
 	// Use grayscale output to improve OCR recall on colored text (common in invoices).
-	cmd := exec.Command("pdftoppm", "-png", "-gray", "-r", "300", pdfPath, outputPrefix)
+	cmd := exec.Command("pdftoppm", "-png", "-gray", "-r", strconv.Itoa(pdfOCRDPI), pdfPath, outputPrefix)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to convert PDF to images with pdftoppm: %w (output: %s)", err, string(output))
@@ -512,6 +518,8 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	for i, imgPath := range files {
 		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
 
+		qrInjected, qrHasHeader := s.injectInvoiceFieldsFromQRCode(imgPath)
+
 		text, err := s.RecognizeWithRapidOCRProfile(imgPath, "pdf")
 		if err != nil {
 			fmt.Printf("[OCR] RapidOCR v3 failed for page %d: %v\n", i+1, err)
@@ -522,9 +530,13 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 			continue
 		}
 
+		if qrInjected != "" {
+			text = qrInjected + "\n" + text
+		}
+
 		// If key header fields are missing (invoice code/number/date), run a second pass on the
 		// top-right region with binarization. This improves recall for small, colored text.
-		if !strings.Contains(text, "发票代码") || !strings.Contains(text, "发票号码") || !strings.Contains(text, "开票日期") {
+		if !qrHasHeader && (!strings.Contains(text, "发票代码") || !strings.Contains(text, "发票号码") || !strings.Contains(text, "开票日期")) {
 			if extra, extraErr := s.ocrInvoiceTopRightRegion(tempDir, imgPath); extraErr == nil && strings.TrimSpace(extra) != "" {
 				fmt.Printf("[OCR] Extra header OCR extracted %d characters from page %d\n", len(extra), i+1)
 				text = text + "\n" + extra
@@ -546,6 +558,225 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	}
 
 	return result, nil
+}
+
+type invoiceQRFields struct {
+	InvoiceCode   string
+	InvoiceNumber string
+	InvoiceDate   string // YYYY年M月D日
+	Amount        string // 123.45
+	CheckCode     string // digits
+}
+
+func (f invoiceQRFields) hasHeader() bool {
+	return f.InvoiceCode != "" || f.InvoiceNumber != "" || f.InvoiceDate != "" || f.Amount != ""
+}
+
+func (f invoiceQRFields) injectText() string {
+	var parts []string
+	if f.InvoiceCode != "" {
+		parts = append(parts, "发票代码："+f.InvoiceCode)
+	}
+	if f.InvoiceNumber != "" {
+		parts = append(parts, "发票号码："+f.InvoiceNumber)
+	}
+	if f.InvoiceDate != "" {
+		parts = append(parts, "开票日期："+f.InvoiceDate)
+	}
+	if f.CheckCode != "" {
+		parts = append(parts, "校验码："+f.CheckCode)
+	}
+	if f.Amount != "" {
+		parts = append(parts, "价税合计(小写)："+f.Amount)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func (s *OCRService) injectInvoiceFieldsFromQRCode(imgPath string) (injected string, hasHeader bool) {
+	fields, err := s.decodeInvoiceQRCode(imgPath)
+	if err != nil || fields == nil || !fields.hasHeader() {
+		return "", false
+	}
+	injected = fields.injectText()
+	hasHeader = true
+	fmt.Printf("[OCR] QR extracted header fields (code=%s number=%s date=%s amount=%s)\n",
+		fields.InvoiceCode, fields.InvoiceNumber, fields.InvoiceDate, fields.Amount)
+	return injected, hasHeader
+}
+
+func (s *OCRService) decodeInvoiceQRCode(imgPath string) (*invoiceQRFields, error) {
+	f, err := os.Open(imgPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+
+	codes, err := goqr.Recognize(img)
+	if err != nil || len(codes) == 0 {
+		return nil, err
+	}
+
+	var best invoiceQRFields
+	bestScore := 0
+	for _, c := range codes {
+		payload := strings.TrimSpace(string(c.Payload))
+		if payload == "" {
+			continue
+		}
+		parsed := parseInvoiceQRPayload(payload)
+		score := 0
+		if parsed.InvoiceCode != "" {
+			score++
+		}
+		if parsed.InvoiceNumber != "" {
+			score++
+		}
+		if parsed.InvoiceDate != "" {
+			score++
+		}
+		if parsed.Amount != "" {
+			score++
+		}
+		if parsed.CheckCode != "" {
+			score++
+		}
+		if score > bestScore {
+			bestScore = score
+			best = parsed
+		}
+	}
+
+	if bestScore == 0 {
+		return nil, nil
+	}
+	return &best, nil
+}
+
+func parseInvoiceQRPayload(payload string) invoiceQRFields {
+	fields := invoiceQRFields{}
+
+	tokens := splitInvoiceQRPayload(payload)
+	if len(tokens) >= 6 {
+		if isDigitsLen(tokens[2], 10, 12) {
+			fields.InvoiceCode = onlyDigits(tokens[2])
+		}
+		if isDigitsLen(tokens[3], 8, 8) {
+			fields.InvoiceNumber = onlyDigits(tokens[3])
+		}
+		if looksLikeAmount(tokens[4]) {
+			fields.Amount = normalizeAmount(tokens[4])
+		}
+		if isDigitsLen(tokens[5], 8, 8) && strings.HasPrefix(onlyDigits(tokens[5]), "20") {
+			fields.InvoiceDate = formatDateYYYYMMDD(onlyDigits(tokens[5]))
+		}
+		if len(tokens) >= 7 && isDigitsLen(tokens[6], 16, 24) {
+			fields.CheckCode = onlyDigits(tokens[6])
+		}
+	}
+
+	allDigits := regexp.MustCompile(`\d+`).FindAllString(payload, -1)
+	for _, d := range allDigits {
+		if fields.CheckCode == "" && len(d) == 20 {
+			fields.CheckCode = d
+			continue
+		}
+		if fields.InvoiceDate == "" && len(d) == 8 && strings.HasPrefix(d, "20") {
+			fields.InvoiceDate = formatDateYYYYMMDD(d)
+			continue
+		}
+		if fields.InvoiceNumber == "" && len(d) == 8 && !strings.HasPrefix(d, "20") {
+			fields.InvoiceNumber = d
+			continue
+		}
+		if fields.InvoiceCode == "" && (len(d) == 10 || len(d) == 12) && !strings.HasPrefix(d, "20") {
+			fields.InvoiceCode = d
+			continue
+		}
+	}
+
+	if fields.Amount == "" {
+		amt := regexp.MustCompile(`\d+\.\d{2}`).FindString(payload)
+		if amt != "" {
+			fields.Amount = normalizeAmount(amt)
+		}
+	}
+
+	return fields
+}
+
+func splitInvoiceQRPayload(payload string) []string {
+	payload = strings.TrimSpace(payload)
+	payload = strings.TrimPrefix(payload, "\ufeff")
+	sep := ","
+	if strings.Count(payload, ",") == 0 && strings.Count(payload, "|") > 0 {
+		sep = "|"
+	} else if strings.Count(payload, ",") == 0 && strings.Count(payload, ";") > 0 {
+		sep = ";"
+	}
+	raw := strings.Split(payload, sep)
+	out := make([]string, 0, len(raw))
+	for _, x := range raw {
+		x = strings.TrimSpace(x)
+		if x == "" {
+			continue
+		}
+		out = append(out, x)
+	}
+	return out
+}
+
+func onlyDigits(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func isDigitsLen(s string, min, max int) bool {
+	s = onlyDigits(s)
+	return len(s) >= min && len(s) <= max
+}
+
+func looksLikeAmount(s string) bool {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "¥")
+	s = strings.TrimPrefix(s, "￥")
+	s = strings.ReplaceAll(s, ",", "")
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
+}
+
+func normalizeAmount(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "¥")
+	s = strings.TrimPrefix(s, "￥")
+	s = strings.ReplaceAll(s, ",", "")
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return s
+	}
+	return fmt.Sprintf("%.2f", f)
+}
+
+func formatDateYYYYMMDD(s string) string {
+	if len(s) != 8 {
+		return s
+	}
+	y, _ := strconv.Atoi(s[:4])
+	m, _ := strconv.Atoi(s[4:6])
+	d, _ := strconv.Atoi(s[6:8])
+	if y == 0 || m == 0 || d == 0 {
+		return s
+	}
+	return fmt.Sprintf("%d年%d月%d日", y, m, d)
 }
 
 func (s *OCRService) ocrInvoiceTopRightRegion(tempDir, imgPath string) (string, error) {

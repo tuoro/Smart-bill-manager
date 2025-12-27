@@ -139,7 +139,7 @@
         <div class="grid-form">
           <div class="field col-span-2">
             <label for="email">&#37038;&#31665;&#22320;&#22336;</label>
-            <InputText id="email" v-model.trim="form.email" autocomplete="email" />
+            <InputText id="email" v-model.trim="form.email" type="email" inputmode="email" autocomplete="email" />
             <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
           </div>
 
@@ -302,7 +302,7 @@ const validate = () => {
 
   if (!form.email) {
     errors.email = '\u8BF7\u8F93\u5165\u90AE\u7BB1\u5730\u5740'
-  } else if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) {
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = '\u8BF7\u8F93\u5165\u6709\u6548\u7684\u90AE\u7BB1\u5730\u5740'
   }
   if (!form.imap_host) errors.imap_host = '\u8BF7\u8F93\u5165 IMAP \u670D\u52A1\u5668\u5730\u5740'

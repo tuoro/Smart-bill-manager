@@ -106,23 +106,36 @@
     </Card>
 
     <Dialog v-model:visible="uploadModalVisible" modal :header="'\u4E0A\u4F20\u53D1\u7968'" :style="{ width: '620px', maxWidth: '92vw' }" :closable="!uploading">
-      <div class="upload-box">
+      <div class="upload-box sbm-dropzone" @click="triggerInvoiceChoose">
         <FileUpload
+          ref="invoiceUploader"
           name="files"
           accept="application/pdf"
           :multiple="true"
           :maxFileSize="20_971_520"
           :customUpload="true"
+          :showUploadButton="false"
+          :showCancelButton="false"
           :chooseLabel="'\u9009\u62E9 PDF'"
           @select="onSelectFiles"
-        />
+        >
+          <template #empty>
+            <div class="sbm-dropzone-empty">
+              <i class="pi pi-cloud-upload" />
+              <div class="sbm-dropzone-title">&#25299;&#25321; PDF &#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+              <div class="sbm-dropzone-sub">&#25903;&#25345;&#25209;&#37327;&#19978;&#20256;&#65292;&#21333;&#20010;&#25991;&#20214;&#26368;&#22823; 20MB</div>
+            </div>
+          </template>
+        </FileUpload>
         <div v-if="selectedFiles.length > 0" class="file-hint">
           &#24050;&#36873;&#25321; {{ selectedFiles.length }} &#20010;&#25991;&#20214;
         </div>
       </div>
       <template #footer>
-        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" :disabled="uploading" @click="uploadModalVisible = false" />
-        <Button type="button" :label="'\u4E0A\u4F20'" icon="pi pi-check" :loading="uploading" @click="handleUpload" />
+        <div class="dialog-footer-center">
+          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" :disabled="uploading" @click="uploadModalVisible = false" />
+          <Button type="button" :label="'\u4E0A\u4F20'" icon="pi pi-check" :loading="uploading" @click="handleUpload" />
+        </div>
       </template>
     </Dialog>
 
@@ -293,6 +306,14 @@ const stats = ref<{ totalCount: number; totalAmount: number; bySource: Record<st
 const uploadModalVisible = ref(false)
 const uploading = ref(false)
 const selectedFiles = ref<File[]>([])
+const invoiceUploader = ref<any | null>(null)
+
+const triggerInvoiceChoose = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+  if (target.closest('button') || target.closest('input') || target.closest('a')) return
+  invoiceUploader.value?.choose?.()
+}
 
 const previewVisible = ref(false)
 const previewInvoice = ref<Invoice | null>(null)
@@ -672,6 +693,70 @@ onMounted(() => {
   border: 1px dashed color-mix(in srgb, var(--p-primary-400, #60a5fa), transparent 25%);
   background: rgba(59, 130, 246, 0.03);
   background: color-mix(in srgb, var(--p-primary-50, #eff6ff), transparent 55%);
+}
+
+.sbm-dropzone {
+  cursor: pointer;
+}
+
+.sbm-dropzone :deep(.p-fileupload) {
+  width: 100%;
+}
+
+.sbm-dropzone :deep(.p-fileupload-buttonbar) {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.sbm-dropzone :deep(.p-fileupload-content) {
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sbm-dropzone :deep(.p-fileupload-file-list) {
+  display: none;
+}
+
+.sbm-dropzone-empty {
+  width: 100%;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.sbm-dropzone-empty i {
+  font-size: 22px;
+  color: var(--p-primary-600, #2563eb);
+}
+
+.sbm-dropzone-title {
+  font-weight: 900;
+  color: var(--color-text-primary);
+}
+
+.sbm-dropzone-sub {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.dialog-footer-center {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
 }
 
 .file-hint {

@@ -174,88 +174,91 @@
       :style="{ width: '880px', maxWidth: '96vw' }"
       :closable="!uploadingScreenshot && !savingOcrResult"
     >
-      <div class="grid">
-        <div class="col-12 md:col-6">
-          <div class="upload-box">
-            <FileUpload
-              mode="basic"
-              name="file"
-              accept="image/png,image/jpeg"
-              :maxFileSize="10_485_760"
-              :customUpload="true"
-              :chooseLabel="'\u9009\u62E9\u622A\u56FE'"
-              @select="onScreenshotSelected"
-            />
-            <div v-if="selectedScreenshotName" class="file-name">{{ selectedScreenshotName }}</div>
-            <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
-          </div>
-          <div v-if="ocrResult?.raw_text" class="raw">
-            <div class="raw-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
-            <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
-          </div>
+      <div class="upload-screenshot-layout">
+        <div class="upload-box sbm-dropzone" @click="triggerScreenshotChoose">
+          <FileUpload
+            ref="screenshotUploader"
+            name="file"
+            accept="image/png,image/jpeg"
+            :maxFileSize="10_485_760"
+            :customUpload="true"
+            :showUploadButton="false"
+            :showCancelButton="false"
+            :chooseLabel="'\u9009\u62E9\u622A\u56FE'"
+            @select="onScreenshotSelected"
+          >
+            <template #empty>
+              <div class="sbm-dropzone-empty">
+                <i class="pi pi-cloud-upload" />
+                <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+                <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
+              </div>
+            </template>
+          </FileUpload>
+
+          <div v-if="selectedScreenshotName" class="file-name">{{ selectedScreenshotName }}</div>
+          <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
         </div>
 
-        <div class="col-12 md:col-6">
-          <Message v-if="!ocrResult" severity="info" :closable="false">
-            &#35831;&#36873;&#25321;&#25130;&#22270;&#65292;&#28857;&#20987;&#8220;&#35782;&#21035;&#8221;&#29983;&#25104;&#24405;&#20837;&#24314;&#35758;&#12290;
-          </Message>
+        <Message v-if="!ocrResult" severity="info" :closable="false">
+          &#35831;&#36873;&#25321;&#25130;&#22270;&#65292;&#28857;&#20987;&#8220;&#35782;&#21035;&#8221;&#29983;&#25104;&#24405;&#20837;&#24314;&#35758;&#12290;
+        </Message>
 
-          <form v-else class="p-fluid" @submit.prevent="handleSaveOcrResult">
-            <div class="grid">
-              <div class="col-12 md:col-6 field">
-                <label for="ocr_amount">&#37329;&#39069;</label>
-                <InputNumber id="ocr_amount" v-model="ocrForm.amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0" />
-                <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
-              </div>
-              <div class="col-12 md:col-6 field">
-                <label for="ocr_merchant">&#5546;&#23478;</label>
-                <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
-              </div>
-              <div class="col-12 md:col-6 field">
-                <label for="ocr_category">&#20998;&#31867;</label>
-                <Dropdown id="ocr_category" v-model="ocrForm.category" :options="CATEGORIES" :showClear="true" />
-              </div>
-              <div class="col-12 md:col-6 field">
-                <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
-                <Dropdown id="ocr_method" v-model="ocrForm.payment_method" :options="PAYMENT_METHODS" :showClear="true" />
-              </div>
-              <div class="col-12 field">
-                <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
-                <DatePicker id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
-                <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
-              </div>
-              <div class="col-12 field">
-                <label for="ocr_order">&#20132;&#26131;&#21333;&#21495; (&#21487;&#36873;)</label>
-                <InputText id="ocr_order" v-model.trim="ocrForm.order_number" />
-              </div>
-              <div class="col-12 field">
-                <label for="ocr_desc">&#22791;&#27880;</label>
-                <Textarea id="ocr_desc" v-model="ocrForm.description" autoResize rows="3" />
-              </div>
+        <form v-else class="p-fluid" @submit.prevent="handleSaveOcrResult">
+          <div class="grid">
+            <div class="col-12 md:col-6 field">
+              <label for="ocr_amount">&#37329;&#39069;</label>
+              <InputNumber id="ocr_amount" v-model="ocrForm.amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0" />
+              <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
             </div>
-          </form>
+            <div class="col-12 md:col-6 field">
+              <label for="ocr_merchant">&#5546;&#23478;</label>
+              <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
+            </div>
+            <div class="col-12 md:col-6 field">
+              <label for="ocr_category">&#20998;&#31867;</label>
+              <Dropdown id="ocr_category" v-model="ocrForm.category" :options="CATEGORIES" :showClear="true" />
+            </div>
+            <div class="col-12 md:col-6 field">
+              <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
+              <Dropdown id="ocr_method" v-model="ocrForm.payment_method" :options="PAYMENT_METHODS" :showClear="true" />
+            </div>
+            <div class="col-12 field">
+              <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
+              <DatePicker id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
+              <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
+            </div>
+            <div class="col-12 field">
+              <label for="ocr_order">&#20132;&#26131;&#21333;&#21495; (&#21487;&#36873;)</label>
+              <InputText id="ocr_order" v-model.trim="ocrForm.order_number" />
+            </div>
+            <div class="col-12 field">
+              <label for="ocr_desc">&#22791;&#27880;</label>
+              <Textarea id="ocr_desc" v-model="ocrForm.description" autoResize rows="3" />
+            </div>
+          </div>
+        </form>
+
+        <div v-if="ocrResult?.raw_text" class="raw">
+          <div class="raw-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
+          <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
         </div>
       </div>
 
       <template #footer>
-        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="cancelScreenshotUpload" />
-        <Button
-          v-if="!ocrResult"
-          type="button"
-          :label="'\u8BC6\u522B'"
-          icon="pi pi-search"
-          :loading="uploadingScreenshot"
-          :disabled="!selectedScreenshotFile"
-          @click="handleScreenshotUpload"
-        />
-        <Button
-          v-else
-          type="button"
-          :label="'\u4FDD\u5B58'"
-          icon="pi pi-check"
-          :loading="savingOcrResult"
-          @click="handleSaveOcrResult"
-        />
+        <div class="dialog-footer-center">
+          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="cancelScreenshotUpload" />
+          <Button
+            v-if="!ocrResult"
+            type="button"
+            :label="'\u8BC6\u522B'"
+            icon="pi pi-search"
+            :loading="uploadingScreenshot"
+            :disabled="!selectedScreenshotFile"
+            @click="handleScreenshotUpload"
+          />
+          <Button v-else type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="savingOcrResult" @click="handleSaveOcrResult" />
+        </div>
       </template>
     </Dialog>
 
@@ -501,6 +504,14 @@ const selectedScreenshotName = ref('')
 const screenshotError = ref('')
 const ocrResult = ref<OcrExtractedData | null>(null)
 const uploadedPaymentId = ref<string | null>(null)
+const screenshotUploader = ref<any | null>(null)
+
+const triggerScreenshotChoose = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null
+  if (!target) return
+  if (target.closest('button') || target.closest('input') || target.closest('a')) return
+  screenshotUploader.value?.choose?.()
+}
 
 const ocrForm = reactive({
   amount: 0,
@@ -1072,6 +1083,76 @@ onMounted(() => {
   border: 1px dashed color-mix(in srgb, var(--p-primary-400, #60a5fa), transparent 25%);
   background: rgba(59, 130, 246, 0.03);
   background: color-mix(in srgb, var(--p-primary-50, #eff6ff), transparent 55%);
+}
+
+.upload-screenshot-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sbm-dropzone {
+  cursor: pointer;
+}
+
+.sbm-dropzone :deep(.p-fileupload) {
+  width: 100%;
+}
+
+.sbm-dropzone :deep(.p-fileupload-buttonbar) {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.sbm-dropzone :deep(.p-fileupload-content) {
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sbm-dropzone :deep(.p-fileupload-file-list) {
+  display: none;
+}
+
+.sbm-dropzone-empty {
+  width: 100%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.sbm-dropzone-empty i {
+  font-size: 22px;
+  color: var(--p-primary-600, #2563eb);
+}
+
+.sbm-dropzone-title {
+  font-weight: 900;
+  color: var(--color-text-primary);
+}
+
+.sbm-dropzone-sub {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.dialog-footer-center {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
 }
 
 .file-name {

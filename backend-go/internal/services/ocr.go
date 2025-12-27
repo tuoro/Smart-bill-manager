@@ -2009,6 +2009,7 @@ func cleanupName(name string) string {
 	// Remove common trailing patterns
 	// e.g., "上海市虹口区鹏侠百货商店\n售" -> "上海市虹口区鹏侠百货商店"
 	name = strings.TrimSpace(name)
+	name = strings.Trim(name, ":：")
 
 	// Split by multiple spaces (2 or more) and take the first part
 	// This handles cases where the name is followed by other content with significant spacing
@@ -2030,14 +2031,183 @@ func cleanupName(name string) string {
 	return name
 }
 
+// removeChineseInlineSpaces removes *inline* spaces between Chinese characters in OCR/PDF text,
+// but keeps newlines intact (important for invoice section parsing).
+func removeChineseInlineSpaces(text string) string {
+	var result strings.Builder
+	runes := []rune(text)
+
+	isInlineSpace := func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\u3000'
+	}
+
+	i := 0
+	for i < len(runes) {
+		r := runes[i]
+
+		// Preserve newlines as-is for invoice parsing.
+		if r == '\n' || r == '\r' {
+			result.WriteRune(r)
+			i++
+			continue
+		}
+
+		// Only treat plain/ideographic spaces and tabs as removable inline whitespace.
+		if !isInlineSpace(r) {
+			result.WriteRune(r)
+			i++
+			continue
+		}
+
+		// Preserve aligned layouts (e.g. left-right buyer/seller columns) by keeping
+		// runs of 2+ inline spaces intact.
+		runEnd := i + 1
+		for runEnd < len(runes) && isInlineSpace(runes[runEnd]) {
+			runEnd++
+		}
+		if runEnd-i >= 2 {
+			for ; i < runEnd; i++ {
+				result.WriteRune(runes[i])
+			}
+			continue
+		}
+
+		// Single inline space: decide whether to drop it.
+		prevIdx := i - 1
+		nextIdx := i + 1
+
+		skipSpace := false
+		if prevIdx >= 0 && nextIdx < len(runes) {
+			prev := runes[prevIdx]
+			next := runes[nextIdx]
+
+			// Skip space if both neighbors are Chinese characters
+			if unicode.Is(unicode.Han, prev) && unicode.Is(unicode.Han, next) {
+				skipSpace = true
+			}
+			// Skip space between Chinese and digits (e.g. "开票日期 2025")
+			if prev != '日' && unicode.Is(unicode.Han, prev) && unicode.IsDigit(next) {
+				skipSpace = true
+			}
+			// Skip space if previous is digit and next is date unit (年/月/日)
+			if unicode.IsDigit(prev) && (next == '年' || next == '月' || next == '日' || next == '时' || next == '分' || next == '秒') {
+				skipSpace = true
+			}
+			// Skip space between digits and Chinese (e.g. "1700 元")
+			if unicode.IsDigit(prev) && unicode.Is(unicode.Han, next) {
+				skipSpace = true
+			}
+			// Skip space if previous is date unit (年/月) and next is digit
+			if prev != '日' && (prev == '年' || prev == '月') && unicode.IsDigit(next) {
+				skipSpace = true
+			}
+		}
+
+		if !skipSpace {
+			result.WriteRune(r)
+		}
+		i++
+	}
+
+	return result.String()
+}
+
+func isBadPartyNameCandidate(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return true
+	}
+	// Common label fragments that sometimes get captured as a "name".
+	bad := []string{
+		"名称", "名称:", "名称：",
+		"项目名称", "货物或应税劳务、服务名称",
+		"购买方", "销售方", "购买", "销售",
+		"纳税人识别号", "纳税人识别号:", "纳税人识别号：",
+		"地址", "地址、电话", "电话",
+		"开户行", "开户行及账号", "账号",
+	}
+	for _, b := range bad {
+		if name == b {
+			return true
+		}
+	}
+	if strings.HasSuffix(name, "识别号:") || strings.HasSuffix(name, "识别号：") {
+		return true
+	}
+	if strings.Contains(name, "小写") || strings.Contains(name, "大写") {
+		return true
+	}
+	if strings.Contains(name, "纳税人识别号") || strings.Contains(name, "统一社会信用代码") || strings.Contains(name, "地址") || strings.Contains(name, "开户行") {
+		return true
+	}
+	// Dates are not party names; avoid confusing invoice date with seller/buyer.
+	if regexp.MustCompile(`\d{4}年\d{1,2}月\d{1,2}日`).MatchString(name) {
+		return true
+	}
+	return false
+}
+
+func normalizeInvoiceTextForParsing(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = removeChineseInlineSpaces(text)
+
+	// Normalize "vertical" or whitespace-separated section markers often found in PDF text extraction.
+	replacements := []struct {
+		re   *regexp.Regexp
+		repl string
+	}{
+		{regexp.MustCompile(`购\s*买\s*方`), "购买方"},
+		{regexp.MustCompile(`销\s*售\s*方`), "销售方"},
+		{regexp.MustCompile(`价\s*税\s*合\s*计`), "价税合计"},
+		{regexp.MustCompile(`开\s*票\s*日\s*期`), "开票日期"},
+		{regexp.MustCompile(`发\s*票\s*代\s*码`), "发票代码"},
+		{regexp.MustCompile(`发\s*票\s*号\s*码`), "发票号码"},
+		{regexp.MustCompile(`校\s*验\s*码`), "校验码"},
+		{regexp.MustCompile(`纳\s*税\s*人\s*识\s*别\s*号`), "纳税人识别号"},
+		{regexp.MustCompile(`名\s*称`), "名称"},
+	}
+	for _, r := range replacements {
+		text = r.re.ReplaceAllString(text, r.repl)
+	}
+
+	// Normalize currency symbols / mojibake variants to the full-width RMB symbol (U+FFE5).
+	// - U+00A5: '¥' (Yen sign; common in PDF text)
+	// - "\u00c2\u00a5": "Â¥" (UTF-8 bytes mis-decoded as Latin-1)
+	// - "\u00ef\u00bf\u00a5": "ï¿¥" (UTF-8 bytes of U+FFE5 mis-decoded as Latin-1)
+	text = strings.ReplaceAll(text, "\u00ef\u00bf\u00a5", "\uffe5")
+	text = strings.ReplaceAll(text, "\u00c2\u00a5", "\uffe5")
+	text = strings.ReplaceAll(text, "\u00a5", "\uffe5")
+
+	return text
+}
+
 // extractBuyerAndSellerByPosition extracts buyer and seller names based on text position
 func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller *string) {
+	text = normalizeInvoiceTextForParsing(text)
+
 	// Step 1: Find positions of "购" and "销" markers
 	buyerMarkerIndex := -1
 	sellerMarkerIndex := -1
 
+	findStandaloneMarker := func(marker string) int {
+		// Match marker as a standalone token (line start/end or surrounded by whitespace).
+		re := regexp.MustCompile(fmt.Sprintf(`(?m)(^|[\s])%s($|[\s])`, regexp.QuoteMeta(marker)))
+		loc := re.FindStringSubmatchIndex(text)
+		if len(loc) >= 2 {
+			// FindStringSubmatchIndex returns overall match span; locate the marker within it.
+			span := text[loc[0]:loc[1]]
+			off := strings.Index(span, marker)
+			if off >= 0 {
+				return loc[0] + off
+			}
+			return loc[0]
+		}
+		return -1
+	}
+
 	// Find "购" marker (购买方)
-	buyerPatterns := []string{"购买方", "购方", "购"}
+	buyerPatterns := []string{"购买方", "购方"}
 	for _, pattern := range buyerPatterns {
 		if idx := strings.Index(text, pattern); idx != -1 {
 			if buyerMarkerIndex == -1 || idx < buyerMarkerIndex {
@@ -2045,9 +2215,18 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 			}
 		}
 	}
+	if buyerMarkerIndex == -1 {
+		buyerMarkerIndex = findStandaloneMarker("购")
+	}
+	if buyerMarkerIndex == -1 {
+		// "购 名称：xxx" may become "购名称：xxx" after inline-space normalization.
+		if loc := regexp.MustCompile(`购\s*名称`).FindStringIndex(text); loc != nil {
+			buyerMarkerIndex = loc[0]
+		}
+	}
 
 	// Find "销" marker (销售方)
-	sellerPatterns := []string{"销售方", "销方", "销"}
+	sellerPatterns := []string{"销售方", "销方"}
 	for _, pattern := range sellerPatterns {
 		if idx := strings.Index(text, pattern); idx != -1 {
 			if sellerMarkerIndex == -1 || idx < sellerMarkerIndex {
@@ -2055,27 +2234,122 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 			}
 		}
 	}
+	if sellerMarkerIndex == -1 {
+		sellerMarkerIndex = findStandaloneMarker("销")
+	}
+	if sellerMarkerIndex == -1 {
+		// "销 名称：xxx" may become "销名称：xxx" after inline-space normalization.
+		if loc := regexp.MustCompile(`销\s*名称`).FindStringIndex(text); loc != nil {
+			sellerMarkerIndex = loc[0]
+		}
+	}
 
-	// Step 2: Find all "名称：XXX" or "名    称:XXX" patterns with their positions
-	// Support formats: "名称：", "名称:", "名   称：", "名   称:"
-	// Use non-greedy match and stop at 3+ spaces, newline, or end of string
-	nameMatches := namePositionPattern.FindAllStringSubmatchIndex(text, -1)
-
-	// Step 3: Extract names and associate with buyer/seller based on position
 	type nameEntry struct {
 		name     string
 		position int
 	}
 	var names []nameEntry
+	seenNames := make(map[string]bool)
+	addName := func(name string, pos int) bool {
+		name = cleanupName(strings.TrimSpace(name))
+		if name == "" || len([]rune(name)) <= 1 || isBadPartyNameCandidate(name) {
+			return false
+		}
+		if seenNames[name] {
+			return false
+		}
+		seenNames[name] = true
+		names = append(names, nameEntry{name: name, position: pos})
+		return true
+	}
 
+	// Step 2: Find all "名称：XXX" patterns with their positions.
+	// Use non-greedy match and stop at 3+ spaces, newline, or end of string.
+	nameMatches := namePositionPattern.FindAllStringSubmatchIndex(text, -1)
 	for _, match := range nameMatches {
 		if len(match) >= 4 {
-			name := strings.TrimSpace(text[match[2]:match[3]])
-			// Clean up the name - remove trailing markers
-			name = cleanupName(name)
-			// Filter out invalid names: empty, single character, or just markers/labels
-			if name != "" && name != "信" && name != "息" && name != "名称：" && name != "名称:" && len(name) > 1 {
-				names = append(names, nameEntry{name: name, position: match[0]})
+			addName(text[match[2]:match[3]], match[0])
+		}
+	}
+
+	// Additional patterns: handle inline forms like "名称: XXX" (but avoid the naive
+	// "next line" capture, which often grabs "纳税人识别号:" when the value is empty).
+	nameInlineRe := regexp.MustCompile(`(?m)(?:名称)[:：]\s*([^\n\r]+)`)
+	matches := nameInlineRe.FindAllStringSubmatchIndex(text, -1)
+	for _, m := range matches {
+		if len(m) < 4 {
+			continue
+		}
+		addName(text[m[2]:m[3]], m[0])
+	}
+
+	// Handle empty "名称:" lines where the value appears later (common in PDF text extraction).
+	lines := strings.Split(text, "\n")
+	lineStarts := make([]int, 0, len(lines))
+	offset := 0
+	for _, line := range lines {
+		lineStarts = append(lineStarts, offset)
+		offset += len(line) + 1
+	}
+	nameLineRe := regexp.MustCompile(`名称\s*[:：]\s*(.*)$`)
+	looksLikePartyName := func(s string) bool {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return false
+		}
+		if len([]rune(s)) > 80 {
+			return false
+		}
+		if strings.ContainsAny(s, "*<>") {
+			return false
+		}
+		if regexp.MustCompile(`^\d+$`).MatchString(s) {
+			return false
+		}
+		// Skip common table headers and invoice labels.
+		blocklist := []string{
+			"项目名称", "货物或应税劳务、服务名称", "规格型号", "单位", "单 位", "数量", "数 量", "单价", "单 价", "金额", "金 额",
+			"税率", "税率/征收率", "税额", "税 额", "合计", "价税合计", "备注", "开票人", "收款人", "复核",
+		}
+		for _, b := range blocklist {
+			if strings.Contains(s, b) {
+				return false
+			}
+		}
+		hasHan := false
+		for _, r := range s {
+			if unicode.Is(unicode.Han, r) {
+				hasHan = true
+				break
+			}
+		}
+		return hasHan && !isBadPartyNameCandidate(s)
+	}
+	for i, line := range lines {
+		loc := nameLineRe.FindStringSubmatchIndex(line)
+		if loc == nil || len(loc) < 4 {
+			continue
+		}
+		value := strings.TrimSpace(line[loc[2]:loc[3]])
+		if value != "" && !isBadPartyNameCandidate(value) {
+			addName(value, lineStarts[i]+loc[2])
+			continue
+		}
+
+		// Look ahead for the first non-label line; PDF text extraction often prints labels
+		// (纳税人识别号/地址/开户行...) before the actual name.
+		for j := i + 1; j < len(lines) && j <= i+200; j++ {
+			cand := strings.TrimSpace(lines[j])
+			if cand == "" {
+				continue
+			}
+			if !looksLikePartyName(cand) {
+				continue
+			}
+			// If this candidate was already added (e.g. buyer and seller labels are close),
+			// keep scanning to find the next distinct party name.
+			if addName(cand, lineStarts[j]) {
+				break
 			}
 		}
 	}
@@ -2085,133 +2359,55 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 		return nil, nil
 	}
 
-	// If we have both markers, use smart positioning logic
-	if buyerMarkerIndex != -1 && sellerMarkerIndex != -1 {
-		// Strategy: For each name, find which marker it's closest to, considering direction
-		// Names can appear either before or after their associated markers depending on invoice format
-		type preference struct {
-			nameIdx    int
-			markerType string
-			score      int
-		}
+	if buyerMarkerIndex == -1 && sellerMarkerIndex == -1 {
+		return nil, nil
+	}
 
-		var prefs []preference
+	sort.Slice(names, func(i, j int) bool { return names[i].position < names[j].position })
 
-		for idx, entry := range names {
-			distToBuyer := abs(entry.position - buyerMarkerIndex)
-			distToSeller := abs(entry.position - sellerMarkerIndex)
-
-			// Check which markers come before/after the name
-			buyerBefore := buyerMarkerIndex < entry.position
-			sellerBefore := sellerMarkerIndex < entry.position
-			buyerAfter := buyerMarkerIndex > entry.position
-			sellerAfter := sellerMarkerIndex > entry.position
-
-			if buyerBefore && sellerBefore {
-				// Both markers come before the name - name is after both sections
-				// Pick the closer one
-				if distToBuyer < distToSeller {
-					prefs = append(prefs, preference{idx, "buyer", distToBuyer})
-				} else {
-					prefs = append(prefs, preference{idx, "seller", distToSeller})
-				}
-			} else if buyerBefore && sellerAfter {
-				// Buyer before, seller after - name is between markers
-				// Prefer the first marker (buyer in this case) as names in structured sections
-				// belong to the section they appear in
-				if buyerMarkerIndex < sellerMarkerIndex {
-					// Buyer comes first - prefer buyer
-					prefs = append(prefs, preference{idx, "buyer", distToBuyer})
-					// Also add seller with penalty to allow fallback if needed
-					prefs = append(prefs, preference{idx, "seller", distToSeller + 1000})
-				} else {
-					// Seller comes first - prefer seller
-					prefs = append(prefs, preference{idx, "seller", distToSeller})
-					prefs = append(prefs, preference{idx, "buyer", distToBuyer + 1000})
-				}
-			} else if sellerBefore && buyerAfter {
-				// Seller before, buyer after - name is between markers
-				if sellerMarkerIndex < buyerMarkerIndex {
-					// Seller comes first - prefer seller
-					prefs = append(prefs, preference{idx, "seller", distToSeller})
-					prefs = append(prefs, preference{idx, "buyer", distToBuyer + 1000})
-				} else {
-					// Buyer comes first - prefer buyer
-					prefs = append(prefs, preference{idx, "buyer", distToBuyer})
-					prefs = append(prefs, preference{idx, "seller", distToSeller + 1000})
-				}
-			} else if buyerAfter && sellerAfter {
-				// Both markers come after the name - name is before both sections
-				// This is the top-bottom layout case where names precede markers
-				// Assign to closer marker
-				prefs = append(prefs, preference{idx, "buyer", distToBuyer})
-				prefs = append(prefs, preference{idx, "seller", distToSeller})
-			} else {
-				// Name is before markers or between them - use distance to both
-				prefs = append(prefs, preference{idx, "buyer", distToBuyer})
-				prefs = append(prefs, preference{idx, "seller", distToSeller})
-			}
-		}
-
-		// Sort by distance - closest pairs first
-		sort.Slice(prefs, func(i, j int) bool {
-			return prefs[i].score < prefs[j].score
-		})
-
-		// Greedy assignment
-		assignedNames := make(map[int]bool)
-
-		for _, pref := range prefs {
-			if assignedNames[pref.nameIdx] {
+	pickClosest := func(markerIdx int, used map[string]bool) *string {
+		bestDist := int(^uint(0) >> 1)
+		bestName := ""
+		for _, entry := range names {
+			if used[entry.name] {
 				continue
 			}
-
-			if pref.markerType == "buyer" && buyer == nil {
-				nameCopy := names[pref.nameIdx].name
-				buyer = &nameCopy
-				assignedNames[pref.nameIdx] = true
-			} else if pref.markerType == "seller" && seller == nil {
-				nameCopy := names[pref.nameIdx].name
-				seller = &nameCopy
-				assignedNames[pref.nameIdx] = true
-			}
-
-			if buyer != nil && seller != nil {
-				break
+			d := abs(entry.position - markerIdx)
+			if d < bestDist {
+				bestDist = d
+				bestName = entry.name
 			}
 		}
-	} else if buyerMarkerIndex != -1 || sellerMarkerIndex != -1 {
-		// Only one marker found - use position relative to that marker
-		markerIndex := buyerMarkerIndex
-		if sellerMarkerIndex != -1 {
-			markerIndex = sellerMarkerIndex
+		if bestName == "" {
+			return nil
 		}
+		nameCopy := bestName
+		return &nameCopy
+	}
 
-		var beforeNames, afterNames []nameEntry
-		for _, entry := range names {
-			if entry.position < markerIndex {
-				beforeNames = append(beforeNames, entry)
-			} else {
-				afterNames = append(afterNames, entry)
-			}
+	used := make(map[string]bool)
+	if buyerMarkerIndex != -1 {
+		buyer = pickClosest(buyerMarkerIndex, used)
+		if buyer != nil {
+			used[*buyer] = true
 		}
+	}
+	if sellerMarkerIndex != -1 {
+		seller = pickClosest(sellerMarkerIndex, used)
+		if seller != nil {
+			used[*seller] = true
+		}
+	}
 
-		// The name after the marker belongs to that party
-		// The name before belongs to the other party
-		if buyerMarkerIndex != -1 {
-			if len(afterNames) > 0 {
-				buyer = &afterNames[0].name
-			}
-			if len(beforeNames) > 0 {
-				seller = &beforeNames[len(beforeNames)-1].name
-			}
-		} else {
-			if len(afterNames) > 0 {
-				seller = &afterNames[0].name
-			}
-			if len(beforeNames) > 0 {
-				buyer = &beforeNames[len(beforeNames)-1].name
-			}
+	// Fallback ordering (first buyer, last seller) if one side is still missing.
+	if (buyer == nil || seller == nil) && len(names) >= 2 {
+		first := names[0].name
+		last := names[len(names)-1].name
+		if buyer == nil {
+			buyer = &first
+		}
+		if seller == nil && last != first {
+			seller = &last
 		}
 	}
 
@@ -2224,6 +2420,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		RawText: text,
 	}
 
+	parsedText := normalizeInvoiceTextForParsing(text)
+
 	// Extract invoice number - support both same-line and newline-separated formats
 	invoiceNumRegexes := []*regexp.Regexp{
 		regexp.MustCompile(`发票号码[：:]?\s*[\n\r]?\s*(\d+)`),
@@ -2231,7 +2429,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		regexp.MustCompile(`No[\.:]?\s*[\n\r]?\s*(\d+)`),
 	}
 	for _, re := range invoiceNumRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
+		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
 			invoiceNum := match[1]
 			data.InvoiceNumber = &invoiceNum
 			break
@@ -2244,7 +2442,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		// Match 8-digit numbers on their own line (old invoice format)
 		// or 20-25 digit numbers (electronic invoice format)
 		standaloneNumRegex := regexp.MustCompile(`(?m)^(\d{8}|\d{20,25})$`)
-		if match := standaloneNumRegex.FindStringSubmatch(text); len(match) > 1 {
+		if match := standaloneNumRegex.FindStringSubmatch(parsedText); len(match) > 1 {
 			invoiceNum := match[1]
 			data.InvoiceNumber = &invoiceNum
 		}
@@ -2257,7 +2455,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		regexp.MustCompile(`日期[：:]?\s*[\n\r]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
 	}
 	for _, re := range dateRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
+		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
 			date := match[1]
 			data.InvoiceDate = &date
 			break
@@ -2266,7 +2464,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 
 	// If not found, try to match space-separated date format: "2025 年07 月02 日"
 	if data.InvoiceDate == nil {
-		if match := spaceDelimitedDatePattern.FindStringSubmatch(text); len(match) > 3 {
+		if match := spaceDelimitedDatePattern.FindStringSubmatch(parsedText); len(match) > 3 {
 			// Reconstruct date: "2025年07月02日"
 			date := fmt.Sprintf("%s年%s月%s日", match[1], match[2], match[3])
 			data.InvoiceDate = &date
@@ -2277,7 +2475,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	// This is common in electronic invoices where the date appears on its own line
 	if data.InvoiceDate == nil {
 		standaloneDateRegex := regexp.MustCompile(`(\d{4}年\d{1,2}月\d{1,2}日)`)
-		if match := standaloneDateRegex.FindStringSubmatch(text); len(match) > 1 {
+		if match := standaloneDateRegex.FindStringSubmatch(parsedText); len(match) > 1 {
 			date := match[1]
 			data.InvoiceDate = &date
 		}
@@ -2294,7 +2492,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		regexp.MustCompile(`金额\s*[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
 	}
 	for _, re := range amountRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
+		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
 			if amount := parseAmount(match[1]); amount != nil {
 				data.Amount = amount
 				break
@@ -2307,7 +2505,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	// Include both simplified (万) and traditional (萬) characters
 	if data.Amount == nil {
 		chineseAmountRegex := regexp.MustCompile(`[零壹贰叁肆伍陆柒捌玖拾佰仟万萬亿]+圆整[\s\n\r]*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`)
-		if match := chineseAmountRegex.FindStringSubmatch(text); len(match) > 1 {
+		if match := chineseAmountRegex.FindStringSubmatch(parsedText); len(match) > 1 {
 			if amount := parseAmount(match[1]); amount != nil {
 				data.Amount = amount
 			}
@@ -2321,7 +2519,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		// Support amounts with or without decimal places
 		standaloneAmountRegex := regexp.MustCompile(`[¥￥]\s*([\d]+(?:\.[\d]{1,2})?)(?:\s*$|\s*\n|$)`)
 		// Find all matches and take the last one (most likely to be the total)
-		matches := standaloneAmountRegex.FindAllStringSubmatch(text, -1)
+		matches := standaloneAmountRegex.FindAllStringSubmatch(parsedText, -1)
 		if len(matches) > 0 {
 			lastMatch := matches[len(matches)-1]
 			if len(lastMatch) > 1 {
@@ -2332,13 +2530,35 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 
+	// If we still failed (or picked an obviously too-small value), choose the max currency amount.
+	// This handles common invoice layouts where totals are listed as multiple currency values:
+	//   ¥121.80 (价税合计), ¥107.79 (不含税), ¥14.01 (税额)
+	currencyAmountRegex := regexp.MustCompile("[\\x{00A5}\\x{FFE5}]\\s*([\\d]+(?:\\.[\\d]{1,2})?)")
+	curMatches := currencyAmountRegex.FindAllStringSubmatch(parsedText, -1)
+	var maxAmt *float64
+	for _, m := range curMatches {
+		if len(m) < 2 {
+			continue
+		}
+		if a := parseAmount(m[1]); a != nil && *a >= MinValidAmount {
+			if maxAmt == nil || *a > *maxAmt {
+				maxAmt = a
+			}
+		}
+	}
+	if maxAmt != nil {
+		if data.Amount == nil || *data.Amount < *maxAmt {
+			data.Amount = maxAmt
+		}
+	}
+
 	// Extract tax amount
 	taxRegexes := []*regexp.Regexp{
 		regexp.MustCompile(`税额[：:]?\s*[¥￥]?([\d,.]+)`),
 		regexp.MustCompile(`税金[：:]?\s*[¥￥]?([\d,.]+)`),
 	}
 	for _, re := range taxRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
+		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
 			if tax := parseAmount(match[1]); tax != nil {
 				data.TaxAmount = tax
 				break
@@ -2347,7 +2567,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	}
 
 	// Use position-based method to extract buyer and seller names
-	buyer, seller := s.extractBuyerAndSellerByPosition(text)
+	buyer, seller := s.extractBuyerAndSellerByPosition(parsedText)
 	data.BuyerName = buyer
 	data.SellerName = seller
 
@@ -2361,7 +2581,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			regexp.MustCompile(`购货方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
 		}
 		for _, re := range buyerRegexes {
-			if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
 				buyer := strings.TrimSpace(match[1])
 				// Filter out section headers like "信息" (information) that might be captured
 				// Also filter out labels like "名称：" or "名称:"
@@ -2378,7 +2598,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.BuyerName == nil {
 			// Match tax ID (optional, may be empty for individuals) followed by name
 			buyerSectionRegex := regexp.MustCompile(`(?s)购.*?买.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
-			if match := buyerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
+			if match := buyerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
 				buyer := strings.TrimSpace(match[2])
 				// Filter out labels and section markers
 				if buyer != "" && buyer != "销" && buyer != "售" && buyer != "方" && buyer != "名称：" && buyer != "名称:" {
@@ -2390,7 +2610,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		// If still not found, try to match "个人" (individual) as a standalone buyer
 		if data.BuyerName == nil {
 			individualRegex := regexp.MustCompile(`(个人)`)
-			if match := individualRegex.FindStringSubmatch(text); len(match) > 1 {
+			if match := individualRegex.FindStringSubmatch(parsedText); len(match) > 1 {
 				buyer := match[1]
 				data.BuyerName = &buyer
 			}
@@ -2412,7 +2632,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			regexp.MustCompile(`出票方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
 		}
 		for _, re := range sellerRegexes {
-			if match := re.FindStringSubmatch(text); len(match) > 1 {
+			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
 				seller := strings.TrimSpace(match[1])
 				// Filter out section headers like "信息" (information) that might be captured
 				if seller != "" && seller != "信" && seller != "息" {
@@ -2428,7 +2648,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.SellerName == nil {
 			// Match tax ID followed by company name
 			sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
-			if match := sellerSectionRegex.FindStringSubmatch(text); len(match) > 2 {
+			if match := sellerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
 				seller := strings.TrimSpace(match[2])
 				if seller != "" && seller != "购" && seller != "买" && seller != "方" {
 					data.SellerName = &seller
@@ -2441,7 +2661,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.SellerName == nil {
 			// Look for patterns like: tax ID on one line, then "名称：" followed by name
 			flexibleSellerRegex := regexp.MustCompile(fmt.Sprintf(`\b(%s)\b[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
-			if match := flexibleSellerRegex.FindStringSubmatch(text); len(match) > 2 {
+			if match := flexibleSellerRegex.FindStringSubmatch(parsedText); len(match) > 2 {
 				seller := strings.TrimSpace(match[2])
 				// Additional validation: check if this looks like a company name
 				// Sellers should not be "个人" (individual) - that would be a buyer
@@ -2458,7 +2678,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 			// Look for company/store name followed by tax ID on next line
 			// Company indicators: 公司, 商店, 企业, 中心, 厂, 店, etc.
 			companyBeforeTaxIDRegex := regexp.MustCompile(fmt.Sprintf(`([^\n\r]*(?:公司|商店|企业|中心|厂|店|行|社|院|局|部)[^\n\r]*)[\s\n\r]+(%s)`, taxIDPattern))
-			if match := companyBeforeTaxIDRegex.FindStringSubmatch(text); len(match) > 2 {
+			if match := companyBeforeTaxIDRegex.FindStringSubmatch(parsedText); len(match) > 2 {
 				seller := strings.TrimSpace(match[1])
 				// Validate it's not too short and doesn't contain obvious non-name content
 				if len(seller) > 3 && seller != "个人" {

@@ -260,73 +260,91 @@
     </Dialog>
 
     <Dialog v-model:visible="linkedInvoicesModalVisible" modal :header="'\u5173\u8054\u7684\u53D1\u7968'" :style="{ width: '980px', maxWidth: '96vw' }">
-      <div class="match-actions">
-        <Button :label="'\u63A8\u8350\u5339\u914D'" icon="pi pi-star" :loading="loadingSuggestedInvoices" @click="handleRecommendInvoices" />
+      <div class="match-header">
+        <div class="match-title">&#26234;&#33021;&#21305;&#37197;&#24314;&#35758;</div>
+        <Button
+          class="p-button-text"
+          :label="'\u63A8\u8350\u5339\u914D'"
+          icon="pi pi-star"
+          :loading="loadingSuggestedInvoices"
+          @click="handleRecommendInvoices"
+        />
       </div>
-      <div class="grid">
-        <div class="col-12 md:col-6">
-          <Card class="sbm-surface">
-            <template #title>&#24050;&#20851;&#32852;</template>
-            <template #content>
-              <DataTable :value="linkedInvoices" :loading="loadingLinkedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
-                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '140px' }" />
-                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '180px' }" />
-                <Column :header="'\u91D1\u989D'">
-                  <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
-                </Column>
-                <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '240px' }">
-                  <template #body="{ data: row }">
-                    <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
-                  </template>
-                </Column>
-                <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '140px' }">
-                  <template #body="{ data: row }">
-                    <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
-                  </template>
-                </Column>
-              </DataTable>
-            </template>
-          </Card>
-        </div>
-        <div class="col-12 md:col-6">
-          <Card class="sbm-surface">
-            <template #title>
-              <div class="suggest-title">
-                <span>&#26234;&#33021;&#25512;&#33616;</span>
-                <Tag severity="info" :value="`${suggestedInvoices.length}\u6761`" />
-              </div>
-            </template>
-            <template #content>
-              <DataTable :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
-                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '140px' }" />
-                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '180px' }" />
-                <Column :header="'\u91D1\u989D'">
-                  <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
-                </Column>
-                <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '240px' }">
-                  <template #body="{ data: row }">
-                    <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
-                  </template>
-                </Column>
-                <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '140px' }">
-                  <template #body="{ data: row }">
-                    <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
-                  </template>
-                </Column>
-                <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
-                  <template #body="{ data: row }">
-                    <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
-                  </template>
-                </Column>
-              </DataTable>
-              <div v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0" class="no-data">
-                <i class="pi pi-info-circle" />
-                <span>&#26242;&#26080;&#25512;&#33616;</span>
-              </div>
-            </template>
-          </Card>
-        </div>
-      </div>
+
+      <Tabs v-model:value="invoiceMatchTab">
+        <TabList>
+          <Tab value="linked">&#24050;&#20851;&#32852; ({{ linkedInvoices.length }})</Tab>
+          <Tab value="suggested">&#26234;&#33021;&#25512;&#33616; ({{ suggestedInvoices.length }})</Tab>
+        </TabList>
+        <TabPanels>
+        <TabPanel value="linked">
+          <DataTable class="match-table" :value="linkedInvoices" :loading="loadingLinkedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
+            <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.invoice_number || '-'">{{ row.invoice_number || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+              <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
+            </Column>
+            <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '320px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '150px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u64CD\u4F5C'" :style="{ width: '110px' }">
+              <template #body="{ data: row }">
+                <Button
+                  size="small"
+                  class="p-button-text p-button-danger"
+                  :label="'\u53D6\u6D88\u5173\u8054'"
+                  :loading="unlinkingInvoiceFromPayment"
+                  @click="handleUnlinkInvoiceFromPayment(row.id)"
+                />
+              </template>
+            </Column>
+          </DataTable>
+        </TabPanel>
+
+        <TabPanel value="suggested">
+          <DataTable class="match-table" :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
+            <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.invoice_number || '-'">{{ row.invoice_number || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+              <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
+            </Column>
+            <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '320px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '150px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
+              <template #body="{ data: row }">
+                <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
+              </template>
+            </Column>
+          </DataTable>
+
+          <div v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0" class="no-data">
+            <i class="pi pi-info-circle" />
+            <span>&#26242;&#26080;&#25512;&#33616;</span>
+          </div>
+        </TabPanel>
+        </TabPanels>
+      </Tabs>
       <template #footer>
         <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="linkedInvoicesModalVisible = false" />
       </template>
@@ -411,6 +429,11 @@ import Image from 'primevue/image'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
@@ -492,6 +515,8 @@ const currentPaymentForInvoices = ref<Payment | null>(null)
 const loadingSuggestedInvoices = ref(false)
 const suggestedInvoices = ref<Invoice[]>([])
 const linkingInvoiceToPayment = ref(false)
+const unlinkingInvoiceFromPayment = ref(false)
+const invoiceMatchTab = ref<'linked' | 'suggested'>('linked')
 
 // Detail dialog
 const paymentDetailVisible = ref(false)
@@ -872,6 +897,22 @@ const handleLinkInvoiceToPayment = async (invoiceId: string) => {
   }
 }
 
+const handleUnlinkInvoiceFromPayment = async (invoiceId: string) => {
+  if (!currentPaymentForInvoices.value) return
+  try {
+    unlinkingInvoiceFromPayment.value = true
+    await invoiceApi.unlinkPayment(invoiceId, currentPaymentForInvoices.value.id)
+    toast.add({ severity: 'success', summary: '\u53D6\u6D88\u5173\u8054\u6210\u529F', life: 2000 })
+    await viewLinkedInvoices(currentPaymentForInvoices.value)
+    await loadLinkedInvoicesCount()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } }
+    toast.add({ severity: 'error', summary: err.response?.data?.message || '\u53D6\u6D88\u5173\u8054\u5931\u8D25', life: 3500 })
+  } finally {
+    unlinkingInvoiceFromPayment.value = false
+  }
+}
+
 const openPaymentDetail = (payment: Payment) => {
   detailPayment.value = payment
   paymentDetailVisible.value = true
@@ -1052,17 +1093,21 @@ onMounted(() => {
   line-height: 1.6;
 }
 
-.match-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
-}
-
-.suggest-title {
+.match-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.match-title {
+  font-weight: 800;
+  color: var(--p-text-color);
+}
+
+.match-table :deep(.p-datatable-thead > tr > th),
+.match-table :deep(.p-datatable-tbody > tr > td) {
+  white-space: nowrap;
 }
 
 .no-data {

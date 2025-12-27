@@ -167,63 +167,75 @@
 
         <Divider />
 
-        <div class="match-actions">
-          <Button :label="'\u63A8\u8350\u5339\u914D'" icon="pi pi-star" :loading="loadingSuggestedPayments" @click="handleRecommendMatch" />
+        <div class="match-header">
+          <div class="match-title">&#26234;&#33021;&#21305;&#37197;&#24314;&#35758;</div>
+          <Button
+            class="p-button-text"
+            :label="'\u63A8\u8350\u5339\u914D'"
+            icon="pi pi-star"
+            :loading="loadingSuggestedPayments"
+            @click="handleRecommendMatch"
+          />
         </div>
 
-        <div class="grid">
-        <div class="col-12 md:col-6">
-          <Card class="sbm-surface">
-            <template #title>&#24050;&#20851;&#32852;&#30340;&#25903;&#20184;</template>
-            <template #content>
-              <DataTable :value="linkedPayments" :loading="loadingLinkedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
-                <Column :header="'\u91D1\u989D'" :style="{ width: '110px' }">
-                    <template #body="{ data: row }">{{ `\u00A5${row.amount.toFixed(2)}` }}</template>
-                  </Column>
-                  <Column field="merchant" :header="'\u5546\u5BB6'" />
-                  <Column field="transaction_time" :header="'\u65F6\u95F4'" :style="{ width: '160px' }">
-                    <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
-                  </Column>
-                  <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
-                    <template #body="{ data: row }">
-                      <Button size="small" class="p-button-text p-button-danger" icon="pi pi-times" @click="handleUnlinkPayment(row.id)" />
-                    </template>
-                  </Column>
-                </DataTable>
-              </template>
-            </Card>
-          </div>
-        <div class="col-12 md:col-6">
-          <Card class="sbm-surface">
-            <template #title>
-              <div class="suggest-title">
-                <span>&#26234;&#33021;&#25512;&#33616;</span>
-                <Tag severity="info" :value="`${suggestedPayments.length}\u6761`" />
-              </div>
-              </template>
-              <template #content>
-                <DataTable :value="suggestedPayments" :loading="loadingSuggestedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
-                  <Column :header="'\u91D1\u989D'" :style="{ width: '110px' }">
-                    <template #body="{ data: row }">{{ `\u00A5${row.amount.toFixed(2)}` }}</template>
-                  </Column>
-                  <Column field="merchant" :header="'\u5546\u5BB6'" />
-                  <Column field="transaction_time" :header="'\u65F6\u95F4'" :style="{ width: '160px' }">
-                    <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
-                  </Column>
-                  <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
-                    <template #body="{ data: row }">
-                      <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingPayment" @click="handleLinkPayment(row.id)" />
-                    </template>
-                  </Column>
-                </DataTable>
-                <div v-if="!loadingSuggestedPayments && suggestedPayments.length === 0" class="no-data">
-                  <i class="pi pi-info-circle" />
-                  <span>&#26242;&#26080;&#25512;&#33616;</span>
-                </div>
-              </template>
-            </Card>
-          </div>
-        </div>
+        <Tabs v-model:value="paymentMatchTab">
+          <TabList>
+            <Tab value="linked">&#24050;&#20851;&#32852; ({{ linkedPayments.length }})</Tab>
+            <Tab value="suggested">&#26234;&#33021;&#25512;&#33616; ({{ suggestedPayments.length }})</Tab>
+          </TabList>
+          <TabPanels>
+          <TabPanel value="linked">
+            <DataTable class="match-table" :value="linkedPayments" :loading="loadingLinkedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
+              <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+                <template #body="{ data: row }">
+                  <span class="money">{{ `\u00A5${row.amount.toFixed(2)}` }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u5546\u5BB6'" :style="{ width: '260px' }">
+                <template #body="{ data: row }">
+                  <span class="sbm-ellipsis" :title="row.merchant || '-'">{{ row.merchant || '-' }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u4EA4\u6613\u65F6\u95F4'" :style="{ width: '170px' }">
+                <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+              </Column>
+              <Column :header="'\u64CD\u4F5C'" :style="{ width: '110px' }">
+                <template #body="{ data: row }">
+                  <Button size="small" class="p-button-text p-button-danger" :label="'\u53D6\u6D88\u5173\u8054'" icon="pi pi-times" @click="handleUnlinkPayment(row.id)" />
+                </template>
+              </Column>
+            </DataTable>
+          </TabPanel>
+
+          <TabPanel value="suggested">
+            <DataTable class="match-table" :value="suggestedPayments" :loading="loadingSuggestedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
+              <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+                <template #body="{ data: row }">
+                  <span class="money">{{ `\u00A5${row.amount.toFixed(2)}` }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u5546\u5BB6'" :style="{ width: '260px' }">
+                <template #body="{ data: row }">
+                  <span class="sbm-ellipsis" :title="row.merchant || '-'">{{ row.merchant || '-' }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u4EA4\u6613\u65F6\u95F4'" :style="{ width: '170px' }">
+                <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+              </Column>
+              <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
+                <template #body="{ data: row }">
+                  <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingPayment" @click="handleLinkPayment(row.id)" />
+                </template>
+              </Column>
+            </DataTable>
+
+            <div v-if="!loadingSuggestedPayments && suggestedPayments.length === 0" class="no-data">
+              <i class="pi pi-info-circle" />
+              <span>&#26242;&#26080;&#25512;&#33616;</span>
+            </div>
+          </TabPanel>
+          </TabPanels>
+        </Tabs>
 
         <Divider />
 
@@ -256,6 +268,11 @@ import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Divider from 'primevue/divider'
 import FileUpload from 'primevue/fileupload'
+import Tab from 'primevue/tab'
+import TabList from 'primevue/tablist'
+import TabPanel from 'primevue/tabpanel'
+import TabPanels from 'primevue/tabpanels'
+import Tabs from 'primevue/tabs'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
@@ -287,6 +304,7 @@ const linkedPayments = ref<Payment[]>([])
 const suggestedPayments = ref<Payment[]>([])
 const loadingSuggestedPayments = ref(false)
 const linkingPayment = ref(false)
+const paymentMatchTab = ref<'linked' | 'suggested'>('linked')
 
 const loadInvoices = async () => {
   loading.value = true
@@ -716,14 +734,37 @@ onMounted(() => {
 
 .match-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.suggest-title {
+.match-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+
+.match-title {
+  font-weight: 800;
+  color: var(--p-text-color);
+}
+
+.match-table :deep(.p-datatable-thead > tr > th),
+.match-table :deep(.p-datatable-tbody > tr > td) {
+  white-space: nowrap;
+}
+
+.sbm-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .no-data {

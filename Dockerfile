@@ -73,7 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG ENABLE_INTEL_GPU_RUNTIME=false
 RUN if [ "$ENABLE_INTEL_GPU_RUNTIME" = "true" ]; then \
       set -eux; \
-      try_install() { \
+      try_install_debian() { \
         apt-get update -o Acquire::Retries=3 || return 1; \
         # OpenCL ICD (required for many iGPU paths) + clinfo for easy diagnostics. \
         apt-get install -y --no-install-recommends intel-opencl-icd clinfo || \
@@ -83,16 +83,39 @@ RUN if [ "$ENABLE_INTEL_GPU_RUNTIME" = "true" ]; then \
         apt-get install -y --no-install-recommends intel-level-zero-gpu || true; \
         return 0; \
       }; \
-      if ! try_install; then \
-        echo "Intel GPU runtime install failed; enabling contrib/non-free and retrying..." >&2; \
+      enable_nonfree() { \
         if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
           sed -i -E 's/^(Components:).*/\\1 main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources || true; \
         fi; \
         if [ -f /etc/apt/sources.list ]; then \
           sed -i -E 's/^(deb\\s+[^ ]+\\s+[^ ]+\\s+)main(\\s*)$/\\1main contrib non-free non-free-firmware\\2/' /etc/apt/sources.list || true; \
         fi; \
+      }; \
+      try_install_oneapi_opencl() { \
+        apt-get update -o Acquire::Retries=3 || return 1; \
+        apt-get install -y --no-install-recommends gnupg || return 1; \
+        mkdir -p /etc/apt/keyrings; \
+        python3 -c "import urllib.request; urllib.request.urlretrieve('https://repositories.intel.com/oneapi/gpgkey','/etc/apt/keyrings/intel-oneapi.asc')" || return 1; \
+        gpg --dearmor -o /etc/apt/keyrings/intel-oneapi.gpg /etc/apt/keyrings/intel-oneapi.asc || return 1; \
+        rm -f /etc/apt/keyrings/intel-oneapi.asc; \
+        echo "deb [signed-by=/etc/apt/keyrings/intel-oneapi.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/intel-oneapi.list; \
         rm -rf /var/lib/apt/lists/*; \
-        try_install; \
+        apt-get update -o Acquire::Retries=3 || return 1; \
+        apt-get install -y --no-install-recommends intel-oneapi-runtime-opencl clinfo || \
+          apt-get install -y --no-install-recommends intel-oneapi-runtime-opencl || return 1; \
+        return 0; \
+      }; \
+      if ! try_install_debian; then \
+        echo "Intel GPU runtime install failed; enabling contrib/non-free and retrying..." >&2; \
+        enable_nonfree; \
+        rm -rf /var/lib/apt/lists/*; \
+        if ! try_install_debian; then \
+          echo "Intel GPU runtime still unavailable from Debian repos; trying Intel oneAPI OpenCL runtime..." >&2; \
+          rm -rf /var/lib/apt/lists/*; \
+          if ! try_install_oneapi_opencl; then \
+            echo "WARNING: Failed to install Intel GPU runtime in image; OpenVINO will run on CPU only." >&2; \
+          fi; \
+        fi; \
       fi; \
       rm -rf /var/lib/apt/lists/*; \
     fi

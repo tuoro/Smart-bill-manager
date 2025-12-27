@@ -9,6 +9,7 @@ import sys
 import json
 import os
 import contextlib
+import argparse
 from importlib import metadata
 
 
@@ -37,16 +38,24 @@ def suppress_child_output():
 
 
 def main():
-    if len(sys.argv) < 2:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("image_path", nargs="?")
+    parser.add_argument("--profile", choices=["default", "pdf"], default="default")
+    parser.add_argument("--max-side-len", type=int, default=None)
+    parser.add_argument("--min-height", type=int, default=None)
+    parser.add_argument("--text-score", type=float, default=None)
+    args = parser.parse_args()
+
+    if not args.image_path:
         print(json.dumps({"success": False, "error": "No image path provided"}))
         sys.exit(1)
-    
-    image_path = sys.argv[1]
+
+    image_path = args.image_path
     
     if not os.path.exists(image_path):
         print(json.dumps({"success": False, "error": f"Image file not found: {image_path}"}))
         sys.exit(1)
-    
+
     # RapidOCR v3 (rapidocr + onnxruntime)
     try:
         with suppress_child_output():
@@ -58,7 +67,27 @@ def main():
             except metadata.PackageNotFoundError:
                 pass
 
-            ocr = RapidOCR()
+            params = {}
+
+            # PDF pages are usually A4-sized images; RapidOCR defaults (e.g. max_side_len=2000, min_height=30)
+            # can downscale too aggressively and miss small fields like 发票代码/号码/日期.
+            if args.profile == "pdf":
+                params.update(
+                    {
+                        "Global.max_side_len": 4096,
+                        "Global.min_height": 10,
+                        "Global.text_score": 0.35,
+                    }
+                )
+
+            if args.max_side_len is not None:
+                params["Global.max_side_len"] = int(args.max_side_len)
+            if args.min_height is not None:
+                params["Global.min_height"] = int(args.min_height)
+            if args.text_score is not None:
+                params["Global.text_score"] = float(args.text_score)
+
+            ocr = RapidOCR(params=params or None)
             out = ocr(image_path)
 
         txts = getattr(out, "txts", None) or ()
@@ -88,6 +117,7 @@ def main():
             "lines": lines,
             "line_count": len(lines),
             "engine": f"rapidocr-{rapidocr_version}",
+            "profile": args.profile,
         }, ensure_ascii=False))
         return
         

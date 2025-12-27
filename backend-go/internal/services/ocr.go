@@ -109,6 +109,7 @@ type OCRCLIResponse struct {
 	Lines     []OCRCLILine    `json:"lines"`
 	LineCount int             `json:"line_count"`
 	Engine    string          `json:"engine,omitempty"`
+	Profile   string          `json:"profile,omitempty"`
 	Error     string          `json:"error,omitempty"`
 }
 
@@ -131,6 +132,18 @@ func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 
 // RecognizeWithRapidOCR executes the paddleocr_cli.py script for OCR recognition (RapidOCR only).
 func (s *OCRService) RecognizeWithRapidOCR(imagePath string) (string, error) {
+	return s.recognizeWithRapidOCRArgs(imagePath, nil)
+}
+
+func (s *OCRService) RecognizeWithRapidOCRProfile(imagePath, profile string) (string, error) {
+	profile = strings.TrimSpace(profile)
+	if profile == "" || profile == "default" {
+		return s.recognizeWithRapidOCRArgs(imagePath, nil)
+	}
+	return s.recognizeWithRapidOCRArgs(imagePath, []string{"--profile", profile})
+}
+
+func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []string) (string, error) {
 	fmt.Printf("[OCR] Running RapidOCR CLI for: %s\n", imagePath)
 
 	// Find the paddleocr_cli.py script
@@ -144,7 +157,10 @@ func (s *OCRService) RecognizeWithRapidOCR(imagePath string) (string, error) {
 	defer cancel()
 
 	run := func(python string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, python, scriptPath, imagePath)
+		args := []string{scriptPath}
+		args = append(args, extraArgs...)
+		args = append(args, imagePath)
+		cmd := exec.CommandContext(ctx, python, args...)
 		return cmd.CombinedOutput()
 	}
 
@@ -174,7 +190,11 @@ func (s *OCRService) RecognizeWithRapidOCR(imagePath string) (string, error) {
 	if engine == "" {
 		engine = "rapidocr"
 	}
-	fmt.Printf("[OCR] RapidOCR extracted %d lines, %d characters (engine=%s)\n", result.LineCount, len(result.Text), engine)
+	profile := result.Profile
+	if profile == "" {
+		profile = "default"
+	}
+	fmt.Printf("[OCR] RapidOCR extracted %d lines, %d characters (engine=%s profile=%s)\n", result.LineCount, len(result.Text), engine, profile)
 	return result.Text, nil
 }
 
@@ -488,7 +508,7 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	for i, imgPath := range files {
 		fmt.Printf("[OCR] Processing page %d/%d\n", i+1, len(files))
 
-		text, err := s.RecognizeWithRapidOCR(imgPath)
+		text, err := s.RecognizeWithRapidOCRProfile(imgPath, "pdf")
 		if err != nil {
 			fmt.Printf("[OCR] RapidOCR v3 failed for page %d: %v\n", i+1, err)
 			continue

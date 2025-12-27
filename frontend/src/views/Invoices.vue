@@ -260,9 +260,11 @@ import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { invoiceApi, FILE_BASE_URL } from '@/api'
+import { useNotificationStore } from '@/stores/notifications'
 import type { Invoice, Payment } from '@/types'
 
 const toast = useToast()
+const notifications = useNotificationStore()
 const confirm = useConfirm()
 
 const loading = ref(false)
@@ -334,6 +336,11 @@ const handleUpload = async () => {
       createdInvoice = createdList.length > 0 ? createdList[0] : null
     }
     toast.add({ severity: 'success', summary: '\u4E0A\u4F20\u6210\u529F', life: 2000 })
+    notifications.add({
+      severity: 'success',
+      title: '\u53D1\u7968\u4E0A\u4F20\u6210\u529F',
+      detail: selectedFiles.value.length === 1 ? selectedFiles.value[0]?.name : `\u5171 ${selectedFiles.value.length} \u4E2A\u6587\u4EF6`,
+    })
     uploadModalVisible.value = false
     selectedFiles.value = []
     await loadInvoices()
@@ -362,6 +369,7 @@ const handleDelete = async (id: string) => {
   try {
     await invoiceApi.delete(id)
     toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    notifications.add({ severity: 'info', title: '\u53D1\u7968\u5DF2\u5220\u9664', detail: id })
     await loadInvoices()
     await loadStats()
   } catch {
@@ -425,6 +433,11 @@ const handleLinkPayment = async (paymentId: string) => {
     linkingPayment.value = true
     await invoiceApi.linkPayment(previewInvoice.value.id, paymentId)
     toast.add({ severity: 'success', summary: '\u5173\u8054\u6210\u529F', life: 2000 })
+    notifications.add({
+      severity: 'success',
+      title: '\u53D1\u7968\u5DF2\u5173\u8054\u652F\u4ED8\u8BB0\u5F55',
+      detail: `invoice=${previewInvoice.value.invoice_number || previewInvoice.value.original_name || previewInvoice.value.id} payment=${paymentId}`,
+    })
     await loadLinkedPayments(previewInvoice.value.id)
     await refreshSuggestedPayments(previewInvoice.value.id, { showToast: false })
   } catch (error: unknown) {
@@ -440,6 +453,11 @@ const handleUnlinkPayment = async (paymentId: string) => {
   try {
     await invoiceApi.unlinkPayment(previewInvoice.value.id, paymentId)
     toast.add({ severity: 'success', summary: '\u53D6\u6D88\u5173\u8054\u6210\u529F', life: 2000 })
+    notifications.add({
+      severity: 'info',
+      title: '\u53D1\u7968\u5DF2\u53D6\u6D88\u5173\u8054\u652F\u4ED8\u8BB0\u5F55',
+      detail: `invoice=${previewInvoice.value.invoice_number || previewInvoice.value.original_name || previewInvoice.value.id} payment=${paymentId}`,
+    })
     await loadLinkedPayments(previewInvoice.value.id)
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
@@ -522,11 +540,17 @@ const handleReparse = async (id: string) => {
     const res = await invoiceApi.parse(id)
     if (res.data.success && res.data.data) {
       toast.add({ severity: 'success', summary: '\u53D1\u7968\u89E3\u6790\u5B8C\u6210', life: 2200 })
+      notifications.add({
+        severity: 'success',
+        title: '\u53D1\u7968\u5DF2\u91CD\u65B0\u89E3\u6790',
+        detail: res.data.data.invoice_number || res.data.data.original_name || id,
+      })
       previewInvoice.value = res.data.data
       await loadInvoices()
     }
   } catch {
     toast.add({ severity: 'error', summary: '\u53D1\u7968\u89E3\u6790\u5931\u8D25', life: 3000 })
+    notifications.add({ severity: 'error', title: '\u53D1\u7968\u91CD\u65B0\u89E3\u6790\u5931\u8D25', detail: id })
   } finally {
     parseStatusPending.value = false
   }

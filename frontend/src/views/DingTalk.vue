@@ -144,10 +144,34 @@ import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { dingtalkApi } from '@/api'
 import { getBackendBaseUrl } from '@/utils/constants'
+import { useNotificationStore } from '@/stores/notifications'
 import type { DingtalkConfig, DingtalkLog } from '@/types'
 
 const toast = useToast()
+const notifications = useNotificationStore()
 const confirm = useConfirm()
+
+const DINGTALK_LOG_TS_KEY = 'sbm.dingtalk.lastLogTs.v1'
+const getStoredTs = (key: string) => {
+  try {
+    return Number(window.localStorage.getItem(key) || 0) || 0
+  } catch {
+    return 0
+  }
+}
+
+const setStoredTs = (key: string, value: number) => {
+  try {
+    window.localStorage.setItem(key, String(value))
+  } catch {
+    // ignore
+  }
+}
+
+const parseTs = (v?: string) => {
+  const t = v ? Date.parse(v) : NaN
+  return Number.isFinite(t) ? t : 0
+}
 
 const loading = ref(false)
 const saving = ref(false)
@@ -197,7 +221,41 @@ const loadConfigs = async () => {
 const loadLogs = async () => {
   try {
     const res = await dingtalkApi.getLogs(undefined, 50)
-    if (res.data.success && res.data.data) logs.value = res.data.data
+    if (res.data.success && res.data.data) {
+      logs.value = res.data.data
+
+      const lastTs = getStoredTs(DINGTALK_LOG_TS_KEY)
+      const maxTs = Math.max(0, ...logs.value.map((x) => parseTs(x.created_at)))
+      if (lastTs === 0) {
+        if (maxTs > 0) setStoredTs(DINGTALK_LOG_TS_KEY, maxTs)
+        return
+      }
+
+      const newLogs = logs.value
+        .filter((x) => parseTs(x.created_at) > lastTs)
+        .sort((a, b) => parseTs(b.created_at) - parseTs(a.created_at))
+        .slice(0, 3)
+
+      for (const item of newLogs) {
+        const content = (item.content || '').replace(/\s+/g, ' ').trim()
+        const short = content.length > 60 ? `${content.slice(0, 60)}...` : content
+        if (item.has_attachment) {
+          notifications.add({
+            severity: 'success',
+            title: '钉钉收到发票/附件',
+            detail: `附件 ${item.attachment_count || 0} 个${short ? `：${short}` : ''}`,
+          })
+        } else {
+          notifications.add({
+            severity: 'info',
+            title: '钉钉收到消息',
+            detail: short || item.message_type || undefined,
+          })
+        }
+      }
+
+      if (maxTs > lastTs) setStoredTs(DINGTALK_LOG_TS_KEY, maxTs)
+    }
   } catch (error) {
     console.error('Load logs failed:', error)
   }
@@ -220,6 +278,7 @@ const handleSubmit = async () => {
       is_active: form.is_active ? 1 : 0,
     })
     toast.add({ severity: 'success', summary: '\u914D\u7F6E\u521B\u5EFA\u6210\u529F', life: 2200 })
+    notifications.add({ severity: 'success', title: '钉钉配置已创建', detail: form.name })
     modalVisible.value = false
     await loadConfigs()
   } catch (error: unknown) {
@@ -228,6 +287,11 @@ const handleSubmit = async () => {
       severity: 'error',
       summary: err.response?.data?.message || '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25',
       life: 3500,
+    })
+    notifications.add({
+      severity: 'error',
+      title: '钉钉配置创建失败',
+      detail: err.response?.data?.message || form.name,
     })
   } finally {
     saving.value = false
@@ -250,9 +314,11 @@ const handleDelete = async (id: string) => {
   try {
     await dingtalkApi.deleteConfig(id)
     toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    notifications.add({ severity: 'info', title: '钉钉配置已删除', detail: id })
     await loadConfigs()
   } catch {
     toast.add({ severity: 'error', summary: '\u5220\u9664\u5931\u8D25', life: 3000 })
+    notifications.add({ severity: 'error', title: '钉钉配置删除失败', detail: id })
   }
 }
 
@@ -266,8 +332,10 @@ const copyWebhookUrl = async (id: string) => {
   try {
     await navigator.clipboard.writeText(webhookUrl)
     toast.add({ severity: 'success', summary: 'Webhook URL \u5DF2\u590D\u5236', life: 2000 })
+    notifications.add({ severity: 'success', title: 'Webhook URL 已复制', detail: webhookUrl })
   } catch {
     toast.add({ severity: 'info', summary: `Webhook URL: ${webhookUrl}`, life: 4500 })
+    notifications.add({ severity: 'info', title: 'Webhook URL', detail: webhookUrl })
   }
 }
 

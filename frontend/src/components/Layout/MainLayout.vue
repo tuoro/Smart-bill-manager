@@ -81,14 +81,8 @@
           <div class="page-kicker">Overview</div>
           <h2 class="page-title">{{ pageTitle }}</h2>
         </div>
-        <div class="topbar-center">
-          <span class="p-input-icon-left search">
-            <i class="pi pi-search" />
-            <InputText v-model="searchText" placeholder="Search" />
-          </span>
-        </div>
         <div class="topbar-right">
-          <Button class="icon-btn" severity="secondary" text icon="pi pi-bell" />
+          <NotificationCenter />
           <button class="user-button" type="button" @click="toggleUserMenu">
             <Avatar :label="userInitial" shape="circle" class="user-avatar" />
             <span class="username">{{ authStore.user?.username || '\u7528\u6237' }}</span>
@@ -113,9 +107,9 @@ import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Avatar from 'primevue/avatar'
 import Menu from 'primevue/menu'
-import InputText from 'primevue/inputtext'
 import { useToast } from 'primevue/usetoast'
 import ChangePassword from '@/components/ChangePassword.vue'
+import NotificationCenter from '@/components/NotificationCenter.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -126,7 +120,6 @@ const toast = useToast()
 const isCollapsed = ref(true)
 const showChangePasswordDialog = ref(false)
 const userMenu = ref<InstanceType<typeof Menu> | null>(null)
-const searchText = ref('')
 
 const currentRoute = computed(() => route.path)
 
@@ -358,28 +351,10 @@ const toggleUserMenu = (event: MouseEvent) => {
   letter-spacing: -0.3px;
 }
 
-.topbar-center {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  padding: 0 14px;
-}
-
-.search :deep(.p-inputtext) {
-  width: min(420px, 46vw);
-  border-radius: 12px;
-}
-
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-.icon-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px !important;
 }
 
 .user-button {
@@ -428,10 +403,6 @@ const toggleUserMenu = (event: MouseEvent) => {
   }
 
   .username {
-    display: none;
-  }
-
-  .topbar-center {
     display: none;
   }
 }

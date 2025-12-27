@@ -213,10 +213,34 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { emailApi } from '@/api'
+import { useNotificationStore } from '@/stores/notifications'
 import type { EmailConfig, EmailLog } from '@/types'
 
 const toast = useToast()
+const notifications = useNotificationStore()
 const confirm = useConfirm()
+
+const EMAIL_LOG_TS_KEY = 'sbm.email.lastLogTs.v1'
+const getStoredTs = (key: string) => {
+  try {
+    return Number(window.localStorage.getItem(key) || 0) || 0
+  } catch {
+    return 0
+  }
+}
+
+const setStoredTs = (key: string, value: number) => {
+  try {
+    window.localStorage.setItem(key, String(value))
+  } catch {
+    // ignore
+  }
+}
+
+const parseTs = (v?: string) => {
+  const t = v ? Date.parse(v) : NaN
+  return Number.isFinite(t) ? t : 0
+}
 
 const EMAIL_PRESETS = [
   { name: 'QQ \u90AE\u7BB1', host: 'imap.qq.com', port: 993 },
@@ -298,7 +322,31 @@ const loadConfigs = async () => {
 const loadLogs = async () => {
   try {
     const res = await emailApi.getLogs(undefined, 50)
-    if (res.data.success && res.data.data) logs.value = res.data.data
+    if (res.data.success && res.data.data) {
+      logs.value = res.data.data
+
+      const lastTs = getStoredTs(EMAIL_LOG_TS_KEY)
+      const maxTs = Math.max(0, ...logs.value.map((x) => parseTs(x.created_at)))
+      if (lastTs === 0) {
+        if (maxTs > 0) setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
+        return
+      }
+
+      const newLogs = logs.value
+        .filter((x) => parseTs(x.created_at) > lastTs)
+        .sort((a, b) => parseTs(b.created_at) - parseTs(a.created_at))
+        .slice(0, 3)
+
+      for (const item of newLogs) {
+        const subject = item.subject || '（无主题）'
+        const detail = item.has_attachment
+          ? `${subject}（附件 ${item.attachment_count || 0} 个）`
+          : subject
+        notifications.add({ severity: 'info', title: '邮箱收到新邮件', detail })
+      }
+
+      if (maxTs > lastTs) setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
+    }
   } catch (error) {
     console.error('Load logs failed:', error)
   }
@@ -350,11 +398,14 @@ const handleTest = async () => {
     })
     if (res.data.success) {
       toast.add({ severity: 'success', summary: '\u8FDE\u63A5\u6D4B\u8BD5\u6210\u529F', life: 2200 })
+      notifications.add({ severity: 'success', title: '邮箱连接测试成功', detail: form.email })
     } else {
       toast.add({ severity: 'error', summary: res.data.message || '\u8FDE\u63A5\u6D4B\u8BD5\u5931\u8D25', life: 3500 })
+      notifications.add({ severity: 'error', title: '邮箱连接测试失败', detail: res.data.message || form.email })
     }
   } catch {
     toast.add({ severity: 'error', summary: '\u8FDE\u63A5\u6D4B\u8BD5\u5931\u8D25', life: 3500 })
+    notifications.add({ severity: 'error', title: '邮箱连接测试失败', detail: form.email })
   } finally {
     testLoading.value = false
   }
@@ -372,6 +423,7 @@ const handleSubmit = async () => {
       is_active: form.is_active ? 1 : 0,
     })
     toast.add({ severity: 'success', summary: '\u90AE\u7BB1\u914D\u7F6E\u521B\u5EFA\u6210\u529F', life: 2200 })
+    notifications.add({ severity: 'success', title: '邮箱配置已创建', detail: form.email })
     modalVisible.value = false
     await loadAll()
   } catch (error: unknown) {
@@ -380,6 +432,11 @@ const handleSubmit = async () => {
       severity: 'error',
       summary: err.response?.data?.message || '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25',
       life: 3500,
+    })
+    notifications.add({
+      severity: 'error',
+      title: '邮箱配置创建失败',
+      detail: err.response?.data?.message || form.email,
     })
   } finally {
     saving.value = false
@@ -402,9 +459,11 @@ const handleDelete = async (id: string) => {
   try {
     await emailApi.deleteConfig(id)
     toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    notifications.add({ severity: 'info', title: '邮箱配置已删除', detail: id })
     await loadAll()
   } catch {
     toast.add({ severity: 'error', summary: '\u5220\u9664\u5931\u8D25', life: 3000 })
+    notifications.add({ severity: 'error', title: '邮箱配置删除失败', detail: id })
   }
 }
 
@@ -412,9 +471,11 @@ const handleStartMonitor = async (id: string) => {
   try {
     await emailApi.startMonitoring(id)
     toast.add({ severity: 'success', summary: '\u76D1\u63A7\u5DF2\u542F\u52A8', life: 2000 })
+    notifications.add({ severity: 'success', title: '邮箱监控已启动', detail: id })
     await loadMonitorStatus()
   } catch {
     toast.add({ severity: 'error', summary: '\u542F\u52A8\u76D1\u63A7\u5931\u8D25', life: 3000 })
+    notifications.add({ severity: 'error', title: '邮箱监控启动失败', detail: id })
   }
 }
 
@@ -422,9 +483,11 @@ const handleStopMonitor = async (id: string) => {
   try {
     await emailApi.stopMonitoring(id)
     toast.add({ severity: 'success', summary: '\u76D1\u63A7\u5DF2\u505C\u6B62', life: 2000 })
+    notifications.add({ severity: 'info', title: '邮箱监控已停止', detail: id })
     await loadMonitorStatus()
   } catch {
     toast.add({ severity: 'error', summary: '\u505C\u6B62\u76D1\u63A7\u5931\u8D25', life: 3000 })
+    notifications.add({ severity: 'error', title: '邮箱监控停止失败', detail: id })
   }
 }
 
@@ -434,14 +497,22 @@ const handleManualCheck = async (id: string) => {
     const res = await emailApi.manualCheck(id)
     if (res.data.success) {
       toast.add({ severity: 'success', summary: res.data.message || '\u68C0\u67E5\u5B8C\u6210', life: 2200 })
+      const newEmails = res.data.data?.newEmails || 0
+      notifications.add({
+        severity: newEmails > 0 ? 'success' : 'info',
+        title: '邮箱检查完成',
+        detail: newEmails > 0 ? `新邮件 ${newEmails} 封（已尝试下载附件）` : '暂无新邮件',
+      })
       if (res.data.data && res.data.data.newEmails > 0) {
         await loadLogs()
       }
     } else {
       toast.add({ severity: 'error', summary: res.data.message || '\u68C0\u67E5\u5931\u8D25', life: 3500 })
+      notifications.add({ severity: 'error', title: '邮箱检查失败', detail: res.data.message || id })
     }
   } catch {
     toast.add({ severity: 'error', summary: '\u68C0\u67E5\u90AE\u4EF6\u5931\u8D25', life: 3500 })
+    notifications.add({ severity: 'error', title: '邮箱检查失败', detail: id })
   } finally {
     checkLoading.value = null
   }

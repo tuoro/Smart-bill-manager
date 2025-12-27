@@ -91,7 +91,13 @@
           </Column>
           <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '160px' }">
             <template #body="{ data: row }">
-              <Tag v-if="row.payment_method" severity="success" :value="row.payment_method" />
+              <Tag
+                v-if="row.payment_method"
+                class="sbm-tag-ellipsis"
+                severity="success"
+                :value="normalizeInlineText(row.payment_method)"
+                :title="normalizeInlineText(row.payment_method)"
+              />
               <span v-else>-</span>
             </template>
           </Column>
@@ -263,13 +269,21 @@
             <template #title>&#24050;&#20851;&#32852;</template>
             <template #content>
               <DataTable :value="linkedInvoices" :loading="loadingLinkedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
-                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" />
-                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" />
+                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '140px' }" />
+                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '180px' }" />
                 <Column :header="'\u91D1\u989D'">
                   <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
                 </Column>
-                <Column field="seller_name" :header="'\u9500\u552E\u65B9'" />
-                <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" />
+                <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '240px' }">
+                  <template #body="{ data: row }">
+                    <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
+                  </template>
+                </Column>
+                <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '140px' }">
+                  <template #body="{ data: row }">
+                    <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
+                  </template>
+                </Column>
               </DataTable>
             </template>
           </Card>
@@ -284,13 +298,21 @@
             </template>
             <template #content>
               <DataTable :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
-                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" />
-                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" />
+                <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '140px' }" />
+                <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '180px' }" />
                 <Column :header="'\u91D1\u989D'">
                   <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
                 </Column>
-                <Column field="seller_name" :header="'\u9500\u552E\u65B9'" />
-                <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" />
+                <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '240px' }">
+                  <template #body="{ data: row }">
+                    <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
+                  </template>
+                </Column>
+                <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '140px' }">
+                  <template #body="{ data: row }">
+                    <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
+                  </template>
+                </Column>
                 <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
                   <template #body="{ data: row }">
                     <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
@@ -320,7 +342,19 @@
             <div class="kv"><div class="k">&#5546;&#23478;</div><div class="v">{{ detailPayment.merchant || '-' }}</div></div>
           </div>
           <div class="col-12 md:col-6">
-            <div class="kv"><div class="k">&#25903;&#20184;&#26041;&#24335;</div><div class="v"><Tag v-if="detailPayment.payment_method" severity="success" :value="detailPayment.payment_method" /><span v-else>-</span></div></div>
+            <div class="kv">
+              <div class="k">&#25903;&#20184;&#26041;&#24335;</div>
+              <div class="v">
+                <Tag
+                  v-if="detailPayment.payment_method"
+                  class="sbm-tag-ellipsis"
+                  severity="success"
+                  :value="normalizeInlineText(detailPayment.payment_method)"
+                  :title="normalizeInlineText(detailPayment.payment_method)"
+                />
+                <span v-else>-</span>
+              </div>
+            </div>
           </div>
           <div class="col-12 md:col-6">
             <div class="kv"><div class="k">&#20998;&#31867;</div><div class="v"><Tag v-if="detailPayment.category" severity="info" :value="detailPayment.category" /><span v-else>-</span></div></div>
@@ -382,6 +416,7 @@ import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { invoiceApi, paymentApi, FILE_BASE_URL } from '@/api'
+import { useNotificationStore } from '@/stores/notifications'
 import type { Invoice, Payment } from '@/types'
 
 interface OcrExtractedData {
@@ -394,6 +429,7 @@ interface OcrExtractedData {
 }
 
 const toast = useToast()
+const notifications = useNotificationStore()
 const confirm = useConfirm()
 
 const CATEGORIES = ['\u9910\u996E', '\u4EA4\u901A', '\u8D2D\u7269', '\u5A31\u4E50', '\u4F4F\u623F', '\u533B\u7597', '\u6559\u80B2', '\u901A\u8BAF', '\u5176\u4ED6']
@@ -509,6 +545,7 @@ const loadStats = async () => {
 
 const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 const formatMoney = (value: number) => `\u00A5${(value || 0).toFixed(2)}`
+const normalizeInlineText = (value?: string | null) => (value || '').replace(/\s+/g, ' ').trim()
 
 const loadLinkedInvoicesCount = async () => {
   try {
@@ -578,9 +615,19 @@ const handleSubmit = async () => {
     if (editingPayment.value) {
       await paymentApi.update(editingPayment.value.id, payload)
       toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
+      notifications.add({
+        severity: 'success',
+        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u66F4\u65B0',
+        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
+      })
     } else {
       await paymentApi.create(payload)
       toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u521B\u5EFA\u6210\u529F', life: 2000 })
+      notifications.add({
+        severity: 'success',
+        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u521B\u5EFA',
+        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
+      })
     }
     modalVisible.value = false
     await loadPaymentsWithCount()
@@ -606,6 +653,7 @@ const handleDelete = async (id: string) => {
   try {
     await paymentApi.delete(id)
     toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
+    notifications.add({ severity: 'info', title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u5220\u9664', detail: id })
     await loadPaymentsWithCount()
     await loadStats()
   } catch {
@@ -675,11 +723,21 @@ const handleScreenshotUpload = async () => {
           summary: `\u622A\u56FE\u4E0A\u4F20\u6210\u529F\uFF0C\u4F46 OCR \u8BC6\u522B\u5931\u8D25\uFF1A${ocr_error}`,
           life: 5000,
         })
+        notifications.add({
+          severity: 'warn',
+          title: '\u652F\u4ED8\u622A\u56FE\u4E0A\u4F20\u6210\u529F\uFF0COCR \u5931\u8D25',
+          detail: selectedScreenshotName.value || undefined,
+        })
       } else {
         toast.add({
           severity: 'success',
           summary: '\u622A\u56FE\u8BC6\u522B\u6210\u529F\uFF0C\u8BF7\u786E\u8BA4\u6216\u4FEE\u6539\u8BC6\u522B\u7ED3\u679C',
           life: 2500,
+        })
+        notifications.add({
+          severity: 'success',
+          title: '\u652F\u4ED8\u622A\u56FE\u5DF2\u8BC6\u522B',
+          detail: selectedScreenshotName.value || undefined,
         })
       }
     }
@@ -709,9 +767,19 @@ const handleSaveOcrResult = async () => {
     if (uploadedPaymentId.value) {
       await paymentApi.update(uploadedPaymentId.value, payload)
       toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
+      notifications.add({
+        severity: 'success',
+        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u4FDD\u5B58',
+        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
+      })
     } else {
       await paymentApi.create(payload)
       toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u521B\u5EFA\u6210\u529F', life: 2000 })
+      notifications.add({
+        severity: 'success',
+        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u4FDD\u5B58',
+        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
+      })
     }
 
     resetScreenshotUploadState()
@@ -825,6 +893,7 @@ const handleReparseOcr = async (paymentId: string) => {
     const res = await paymentApi.reparseScreenshot(paymentId)
     if (res.data.success) {
       toast.add({ severity: 'success', summary: '\u91CD\u65B0\u89E3\u6790\u6210\u529F', life: 2000 })
+      notifications.add({ severity: 'success', title: '支付截图已重新解析', detail: paymentId })
       const detailRes = await paymentApi.getById(paymentId)
       if (detailRes.data.success && detailRes.data.data) detailPayment.value = detailRes.data.data
       await loadPaymentsWithCount()
@@ -834,6 +903,7 @@ const handleReparseOcr = async (paymentId: string) => {
     const message = err.response?.data?.message || '\u91CD\u65B0\u89E3\u6790\u5931\u8D25'
     const detail = err.response?.data?.error
     toast.add({ severity: 'error', summary: detail ? `${message}\uFF1A${detail}` : message, life: 5000 })
+    notifications.add({ severity: 'error', title: '支付截图重新解析失败', detail: detail || message })
   } finally {
     reparsingOcr.value = false
   }
@@ -870,6 +940,26 @@ onMounted(() => {
 .row-actions {
   display: flex;
   gap: 6px;
+}
+
+.sbm-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.sbm-tag-ellipsis {
+  max-width: 100%;
+}
+
+.sbm-tag-ellipsis :deep(.p-tag-label) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
 }
 
 .amount {

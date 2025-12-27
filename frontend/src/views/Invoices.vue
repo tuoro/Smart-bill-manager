@@ -106,27 +106,24 @@
     </Card>
 
     <Dialog v-model:visible="uploadModalVisible" modal :header="'\u4E0A\u4F20\u53D1\u7968'" :style="{ width: '620px', maxWidth: '92vw' }" :closable="!uploading">
-      <div class="upload-box sbm-dropzone" @click="triggerInvoiceChoose">
+      <div class="upload-box sbm-dropzone" @click="triggerInvoiceChoose" @dragenter.prevent @dragover.prevent @drop.prevent="onInvoiceDrop">
+        <div class="sbm-dropzone-hero">
+          <i class="pi pi-cloud-upload" />
+          <div class="sbm-dropzone-title">&#25299;&#25321; PDF/&#22270;&#29255; &#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+          <div class="sbm-dropzone-sub">&#25903;&#25345; PDF&#12289;PNG&#12289;JPG&#65288;&#21487;&#25209;&#37327;&#65289;&#65292;&#21333;&#20010;&#25991;&#20214;&#26368;&#22823; 20MB</div>
+          <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u6587\u4EF6'" @click="invoiceUploader?.choose?.()" />
+        </div>
+
         <FileUpload
           ref="invoiceUploader"
+          class="sbm-fileupload-hidden"
           name="files"
           accept="application/pdf,image/png,image/jpeg"
           :multiple="true"
           :maxFileSize="20_971_520"
           :customUpload="true"
-          :showUploadButton="false"
-          :showCancelButton="false"
-          :chooseLabel="'\u9009\u62E9\u6587\u4EF6'"
           @select="onSelectFiles"
-        >
-          <template #empty>
-            <div class="sbm-dropzone-empty">
-              <i class="pi pi-cloud-upload" />
-              <div class="sbm-dropzone-title">&#25299;&#25321; PDF/&#22270;&#29255; &#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-              <div class="sbm-dropzone-sub">&#25903;&#25345; PDF&#12289;PNG&#12289;JPG&#65288;&#21487;&#25209;&#37327;&#65289;&#65292;&#21333;&#20010;&#25991;&#20214;&#26368;&#22823; 20MB</div>
-            </div>
-          </template>
-        </FileUpload>
+        />
         <div v-if="selectedFiles.length > 0" class="file-list" @click.stop>
           <div v-for="(f, idx) in selectedFiles" :key="`${f.name}-${f.size}-${idx}`" class="file-row">
             <span class="file-row-name" :title="f.name">{{ f.name }}</span>
@@ -361,11 +358,45 @@ const loadStats = async () => {
 
 const openUploadModal = () => {
   selectedFiles.value = []
+  invoiceUploader.value?.clear?.()
   uploadModalVisible.value = true
 }
 
 const onSelectFiles = (event: any) => {
-  selectedFiles.value = Array.isArray(event?.files) ? (event.files as File[]) : []
+  const files = Array.isArray(event?.files) ? (event.files as File[]) : []
+  addInvoiceFiles(files, { replace: true })
+}
+
+const addInvoiceFiles = (files: File[], opts?: { replace?: boolean }) => {
+  const allowedTypes = new Set(['application/pdf', 'image/png', 'image/jpeg'])
+  const maxSize = 20 * 1024 * 1024
+  const incoming = files
+    .filter(f => allowedTypes.has(f.type))
+    .filter(f => f.size <= maxSize)
+
+  if (incoming.length === 0) return
+
+  const base = opts?.replace ? [] : selectedFiles.value
+  const merged = [...base]
+  const seen = new Set(base.map(f => `${f.name}-${f.size}-${f.type}`))
+  for (const f of incoming) {
+    const key = `${f.name}-${f.size}-${f.type}`
+    if (seen.has(key)) continue
+    merged.push(f)
+    seen.add(key)
+    if (merged.length >= 10) break
+  }
+
+  if (merged.length >= 10 && (incoming.length + base.length) > 10) {
+    toast.add({ severity: 'warn', summary: '最多同时选择 10 个文件', life: 2500 })
+  }
+  selectedFiles.value = merged
+}
+
+const onInvoiceDrop = (event: DragEvent) => {
+  const list = event.dataTransfer?.files
+  if (!list || list.length === 0) return
+  addInvoiceFiles(Array.from(list))
 }
 
 const handleUpload = async () => {
@@ -708,10 +739,28 @@ onMounted(() => {
 
 .sbm-dropzone {
   cursor: pointer;
+  position: relative;
 }
 
 .sbm-dropzone :deep(.p-fileupload) {
   width: 100%;
+}
+
+.sbm-fileupload-hidden {
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.sbm-fileupload-hidden :deep(.p-fileupload),
+.sbm-fileupload-hidden :deep(.p-fileupload-buttonbar),
+.sbm-fileupload-hidden :deep(.p-fileupload-content) {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 
 .sbm-dropzone :deep(.p-fileupload-buttonbar) {
@@ -748,19 +797,19 @@ onMounted(() => {
   display: none !important;
 }
 
-.sbm-dropzone-empty {
+.sbm-dropzone-hero {
   width: 100%;
-  min-height: 160px;
+  min-height: 140px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--color-text-secondary);
   user-select: none;
 }
 
-.sbm-dropzone-empty i {
+.sbm-dropzone-hero i {
   font-size: 22px;
   color: var(--p-primary-600, #2563eb);
 }

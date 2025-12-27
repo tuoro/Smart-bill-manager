@@ -175,26 +175,33 @@
       :closable="!uploadingScreenshot && !savingOcrResult"
     >
       <div class="upload-screenshot-layout">
-        <div class="upload-box sbm-dropzone" @click="triggerScreenshotChoose">
+        <div
+          class="upload-box sbm-dropzone"
+          @click="triggerScreenshotChoose"
+          @dragenter.prevent
+          @dragover.prevent
+          @drop.prevent="onScreenshotDrop"
+        >
+          <div class="sbm-dropzone-hero">
+            <i class="pi pi-cloud-upload" />
+            <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+            <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
+            <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click="screenshotUploader?.choose?.()" />
+          </div>
+
           <FileUpload
             ref="screenshotUploader"
+            class="sbm-fileupload-hidden"
             name="file"
             accept="image/png,image/jpeg"
             :maxFileSize="10_485_760"
             :customUpload="true"
+            :multiple="false"
+            :fileLimit="1"
             :showUploadButton="false"
             :showCancelButton="false"
-            :chooseLabel="'\u9009\u62E9\u622A\u56FE'"
             @select="onScreenshotSelected"
-          >
-            <template #empty>
-              <div class="sbm-dropzone-empty">
-                <i class="pi pi-cloud-upload" />
-                <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-                <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
-              </div>
-            </template>
-          </FileUpload>
+          />
 
           <div v-if="selectedScreenshotName" class="file-row" @click.stop>
             <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
@@ -522,6 +529,43 @@ const triggerScreenshotChoose = (event: MouseEvent) => {
   screenshotUploader.value?.choose?.()
 }
 
+const setScreenshotFile = (file?: File) => {
+  screenshotError.value = ''
+  screenshotUploader.value?.clear?.()
+
+  if (!file) {
+    selectedScreenshotFile.value = null
+    selectedScreenshotName.value = ''
+    return
+  }
+
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
+  if (!validTypes.includes(file.type)) {
+    screenshotError.value = '\u53EA\u652F\u6301 JPG\u3001JPEG\u3001PNG \u683C\u5F0F\u7684\u56FE\u7247'
+    selectedScreenshotFile.value = null
+    selectedScreenshotName.value = ''
+    return
+  }
+
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    screenshotError.value = '\u6587\u4EF6\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 10MB'
+    selectedScreenshotFile.value = null
+    selectedScreenshotName.value = ''
+    return
+  }
+
+  selectedScreenshotFile.value = file
+  selectedScreenshotName.value = file.name
+  ocrResult.value = null
+  uploadedPaymentId.value = null
+}
+
+const onScreenshotDrop = (event: DragEvent) => {
+  const file = event.dataTransfer?.files?.[0]
+  setScreenshotFile(file)
+}
+
 const clearSelectedScreenshot = () => {
   selectedScreenshotFile.value = null
   selectedScreenshotName.value = ''
@@ -728,32 +772,8 @@ const openScreenshotModal = () => {
 }
 
 const onScreenshotSelected = (event: any) => {
-  screenshotError.value = ''
   const file: File | undefined = event?.files?.[0]
-  if (!file) {
-    selectedScreenshotFile.value = null
-    selectedScreenshotName.value = ''
-    return
-  }
-
-  const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
-  if (!validTypes.includes(file.type)) {
-    screenshotError.value = '\u53EA\u652F\u6301 JPG\u3001JPEG\u3001PNG \u683C\u5F0F\u7684\u56FE\u7247'
-    selectedScreenshotFile.value = null
-    selectedScreenshotName.value = ''
-    return
-  }
-
-  const maxSize = 10 * 1024 * 1024
-  if (file.size > maxSize) {
-    screenshotError.value = '\u6587\u4EF6\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 10MB'
-    selectedScreenshotFile.value = null
-    selectedScreenshotName.value = ''
-    return
-  }
-
-  selectedScreenshotFile.value = file
-  selectedScreenshotName.value = file.name
+  setScreenshotFile(file)
 }
 
 const handleScreenshotUpload = async () => {
@@ -1111,10 +1131,28 @@ onMounted(() => {
 
 .sbm-dropzone {
   cursor: pointer;
+  position: relative;
 }
 
 .sbm-dropzone :deep(.p-fileupload) {
   width: 100%;
+}
+
+.sbm-fileupload-hidden {
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.sbm-fileupload-hidden :deep(.p-fileupload),
+.sbm-fileupload-hidden :deep(.p-fileupload-buttonbar),
+.sbm-fileupload-hidden :deep(.p-fileupload-content) {
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 
 .sbm-dropzone :deep(.p-fileupload-buttonbar) {
@@ -1151,19 +1189,19 @@ onMounted(() => {
   display: none !important;
 }
 
-.sbm-dropzone-empty {
+.sbm-dropzone-hero {
   width: 100%;
-  min-height: 120px;
+  min-height: 140px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--color-text-secondary);
   user-select: none;
 }
 
-.sbm-dropzone-empty i {
+.sbm-dropzone-hero i {
   font-size: 22px;
   color: var(--p-primary-600, #2563eb);
 }

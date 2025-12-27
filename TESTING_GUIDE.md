@@ -11,7 +11,7 @@ python3 -m pip install "rapidocr==3.*" onnxruntime
 python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
 ```
 
-PDF 文本提取依赖 poppler-utils（需提供 `pdftotext`/`pdftoppm`）。
+PDF OCR 依赖 poppler-utils（需提供 `pdftoppm`）。
 
 ### 2. 支付截图识别测试
 
@@ -153,7 +153,7 @@ docker exec -it smart-bill-test sh
 python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"
 
 # 检查 poppler-utils
-pdftotext -v
+pdftoppm -v
 
 # 退出
 exit
@@ -238,7 +238,7 @@ time curl -X POST http://localhost:3001/api/payments/upload-screenshot \
 
 #### OCR识别失败
 1. 检查 RapidOCR v3 是否正确安装：`python3 -c "import rapidocr, onnxruntime; print('RapidOCR v3 OK')"`
-2. 检查 poppler-utils：`pdftotext -v`
+2. 检查 poppler-utils：`pdftoppm -v`
 3. 查看服务器日志了解详细错误
 4. 确认图片格式和大小符合要求
 

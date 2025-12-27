@@ -346,51 +346,11 @@ func (s *OCRService) extractTextWithPdftotext(pdfPath string) (string, error) {
 	return text, nil
 }
 
-// RecognizePDF extracts text from PDF using hybrid approach
+// RecognizePDF extracts text from PDF using RapidOCR v3 only (no PDF text extraction).
 func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
-
-	var pdftotextResult, ocrResult string
-	var pdftotextErr, ocrErr error
-
-	// Method 1: Try pdftotext first (good for numbers, amounts, tax IDs)
-	pdftotextResult, pdftotextErr = s.extractTextWithPdftotext(pdfPath)
-	if pdftotextErr != nil {
-		fmt.Printf("[OCR] pdftotext extraction failed: %v\n", pdftotextErr)
-	} else {
-		fmt.Printf("[OCR] pdftotext extracted %d characters\n", len(pdftotextResult))
-	}
-
-	// Check if pdftotext result has enough Chinese characters
-	chineseRatio := s.getChineseCharRatio(pdftotextResult)
-	fmt.Printf("[OCR] pdftotext Chinese character ratio: %.2f%%\n", chineseRatio*100)
-
-	// If pdftotext result is good enough (has sufficient Chinese), use it directly
-	if pdftotextErr == nil && chineseRatio > 0.1 && !s.isGarbledText(pdftotextResult) {
-		fmt.Printf("[OCR] pdftotext result is sufficient, using it directly\n")
-		return pdftotextResult, nil
-	}
-
-	// Method 2: Use RapidOCR v3 OCR to get Chinese characters (for scanned PDFs)
-	fmt.Printf("[OCR] pdftotext result lacks Chinese content, performing RapidOCR v3 OCR\n")
-	ocrResult, ocrErr = s.pdfToImageOCR(pdfPath)
-	if ocrErr != nil {
-		fmt.Printf("[OCR] RapidOCR v3 PDF OCR failed: %v\n", ocrErr)
-		// If OCR also failed, return pdftotext result if available
-		if pdftotextErr == nil && strings.TrimSpace(pdftotextResult) != "" {
-			return pdftotextResult, nil
-		}
-		return "", fmt.Errorf("both pdftotext and OCR failed: pdftotext: %v, OCR: %v", pdftotextErr, ocrErr)
-	}
-
-	// Method 3: Merge results - combine the best of both
-	if pdftotextErr == nil && strings.TrimSpace(pdftotextResult) != "" {
-		mergedResult := s.mergeExtractionResults(pdftotextResult, ocrResult)
-		fmt.Printf("[OCR] Merged result: %d characters\n", len(mergedResult))
-		return mergedResult, nil
-	}
-
-	return ocrResult, nil
+	fmt.Printf("[OCR] Using RapidOCR v3 only (no pdftotext)\n")
+	return s.pdfToImageOCR(pdfPath)
 }
 
 // getChineseCharRatio calculates the ratio of Chinese characters in the text

@@ -13,11 +13,11 @@
 **技术细节:**
 - 文件位置: `backend-go/internal/services/ocr.go`
 - 依赖库: `github.com/otiai10/gosseract/v2`, `github.com/ledongthuc/pdf`
-- 系统依赖: Tesseract OCR, poppler-utils (提供 pdftotext 和 pdftoppm)
+- 系统依赖: poppler-utils (提供 pdftoppm) + RapidOCR v3 (Python + ONNXRuntime)
 - 核心方法:
   - `RecognizeImage()` - 图片OCR识别
   - `RecognizePDF()` - PDF文本提取（三层回退机制）
-  - `extractTextWithPdftotext()` - 使用 pdftotext 提取文本（最佳CID字体支持）
+  - `RecognizePDF()` - PDF 统一走 RapidOCR v3（pdftoppm 转图片后 OCR）
   - `extractTextFromPDF()` - 使用 ledongthuc/pdf 提取文本
   - `pdfToImageOCR()` - PDF转图片后OCR识别
   - `isGarbledText()` - 检测乱码文本
@@ -50,7 +50,7 @@ type Payment struct {
 
 **实现内容:**
 - **三层回退机制**用于PDF文本提取：
-  1. **pdftotext** (poppler-utils) - 优先使用，对CID字体（UniGB-UCS2-H）有更好支持
+  1. **OCR (pdftoppm + RapidOCR v3)** - 统一使用
   2. **ledongthuc/pdf** 库 - 次选，用于PDF解析
   3. **OCR** (pdftoppm + Tesseract) - 最后回退，用于扫描件或其他情况
 - 增强的正则表达式匹配
@@ -113,7 +113,7 @@ type InvoicePaymentLink struct {
 
 **依赖软件:**
 - **Tesseract OCR**: 用于图片文字识别
-- **poppler-utils**: 提供 pdftotext (文本提取) 和 pdftoppm (PDF转图片)
+- **poppler-utils**: 提供 pdftoppm (PDF转图片)
 - **leptonica**: Tesseract 的图像处理依赖库
 
 **镜像大小估算:**

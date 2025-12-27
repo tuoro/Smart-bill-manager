@@ -172,7 +172,7 @@
 - 支持更多发票格式（增值税电子普通发票、增值税电子专用发票等）
 
 **使用专业PDF解析库:**
-- 使用 `pdftotext` (poppler-utils) 进行文本提取
+- 使用 `pdftoppm` (poppler-utils) 将 PDF 按页转换为图片，再交给 RapidOCR v3 进行识别（不再使用 `pdftotext`）
 - 扫描件PDF：使用 `pdftoppm` 转图后交给 RapidOCR v3 识别
 - 支持中英文混合识别
 
@@ -244,7 +244,7 @@
 
 系统使用两层回退机制处理PDF发票：
 
-1. **pdftotext (poppler-utils)** - 优先使用
+1. **OCR (pdftoppm + RapidOCR v3)** - 统一使用
    - 对CID字体（如 UniGB-UCS2-H）有最佳支持
    - 适用于电子发票（STSong-Light、KaiTi_GB2312、SimSun等字体）
    - 速度快，提取准确
@@ -272,7 +272,7 @@ OCR识别准确度取决于：
 
 ### 性能考虑
 - 单次OCR识别通常在1-3秒内完成
-- PDF文本提取（pdftotext）：每页 < 0.5秒
+- PDF-OCR识别（pdftoppm + RapidOCR v3）：每页约 1-2 秒
 - PDF-OCR识别：每页约1-2秒
 - 建议单个文件不超过10MB
 
@@ -382,12 +382,12 @@ curl -X GET http://localhost:3001/api/payments/payment-id/invoices \
 ## 技术栈
 
 - **OCR引擎**: RapidOCR v3（Python + ONNXRuntime）
-- **PDF文本提取**: poppler-utils (pdftotext)
+- **PDF OCR**: poppler-utils (`pdftoppm`) + RapidOCR v3
 - **PDF转图片**: poppler-utils (pdftoppm)
 - **语言支持**: 中文简体(chi_sim), 英文(eng)
 
 ### 系统依赖
-- **poppler-utils**: 提供 pdftotext 和 pdftoppm 工具
+- **poppler-utils**: 提供 `pdftoppm` 工具（PDF 转图片）
   - Ubuntu/Debian: `apt-get install poppler-utils`
   - macOS: `brew install poppler`
   - Docker: 已在 Dockerfile 中预装

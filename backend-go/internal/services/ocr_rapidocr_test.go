@@ -20,8 +20,8 @@ func TestIsRapidOCRAvailable(t *testing.T) {
 		t.Logf("RapidOCR availability: %v", available)
 	})
 
-	t.Run("findPaddleOCRScript works correctly", func(t *testing.T) {
-		scriptPath := service.findPaddleOCRScript()
+	t.Run("findOCRCLIScript works correctly", func(t *testing.T) {
+		scriptPath := service.findOCRCLIScript()
 		t.Logf("Script path found: %s", scriptPath)
 		// If script is found, it should be a valid path
 		if scriptPath != "" {
@@ -96,7 +96,7 @@ result = {
 }
 print(json.dumps(result, ensure_ascii=False))
 `
-		scriptPath := filepath.Join(tempDir, "paddleocr_cli.py")
+		scriptPath := filepath.Join(tempDir, "ocr_cli.py")
 		if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ result = {
 print(json.dumps(result))
 sys.exit(1)
 `
-		scriptPath := filepath.Join(tempDir, "paddleocr_cli.py")
+		scriptPath := filepath.Join(tempDir, "ocr_cli.py")
 		if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
 			t.Fatal(err)
 		}

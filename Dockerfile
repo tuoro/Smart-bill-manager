@@ -88,7 +88,7 @@ COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
 RUN mkdir -p /app/backend/uploads /app/backend/data /app/scripts
 
 # Copy OCR scripts
-COPY scripts/paddleocr_cli.py /app/scripts/
+COPY scripts/ocr_cli.py /app/scripts/
 COPY scripts/pdf_text_cli.py /app/scripts/
 
 # Copy nginx configuration

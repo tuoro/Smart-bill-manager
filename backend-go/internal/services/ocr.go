@@ -195,7 +195,7 @@ func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 	return s.RecognizeWithRapidOCR(imagePath)
 }
 
-// RecognizeWithRapidOCR executes the paddleocr_cli.py script for OCR recognition (RapidOCR only).
+// RecognizeWithRapidOCR executes the ocr_cli.py script for OCR recognition (RapidOCR only).
 func (s *OCRService) RecognizeWithRapidOCR(imagePath string) (string, error) {
 	return s.recognizeWithRapidOCRArgs(imagePath, nil)
 }
@@ -211,10 +211,10 @@ func (s *OCRService) RecognizeWithRapidOCRProfile(imagePath, profile string) (st
 func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []string) (string, error) {
 	fmt.Printf("[OCR] Running OCR CLI for: %s (engine=%s)\n", imagePath, getOCREngine())
 
-	// Find the paddleocr_cli.py script
-	scriptPath := s.findPaddleOCRScript()
+	// Find the OCR CLI script
+	scriptPath := s.findOCRCLIScript()
 	if scriptPath == "" {
-		return "", fmt.Errorf("paddleocr_cli.py script not found")
+		return "", fmt.Errorf("ocr_cli.py script not found")
 	}
 
 	// Execute Python script
@@ -297,14 +297,14 @@ func unmarshalPossiblyNoisyJSON(output []byte, v any) error {
 	return fmt.Errorf("invalid JSON")
 }
 
-// findPaddleOCRScript locates the paddleocr_cli.py script
-func (s *OCRService) findPaddleOCRScript() string {
+// findOCRCLIScript locates the OCR CLI script (RapidOCR v3).
+func (s *OCRService) findOCRCLIScript() string {
 	// Check common locations
 	locations := []string{
-		"scripts/paddleocr_cli.py",
-		"../scripts/paddleocr_cli.py",
-		"/app/scripts/paddleocr_cli.py",
-		"./paddleocr_cli.py",
+		"scripts/ocr_cli.py",
+		"../scripts/ocr_cli.py",
+		"/app/scripts/ocr_cli.py",
+		"./ocr_cli.py",
 	}
 
 	for _, loc := range locations {
@@ -366,9 +366,9 @@ func (s *OCRService) checkPythonModule(moduleName string) bool {
 // isRapidOCRAvailable checks if RapidOCR is available (Python module).
 func (s *OCRService) isRapidOCRAvailable() bool {
 	// Check if script exists
-	scriptPath := s.findPaddleOCRScript()
+	scriptPath := s.findOCRCLIScript()
 	if scriptPath == "" {
-		fmt.Printf("[OCR] paddleocr_cli.py script not found\n")
+		fmt.Printf("[OCR] ocr_cli.py script not found\n")
 		return false
 	}
 

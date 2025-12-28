@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 OCR CLI - Command line interface for OCR (RapidOCR v3, CPU via onnxruntime)
-Usage: python paddleocr_cli.py <image_path>
+Usage: python ocr_cli.py <image_path>
 Output: JSON with extracted text
 
 Notes:

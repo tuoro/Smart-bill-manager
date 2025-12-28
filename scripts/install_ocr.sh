@@ -1,6 +1,5 @@
 #!/bin/bash
-# Install OCR dependencies:
-# - RapidOCR v3 (rapidocr + onnxruntime)
+# Install OCR dependencies (current default engine: RapidOCR v3 via onnxruntime).
 
 echo "Installing OCR dependencies (RapidOCR v3)..."
 

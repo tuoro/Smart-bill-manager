@@ -533,9 +533,9 @@ func resolveUploadsPath(uploadsDir, storedPath string) string {
 		return ""
 	}
 	// storedPath typically is "uploads/<file>".
-	if strings.HasPrefix(p, "uploads/") {
-		p = strings.TrimPrefix(p, "uploads/")
-	}
+	p = strings.TrimPrefix(p, "uploads/")
+	p = strings.TrimPrefix(p, "/uploads/")
+	p = strings.TrimPrefix(p, "uploads\\")
 	return filepath.Join(uploadsDir, filepath.FromSlash(p))
 }
 

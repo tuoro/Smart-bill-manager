@@ -33,14 +33,14 @@
             <div class="stat">
               <div>
                 <div class="stat-title">&#26469;&#28304;&#20998;&#24067;</div>
-                <div class="source-row">
-                  <Tag severity="success" :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`" />
-                  <Tag severity="info" :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`" />
-                  <Tag severity="warning" :value="`\u9489\u9489 ${sourceStats.dingtalk || 0}`" />
-                </div>
-              </div>
-              <i class="pi pi-chart-pie stat-icon secondary" />
-            </div>
+                 <div class="source-row">
+                   <Tag severity="success" :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`" />
+                   <Tag severity="info" :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`" />
+                  <Tag severity="warning" :value="`\u98DE\u4E66 ${sourceStats.feishu || 0}`" />
+                 </div>
+               </div>
+               <i class="pi pi-chart-pie stat-icon secondary" />
+             </div>
           </template>
         </Card>
       </div>
@@ -584,7 +584,8 @@ const handleUnlinkPayment = async (paymentId: string) => {
 const getSourceLabel = (source?: string) => {
   const labels: Record<string, string> = {
     email: '\u90AE\u4EF6\u4E0B\u8F7D',
-    dingtalk: '\u9489\u9489\u673A\u5668\u4EBA',
+    feishu: '\u98DE\u4E66\u673A\u5668\u4EBA',
+    dingtalk: '\u9489\u9489(\u5DF2\u79FB\u9664)',
     upload: '\u624B\u52A8\u4E0A\u4F20',
   }
   return labels[source || ''] || source || '\u672A\u77E5'
@@ -593,6 +594,7 @@ const getSourceLabel = (source?: string) => {
 const getSourceSeverity = (source?: string): 'info' | 'success' | 'warning' | 'secondary' => {
   const types: Record<string, 'info' | 'success' | 'warning' | 'secondary'> = {
     email: 'info',
+    feishu: 'warning',
     dingtalk: 'warning',
     upload: 'success',
   }

@@ -377,14 +377,14 @@ Smart-bill-manager/
 - `POST /api/email/monitor/stop/:id` - 停止监控
 - `POST /api/email/check/:id` - 手动检查邮件
 
-### 钉钉机器人
-- `GET /api/dingtalk/configs` - 获取钉钉配置
-- `POST /api/dingtalk/configs` - 添加钉钉配置
-- `PUT /api/dingtalk/configs/:id` - 更新钉钉配置
-- `DELETE /api/dingtalk/configs/:id` - 删除钉钉配置
-- `GET /api/dingtalk/logs` - 获取消息日志
-- `POST /api/dingtalk/webhook` - 接收钉钉机器人消息（Webhook）
-- `POST /api/dingtalk/webhook/:configId` - 指定配置接收消息
+### 飞书机器人
+- `GET /api/feishu/configs` - 获取飞书配置
+- `POST /api/feishu/configs` - 添加飞书配置
+- `PUT /api/feishu/configs/:id` - 更新飞书配置
+- `DELETE /api/feishu/configs/:id` - 删除飞书配置
+- `GET /api/feishu/logs` - 获取飞书事件日志
+- `POST /api/feishu/webhook` - 接收飞书事件订阅（公开接口，使用启用中的配置）
+- `POST /api/feishu/webhook/:configId` - 指定配置接收飞书事件订阅
 
 ## 📸 界面预览
 

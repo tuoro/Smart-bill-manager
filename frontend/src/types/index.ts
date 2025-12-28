@@ -54,26 +54,32 @@ export interface EmailLog {
   created_at?: string;
 }
 
-export interface DingtalkConfig {
+export interface FeishuConfig {
   id: string;
   name: string;
-  app_key?: string;
+  app_id?: string;
   app_secret?: string;
-  webhook_token?: string;
+  verification_token?: string;
+  encrypt_key?: string;
   is_active: number;
   created_at?: string;
 }
 
-export interface DingtalkLog {
+export interface FeishuLog {
   id: string;
   config_id: string;
-  message_type: string;
-  sender_nick?: string;
+  event_type?: string;
+  message_type?: string;
   sender_id?: string;
+  sender_name?: string;
+  chat_id?: string;
+  message_id?: string;
   content?: string;
+  file_name?: string;
+  file_key?: string;
   has_attachment: number;
-  attachment_count: number;
   status: string;
+  error?: string;
   created_at?: string;
 }
 

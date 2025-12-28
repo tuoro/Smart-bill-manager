@@ -47,12 +47,12 @@
         </button>
         <button
           class="nav-item"
-          :class="{ active: currentRoute === '/dingtalk' }"
-          title="钉钉机器人"
-          @click="router.push('/dingtalk')"
+          :class="{ active: currentRoute === '/feishu' }"
+          title="飞书机器人"
+          @click="router.push('/feishu')"
         >
           <i class="pi pi-comments" />
-          <span v-if="!isCollapsed">&#38025;&#38025;&#26426;&#22120;&#20154;</span>
+          <span v-if="!isCollapsed">&#39134;&#20070;&#26426;&#22120;&#20154;</span>
         </button>
         <button
           class="nav-item"
@@ -130,7 +130,7 @@ const pageTitle = computed(() => {
     '/payments': '\u652F\u4ED8\u8BB0\u5F55',
     '/invoices': '\u53D1\u7968\u7BA1\u7406',
     '/email': '\u90AE\u7BB1\u76D1\u63A7',
-    '/dingtalk': '\u9489\u9489\u673A\u5668\u4EBA',
+    '/feishu': '\u98DE\u4E66\u673A\u5668\u4EBA',
     '/logs': '\u65E5\u5FD7',
   }
   return titles[route.path] || titles['/dashboard']
@@ -369,7 +369,7 @@ const toggleUserMenu = (event: MouseEvent) => {
   padding: 8px 10px;
   border-radius: 999px;
   transition: all var(--transition-base);
-  border: 1px solid rgba(2, 6, 23, 0.10);
+  border: 1px solid rgba(2, 6, 23, 0.1);
   background: rgba(2, 6, 23, 0.03);
 }
 

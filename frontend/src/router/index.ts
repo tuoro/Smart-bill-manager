@@ -46,10 +46,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '\u90AE\u7BB1\u76D1\u63A7' },
       },
       {
-        path: 'dingtalk',
-        name: 'DingTalk',
-        component: () => import('@/views/DingTalk.vue'),
-        meta: { title: '\u9489\u9489\u673A\u5668\u4EBA' },
+        path: 'feishu',
+        name: 'Feishu',
+        component: () => import('@/views/Feishu.vue'),
+        meta: { title: '\u98DE\u4E66\u673A\u5668\u4EBA' },
       },
       {
         path: 'logs',
@@ -125,4 +125,3 @@ router.beforeEach(async (to, _from, next) => {
 })
 
 export default router
-

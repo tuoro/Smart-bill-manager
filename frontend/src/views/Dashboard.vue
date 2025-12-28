@@ -465,7 +465,8 @@ const getSourceLabel = (source: string) => {
   const labels: Record<string, string> = {
     upload: '\u624B\u52A8\u4E0A\u4F20',
     email: '\u90AE\u4EF6\u4E0B\u8F7D',
-    dingtalk: '\u9489\u9489\u673A\u5668\u4EBA',
+    feishu: '\u98DE\u4E66\u673A\u5668\u4EBA',
+    dingtalk: '\u9489\u9489(\u5DF2\u79FB\u9664)',
   }
   return labels[source] || source
 }

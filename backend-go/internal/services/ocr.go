@@ -135,6 +135,7 @@ type PaymentExtractedData struct {
 	PaymentMethod   *string  `json:"payment_method"`
 	OrderNumber     *string  `json:"order_number"`
 	RawText         string   `json:"raw_text"`
+	PrettyText      string   `json:"pretty_text,omitempty"`
 }
 
 type InvoiceLineItem struct {
@@ -1699,6 +1700,7 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 		}
 	}
 
+	data.PrettyText = formatPaymentPrettyText(data.RawText, data)
 	return data, nil
 }
 
@@ -2491,6 +2493,63 @@ func formatInvoicePrettyText(raw string, data *InvoiceExtractedData) string {
 			b.WriteString(qty)
 			b.WriteString("\n")
 		}
+	}
+
+	if clean != "" {
+		b.WriteString("\n【整理后的OCR文本】\n")
+		b.WriteString(clean)
+	}
+
+	return strings.TrimSpace(b.String())
+}
+
+func normalizePaymentTextForPretty(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = paymentInvisibleSpaceReplacer.Replace(text)
+	text = removeChineseSpaces(text)
+
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		s := strings.TrimSpace(line)
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+func formatPaymentPrettyText(raw string, data *PaymentExtractedData) string {
+	clean := normalizePaymentTextForPretty(raw)
+
+	var b strings.Builder
+	b.WriteString("【整理摘要】\n")
+	if data.Amount != nil {
+		b.WriteString("金额：￥")
+		b.WriteString(formatFloat2(data.Amount))
+		b.WriteString("\n")
+	}
+	if data.Merchant != nil && strings.TrimSpace(*data.Merchant) != "" {
+		b.WriteString("商家：")
+		b.WriteString(strings.TrimSpace(*data.Merchant))
+		b.WriteString("\n")
+	}
+	if data.PaymentMethod != nil && strings.TrimSpace(*data.PaymentMethod) != "" {
+		b.WriteString("支付方式：")
+		b.WriteString(strings.TrimSpace(*data.PaymentMethod))
+		b.WriteString("\n")
+	}
+	if data.TransactionTime != nil && strings.TrimSpace(*data.TransactionTime) != "" {
+		b.WriteString("交易时间：")
+		b.WriteString(strings.TrimSpace(*data.TransactionTime))
+		b.WriteString("\n")
+	}
+	if data.OrderNumber != nil && strings.TrimSpace(*data.OrderNumber) != "" {
+		b.WriteString("订单号：")
+		b.WriteString(strings.TrimSpace(*data.OrderNumber))
+		b.WriteString("\n")
 	}
 
 	if clean != "" {

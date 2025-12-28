@@ -1397,6 +1397,9 @@ func TestParsePaymentScreenshot_NegativeAmount(t *testing.T) {
 			} else if *data.Amount != tt.expectedAmount {
 				t.Errorf("Expected amount %.2f, got %.2f", tt.expectedAmount, *data.Amount)
 			}
+			if data.PrettyText == "" || !strings.Contains(data.PrettyText, "【整理摘要】") {
+				t.Fatalf("Expected PrettyText to be set, got: %q", data.PrettyText)
+			}
 		})
 	}
 }

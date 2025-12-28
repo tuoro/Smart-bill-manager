@@ -144,6 +144,7 @@ func (s *PaymentService) CreateFromScreenshotBestEffort(input CreateFromScreensh
 		msg := parseErr.Error()
 		ocrError = &msg
 		extracted = &PaymentExtractedData{RawText: text}
+		extracted.PrettyText = formatPaymentPrettyText(text, extracted)
 	}
 
 	// Store extracted data as JSON

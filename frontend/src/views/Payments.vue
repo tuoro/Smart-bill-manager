@@ -232,9 +232,16 @@
           </div>
         </form>
 
-        <div v-if="ocrResult?.raw_text" class="raw">
-          <div class="raw-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
-          <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
+        <div v-if="ocrResult?.raw_text || ocrResult?.pretty_text" class="raw">
+          <div class="raw-title">OCR &#25991;&#26412;</div>
+          <Accordion>
+            <AccordionTab v-if="ocrResult?.pretty_text" :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'">
+              <pre class="raw-text">{{ ocrResult.pretty_text }}</pre>
+            </AccordionTab>
+            <AccordionTab v-if="ocrResult?.raw_text" :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
+              <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
+            </AccordionTab>
+          </Accordion>
         </div>
       </div>
 
@@ -397,10 +404,13 @@
 
         <div v-if="detailPayment.extracted_data" class="section">
           <div class="section-title-row">
-            <div class="section-title">OCR &#21407;&#22987;&#25991;&#26412;</div>
+            <div class="section-title">OCR &#25991;&#26412;</div>
             <Button class="p-button-text" icon="pi pi-refresh" :label="'\u91CD\u65B0\u89E3\u6790'" :loading="reparsingOcr" @click="handleReparseOcr(detailPayment.id)" />
           </div>
           <Accordion>
+            <AccordionTab v-if="getExtractedPrettyText(detailPayment.extracted_data || null)" :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'">
+              <pre class="raw-text">{{ getExtractedPrettyText(detailPayment.extracted_data || null) }}</pre>
+            </AccordionTab>
             <AccordionTab :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
               <pre class="raw-text">{{ getExtractedRawText(detailPayment.extracted_data || null) }}</pre>
             </AccordionTab>
@@ -450,6 +460,7 @@ interface OcrExtractedData {
   payment_method?: string
   order_number?: string
   raw_text?: string
+  pretty_text?: string
 }
 
 const toast = useToast()
@@ -953,6 +964,16 @@ const getExtractedRawText = (extractedData: string | null): string => {
     return data.raw_text || ''
   } catch {
     return extractedData
+  }
+}
+
+const getExtractedPrettyText = (extractedData: string | null): string => {
+  if (!extractedData) return ''
+  try {
+    const data = JSON.parse(extractedData)
+    return data.pretty_text || ''
+  } catch {
+    return ''
   }
 }
 

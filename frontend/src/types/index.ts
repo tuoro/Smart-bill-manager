@@ -81,7 +81,6 @@ export interface DashboardData {
   payments: {
     totalThisMonth: number;
     countThisMonth: number;
-    categoryStats: Record<string, number>;
     dailyStats: Record<string, number>;
   };
   invoices: {

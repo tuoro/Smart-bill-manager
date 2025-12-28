@@ -54,13 +54,6 @@
               :placeholder="'\u65E5\u671F\u8303\u56F4'"
               @update:modelValue="handleDateChange"
             />
-            <Dropdown
-              v-model="categoryFilter"
-              :options="CATEGORIES"
-              :placeholder="'\u9009\u62E9\u5206\u7C7B'"
-              :showClear="true"
-              @change="handleFilterChange"
-            />
             <Button :label="'\u4E0A\u4F20\u622A\u56FE'" icon="pi pi-image" severity="success" @click="openScreenshotModal" />
             <Button :label="'\u6DFB\u52A0\u8BB0\u5F55'" icon="pi pi-plus" @click="openModal()" />
           </div>
@@ -83,12 +76,6 @@
             </template>
           </Column>
           <Column field="merchant" :header="'\u5546\u5BB6'" />
-          <Column :header="'\u5206\u7C7B'" :style="{ width: '130px' }">
-            <template #body="{ data: row }">
-              <Tag v-if="row.category" severity="info" :value="row.category" />
-              <span v-else>-</span>
-            </template>
-          </Column>
           <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '160px' }">
             <template #body="{ data: row }">
               <Tag
@@ -143,12 +130,8 @@
             <InputText id="merchant" v-model.trim="form.merchant" />
           </div>
           <div class="col-12 md:col-6 field">
-            <label for="category">&#20998;&#31867;</label>
-            <Dropdown id="category" v-model="form.category" :options="CATEGORIES" :showClear="true" />
-          </div>
-          <div class="col-12 md:col-6 field">
             <label for="method">&#25903;&#20184;&#26041;&#24335;</label>
-            <Dropdown id="method" v-model="form.payment_method" :options="PAYMENT_METHODS" :showClear="true" />
+            <InputText id="method" v-model.trim="form.payment_method" />
           </div>
           <div class="col-12 field">
             <label for="time">&#20132;&#26131;&#26102;&#38388;</label>
@@ -226,12 +209,8 @@
               <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
             </div>
             <div class="col-12 md:col-6 field">
-              <label for="ocr_category">&#20998;&#31867;</label>
-              <Dropdown id="ocr_category" v-model="ocrForm.category" :options="CATEGORIES" :showClear="true" />
-            </div>
-            <div class="col-12 md:col-6 field">
               <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
-              <Dropdown id="ocr_method" v-model="ocrForm.payment_method" :options="PAYMENT_METHODS" :showClear="true" />
+              <InputText id="ocr_method" v-model.trim="ocrForm.payment_method" />
             </div>
             <div class="col-12 field">
               <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
@@ -387,9 +366,6 @@
               </div>
             </div>
           </div>
-          <div class="col-12 md:col-6">
-            <div class="kv"><div class="k">&#20998;&#31867;</div><div class="v"><Tag v-if="detailPayment.category" severity="info" :value="detailPayment.category" /><span v-else>-</span></div></div>
-          </div>
           <div class="col-12">
             <div class="kv"><div class="k">&#20132;&#26131;&#26102;&#38388;</div><div class="v">{{ formatDateTime(detailPayment.transaction_time) }}</div></div>
           </div>
@@ -443,7 +419,6 @@ import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
 import Divider from 'primevue/divider'
-import Dropdown from 'primevue/dropdown'
 import Image from 'primevue/image'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
@@ -474,16 +449,12 @@ const toast = useToast()
 const notifications = useNotificationStore()
 const confirm = useConfirm()
 
-const CATEGORIES = ['\u9910\u996E', '\u4EA4\u901A', '\u8D2D\u7269', '\u5A31\u4E50', '\u4F4F\u623F', '\u533B\u7597', '\u6559\u80B2', '\u901A\u8BAF', '\u5176\u4ED6']
-const PAYMENT_METHODS = ['\u5FAE\u4FE1\u652F\u4ED8', '\u652F\u4ED8\u5B9D', '\u94F6\u884C\u5361', '\u73B0\u91D1', '\u4FE1\u7528\u5361', '\u5176\u4ED6']
-
 const loading = ref(false)
 const payments = ref<Payment[]>([])
 const pageSize = ref(10)
 const dateRange = ref<Date[] | null>(null)
-const categoryFilter = ref<string | null>(null)
 
-const stats = ref<{ totalAmount: number; totalCount: number; categoryStats: Record<string, number> } | null>(null)
+const stats = ref<{ totalAmount: number; totalCount: number } | null>(null)
 const avgAmount = computed(() => {
   const count = stats.value?.totalCount || 0
   const total = stats.value?.totalAmount || 0
@@ -497,7 +468,6 @@ const editingPayment = ref<Payment | null>(null)
 const form = reactive({
   amount: 0,
   merchant: '',
-  category: '',
   payment_method: '',
   description: '',
   transaction_time: new Date(),
@@ -582,7 +552,6 @@ const clearSelectedScreenshot = () => {
 const ocrForm = reactive({
   amount: 0,
   merchant: '',
-  category: '',
   payment_method: '',
   description: '',
   transaction_time: new Date(),
@@ -631,7 +600,6 @@ const loadPayments = async () => {
       params.startDate = dayjs(dateRange.value[0]).startOf('day').toISOString()
       params.endDate = dayjs(dateRange.value[1]).endOf('day').toISOString()
     }
-    if (categoryFilter.value) params.category = categoryFilter.value
     const res = await paymentApi.getAll(params)
     if (res.data.success && res.data.data) payments.value = res.data.data
   } catch {
@@ -683,10 +651,6 @@ const handleDateChange = () => {
   loadStats()
 }
 
-const handleFilterChange = () => {
-  loadPaymentsWithCount()
-}
-
 const openModal = (payment?: Payment) => {
   errors.amount = ''
   errors.transaction_time = ''
@@ -694,7 +658,6 @@ const openModal = (payment?: Payment) => {
     editingPayment.value = payment
     form.amount = payment.amount
     form.merchant = payment.merchant || ''
-    form.category = payment.category || ''
     form.payment_method = payment.payment_method || ''
     form.description = payment.description || ''
     form.transaction_time = new Date(payment.transaction_time)
@@ -702,7 +665,6 @@ const openModal = (payment?: Payment) => {
     editingPayment.value = null
     form.amount = 0
     form.merchant = ''
-    form.category = ''
     form.payment_method = ''
     form.description = ''
     form.transaction_time = new Date()
@@ -716,7 +678,6 @@ const handleSubmit = async () => {
     const payload = {
       amount: Number(form.amount),
       merchant: form.merchant,
-      category: form.category,
       payment_method: form.payment_method,
       description: form.description,
       transaction_time: dayjs(form.transaction_time).toISOString(),
@@ -794,7 +755,6 @@ const handleScreenshotUpload = async () => {
       ocrForm.payment_method = extracted.payment_method || ''
       ocrForm.order_number = extracted.order_number || ''
       ocrForm.transaction_time = extracted.transaction_time ? new Date(extracted.transaction_time) : new Date()
-      ocrForm.category = ''
       ocrForm.description = ''
 
       if (ocr_error) {
@@ -838,7 +798,6 @@ const handleSaveOcrResult = async () => {
     const payload = {
       amount: Number(ocrForm.amount),
       merchant: ocrForm.merchant,
-      category: ocrForm.category,
       payment_method: ocrForm.payment_method,
       description: ocrForm.description,
       transaction_time: dayjs(ocrForm.transaction_time).toISOString(),
@@ -880,7 +839,6 @@ const resetScreenshotUploadState = () => {
   ocrResult.value = null
   ocrForm.amount = 0
   ocrForm.merchant = ''
-  ocrForm.category = ''
   ocrForm.payment_method = ''
   ocrForm.description = ''
   ocrForm.transaction_time = new Date()
@@ -1031,6 +989,32 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.field {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field label {
+  display: block;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.field :deep(.p-inputtext),
+.field :deep(.p-inputnumber),
+.field :deep(.p-datepicker),
+.field :deep(.p-textarea),
+.field :deep(.p-inputtextarea) {
+  width: 100%;
+}
+
+.field :deep(.p-datepicker-input) {
+  width: 100%;
 }
 
 .row-actions {

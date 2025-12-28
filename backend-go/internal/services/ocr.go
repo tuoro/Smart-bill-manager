@@ -1788,8 +1788,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	}
 	// If no specific payment method found, use default
 	if data.PaymentMethod == nil {
-		method := "微信支付"
-		data.PaymentMethod = &method
+		data.PaymentMethod = inferPaymentMethodFromText(text)
 	}
 }
 
@@ -1881,8 +1880,7 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 	}
 	// If no specific payment method found, use default
 	if data.PaymentMethod == nil {
-		method := "支付宝"
-		data.PaymentMethod = &method
+		data.PaymentMethod = inferPaymentMethodFromText(text)
 	}
 }
 
@@ -1956,9 +1954,60 @@ func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) 
 	}
 	// If no specific payment method found, use default
 	if data.PaymentMethod == nil {
-		method := "银行转账"
-		data.PaymentMethod = &method
+		data.PaymentMethod = inferPaymentMethodFromText(text)
 	}
+}
+
+func inferPaymentMethodFromText(text string) *string {
+	t := strings.TrimSpace(text)
+	if t == "" {
+		return nil
+	}
+
+	// Try extracting from common labels first.
+	labelRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`(?m)(?:支付方式|付款方式|支付工具|支付渠道|支付类型)\s*[:：]?\s*([^\n\r]+)`),
+	}
+	for _, re := range labelRegexes {
+		if match := re.FindStringSubmatch(t); len(match) > 1 {
+			m := strings.TrimSpace(match[1])
+			if idx := strings.Index(m, "由"); idx >= 0 {
+				m = strings.TrimSpace(m[:idx])
+			}
+			m = strings.Trim(m, " \t-—:：")
+			if m != "" {
+				return &m
+			}
+		}
+	}
+
+	// Then infer from keywords (prefer longer keywords first).
+	keywords := []string{
+		"微信零钱通",
+		"微信零钱",
+		"微信支付",
+		"支付宝余额",
+		"余额宝",
+		"花呗",
+		"借呗",
+		"支付宝",
+		"云闪付",
+		"银联",
+		"信用卡",
+		"借记卡",
+		"银行卡",
+		"现金",
+		"Apple Pay",
+		"Google Pay",
+		"PayPal",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(t, kw) {
+			m := kw
+			return &m
+		}
+	}
+	return nil
 }
 
 // extractAmount extracts amount from text using generic patterns

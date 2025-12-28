@@ -146,18 +146,6 @@
             <div v-else class="empty-mini">&#26242;&#26080;&#25968;&#25454;</div>
           </template>
         </Card>
-
-        <Card class="panel sbm-surface">
-          <template #title>
-            <span>&#25903;&#20986;&#20998;&#31867;</span>
-          </template>
-          <template #content>
-            <div v-if="categoryData.length > 0" class="chart">
-              <v-chart :option="pieChartOption" autoresize />
-            </div>
-            <div v-else class="empty-mini">&#26242;&#26080;&#25968;&#25454;</div>
-          </template>
-        </Card>
       </div>
 
       <div class="grid">
@@ -244,7 +232,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, PieChart } from 'echarts/charts'
+import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import dayjs from 'dayjs'
@@ -259,7 +247,7 @@ import { dashboardApi } from '@/api'
 import { CHART_COLORS } from '@/utils/constants'
 import type { DashboardData } from '@/types'
 
-use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent])
+use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
 const router = useRouter()
 
@@ -276,14 +264,6 @@ const dailyData = computed(() => {
       amount,
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
-})
-
-const categoryData = computed(() => {
-  if (!data.value?.payments.categoryStats) return []
-  return Object.entries(data.value.payments.categoryStats).map(([name, value]) => ({
-    name,
-    value,
-  }))
 })
 
 const lineChartOption = computed(() => ({
@@ -333,31 +313,6 @@ const lineChartOption = computed(() => ({
       itemStyle: {
         color: '#1890ff',
       },
-    },
-  ],
-}))
-
-const pieChartOption = computed(() => ({
-  tooltip: {
-    trigger: 'item',
-    formatter: '{b}: \u00A5{c} ({d}%)',
-  },
-  series: [
-    {
-      type: 'pie',
-      radius: ['40%', '70%'],
-      avoidLabelOverlap: false,
-      label: {
-        show: true,
-        formatter: '{b} {d}%',
-      },
-      labelLine: {
-        show: true,
-      },
-      data: categoryData.value.map((item, index) => ({
-        ...item,
-        itemStyle: { color: COLORS[index % COLORS.length] },
-      })),
     },
   ],
 }))

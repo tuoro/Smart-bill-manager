@@ -708,6 +708,9 @@ func TestParseInvoiceData_ItemsExtraction_ImageText_SplitHejiAndSellerLines(t *t
 	if !strings.Contains(data.Items[0].Name, "乳制品") {
 		t.Fatalf("Expected first item to contain 乳制品, got %q", data.Items[0].Name)
 	}
+	if !strings.Contains(data.Items[0].Name, "Member's Mark") {
+		t.Fatalf("Expected first item to contain \"Member's Mark\", got %q", data.Items[0].Name)
+	}
 	if !strings.Contains(data.Items[1].Name, "包装费配送费") {
 		t.Fatalf("Expected second item to contain 包装费配送费, got %q", data.Items[1].Name)
 	}

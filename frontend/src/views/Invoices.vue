@@ -185,6 +185,14 @@
                 <span class="sbm-ellipsis" :title="row.name">{{ row.name }}</span>
               </template>
             </Column>
+            <Column field="spec" :header="'\u89C4\u683C\u578B\u53F7'" :style="{ width: '200px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.spec || '-'">{{ row.spec || '-' }}</span>
+              </template>
+            </Column>
+            <Column field="unit" :header="'\u5355\u4F4D'" :style="{ width: '120px' }">
+              <template #body="{ data: row }">{{ row.unit || '-' }}</template>
+            </Column>
             <Column field="quantity" :header="'\u6570\u91CF'" :style="{ width: '120px' }">
               <template #body="{ data: row }">{{ formatItemQuantity(row.quantity) }}</template>
             </Column>
@@ -589,7 +597,7 @@ const formatDateTime = (date?: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
-type InvoiceLineItem = { name: string; quantity?: number }
+type InvoiceLineItem = { name: string; spec?: string; unit?: string; quantity?: number }
 
 const getInvoiceItems = (invoice: Invoice | null): InvoiceLineItem[] => {
   if (!invoice?.extracted_data) return []
@@ -601,6 +609,8 @@ const getInvoiceItems = (invoice: Invoice | null): InvoiceLineItem[] => {
         const obj = (it ?? {}) as Record<string, unknown>
         return {
           name: typeof obj.name === 'string' ? obj.name : '',
+          spec: typeof obj.spec === 'string' ? obj.spec : '',
+          unit: typeof obj.unit === 'string' ? obj.unit : '',
           quantity: typeof obj.quantity === 'number' ? obj.quantity : undefined,
         }
       })

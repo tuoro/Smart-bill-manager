@@ -139,6 +139,8 @@ type PaymentExtractedData struct {
 
 type InvoiceLineItem struct {
 	Name     string   `json:"name"`
+	Spec     string   `json:"spec,omitempty"`
+	Unit     string   `json:"unit,omitempty"`
 	Quantity *float64 `json:"quantity,omitempty"`
 }
 
@@ -2458,11 +2460,19 @@ func formatInvoicePrettyText(raw string, data *InvoiceExtractedData) string {
 
 	if len(data.Items) > 0 {
 		b.WriteString("\n【商品明细(解析)】\n")
-		b.WriteString("商品名称\t数量\n")
+		b.WriteString("商品名称\t规格型号\t单位\t数量\n")
 		for _, it := range data.Items {
 			name := strings.TrimSpace(it.Name)
 			if name == "" {
 				continue
+			}
+			spec := strings.TrimSpace(it.Spec)
+			if spec == "" {
+				spec = "-"
+			}
+			unit := strings.TrimSpace(it.Unit)
+			if unit == "" {
+				unit = "-"
 			}
 			qty := "-"
 			if it.Quantity != nil {
@@ -2473,6 +2483,10 @@ func formatInvoicePrettyText(raw string, data *InvoiceExtractedData) string {
 				}
 			}
 			b.WriteString(name)
+			b.WriteString("\t")
+			b.WriteString(spec)
+			b.WriteString("\t")
+			b.WriteString(unit)
 			b.WriteString("\t")
 			b.WriteString(qty)
 			b.WriteString("\n")
@@ -2646,18 +2660,28 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	// - 3X410g / 3×410g
 	// - 410g×3
 	// - 750ml×6
-	specTokenRe := regexp.MustCompile(`(?i)^(?:\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)?|\d+(?:\.\d+)?\s*(?:g|kg|ml|l)?\s*[x×]\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?[a-z]{1,4}\s*[x×]\s*\d+(?:\.\d+)?)$`)
+	// - 53°×6
+	specTokenRe := regexp.MustCompile(`(?i)^(?:\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)?|\d+(?:\.\d+)?\s*(?:g|kg|ml|l)?\s*[x×]\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?[a-z]{1,4}\s*[x×]\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*°\s*[x×]\s*\d+)$`)
 	labelLineRe := regexp.MustCompile(`^(?:名称|名\s*称|纳税人识别号|地址|地址、电话|地址,电话|电话|开户行|开户行及账号|账号)[:：]?$`)
 	// Some OCR results merge labels and values on the same line (e.g. "名称：沃尔玛…").
 	labelPrefixRe := regexp.MustCompile(`^(?:名称|名\s*称|纳税人识别号|统一社会信用代码/纳税人识别号|地址|地址、电话|地址,电话|电话|开户行|开户行及账号|开户行|账号)\s*[:：]\s*\S+`)
 
 	categoryPrefixRe := regexp.MustCompile(`^\*([^*]+)\*`)
+	latinCamelSplitRe := regexp.MustCompile(`([a-z])([A-Z])`)
+	latinHanBoundaryRe := regexp.MustCompile(`([A-Za-z])([\p{Han}])`)
+	hanLatinBoundaryRe := regexp.MustCompile(`([\p{Han}])([A-Za-z])`)
 	normalizeName := func(s string) string {
 		s = strings.TrimSpace(s)
 		// Convert "*分类*" prefix to "分类 ".
 		s = categoryPrefixRe.ReplaceAllString(s, "$1 ")
 		// Remaining '*' are usually multipliers like "410g*3".
 		s = strings.ReplaceAll(s, "*", "×")
+		// Normalize common punctuation variants for consistent display.
+		s = strings.NewReplacer("（", "(", "）", ")", "，", ",").Replace(s)
+		// Improve readability for OCR that merges English tokens (e.g. "Member'sMark希腊式...").
+		s = latinCamelSplitRe.ReplaceAllString(s, "$1 $2")
+		s = latinHanBoundaryRe.ReplaceAllString(s, "$1 $2")
+		s = hanLatinBoundaryRe.ReplaceAllString(s, "$1 $2")
 		s = strings.Join(strings.Fields(s), " ")
 		return strings.TrimSpace(s)
 	}
@@ -2909,17 +2933,28 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	var (
 		items       []InvoiceLineItem
 		currentName string
+		currentSpec string
+		currentUnit string
 		currentQty  *float64
 	)
 	flush := func() {
 		name := normalizeName(currentName)
 		if name == "" {
 			currentName = ""
+			currentSpec = ""
+			currentUnit = ""
 			currentQty = nil
 			return
 		}
-		items = append(items, InvoiceLineItem{Name: name, Quantity: currentQty})
+		items = append(items, InvoiceLineItem{
+			Name:     name,
+			Spec:     strings.TrimSpace(currentSpec),
+			Unit:     strings.TrimSpace(currentUnit),
+			Quantity: currentQty,
+		})
 		currentName = ""
+		currentSpec = ""
+		currentUnit = ""
 		currentQty = nil
 	}
 
@@ -2977,6 +3012,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 				flush()
 			}
 			currentName = s
+			currentSpec = ""
+			currentUnit = ""
 			currentQty = nil
 
 			// Look ahead for a quantity token near the name line.
@@ -2990,12 +3027,19 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 				if isLikelyItemNameLine(t) {
 					break
 				}
-				if specTokenRe.MatchString(t) {
+				tn := strings.TrimSpace(strings.ReplaceAll(t, "*", "×"))
+				if specTokenRe.MatchString(tn) {
+					if currentSpec == "" {
+						currentSpec = tn
+					}
 					continue
 				}
 				if isUnitToken(t) {
 					if unitToken == "" {
 						unitToken = t
+					}
+					if currentUnit == "" {
+						currentUnit = t
 					}
 					continue
 				}

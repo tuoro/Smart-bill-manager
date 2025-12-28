@@ -355,6 +355,32 @@
 
     <Dialog v-model:visible="paymentDetailVisible" modal :header="'\u652F\u4ED8\u8BB0\u5F55\u8BE6\u60C5'" :style="{ width: '820px', maxWidth: '96vw' }">
       <div v-if="detailPayment">
+        <div class="header-row">
+          <div class="title">
+            <i class="pi pi-image" />
+            <span class="sbm-ellipsis" :title="getPaymentScreenshotTitle(detailPayment)">{{ getPaymentScreenshotTitle(detailPayment) }}</span>
+          </div>
+          <div class="actions">
+            <Button
+              v-if="detailPayment.screenshot_path"
+              class="p-button-outlined"
+              severity="secondary"
+              icon="pi pi-external-link"
+              :label="'\u67E5\u770B\u652F\u4ED8\u622A\u56FE'"
+              @click="openPaymentScreenshot(detailPayment)"
+            />
+            <Button
+              class="p-button-outlined"
+              severity="secondary"
+              icon="pi pi-refresh"
+              :label="'\u91CD\u65B0\u89E3\u6790'"
+              :loading="reparsingOcr"
+              :disabled="!detailPayment.screenshot_path"
+              @click="handleReparseOcr(detailPayment.id)"
+            />
+          </div>
+        </div>
+
         <div class="grid">
           <div class="col-12 md:col-6">
             <div class="kv"><div class="k">&#37329;&#39069;</div><div class="v amount">{{ formatMoney(detailPayment.amount || 0) }}</div></div>
@@ -403,10 +429,7 @@
         </div>
 
         <div v-if="detailPayment.extracted_data" class="section">
-          <div class="section-title-row">
-            <div class="section-title">OCR &#25991;&#26412;</div>
-            <Button class="p-button-text" icon="pi pi-refresh" :label="'\u91CD\u65B0\u89E3\u6790'" :loading="reparsingOcr" @click="handleReparseOcr(detailPayment.id)" />
-          </div>
+          <div class="section-title">OCR &#25991;&#26412;</div>
           <Accordion>
             <AccordionTab v-if="getExtractedPrettyText(detailPayment.extracted_data || null)" :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'">
               <pre class="raw-text">{{ getExtractedPrettyText(detailPayment.extracted_data || null) }}</pre>
@@ -977,6 +1000,21 @@ const getExtractedPrettyText = (extractedData: string | null): string => {
   }
 }
 
+const getPaymentScreenshotTitle = (payment: Payment) => {
+  const path = payment.screenshot_path || ''
+  if (path) {
+    const parts = path.split('/')
+    return parts[parts.length - 1] || path
+  }
+  return normalizeInlineText(payment.merchant) || payment.id
+}
+
+const openPaymentScreenshot = (payment: Payment) => {
+  if (!payment.screenshot_path) return
+  const url = `${FILE_BASE_URL}/${payment.screenshot_path}`
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 const handleReparseOcr = async (paymentId: string) => {
   reparsingOcr.value = true
   try {
@@ -1281,6 +1319,31 @@ onMounted(() => {
   background: rgba(0, 0, 0, 0.02);
   border-radius: var(--radius-md);
   padding: 10px 12px;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  color: var(--color-text-primary);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .k {

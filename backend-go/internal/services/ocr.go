@@ -2556,6 +2556,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	// - 750ml×6
 	specTokenRe := regexp.MustCompile(`(?i)^(?:\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)?|\d+(?:\.\d+)?\s*(?:g|kg|ml|l)?\s*[x×]\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?[a-z]{1,4}\s*[x×]\s*\d+(?:\.\d+)?)$`)
 	labelLineRe := regexp.MustCompile(`^(?:名称|名\s*称|纳税人识别号|地址|地址、电话|地址,电话|电话|开户行|开户行及账号|账号)[:：]?$`)
+	// Some OCR results merge labels and values on the same line (e.g. "名称：沃尔玛…").
+	labelPrefixRe := regexp.MustCompile(`^(?:名称|名\s*称|纳税人识别号|统一社会信用代码/纳税人识别号|地址|地址、电话|地址,电话|电话|开户行|开户行及账号|开户行|账号)\s*[:：]\s*\S+`)
 
 	categoryPrefixRe := regexp.MustCompile(`^\*([^*]+)\*`)
 	normalizeName := func(s string) string {
@@ -2572,7 +2574,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if s == "" || isHeaderLine(s) || isStopLine(s) {
 			return false
 		}
-		if labelLineRe.MatchString(s) {
+		if labelLineRe.MatchString(s) || labelPrefixRe.MatchString(s) {
 			return false
 		}
 		if strings.Contains(s, "订单号") || strings.Contains(s, "发票专用章") {
@@ -2592,6 +2594,12 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			return false
 		}
 		if specTokenRe.MatchString(s) {
+			return false
+		}
+		if strings.Contains(s, "价税合计") || strings.Contains(s, "合计") {
+			return false
+		}
+		if (strings.Contains(s, "小写") || strings.Contains(s, "大写")) && (strings.ContainsRune(s, '￥') || moneyLikeRe.MatchString(s)) {
 			return false
 		}
 		// Require at least one letter or Han character.
@@ -2700,6 +2708,16 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			return -10
 		}
 		score := 0
+		// Penalize common totals/footer lines so we don't start in the wrong place (PNG OCR often includes them).
+		if strings.Contains(s, "价税合计") || strings.Contains(s, "合计") {
+			score -= 6
+		}
+		if (strings.Contains(s, "小写") || strings.Contains(s, "大写")) && (strings.ContainsRune(s, '￥') || moneyLikeRe.MatchString(s)) {
+			score -= 6
+		}
+		if strings.ContainsAny(s, "圆元角分") && regexp.MustCompile(`[零壹贰叁肆伍陆柒捌玖拾佰仟万萬亿]+`).MatchString(s) {
+			score -= 8
+		}
 		if strings.HasPrefix(s, "*") {
 			score += 3
 		}
@@ -2712,7 +2730,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if isUnitToken(s) {
 			score++
 		}
-		if labelLineRe.MatchString(s) || isStopLine(s) || strings.Contains(s, "下载次数") {
+		if labelLineRe.MatchString(s) || labelPrefixRe.MatchString(s) || isStopLine(s) || strings.Contains(s, "下载次数") {
 			score -= 6
 		}
 		if specTokenRe.MatchString(s) {
@@ -2811,7 +2829,13 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 	isTableExitLine := func(s string) bool {
 		// After items, PDF text often continues with buyer/seller blocks and footer.
-		if labelLineRe.MatchString(s) {
+		if labelLineRe.MatchString(s) || labelPrefixRe.MatchString(s) {
+			return true
+		}
+		if strings.Contains(s, "价税合计") || strings.Contains(s, "合计") {
+			return true
+		}
+		if (strings.Contains(s, "小写") || strings.Contains(s, "大写")) && (strings.ContainsRune(s, '￥') || moneyLikeRe.MatchString(s)) {
 			return true
 		}
 		exitMarkers := []string{
@@ -2839,8 +2863,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			continue
 		}
 
-		// If we already started collecting items, stop once we hit non-table sections.
-		if len(items) > 0 && isTableExitLine(s) {
+		// If we already started collecting items (or have a pending current item), stop once we hit non-table sections.
+		if (len(items) > 0 || currentName != "") && isTableExitLine(s) {
 			if currentName != "" {
 				flush()
 			}

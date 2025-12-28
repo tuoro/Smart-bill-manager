@@ -164,8 +164,8 @@
                     @year-change="handleCalendarMonthChange"
                   >
                     <template #date="{ date }">
-                      <div class="date-cell">
-                        <div class="date-day" :class="{ today: date.today }">{{ date.day }}</div>
+                      <div class="date-cell" :class="{ 'is-today': date.today }">
+                        <div class="date-day">{{ date.day }}</div>
                         <div v-if="getCalendarDayTotal(date) !== 0" class="date-total">
                           {{ formatMoneyCompact(getCalendarDayTotal(date)) }}
                         </div>
@@ -300,9 +300,11 @@ import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { paymentApi, tripsApi } from '@/api'
 import type { Payment, Trip, TripAssignPreview, TripCascadePreview, TripPaymentWithInvoices, TripSummary } from '@/types'
+import { useNotificationStore } from '@/stores/notifications'
 
 const toast = useToast()
 const confirm = useConfirm()
+const notifications = useNotificationStore()
 
 const activeTab = ref<'trips' | 'calendar'>('trips')
 
@@ -400,15 +402,19 @@ const handleSaveTrip = async () => {
     if (editingTrip.value) {
       await tripsApi.update(editingTrip.value.id, payload)
       toast.add({ severity: 'success', summary: '行程已更新', life: 2000 })
+      notifications.add({ severity: 'success', title: '行程已更新', detail: payload.name })
     } else {
       await tripsApi.create(payload as any)
       toast.add({ severity: 'success', summary: '行程已创建', life: 2000 })
+      notifications.add({ severity: 'success', title: '行程已创建', detail: payload.name })
     }
 
     tripModalVisible.value = false
     await reloadAll()
   } catch (error: any) {
-    toast.add({ severity: 'error', summary: error?.response?.data?.message || '保存失败', life: 3500 })
+    const msg = error?.response?.data?.message || '保存失败'
+    toast.add({ severity: 'error', summary: msg, life: 3500 })
+    notifications.add({ severity: 'error', title: '行程保存失败', detail: msg })
   } finally {
     savingTrip.value = false
   }
@@ -470,10 +476,17 @@ const confirmSync = async (trip: Trip) => {
         try {
           await tripsApi.assignByTime(trip.id)
           toast.add({ severity: 'success', summary: '同步完成', life: 2200 })
+          notifications.add({
+            severity: 'success',
+            title: '行程同步完成',
+            detail: `${trip.name}：同步 ${preview.will_assign} 条（匹配 ${preview.matched_payments} 条）`,
+          })
           await loadSummary(trip.id)
           await loadTripPayments(trip.id)
         } catch (e: any) {
-          toast.add({ severity: 'error', summary: e?.response?.data?.message || '同步失败', life: 3500 })
+          const msg = e?.response?.data?.message || '同步失败'
+          toast.add({ severity: 'error', summary: msg, life: 3500 })
+          notifications.add({ severity: 'error', title: '行程同步失败', detail: `${trip.name}：${msg}` })
         } finally {
           syncingTripId.value = null
         }
@@ -481,7 +494,9 @@ const confirmSync = async (trip: Trip) => {
     })
   } catch (error: any) {
     syncingTripId.value = null
-    toast.add({ severity: 'error', summary: error?.response?.data?.message || '获取预览失败', life: 3500 })
+    const msg = error?.response?.data?.message || '获取预览失败'
+    toast.add({ severity: 'error', summary: msg, life: 3500 })
+    notifications.add({ severity: 'error', title: '行程同步预览失败', detail: `${trip.name}：${msg}` })
   }
 }
 
@@ -505,11 +520,18 @@ const confirmDeleteTrip = async (trip: Trip) => {
         try {
           await tripsApi.deleteCascade(trip.id)
           toast.add({ severity: 'success', summary: '行程已删除', life: 2200 })
+          notifications.add({
+            severity: 'warn',
+            title: '行程已删除',
+            detail: `${trip.name}：删除支付 ${preview.payments} 条；删除发票 ${preview.unlinked_only} 张`,
+          })
           delete tripPayments[trip.id]
           delete summaries[trip.id]
           await reloadAll()
         } catch (e: any) {
-          toast.add({ severity: 'error', summary: e?.response?.data?.message || '删除失败', life: 3500 })
+          const msg = e?.response?.data?.message || '删除失败'
+          toast.add({ severity: 'error', summary: msg, life: 3500 })
+          notifications.add({ severity: 'error', title: '行程删除失败', detail: `${trip.name}：${msg}` })
         } finally {
           deletingTripId.value = null
         }
@@ -517,7 +539,9 @@ const confirmDeleteTrip = async (trip: Trip) => {
     })
   } catch (error: any) {
     deletingTripId.value = null
-    toast.add({ severity: 'error', summary: error?.response?.data?.message || '获取删除预览失败', life: 3500 })
+    const msg = error?.response?.data?.message || '获取删除预览失败'
+    toast.add({ severity: 'error', summary: msg, life: 3500 })
+    notifications.add({ severity: 'error', title: '行程删除预览失败', detail: `${trip.name}：${msg}` })
   }
 }
 
@@ -532,9 +556,12 @@ const unassignPayment = (paymentId: string) => {
       try {
         await paymentApi.update(paymentId, { trip_id: '' })
         toast.add({ severity: 'success', summary: '已移出行程', life: 2000 })
+        notifications.add({ severity: 'info', title: '支付记录已移出行程', detail: paymentId })
         await reloadAll()
       } catch (e: any) {
-        toast.add({ severity: 'error', summary: e?.response?.data?.message || '操作失败', life: 3500 })
+        const msg = e?.response?.data?.message || '操作失败'
+        toast.add({ severity: 'error', summary: msg, life: 3500 })
+        notifications.add({ severity: 'error', title: '支付记录移出行程失败', detail: msg })
       }
     },
   })
@@ -567,10 +594,17 @@ const confirmMovePayment = async () => {
   try {
     await paymentApi.update(movePaymentId.value, { trip_id: movePaymentTargetTripId.value })
     toast.add({ severity: 'success', summary: '已移动', life: 2000 })
+    notifications.add({
+      severity: 'info',
+      title: '支付记录已移动到行程',
+      detail: `${movePaymentId.value} → ${tripNameById.value[movePaymentTargetTripId.value] || movePaymentTargetTripId.value}`,
+    })
     closeMovePayment()
     await reloadAll()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: e?.response?.data?.message || '移动失败', life: 3500 })
+    const msg = e?.response?.data?.message || '移动失败'
+    toast.add({ severity: 'error', summary: msg, life: 3500 })
+    notifications.add({ severity: 'error', title: '支付记录移动失败', detail: msg })
   } finally {
     movingPayment.value = false
   }
@@ -842,14 +876,51 @@ onMounted(async () => {
   opacity: 0.95;
 }
 
-.date-day.today {
-  color: var(--p-primary-color);
+.date-cell.is-today {
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color), transparent 30%);
 }
 
 .date-total {
   font-size: 10px;
   color: var(--p-text-muted-color);
   line-height: 1;
+}
+
+.field {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field label {
+  display: block;
+  font-weight: 700;
+  color: var(--p-text-muted-color);
+  line-height: 1.6;
+  padding-left: 4px;
+}
+
+.field :deep(.p-inputtext),
+.field :deep(.p-inputnumber),
+.field :deep(.p-datepicker),
+.field :deep(.p-textarea),
+.field :deep(.p-inputtextarea),
+.field :deep(.p-dropdown) {
+  width: 100%;
+}
+
+.field :deep(.p-datepicker-input) {
+  width: 100%;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 @media (max-width: 980px) {

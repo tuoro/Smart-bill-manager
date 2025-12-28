@@ -52,6 +52,7 @@ import { computed, nextTick, ref } from 'vue'
 import Button from 'primevue/button'
 import OverlayPanel from 'primevue/overlaypanel'
 import Tag from 'primevue/tag'
+import { $dt } from '@primeuix/styled'
 import { useNotificationStore } from '@/stores/notifications'
 import type { NotificationSeverity } from '@/stores/notifications'
 
@@ -66,7 +67,10 @@ const getOverlayEl = (): HTMLElement | null => {
   const p = panel.value as any
   const container = p?.container as HTMLElement | undefined
   if (container) return container
-  return document.querySelector('.p-overlaypanel.nc-panel') as HTMLElement | null
+  return (
+    (document.querySelector('.p-popover.nc-panel') as HTMLElement | null) ||
+    (document.querySelector('.p-overlaypanel.nc-panel') as HTMLElement | null)
+  )
 }
 
 const forceLeftAligned = () => {
@@ -87,8 +91,14 @@ const forceLeftAligned = () => {
   const desiredLeft = rect.right + scrollX - w
   const left = Math.max(minLeft, Math.min(desiredLeft, maxLeft))
 
-  overlay.style.left = `${left}px`
-  overlay.style.right = 'auto'
+  overlay.style.left = ''
+  overlay.style.right = ''
+  overlay.style.insetInlineStart = `${left}px`
+  overlay.style.insetInlineEnd = 'auto'
+
+  const targetLeft = rect.left + scrollX
+  const arrowLeft = left < targetLeft ? targetLeft - left : 0
+  overlay.style.setProperty($dt('popover.arrow.left').name, `${arrowLeft}px`)
 }
 
 const onShow = async () => {
@@ -184,8 +194,23 @@ const severityToTag = (s: NotificationSeverity): 'success' | 'info' | 'warn' | '
   border: 2px solid var(--p-surface-0);
 }
 
-:deep(.nc-panel) {
-  width: min(460px, 92vw);
+/* OverlayPanel/Popover is teleported to <body>, so styles must be global. */
+:global(.p-popover.nc-panel) {
+  width: min(560px, 94vw);
+  border-radius: 20px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+:global(.p-overlaypanel.nc-panel) {
+  width: min(560px, 94vw);
+  border-radius: 20px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+:global(.p-popover.nc-panel .p-popover-content) {
+  padding: 14px 14px 12px;
 }
 
 .nc-header {
@@ -198,7 +223,7 @@ const severityToTag = (s: NotificationSeverity): 'success' | 'info' | 'warn' | '
 }
 
 .nc-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--p-text-color);
 }

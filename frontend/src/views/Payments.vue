@@ -362,14 +362,6 @@
           </div>
           <div class="actions">
             <Button
-              v-if="detailPayment.screenshot_path"
-              class="p-button-outlined"
-              severity="secondary"
-              icon="pi pi-external-link"
-              :label="'\u67E5\u770B\u652F\u4ED8\u622A\u56FE'"
-              @click="openPaymentScreenshot(detailPayment)"
-            />
-            <Button
               class="p-button-outlined"
               severity="secondary"
               icon="pi pi-refresh"
@@ -1007,12 +999,6 @@ const getPaymentScreenshotTitle = (payment: Payment) => {
     return parts[parts.length - 1] || path
   }
   return normalizeInlineText(payment.merchant) || payment.id
-}
-
-const openPaymentScreenshot = (payment: Payment) => {
-  if (!payment.screenshot_path) return
-  const url = `${FILE_BASE_URL}/${payment.screenshot_path}`
-  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 const handleReparseOcr = async (paymentId: string) => {

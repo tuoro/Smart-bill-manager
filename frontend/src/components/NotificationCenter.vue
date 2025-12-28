@@ -57,12 +57,34 @@ import type { NotificationSeverity } from '@/stores/notifications'
 
 const store = useNotificationStore()
 const panel = ref<InstanceType<typeof OverlayPanel> | null>(null)
+const lastTarget = ref<HTMLElement | null>(null)
 
 const items = computed(() => store.items)
 const unreadCount = computed(() => store.unreadCount)
 
+const forceLeftAligned = () => {
+  if (typeof window === 'undefined') return
+  const target = lastTarget.value
+  if (!target) return
+
+  const overlay = document.querySelector('.p-overlaypanel.nc-panel') as HTMLElement | null
+  if (!overlay) return
+
+  const rect = target.getBoundingClientRect()
+  const scrollX = window.scrollX || document.documentElement.scrollLeft || 0
+  const minLeft = scrollX + 8
+  const maxLeft = scrollX + window.innerWidth - overlay.offsetWidth - 8
+  const desiredLeft = rect.right + scrollX - overlay.offsetWidth
+  const left = Math.max(minLeft, Math.min(desiredLeft, maxLeft))
+
+  overlay.style.left = `${left}px`
+  overlay.style.right = 'auto'
+}
+
 const toggle = (event: MouseEvent) => {
+  lastTarget.value = event.currentTarget as HTMLElement | null
   panel.value?.toggle(event)
+  void realign()
 }
 
 const realign = async () => {
@@ -70,10 +92,14 @@ const realign = async () => {
   const p = panel.value
   if (!p) return
   if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(() => p.alignOverlay())
+    window.requestAnimationFrame(() => {
+      p.alignOverlay()
+      forceLeftAligned()
+    })
     return
   }
   p.alignOverlay()
+  forceLeftAligned()
 }
 
 const handleItemClick = async (id: string) => {

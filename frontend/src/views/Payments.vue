@@ -75,7 +75,11 @@
               <span class="amount">{{ formatMoney(row.amount) }}</span>
             </template>
           </Column>
-          <Column field="merchant" :header="'\u5546\u5BB6'" />
+          <Column :header="'\u5546\u5BB6'">
+            <template #body="{ data: row }">
+              <span class="sbm-ellipsis" :title="normalizeInlineText(row.merchant)">{{ normalizeInlineText(row.merchant) || '-' }}</span>
+            </template>
+          </Column>
           <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '160px' }">
             <template #body="{ data: row }">
               <Tag
@@ -349,7 +353,10 @@
             <div class="kv"><div class="k">&#37329;&#39069;</div><div class="v amount">{{ formatMoney(detailPayment.amount || 0) }}</div></div>
           </div>
           <div class="col-12 md:col-6">
-            <div class="kv"><div class="k">&#5546;&#23478;</div><div class="v">{{ detailPayment.merchant || '-' }}</div></div>
+            <div class="kv">
+              <div class="k">&#5546;&#23478;</div>
+              <div class="v" :title="normalizeInlineText(detailPayment.merchant)">{{ normalizeInlineText(detailPayment.merchant) || '-' }}</div>
+            </div>
           </div>
           <div class="col-12 md:col-6">
             <div class="kv">
@@ -622,7 +629,10 @@ const loadStats = async () => {
 
 const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 const formatMoney = (value: number) => `\u00A5${(value || 0).toFixed(2)}`
-const normalizeInlineText = (value?: string | null) => (value || '').replace(/\s+/g, ' ').trim()
+const normalizeInlineText = (value?: string | null) => {
+  const s = (value || '').replace(/\s+/g, ' ').trim()
+  return s.replace(/[>›»〉》→]+$/g, '').trim()
+}
 
 const loadLinkedInvoicesCount = async () => {
   try {
@@ -1242,6 +1252,8 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 800;
   color: var(--color-text-tertiary);
+  line-height: 1.35;
+  padding-top: 1px;
 }
 
 .v {

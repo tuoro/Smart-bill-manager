@@ -1655,6 +1655,24 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 		s.extractGenericMerchant(text, data)
 	}
 
+	// Final cleanup for user-facing fields (keep RawText untouched)
+	if data.Merchant != nil {
+		clean := sanitizePaymentField(*data.Merchant)
+		if clean == "" || clean == "说明" {
+			data.Merchant = nil
+		} else {
+			data.Merchant = &clean
+		}
+	}
+	if data.PaymentMethod != nil {
+		clean := sanitizePaymentMethod(*data.PaymentMethod)
+		if clean == "" {
+			data.PaymentMethod = nil
+		} else {
+			data.PaymentMethod = &clean
+		}
+	}
+
 	return data, nil
 }
 
@@ -1720,7 +1738,9 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	// Priority: 商品 (short name) > 收款方/收款人 > 商户全称 (full company name)
 	merchantRegexes := []*regexp.Regexp{
 		// Highest priority: short merchant name after "商品"
-		regexp.MustCompile(`商品[：:]?[\s]*([^\s(（\n]+)`),
+		// NOTE: Require delimiter to avoid matching "商品说明" -> "说明".
+		regexp.MustCompile(`商品[：:][\s]*([^\s(（\n]+)`),
+		regexp.MustCompile(`商品[\s]+([^\s(（\n]+)`),
 		regexp.MustCompile(`收款方[：:]?[\s]*([^\s¥￥\n]+)`),
 		regexp.MustCompile(`收款人[：:]?[\s]*([^\s¥￥\n]+)`),
 		regexp.MustCompile(`转账给([^\s¥￥\n]+)`),
@@ -1731,7 +1751,10 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			merchant := strings.TrimSpace(match[1])
 			if merchant != "" {
-				data.Merchant = &merchant
+				merchant = sanitizePaymentField(merchant)
+				if merchant != "" && merchant != "说明" {
+					data.Merchant = &merchant
+				}
 				break
 			}
 		}
@@ -1815,27 +1838,42 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 	}
 
 	// Extract merchant - prioritize short names
+	if m := extractAlipayMerchantFromBillDetail(text); m != "" {
+		data.Merchant = &m
+	}
 	merchantRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`商品[：:]?[\s]*([^\s(（\n]+)`),
+		// NOTE: Require delimiter to avoid matching "商品说明" -> "说明".
+		regexp.MustCompile(`商品[：:][\s]*([^\s(（\n]+)`),
+		regexp.MustCompile(`商品[\s]+([^\s(（\n]+)`),
 		regexp.MustCompile(`商家[：:]?[\s]*([^\s¥￥\n]+)`),
 		regexp.MustCompile(`收款方[：:]?[\s]*([^\s¥￥\n]+)`),
 		regexp.MustCompile(`付款给([^\s¥￥\n]+)`),
 		merchantFullNameRegex,
 	}
 	for _, re := range merchantRegexes {
+		if data.Merchant != nil {
+			break
+		}
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			merchant := strings.TrimSpace(match[1])
-			if merchant != "" {
-				data.Merchant = &merchant
-				break
+			merchant := sanitizePaymentField(match[1])
+			if merchant == "" || merchant == "说明" {
+				continue
 			}
+			data.Merchant = &merchant
+			break
 		}
 	}
 
 	// Extract transaction time
 	timeRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`创建时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		// Alipay often prints "支付时间" and sometimes omits the space between date and time.
+		regexp.MustCompile(`支付时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2})[\s]*([\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`付款时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2})[\s]*([\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`创建时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2})[\s]*([\d]{2}:[\d]{2}:[\d]{2})`),
+		// Standard format: 2024-01-01 12:00:00
+		regexp.MustCompile(`支付时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
 		regexp.MustCompile(`付款时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
+		regexp.MustCompile(`创建时间[：:]?[\s]*([\d]{4}-[\d]{2}-[\d]{2}\s[\d]{2}:[\d]{2}:[\d]{2})`),
 		// Chinese format with space
 		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日)\s+([\d]{1,2}:[\d]{2}:[\d]{2})`),
 		// Chinese format without space
@@ -1868,13 +1906,16 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 
 	// Extract payment method
 	paymentMethodRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`支付方式[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
+		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
 	}
 	for _, re := range paymentMethodRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			method := strings.TrimSpace(match[1])
 			if method != "" {
-				data.PaymentMethod = &method
+				method = sanitizePaymentMethod(method)
+				if method != "" {
+					data.PaymentMethod = &method
+				}
 				break
 			}
 		}
@@ -1907,18 +1948,21 @@ func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) 
 
 	// Extract receiver
 	merchantRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`商品[：:]?[\s]*([^\s(（\n]+)`),
+		// NOTE: Require delimiter to avoid matching "商品说明" -> "说明".
+		regexp.MustCompile(`商品[：:][\s]*([^\s(（\n]+)`),
+		regexp.MustCompile(`商品[\s]+([^\s(（\n]+)`),
 		regexp.MustCompile(`收款人[：:]?[\s]*([^\s¥￥\n]+)`),
 		regexp.MustCompile(`收款账户[：:]?[\s]*([^\s¥￥\n]+)`),
 		merchantFullNameRegex,
 	}
 	for _, re := range merchantRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			merchant := strings.TrimSpace(match[1])
-			if merchant != "" {
-				data.Merchant = &merchant
-				break
+			merchant := sanitizePaymentField(match[1])
+			if merchant == "" || merchant == "说明" {
+				continue
 			}
+			data.Merchant = &merchant
+			break
 		}
 	}
 
@@ -1942,13 +1986,16 @@ func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) 
 
 	// Extract payment method
 	paymentMethodRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`支付方式[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
+		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
 	}
 	for _, re := range paymentMethodRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
 			method := strings.TrimSpace(match[1])
 			if method != "" {
-				data.PaymentMethod = &method
+				method = sanitizePaymentMethod(method)
+				if method != "" {
+					data.PaymentMethod = &method
+				}
 				break
 			}
 		}
@@ -1975,7 +2022,7 @@ func inferPaymentMethodFromText(text string) *string {
 			if idx := strings.Index(m, "由"); idx >= 0 {
 				m = strings.TrimSpace(m[:idx])
 			}
-			m = strings.Trim(m, " \t-—:：")
+			m = sanitizePaymentMethod(m)
 			if m != "" {
 				return &m
 			}
@@ -2009,6 +2056,82 @@ func inferPaymentMethodFromText(text string) *string {
 		}
 	}
 	return nil
+}
+
+func sanitizePaymentMethod(s string) string {
+	s = sanitizePaymentField(s)
+	// Alipay/WeChat UI arrows often appear as trailing ">" or similar.
+	s = strings.TrimRight(s, ">›»〉》→")
+	s = strings.TrimSpace(s)
+	return s
+}
+
+func sanitizePaymentField(s string) string {
+	s = strings.TrimSpace(s)
+	// Normalize whitespace
+	s = strings.Join(strings.Fields(s), " ")
+	// Trim common trailing UI artifacts
+	s = strings.TrimRight(s, ">›»〉》→")
+	s = strings.TrimSpace(s)
+	return s
+}
+
+func extractAlipayMerchantFromBillDetail(text string) string {
+	lines := strings.Split(text, "\n")
+
+	blocklist := []string{
+		"账单详情",
+		"交易成功",
+		"支付时间",
+		"付款时间",
+		"付款方式",
+		"支付方式",
+		"商品说明",
+		"查看购物详情",
+		"收单机构",
+		"清算机构",
+		"服务详情",
+		"进入小程序",
+		"推荐服务",
+		"账单管理",
+		"账单分类",
+	}
+
+	timeOnlyRe := regexp.MustCompile(`^\d{1,2}:\d{2}$`)
+	datePrefixRe := regexp.MustCompile(`^\d{4}[-/年]\d{1,2}[-/月]\d{1,2}`)
+
+	for i, line := range lines {
+		if !strings.Contains(line, "账单详情") {
+			continue
+		}
+		for j := i + 1; j < len(lines) && j <= i+12; j++ {
+			s := strings.TrimSpace(lines[j])
+			if s == "" {
+				continue
+			}
+			if timeOnlyRe.MatchString(s) || datePrefixRe.MatchString(s) {
+				continue
+			}
+			s = sanitizePaymentField(s)
+			if s == "" || s == "说明" || s == "详情" {
+				continue
+			}
+			skip := false
+			for _, b := range blocklist {
+				if strings.Contains(s, b) {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				continue
+			}
+			if len([]rune(s)) >= 2 && len([]rune(s)) <= MaxMerchantNameLength {
+				return s
+			}
+		}
+	}
+	return ""
 }
 
 // extractAmount extracts amount from text using generic patterns

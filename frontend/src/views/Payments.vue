@@ -447,7 +447,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import Accordion from 'primevue/accordion'
 import AccordionTab from 'primevue/accordiontab'
@@ -488,6 +489,8 @@ interface OcrExtractedData {
 const toast = useToast()
 const notifications = useNotificationStore()
 const confirm = useConfirm()
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const payments = ref<Payment[]>([])
@@ -1030,10 +1033,40 @@ const handleReparseOcr = async (paymentId: string) => {
   }
 }
 
+const tryOpenMatchFromRoute = async () => {
+  const match = route.query.match
+  if (typeof match !== 'string' || !match) return
+  if (linkedInvoicesModalVisible.value && currentPaymentForInvoices.value?.id === match) return
+
+  try {
+    const local = payments.value.find((p) => p.id === match)
+    if (local) {
+      await viewLinkedInvoices(local)
+      return
+    }
+    const res = await paymentApi.getById(match)
+    if (res.data.success && res.data.data) await viewLinkedInvoices(res.data.data)
+  } finally {
+    const query = { ...route.query }
+    delete (query as any).match
+    router.replace({ query })
+  }
+}
+
 onMounted(() => {
-  loadPaymentsWithCount()
-  loadStats()
+  void (async () => {
+    await loadPaymentsWithCount()
+    await loadStats()
+    await tryOpenMatchFromRoute()
+  })()
 })
+
+watch(
+  () => route.query.match,
+  () => {
+    void tryOpenMatchFromRoute()
+  }
+)
 </script>
 
 <style scoped>

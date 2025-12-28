@@ -149,6 +149,83 @@
       </div>
 
       <div class="grid">
+        <Card class="panel col-span-2 sbm-surface">
+          <template #title>
+            <div class="panel-title">
+              <div class="match-title">
+                <span>&#25903;&#20184;&#35760;&#24405;&#19982;&#21457;&#31080;&#21305;&#37197;</span>
+                <Tag
+                  v-if="unlinkedRecentCount > 0"
+                  severity="warn"
+                  :value="`\u672A\u5173\u8054 ${unlinkedRecentCount}`"
+                />
+                <Tag v-else severity="success" :value="'\u5168\u90E8\u5DF2\u5173\u8054'" />
+              </div>
+              <div class="match-actions">
+                <Button
+                  class="p-button-text"
+                  severity="secondary"
+                  icon="pi pi-refresh"
+                  :label="'\u5237\u65B0'"
+                  :loading="recentPaymentsLoading"
+                  @click="loadRecentPayments"
+                />
+                <Button
+                  class="p-button-outlined"
+                  severity="secondary"
+                  icon="pi pi-external-link"
+                  :label="'\u53BB\u652F\u4ED8\u8BB0\u5F55'"
+                  @click="router.push('/payments')"
+                />
+              </div>
+            </div>
+          </template>
+          <template #content>
+            <div v-if="recentPaymentsLoading" class="loading-mini">
+              <ProgressSpinner style="width: 26px; height: 26px" />
+              <div class="loading-text-mini">&#21152;&#36733;&#20013;...</div>
+            </div>
+            <div v-else-if="recentPayments.length === 0" class="empty-mini">&#26242;&#26080;&#25903;&#20184;&#35760;&#24405;</div>
+            <DataTable v-else :value="recentPaymentRows" size="small" responsiveLayout="scroll" :rows="6" :paginator="false">
+              <Column :header="'\u4EA4\u6613\u65F6\u95F4'" :style="{ width: '160px' }">
+                <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+              </Column>
+              <Column :header="'\u5546\u5BB6'">
+                <template #body="{ data: row }">
+                  <span class="sbm-ellipsis" :title="normalizeInlineText(row.merchant)">{{ normalizeInlineText(row.merchant) || '-' }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+                <template #body="{ data: row }">
+                  <span class="money">{{ formatMoney(row.amount || 0) }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u53D1\u7968'" :style="{ width: '140px' }">
+                <template #body="{ data: row }">
+                  <Tag
+                    v-if="row.invoiceCount > 0"
+                    severity="success"
+                    :value="`\u5DF2\u5173\u8054 ${row.invoiceCount}`"
+                  />
+                  <Tag v-else severity="warn" :value="'\u672A\u5173\u8054'" />
+                </template>
+              </Column>
+              <Column :header="'\u64CD\u4F5C'" :style="{ width: '120px' }">
+                <template #body="{ data: row }">
+                  <Button
+                    class="p-button-text"
+                    size="small"
+                    :label="row.invoiceCount > 0 ? '\u67E5\u770B' : '\u53BB\u5173\u8054'"
+                    @click="openPaymentMatch(row.id)"
+                  />
+                </template>
+              </Column>
+            </DataTable>
+          </template>
+        </Card>
+      </div>
+
+      <div class="grid">
         <Card class="panel sbm-surface">
           <template #title>
             <span><i class="pi pi-envelope" /> &#37038;&#31665;&#30417;&#25511;&#29366;&#24577;</span>
@@ -243,9 +320,9 @@ import ProgressBar from 'primevue/progressbar'
 import ProgressSpinner from 'primevue/progressspinner'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import { dashboardApi } from '@/api'
+import { dashboardApi, paymentApi } from '@/api'
 import { CHART_COLORS } from '@/utils/constants'
-import type { DashboardData } from '@/types'
+import type { DashboardData, Payment } from '@/types'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -256,6 +333,10 @@ const COLORS = CHART_COLORS
 const loading = ref(true)
 const data = ref<DashboardData | null>(null)
 
+const recentPaymentsLoading = ref(false)
+const recentPayments = ref<Payment[]>([])
+const paymentInvoiceCount = ref<Record<string, number>>({})
+
 const dailyData = computed(() => {
   if (!data.value?.payments.dailyStats) return []
   return Object.entries(data.value.payments.dailyStats)
@@ -265,6 +346,54 @@ const dailyData = computed(() => {
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
 })
+
+const normalizeInlineText = (value?: string | null) => (value || '').replace(/\s+/g, ' ').trim()
+
+const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
+
+const unlinkedRecentCount = computed(
+  () => recentPayments.value.filter((p) => (paymentInvoiceCount.value[p.id] || 0) === 0).length
+)
+
+const recentPaymentRows = computed(() =>
+  recentPayments.value.map((p) => ({
+    ...p,
+    invoiceCount: paymentInvoiceCount.value[p.id] || 0,
+  }))
+)
+
+const loadRecentPayments = async () => {
+  recentPaymentsLoading.value = true
+  try {
+    const res = await paymentApi.getAll({ limit: 6, offset: 0 })
+    const list = res.data.success && res.data.data ? res.data.data : []
+    const sorted = [...list].sort((a, b) => dayjs(b.transaction_time).valueOf() - dayjs(a.transaction_time).valueOf())
+    recentPayments.value = sorted.slice(0, 6)
+
+    const entries = await Promise.all(
+      recentPayments.value.map(async (p) => {
+        try {
+          const r = await paymentApi.getPaymentInvoices(p.id)
+          const count = r.data.success && r.data.data ? r.data.data.length : 0
+          return [p.id, count] as const
+        } catch {
+          return [p.id, 0] as const
+        }
+      })
+    )
+    paymentInvoiceCount.value = Object.fromEntries(entries)
+  } catch (error) {
+    console.error('Failed to load recent payments:', error)
+    recentPayments.value = []
+    paymentInvoiceCount.value = {}
+  } finally {
+    recentPaymentsLoading.value = false
+  }
+}
+
+const openPaymentMatch = (paymentId: string) => {
+  router.push({ path: '/payments', query: { match: paymentId } })
+}
 
 const lineChartOption = computed(() => ({
   tooltip: {
@@ -320,12 +449,8 @@ const lineChartOption = computed(() => ({
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await dashboardApi.getSummary()
-    if (res.data.success && res.data.data) {
-      data.value = res.data.data
-    } else {
-      data.value = null
-    }
+    const [res] = await Promise.all([dashboardApi.getSummary(), loadRecentPayments()])
+    data.value = res.data.success && res.data.data ? res.data.data : null
   } catch (error) {
     console.error('Failed to load dashboard data:', error)
     data.value = null
@@ -524,6 +649,46 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.match-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.match-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.loading-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.loading-text-mini {
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.sbm-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.money {
+  font-weight: 950;
+  color: var(--p-red-600, #dc2626);
 }
 
 .chart {

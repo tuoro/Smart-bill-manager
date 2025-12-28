@@ -2416,23 +2416,40 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 	isStopLine := func(s string) bool {
 		stopMarkers := []string{
+			// Total/summary + footer/person fields.
 			"价税合计",
 			"合计",
-			"校验码",
 			"收款人",
 			"复核",
 			"开票人",
+			"备注",
+			// Party sections (avoid treating these as items).
+			"销售方",
+			"购买方",
+			// Invoice meta (avoid treating these as items; may appear anywhere in PDF text).
+			"校验码",
 			"发票代码",
 			"发票号码",
 			"开票日期",
-			"备注",
-			"销售方",
-			"购买方",
+			"机器编号",
 		}
 		for _, m := range stopMarkers {
 			if strings.Contains(s, m) {
 				return true
 			}
+		}
+		return false
+	}
+
+	isBlockEndLine := func(s string) bool {
+		// For PDF text extraction, invoice meta (code/date/check) can appear between the header and
+		// actual rows. Only stop when we reach totals/summary, otherwise we might cut off items.
+		if strings.Contains(s, "价税合计") {
+			return true
+		}
+		// Sometimes totals are broken into multiple lines; treat a "合计" line that also has currency as end.
+		if strings.Contains(s, "合计") && (strings.ContainsAny(s, "¥￥") || strings.Contains(s, "\uffe5")) {
+			return true
 		}
 		return false
 	}
@@ -2581,13 +2598,53 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if s == "" {
 			continue
 		}
-		if isStopLine(s) {
+		if isBlockEndLine(s) {
 			break
 		}
-		block = append(block, strings.Join(strings.Fields(s), " "))
+		s = strings.Join(strings.Fields(s), " ")
+		// Make header detection robust for PDF text that inserts spaces between Han characters.
+		s = removeChineseInlineSpaces(s)
+		block = append(block, s)
 	}
 	if len(block) == 0 {
 		return nil
+	}
+
+	// PDFs extracted via text often include a lot of non-table content between the header
+	// and the first real line item. Anchor on the first tax-rate row, then backtrack to
+	// the nearest likely name row to avoid treating invoice meta (e.g. "增值税电子普通发票")
+	// as a line item.
+	firstTaxRate := -1
+	for i, s := range block {
+		if taxRateRe.MatchString(strings.TrimSpace(s)) {
+			firstTaxRate = i
+			break
+		}
+	}
+	if firstTaxRate >= 0 {
+		start := firstTaxRate
+		low := firstTaxRate - 18
+		if low < 0 {
+			low = 0
+		}
+		for j := firstTaxRate; j >= low; j-- {
+			cand := strings.TrimSpace(block[j])
+			if cand == "" || isHeaderLine(cand) || isStopLine(cand) {
+				continue
+			}
+			// Prefer category-prefixed rows as they are the most stable OCR signal.
+			if strings.HasPrefix(cand, "*") {
+				start = j
+				break
+			}
+			if isLikelyItemNameLine(cand) {
+				start = j
+				break
+			}
+		}
+		if start > 0 {
+			block = block[start:]
+		}
 	}
 
 	var (

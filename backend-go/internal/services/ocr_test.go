@@ -2,6 +2,7 @@ package services
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -458,6 +459,128 @@ func TestParseInvoiceData_ItemsExtraction_PDFTextStopsBeforePartyInfo(t *testing
 		}
 		if it.Name == "名称" || it.Name == "纳税人识别号" {
 			t.Fatalf("Unexpected label captured as item: %+v", data.Items)
+		}
+	}
+}
+
+func TestParseInvoiceData_ItemsExtraction_PDFLongDecimalUnitPrice(t *testing.T) {
+	service := NewOCRService()
+
+	// Some PDF text extractions list unit price with many decimals before the quantity.
+	// Ensure we don't treat long-decimal numbers as quantity, and stop before footer noise.
+	sampleText := `项目名称
+规格型号
+单 位
+数 量
+单 价
+金 额
+税率/征收率
+税 额
+*酒*白酒 汾酒青花30
+53°*6
+1%
+瓶
+1683.17
+16.83
+841.584158415842
+2
+*酒*葡萄酒 奔富407
+750ml*6
+1%
+瓶
+1366.34
+13.66
+683.168316831683
+2
+下载次数：1`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+	if len(data.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
+	}
+	if data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
+		t.Fatalf("Expected first item quantity 2, got %+v", data.Items[0].Quantity)
+	}
+	if data.Items[1].Quantity == nil || *data.Items[1].Quantity != 2 {
+		t.Fatalf("Expected second item quantity 2, got %+v", data.Items[1].Quantity)
+	}
+	for _, it := range data.Items {
+		if strings.Contains(it.Name, "下载次数") {
+			t.Fatalf("Unexpected footer captured as item: %+v", data.Items)
+		}
+	}
+}
+
+func TestParseInvoiceData_ItemsExtraction_PDFHeaderRegionScoring_MetaBeforeHeader(t *testing.T) {
+	service := NewOCRService()
+
+	// Some PDF text extractions include a lot of metadata before the table header.
+	// Ensure we still find the table header region and only extract real line items.
+	sampleText := `电子发票（普通发票）
+发票号码：
+25312000000336194167
+开票日期：
+2025年10月21日
+购
+买
+方
+信
+息
+名称：
+个人
+销
+售
+方
+信
+息
+名称：
+上海市虹口区鹏侠百货商店
+
+项目名称
+规 格 型 号
+单 位
+数 量
+单 价
+金 额
+税率/征收率
+税 额
+*酒*白酒 汾酒青花30
+53°*6
+1%
+瓶
+1683.17
+16.83
+841.584158415842
+2
+*酒*葡萄酒 奔富407
+750ml*6
+1%
+瓶
+1366.34
+13.66
+683.168316831683
+2
+下载次数：1`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+	if len(data.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
+	}
+	if data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
+		t.Fatalf("Expected first item quantity 2, got %+v", data.Items[0].Quantity)
+	}
+	if data.Items[1].Quantity == nil || *data.Items[1].Quantity != 2 {
+		t.Fatalf("Expected second item quantity 2, got %+v", data.Items[1].Quantity)
+	}
+	for _, it := range data.Items {
+		if strings.Contains(it.Name, "下载次数") || strings.Contains(it.Name, "电子发票") || strings.Contains(it.Name, "开票日期") {
+			t.Fatalf("Unexpected non-item captured as item: %+v", data.Items)
 		}
 	}
 }

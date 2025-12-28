@@ -2399,19 +2399,86 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	text = normalizeInvoiceTextForParsing(text)
 	lines := strings.Split(text, "\n")
 
+	headerMarkers := []string{
+		"货物或应税劳务", "服务名称", "项目名称",
+		"规格型号", "单位", "数量", "单价", "金额", "税率", "税额",
+	}
+	isPrimaryHeaderLine := func(s string) bool {
+		return strings.Contains(s, "货物或应税劳务") || strings.Contains(s, "服务名称") || strings.Contains(s, "项目名称")
+	}
+	normLine := func(s string) string {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return ""
+		}
+		s = strings.Join(strings.Fields(s), " ")
+		return removeChineseInlineSpaces(s)
+	}
+
+	// In PDF text extraction, the header columns are frequently broken across multiple lines
+	// (e.g. each column on its own line). Detect a header *region* using a windowed score.
+	bestStart := -1
+	bestScore := -1
+	winSize := 10
+	for i := 0; i < len(lines); i++ {
+		score := 0
+		for j := i; j < len(lines) && j < i+winSize; j++ {
+			s := normLine(lines[j])
+			if s == "" {
+				continue
+			}
+			if isPrimaryHeaderLine(s) {
+				score += 4
+			}
+			for _, m := range headerMarkers[3:] { // non-primary columns
+				if strings.Contains(s, m) {
+					score++
+				}
+			}
+		}
+		if score > bestScore {
+			bestScore = score
+			bestStart = i
+		}
+	}
+	if bestStart < 0 || bestScore < 4 {
+		return nil
+	}
+
 	headerIdx := -1
-	for i, raw := range lines {
-		s := strings.TrimSpace(raw)
+	for j := bestStart; j < len(lines) && j < bestStart+winSize; j++ {
+		s := normLine(lines[j])
 		if s == "" {
 			continue
 		}
-		if strings.Contains(s, "货物或应税劳务") || strings.Contains(s, "服务名称") || strings.Contains(s, "项目名称") {
-			headerIdx = i
+		if isPrimaryHeaderLine(s) {
+			headerIdx = j
 			break
 		}
 	}
 	if headerIdx < 0 {
-		return nil
+		headerIdx = bestStart
+	}
+
+	headerEnd := headerIdx
+	for j := headerIdx + 1; j < len(lines) && j <= headerIdx+winSize; j++ {
+		s := normLine(lines[j])
+		if s == "" {
+			continue
+		}
+		// Extend while header markers continue.
+		has := false
+		for _, m := range headerMarkers {
+			if strings.Contains(s, m) {
+				has = true
+				break
+			}
+		}
+		if has {
+			headerEnd = j
+			continue
+		}
+		break
 	}
 
 	isStopLine := func(s string) bool {
@@ -2444,29 +2511,17 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	isBlockEndLine := func(s string) bool {
 		// For PDF text extraction, invoice meta (code/date/check) can appear between the header and
 		// actual rows. Only stop when we reach totals/summary, otherwise we might cut off items.
-		if strings.Contains(s, "价税合计") && (strings.ContainsAny(s, "¥￥") || strings.Contains(s, "\uffe5") || regexp.MustCompile(`\d+\.\d{2}`).MatchString(s)) {
+		if strings.Contains(s, "价税合计") && (strings.ContainsRune(s, '￥') || regexp.MustCompile(`\d+\.\d{2}`).MatchString(s)) {
 			return true
 		}
 		// Sometimes totals are broken into multiple lines; treat a "合计" line that also has currency as end.
-		if strings.Contains(s, "合计") && (strings.ContainsAny(s, "¥￥") || strings.Contains(s, "\uffe5")) {
+		if strings.Contains(s, "合计") && strings.ContainsRune(s, '￥') {
 			return true
 		}
 		return false
 	}
 
 	isHeaderLine := func(s string) bool {
-		headerMarkers := []string{
-			"货物或应税劳务",
-			"服务名称",
-			"项目名称",
-			"规格型号",
-			"单位",
-			"数量",
-			"单价",
-			"金额",
-			"税率",
-			"税额",
-		}
 		for _, m := range headerMarkers {
 			if strings.Contains(s, m) {
 				return true
@@ -2491,6 +2546,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 	numOnlyRe := regexp.MustCompile(`^\d+(?:\.\d+)?$`)
 	moneyLikeRe := regexp.MustCompile(`^\d+\.\d{2}$`)
+	decimalLikeRe := regexp.MustCompile(`^\d+\.\d+$`)
+	integerOnlyRe := regexp.MustCompile(`^\d+$`)
 	taxRateRe := regexp.MustCompile(`^\d{1,2}%$`)
 	quantityLabelRe := regexp.MustCompile(`数量\s*[:：]?\s*(\d+(?:\.\d+)?)`)
 	// Common "spec/model" tokens that are not item names, such as:
@@ -2519,6 +2576,9 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			return false
 		}
 		if strings.Contains(s, "订单号") || strings.Contains(s, "发票专用章") {
+			return false
+		}
+		if strings.Contains(s, "下载次数") {
 			return false
 		}
 		// Label-like rows (often from PDF extraction) shouldn't be treated as item names.
@@ -2563,7 +2623,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		return n >= 2 && n <= 120
 	}
 
-	parseQuantity := func(s string) *float64 {
+	var parseQuantityWithUnit func(s, unit string) *float64
+	parseQuantityWithUnit = func(s, unit string) *float64 {
 		s = strings.TrimSpace(s)
 		if s == "" {
 			return nil
@@ -2576,7 +2637,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			return nil
 		}
 		// Prefer integers for quantity.
-		if regexp.MustCompile(`^\d+$`).MatchString(s) {
+		if integerOnlyRe.MatchString(s) {
 			q := parseAmount(s)
 			if q == nil {
 				return nil
@@ -2585,6 +2646,21 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 				return nil
 			}
 			return q
+		}
+		// Reject long decimals (common for unit price in PDF text).
+		if decimalLikeRe.MatchString(s) {
+			parts := strings.SplitN(s, ".", 2)
+			if len(parts) == 2 {
+				frac := parts[1]
+				// More than 3 decimals is almost certainly unit price noise.
+				if len(frac) > 3 {
+					return nil
+				}
+				// If unit is a countable unit, require integer quantity.
+				if isUnitToken(unit) && unit != "公斤" && unit != "千克" && unit != "克" && unit != "米" {
+					return nil
+				}
+			}
 		}
 		if !numOnlyRe.MatchString(s) {
 			return nil
@@ -2604,7 +2680,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	}
 
 	block := make([]string, 0, 64)
-	for i := headerIdx + 1; i < len(lines); i++ {
+	for i := headerEnd + 1; i < len(lines); i++ {
 		s := strings.TrimSpace(lines[i])
 		if s == "" {
 			continue
@@ -2612,13 +2688,68 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if isBlockEndLine(s) {
 			break
 		}
-		s = strings.Join(strings.Fields(s), " ")
-		// Make header detection robust for PDF text that inserts spaces between Han characters.
-		s = removeChineseInlineSpaces(s)
-		block = append(block, s)
+		block = append(block, normLine(s))
 	}
 	if len(block) == 0 {
 		return nil
+	}
+
+	rowScore := func(s string) int {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return -10
+		}
+		score := 0
+		if strings.HasPrefix(s, "*") {
+			score += 3
+		}
+		if taxRateRe.MatchString(s) {
+			score += 3
+		}
+		if strings.ContainsRune(s, '￥') || moneyLikeRe.MatchString(s) {
+			score += 2
+		}
+		if isUnitToken(s) {
+			score++
+		}
+		if labelLineRe.MatchString(s) || isStopLine(s) || strings.Contains(s, "下载次数") {
+			score -= 6
+		}
+		if specTokenRe.MatchString(s) {
+			score -= 2
+		}
+		if isLikelyItemNameLine(s) {
+			score++
+		}
+		return score
+	}
+
+	startIdx := 0
+	{
+		bestWinScore := -1 << 30
+		bestWinStart := 0
+		rowWin := 14
+		for i := 0; i < len(block); i++ {
+			sum := 0
+			for j := i; j < len(block) && j < i+rowWin; j++ {
+				sum += rowScore(block[j])
+			}
+			if sum > bestWinScore {
+				bestWinScore = sum
+				bestWinStart = i
+			}
+		}
+		startIdx = bestWinStart
+		for j := bestWinStart; j < len(block) && j < bestWinStart+rowWin; j++ {
+			s := strings.TrimSpace(block[j])
+			if s == "" {
+				continue
+			}
+			if strings.HasPrefix(s, "*") || isLikelyItemNameLine(s) {
+				startIdx = j
+				break
+			}
+		}
 	}
 
 	// PDFs extracted via text often include a lot of non-table content between the header
@@ -2653,9 +2784,12 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 				break
 			}
 		}
-		if start > 0 {
-			block = block[start:]
+		if start > startIdx {
+			startIdx = start
 		}
+	}
+	if startIdx > 0 && startIdx < len(block) {
+		block = block[startIdx:]
 	}
 
 	var (
@@ -2685,6 +2819,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			"收款人", "复核", "开票人",
 			"发票专用章",
 			"订单号",
+			"下载次数",
 		}
 		for _, m := range exitMarkers {
 			if strings.Contains(s, m) {
@@ -2726,6 +2861,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 			// Look ahead for a quantity token near the name line.
 			hasMoney := false
+			unitToken := ""
 			for j := idx + 1; j < len(block) && j <= idx+12; j++ {
 				t := strings.TrimSpace(block[j])
 				if t == "" || isHeaderLine(t) {
@@ -2737,14 +2873,20 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 				if specTokenRe.MatchString(t) {
 					continue
 				}
-				if isUnitToken(t) || taxRateRe.MatchString(t) {
+				if isUnitToken(t) {
+					if unitToken == "" {
+						unitToken = t
+					}
+					continue
+				}
+				if taxRateRe.MatchString(t) {
 					continue
 				}
 				if moneyLikeRe.MatchString(t) {
 					hasMoney = true
 					continue
 				}
-				if q := parseQuantity(t); q != nil {
+				if q := parseQuantityWithUnit(t, unitToken); q != nil {
 					currentQty = q
 					break
 				}

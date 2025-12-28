@@ -397,8 +397,7 @@ Smart-bill-manager/
 
 ## 📚 文档
 
-- [API 文档](./API_DOCUMENTATION.md) - 详细的API接口说明和使用示例
-- [测试指南](./TESTING_GUIDE.md) - 功能测试步骤和性能评估方法
+本文档已包含日常使用所需的主要说明。
 
 ## 📝 License
 

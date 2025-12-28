@@ -10,7 +10,7 @@
     />
     <span v-if="unreadCount > 0" class="nc-badge" aria-hidden="true">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
 
-    <OverlayPanel ref="panel" :dismissable="true" :showCloseIcon="false" class="nc-panel">
+    <OverlayPanel ref="panel" :dismissable="true" :showCloseIcon="false" class="nc-panel" @show="onShow">
       <div class="nc-header">
         <div class="nc-title">消息</div>
         <div class="nc-actions">
@@ -62,23 +62,43 @@ const lastTarget = ref<HTMLElement | null>(null)
 const items = computed(() => store.items)
 const unreadCount = computed(() => store.unreadCount)
 
+const getOverlayEl = (): HTMLElement | null => {
+  const p = panel.value as any
+  const container = p?.container as HTMLElement | undefined
+  if (container) return container
+  return document.querySelector('.p-overlaypanel.nc-panel') as HTMLElement | null
+}
+
 const forceLeftAligned = () => {
   if (typeof window === 'undefined') return
   const target = lastTarget.value
   if (!target) return
 
-  const overlay = document.querySelector('.p-overlaypanel.nc-panel') as HTMLElement | null
+  const overlay = getOverlayEl()
   if (!overlay) return
+
+  const w = overlay.getBoundingClientRect().width || overlay.offsetWidth
+  if (!w) return
 
   const rect = target.getBoundingClientRect()
   const scrollX = window.scrollX || document.documentElement.scrollLeft || 0
   const minLeft = scrollX + 8
-  const maxLeft = scrollX + window.innerWidth - overlay.offsetWidth - 8
-  const desiredLeft = rect.right + scrollX - overlay.offsetWidth
+  const maxLeft = scrollX + window.innerWidth - w - 8
+  const desiredLeft = rect.right + scrollX - w
   const left = Math.max(minLeft, Math.min(desiredLeft, maxLeft))
 
   overlay.style.left = `${left}px`
   overlay.style.right = 'auto'
+}
+
+const onShow = async () => {
+  await realign()
+  // Some browsers report 0 width on the first frame; re-apply once more.
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => forceLeftAligned())
+  } else {
+    forceLeftAligned()
+  }
 }
 
 const toggle = (event: MouseEvent) => {

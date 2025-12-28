@@ -10,10 +10,7 @@
       <form class="p-fluid" @submit.prevent="handleSetup">
         <div class="field">
           <label class="sbm-field-label" for="username">&#29992;&#25143;&#21517;</label>
-          <span class="p-input-icon-left">
-            <i class="pi pi-user" />
-            <InputText id="username" v-model.trim="form.username" autocomplete="username" />
-          </span>
+          <InputText id="username" v-model.trim="form.username" autocomplete="username" />
           <small v-if="errors.username" class="p-error">{{ errors.username }}</small>
         </div>
 
@@ -49,10 +46,7 @@
 
         <div class="field">
           <label class="sbm-field-label" for="email">&#37038;&#31665; (&#21487;&#36873;)</label>
-          <span class="p-input-icon-left">
-            <i class="pi pi-envelope" />
-            <InputText id="email" v-model.trim="form.email" autocomplete="email" />
-          </span>
+          <InputText id="email" v-model.trim="form.email" autocomplete="email" />
           <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
         </div>
 
@@ -222,13 +216,21 @@ const handleSetup = async () => {
   font-weight: 700;
 }
 
-:deep(.p-password input) {
-  width: 100%;
-}
-
-@media (max-width: 480px) {
-  .sbm-auth-card {
-    padding: 22px 18px;
+  :deep(.p-password input) {
+    width: 100%;
   }
+
+  :deep(.p-password) {
+    width: 100%;
+  }
+
+  :deep(.p-inputtext) {
+    width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    .sbm-auth-card {
+      padding: 22px 18px;
+    }
 }
 </style>

@@ -179,12 +179,12 @@ const toggleUserMenu = (event: MouseEvent) => {
 <style scoped>
 .layout {
   min-height: 100vh;
-  height: 100vh;
   display: flex;
   gap: 20px;
   padding: 20px;
   width: 100%;
   margin: 0;
+  align-items: flex-start;
 }
 
 .sidebar {
@@ -193,7 +193,9 @@ const toggleUserMenu = (event: MouseEvent) => {
   display: flex;
   flex-direction: column;
   transition: width var(--transition-base);
-  position: relative;
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 40px);
   padding: 20px 14px 14px;
   border-radius: 24px;
   background: var(--p-surface-50);
@@ -318,11 +320,8 @@ const toggleUserMenu = (event: MouseEvent) => {
 
 .content {
   flex: 1;
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  height: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .topbar {
@@ -401,8 +400,7 @@ const toggleUserMenu = (event: MouseEvent) => {
 
 .main {
   padding: 18px 10px 10px;
-  flex: 1;
-  overflow: auto;
+  overflow: visible;
 }
 
 @media (max-width: 768px) {

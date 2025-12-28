@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"strconv"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
+	"strconv"
 
 	"gorm.io/gorm"
 )
@@ -59,16 +59,16 @@ type InvoiceFilter struct {
 
 func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, error) {
 	var invoices []models.Invoice
-	
+
 	query := database.GetDB().Model(&models.Invoice{}).Order("created_at DESC")
-	
+
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
 		if filter.Offset > 0 {
 			query = query.Offset(filter.Offset)
 		}
 	}
-	
+
 	err := query.Find(&invoices).Error
 	return invoices, err
 }
@@ -97,28 +97,28 @@ func (r *InvoiceRepository) Delete(id string) error {
 
 func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var invoices []models.Invoice
-	
+
 	if err := database.GetDB().Find(&invoices).Error; err != nil {
 		return nil, err
 	}
-	
+
 	stats := &models.InvoiceStats{
 		BySource: make(map[string]int),
 		ByMonth:  make(map[string]float64),
 	}
-	
+
 	for _, inv := range invoices {
 		stats.TotalCount++
 		if inv.Amount != nil {
 			stats.TotalAmount += *inv.Amount
 		}
-		
+
 		source := inv.Source
 		if source == "" {
 			source = "unknown"
 		}
 		stats.BySource[source]++
-		
+
 		if inv.InvoiceDate != nil && len(*inv.InvoiceDate) >= 7 {
 			month := (*inv.InvoiceDate)[:7]
 			if inv.Amount != nil {
@@ -126,7 +126,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 			}
 		}
 	}
-	
+
 	return stats, nil
 }
 
@@ -158,10 +158,10 @@ func (r *InvoiceRepository) GetLinkedPayments(invoiceID string) ([]models.Paymen
 // SuggestPayments suggests payments that might match an invoice
 func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) ([]models.Payment, error) {
 	var payments []models.Payment
-	
+
 	base := database.GetDB().Model(&models.Payment{})
 	baseNoAmount := database.GetDB().Model(&models.Payment{})
-	
+
 	// If invoice has amount, filter by similar amounts (within 10% range)
 	if invoice.Amount != nil {
 		minAmount := *invoice.Amount * 0.8
@@ -169,13 +169,13 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 		// Support negative payment amounts by matching on absolute value.
 		base = base.Where("ABS(amount) >= ? AND ABS(amount) <= ?", minAmount, maxAmount)
 	}
-	
+
 	// If invoice has date, prioritize payments from similar timeframe
 	datePrefix := ""
 	if invoice.InvoiceDate != nil && *invoice.InvoiceDate != "" {
 		datePrefix = normalizeDatePrefix(*invoice.InvoiceDate)
 	}
-	
+
 	// Default: newest first (service will apply scoring on top)
 	withOrder := func(q *gorm.DB, hasAmount bool, amount float64) *gorm.DB {
 		if hasAmount {
@@ -189,7 +189,7 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 	if hasInvoiceAmount {
 		invoiceAmount = *invoice.Amount
 	}
-	
+
 	if limit > 0 {
 		base = base.Limit(limit)
 		baseNoAmount = baseNoAmount.Limit(limit)

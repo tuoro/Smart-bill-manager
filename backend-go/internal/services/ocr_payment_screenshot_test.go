@@ -41,4 +41,3 @@ func TestParsePaymentScreenshot_GenericAmount(t *testing.T) {
 		t.Fatalf("expected amount 2500.50, got %#v", data.Amount)
 	}
 }
-

@@ -1033,4 +1033,3 @@ func TestRemoveChineseSpaces(t *testing.T) {
 		})
 	}
 }
-

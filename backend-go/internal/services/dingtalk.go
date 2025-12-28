@@ -275,7 +275,7 @@ func (s *DingtalkService) downloadFileWithToken(downloadCode, accessToken string
 	return body, nil
 }
 
-func (s *DingtalkService) saveFile(fileBuffer []byte, fileName, configID string) error {
+func (s *DingtalkService) saveFile(fileBuffer []byte, fileName, _ string) error {
 	// Sanitize filename
 	safeFileName := fmt.Sprintf("%d_%s", time.Now().UnixNano(), s.sanitizeFilename(fileName))
 

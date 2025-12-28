@@ -210,11 +210,8 @@ func (s *EmailService) monitorInbox(configID string, c *client.Client) {
 	}()
 
 	// Wait for done or connection closed
-	select {
-	case err := <-done:
-		if err != nil {
-			log.Printf("[Email Monitor] IDLE error: %v", err)
-		}
+	if err := <-done; err != nil {
+		log.Printf("[Email Monitor] IDLE error: %v", err)
 	}
 
 	close(stop)
@@ -352,7 +349,7 @@ func (s *EmailService) processMessage(configID string, msg *imap.Message, sectio
 	log.Printf("[Email Monitor] Email logged: %s", subject)
 }
 
-func (s *EmailService) saveAttachment(filename string, content []byte, configID string) {
+func (s *EmailService) saveAttachment(filename string, content []byte, _ string) {
 	safeFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeFilename(filename))
 
 	if err := os.MkdirAll(s.uploadsDir, 0755); err != nil {

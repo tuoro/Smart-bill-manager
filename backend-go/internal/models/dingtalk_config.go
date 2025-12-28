@@ -107,8 +107,8 @@ type DingtalkFileContent struct {
 
 // DingtalkResponse represents response to DingTalk
 type DingtalkResponse struct {
-	Msgtype string             `json:"msgtype"`
-	Text    DingtalkTextReply  `json:"text,omitempty"`
+	Msgtype string            `json:"msgtype"`
+	Text    DingtalkTextReply `json:"text,omitempty"`
 }
 
 type DingtalkTextReply struct {

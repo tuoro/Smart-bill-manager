@@ -43,8 +43,8 @@ func (InvoicePaymentLink) TableName() string {
 
 // InvoiceStats represents invoice statistics
 type InvoiceStats struct {
-	TotalCount  int               `json:"totalCount"`
-	TotalAmount float64           `json:"totalAmount"`
-	BySource    map[string]int    `json:"bySource"`
+	TotalCount  int                `json:"totalCount"`
+	TotalAmount float64            `json:"totalAmount"`
+	BySource    map[string]int     `json:"bySource"`
 	ByMonth     map[string]float64 `json:"byMonth"`
 }

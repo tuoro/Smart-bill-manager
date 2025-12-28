@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"sort"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
+	"sort"
 )
 
 type PaymentService struct {
-	repo       *repository.PaymentRepository
+	repo        *repository.PaymentRepository
 	invoiceRepo *repository.InvoiceRepository
-	ocrService *OCRService
+	ocrService  *OCRService
 }
 
 func NewPaymentService() *PaymentService {

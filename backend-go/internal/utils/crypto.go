@@ -12,7 +12,7 @@ const passwordChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!
 func GenerateSecurePassword(length int) (string, error) {
 	result := make([]byte, length)
 	maxVal := big.NewInt(int64(len(passwordChars)))
-	
+
 	for i := 0; i < length; i++ {
 		n, err := rand.Int(rand.Reader, maxVal)
 		if err != nil {
@@ -20,7 +20,7 @@ func GenerateSecurePassword(length int) (string, error) {
 		}
 		result[i] = passwordChars[n.Int64()]
 	}
-	
+
 	return string(result), nil
 }
 

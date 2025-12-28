@@ -34,4 +34,3 @@ func TestNormalizeNameAndSimilarity(t *testing.T) {
 		t.Fatalf("expected high similarity, got %v", bigramJaccard(a, b))
 	}
 }
-

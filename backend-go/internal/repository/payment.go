@@ -36,9 +36,9 @@ type PaymentFilter struct {
 
 func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, error) {
 	var payments []models.Payment
-	
+
 	query := database.GetDB().Model(&models.Payment{})
-	
+
 	if filter.StartDate != "" {
 		query = query.Where("transaction_time >= ?", filter.StartDate)
 	}
@@ -48,16 +48,16 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 	if filter.Category != "" {
 		query = query.Where("category = ?", filter.Category)
 	}
-	
+
 	query = query.Order("transaction_time DESC")
-	
+
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
 		if filter.Offset > 0 {
 			query = query.Offset(filter.Offset)
 		}
 	}
-	
+
 	err := query.Find(&payments).Error
 	return payments, err
 }
@@ -80,48 +80,48 @@ func (r *PaymentRepository) Delete(id string) error {
 
 func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.PaymentStats, error) {
 	var payments []models.Payment
-	
+
 	query := database.GetDB().Model(&models.Payment{})
-	
+
 	if startDate != "" {
 		query = query.Where("transaction_time >= ?", startDate)
 	}
 	if endDate != "" {
 		query = query.Where("transaction_time <= ?", endDate)
 	}
-	
+
 	if err := query.Find(&payments).Error; err != nil {
 		return nil, err
 	}
-	
+
 	stats := &models.PaymentStats{
 		CategoryStats: make(map[string]float64),
 		MerchantStats: make(map[string]float64),
 		DailyStats:    make(map[string]float64),
 	}
-	
+
 	for _, p := range payments {
 		stats.TotalAmount += p.Amount
 		stats.TotalCount++
-		
+
 		category := "未分类"
 		if p.Category != nil && *p.Category != "" {
 			category = *p.Category
 		}
 		stats.CategoryStats[category] += p.Amount
-		
+
 		merchant := "未知商家"
 		if p.Merchant != nil && *p.Merchant != "" {
 			merchant = *p.Merchant
 		}
 		stats.MerchantStats[merchant] += p.Amount
-		
+
 		if len(p.TransactionTime) >= 10 {
 			date := p.TransactionTime[:10]
 			stats.DailyStats[date] += p.Amount
 		}
 	}
-	
+
 	return stats, nil
 }
 

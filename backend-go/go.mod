@@ -8,6 +8,7 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/liyue201/goqr v0.0.0-20200803022322-df443203d4ea
 	golang.org/x/crypto v0.45.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
@@ -30,7 +31,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/liyue201/goqr v0.0.0-20200803022322-df443203d4ea // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

@@ -34,4 +34,3 @@ func TestResolveUploadsFilePath(t *testing.T) {
 		}
 	})
 }
-

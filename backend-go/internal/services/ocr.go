@@ -113,7 +113,7 @@ func getOCREngine() string {
 }
 
 func ocrEngineInstallHint(engine string) string {
-	return "install rapidocr==3.* and onnxruntime"
+	return fmt.Sprintf("install rapidocr==3.* and onnxruntime (engine=%s)", engine)
 }
 
 // PaymentExtractedData represents extracted payment information
@@ -763,9 +763,10 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 			roiMode = "auto"
 		}
 		needROI := false
-		if roiMode == "1" || roiMode == "true" || roiMode == "yes" {
+		switch roiMode {
+		case "1", "true", "yes":
 			needROI = true
-		} else if roiMode == "auto" {
+		case "auto":
 			buyer, seller := s.extractBuyerAndSellerByPosition(text)
 			needROI = buyer == nil || seller == nil
 		}
@@ -2376,7 +2377,7 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 	}
 	for i, line := range lines {
 		loc := nameLineRe.FindStringSubmatchIndex(line)
-		if loc == nil || len(loc) < 4 {
+		if len(loc) < 4 {
 			continue
 		}
 		value := strings.TrimSpace(line[loc[2]:loc[3]])
@@ -2582,7 +2583,7 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	// If we still failed (or picked an obviously too-small value), choose the max currency amount.
 	// This handles common invoice layouts where totals are listed as multiple currency values:
 	//   ¥121.80 (价税合计), ¥107.79 (不含税), ¥14.01 (税额)
-	currencyAmountRegex := regexp.MustCompile("[\\x{00A5}\\x{FFE5}]\\s*([\\d]+(?:\\.[\\d]{1,2})?)")
+	currencyAmountRegex := regexp.MustCompile(`[\x{00A5}\x{FFE5}]\s*([\d]+(?:\.[\d]{1,2})?)`)
 	curMatches := currencyAmountRegex.FindAllStringSubmatch(parsedText, -1)
 	var maxAmt *float64
 	for _, m := range curMatches {

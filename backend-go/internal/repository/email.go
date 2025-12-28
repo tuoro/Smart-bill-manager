@@ -66,17 +66,17 @@ func (r *EmailRepository) CreateLog(log *models.EmailLog) error {
 
 func (r *EmailRepository) FindLogs(configID string, limit int) ([]models.EmailLog, error) {
 	var logs []models.EmailLog
-	
+
 	query := database.GetDB().Model(&models.EmailLog{}).Order("created_at DESC")
-	
+
 	if configID != "" {
 		query = query.Where("email_config_id = ?", configID)
 	}
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	err := query.Find(&logs).Error
 	return logs, err
 }

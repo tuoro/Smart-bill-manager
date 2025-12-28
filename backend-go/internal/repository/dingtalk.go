@@ -65,17 +65,17 @@ func (r *DingtalkRepository) CreateLog(log *models.DingtalkLog) error {
 
 func (r *DingtalkRepository) FindLogs(configID string, limit int) ([]models.DingtalkLog, error) {
 	var logs []models.DingtalkLog
-	
+
 	query := database.GetDB().Model(&models.DingtalkLog{}).Order("created_at DESC")
-	
+
 	if configID != "" {
 		query = query.Where("config_id = ?", configID)
 	}
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	err := query.Find(&logs).Error
 	return logs, err
 }

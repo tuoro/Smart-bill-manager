@@ -9,57 +9,31 @@
       </div>
 
       <nav class="nav">
-        <button
-          class="nav-item"
-          :class="{ active: currentRoute === '/dashboard' }"
-          title="仪表盘"
-          @click="router.push('/dashboard')"
-        >
+        <button class="nav-item" :class="{ active: currentRoute === '/dashboard' }" title="仪表盘" @click="router.push('/dashboard')">
           <i class="pi pi-chart-bar" />
           <span v-if="!isCollapsed">&#20202;&#34920;&#30424;</span>
         </button>
-        <button
-          class="nav-item"
-          :class="{ active: currentRoute === '/payments' }"
-          title="支付记录"
-          @click="router.push('/payments')"
-        >
+        <button class="nav-item" :class="{ active: currentRoute === '/payments' }" title="支付记录" @click="router.push('/payments')">
           <i class="pi pi-wallet" />
           <span v-if="!isCollapsed">&#25903;&#20184;&#35760;&#24405;</span>
         </button>
-        <button
-          class="nav-item"
-          :class="{ active: currentRoute === '/invoices' }"
-          title="发票管理"
-          @click="router.push('/invoices')"
-        >
+        <button class="nav-item" :class="{ active: currentRoute === '/invoices' }" title="发票管理" @click="router.push('/invoices')">
           <i class="pi pi-file" />
           <span v-if="!isCollapsed">&#21457;&#31080;&#31649;&#29702;</span>
         </button>
-        <button
-          class="nav-item"
-          :class="{ active: currentRoute === '/email' }"
-          title="邮箱监控"
-          @click="router.push('/email')"
-        >
+        <button class="nav-item" :class="{ active: currentRoute === '/trips' }" title="行程日历" @click="router.push('/trips')">
+          <i class="pi pi-calendar" />
+          <span v-if="!isCollapsed">&#34892;&#31243;&#26085;&#21382;</span>
+        </button>
+        <button class="nav-item" :class="{ active: currentRoute === '/email' }" title="邮箱监控" @click="router.push('/email')">
           <i class="pi pi-inbox" />
           <span v-if="!isCollapsed">&#37038;&#31665;&#30417;&#25511;</span>
         </button>
-        <button
-          class="nav-item"
-          :class="{ active: currentRoute === '/feishu' }"
-          title="飞书机器人"
-          @click="router.push('/feishu')"
-        >
+        <button class="nav-item" :class="{ active: currentRoute === '/feishu' }" title="飞书机器人" @click="router.push('/feishu')">
           <i class="pi pi-comments" />
           <span v-if="!isCollapsed">&#39134;&#20070;&#26426;&#22120;&#20154;</span>
         </button>
-        <button
-          class="nav-item"
-          :class="{ active: currentRoute === '/logs' }"
-          title="日志"
-          @click="router.push('/logs')"
-        >
+        <button class="nav-item" :class="{ active: currentRoute === '/logs' }" title="日志" @click="router.push('/logs')">
           <i class="pi pi-book" />
           <span v-if="!isCollapsed">&#26085;&#24535;</span>
         </button>
@@ -129,6 +103,7 @@ const pageTitle = computed(() => {
     '/dashboard': '\u4EEA\u8868\u76D8',
     '/payments': '\u652F\u4ED8\u8BB0\u5F55',
     '/invoices': '\u53D1\u7968\u7BA1\u7406',
+    '/trips': '\u884C\u7A0B\u65E5\u5386',
     '/email': '\u90AE\u7BB1\u76D1\u63A7',
     '/feishu': '\u98DE\u4E66\u673A\u5668\u4EBA',
     '/logs': '\u65E5\u5FD7',
@@ -418,3 +393,4 @@ const toggleUserMenu = (event: MouseEvent) => {
   }
 }
 </style>
+

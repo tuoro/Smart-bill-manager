@@ -9,6 +9,7 @@ import (
 	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
 	"sort"
+	"strings"
 )
 
 type PaymentService struct {
@@ -81,6 +82,7 @@ type UpdatePaymentInput struct {
 	PaymentMethod   *string  `json:"payment_method"`
 	Description     *string  `json:"description"`
 	TransactionTime *string  `json:"transaction_time"`
+	TripID          *string  `json:"trip_id"`
 }
 
 func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
@@ -103,6 +105,14 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 	}
 	if input.TransactionTime != nil {
 		data["transaction_time"] = *input.TransactionTime
+	}
+	if input.TripID != nil {
+		trimmed := strings.TrimSpace(*input.TripID)
+		if trimmed == "" {
+			data["trip_id"] = nil
+		} else {
+			data["trip_id"] = trimmed
+		}
 	}
 
 	if len(data) == 0 {

@@ -7,6 +7,7 @@ import (
 // Payment represents a payment record
 type Payment struct {
 	ID              string    `json:"id" gorm:"primaryKey"`
+	TripID          *string   `json:"trip_id" gorm:"index"`
 	Amount          float64   `json:"amount" gorm:"not null"`
 	Merchant        *string   `json:"merchant"`
 	Category        *string   `json:"category"`

@@ -32,6 +32,7 @@ func main() {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Payment{},
+		&models.Trip{},
 		&models.Invoice{},
 		&models.InvoicePaymentLink{},
 		&models.EmailConfig{},
@@ -45,6 +46,8 @@ func main() {
 	// Create additional indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_time ON payments(transaction_time)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_trip_id ON payments(trip_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_time ON trips(start_time, end_time)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(created_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_feishu_logs_date ON feishu_logs(created_at)")
@@ -65,6 +68,7 @@ func main() {
 	invoiceService := services.NewInvoiceService(uploadsDir)
 	emailService := services.NewEmailService(uploadsDir, invoiceService)
 	feishuService := services.NewFeishuService(uploadsDir, invoiceService)
+	tripService := services.NewTripService(uploadsDir)
 
 	// No longer automatically creating admin - use setup page instead
 	log.Println("System ready. Use setup page for initial configuration.")
@@ -117,6 +121,10 @@ func main() {
 	// Email routes
 	emailHandler := handlers.NewEmailHandler(emailService)
 	emailHandler.RegisterRoutes(protectedGroup.Group("/email"))
+
+	// Trip routes
+	tripHandler := handlers.NewTripHandler(tripService)
+	tripHandler.RegisterRoutes(protectedGroup.Group("/trips"))
 
 	// Feishu routes (protected)
 	feishuHandler := handlers.NewFeishuHandler(feishuService)

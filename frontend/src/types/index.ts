@@ -1,5 +1,6 @@
 export interface Payment {
   id: string;
+  trip_id?: string;
   amount: number;
   merchant?: string;
   category?: string;
@@ -9,6 +10,52 @@ export interface Payment {
   screenshot_path?: string;
   extracted_data?: string;
   created_at?: string;
+}
+
+export interface Trip {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  note?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TripSummary {
+  trip_id: string;
+  payment_count: number;
+  total_amount: number;
+  linked_invoices: number;
+  unlinked_payments: number;
+}
+
+export interface TripAssignPreview {
+  trip_id: string;
+  matched_payments: number;
+  will_assign: number;
+  already_in_this_trip: number;
+  assigned_other_trip: number;
+  skipped_other_trip_ids?: string[];
+}
+
+export interface TripCascadePreview {
+  trip_id: string;
+  payments: number;
+  invoices: number;
+  unlinked_only: number;
+}
+
+export interface TripPaymentInvoice {
+  id: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  amount?: number;
+  seller_name?: string;
+}
+
+export interface TripPaymentWithInvoices extends Payment {
+  invoices: TripPaymentInvoice[];
 }
 
 export interface Invoice {

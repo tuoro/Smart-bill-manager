@@ -15,6 +15,7 @@ type Invoice struct {
 	InvoiceNumber *string   `json:"invoice_number"`
 	InvoiceDate   *string   `json:"invoice_date"`
 	Amount        *float64  `json:"amount"`
+	BadDebt       bool      `json:"bad_debt" gorm:"not null;default:false;index"`
 	SellerName    *string   `json:"seller_name"`
 	BuyerName     *string   `json:"buyer_name"`
 	TaxAmount     *float64  `json:"tax_amount"` // New field for tax amount

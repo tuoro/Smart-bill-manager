@@ -8,6 +8,7 @@ import (
 type Payment struct {
 	ID              string    `json:"id" gorm:"primaryKey"`
 	TripID          *string   `json:"trip_id" gorm:"index"`
+	BadDebt         bool      `json:"bad_debt" gorm:"not null;default:false;index"`
 	Amount          float64   `json:"amount" gorm:"not null"`
 	Merchant        *string   `json:"merchant"`
 	Category        *string   `json:"category"`

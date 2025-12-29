@@ -36,6 +36,11 @@
                         </div>
                       </div>
                       <div class="trip-badges">
+                        <Tag v-if="trip.bad_debt_locked" value="坏账锁定" class="sbm-lock-tag" />
+                        <Tag
+                          :value="trip.reimburse_status === 'reimbursed' ? '已报销' : '未报销'"
+                          :severity="trip.reimburse_status === 'reimbursed' ? 'success' : 'secondary'"
+                        />
                         <Tag :value="formatMoney(summaries[trip.id]?.total_amount || 0)" severity="success" />
                         <Tag :value="`支付 ${summaries[trip.id]?.payment_count || 0}`" severity="info" />
                         <Tag :value="`发票 ${summaries[trip.id]?.linked_invoices || 0}`" severity="secondary" />
@@ -101,17 +106,38 @@
                         {{ formatDateTime(row.transaction_time) }}
                       </template>
                     </Column>
+                    <Column header="坏账" :style="{ width: '84px' }">
+                      <template #body="{ data: row }">
+                        <Button
+                          size="small"
+                          class="p-button-text"
+                          :severity="row.bad_debt ? 'danger' : 'secondary'"
+                          :icon="row.bad_debt ? 'pi pi-lock' : 'pi pi-lock-open'"
+                          :title="row.bad_debt ? '已标记坏账' : '标记为坏账'"
+                          aria-label="坏账"
+                          @click="togglePaymentBadDebt(trip, row)"
+                        />
+                      </template>
+                    </Column>
                     <Column header="关联发票">
                       <template #body="{ data: row }">
                         <div class="invoice-chips">
-                          <Tag
+                          <button
                             v-for="inv in row.invoices || []"
                             :key="inv.id"
-                            class="invoice-chip"
-                            severity="secondary"
-                            :value="inv.invoice_number || inv.seller_name || inv.id"
-                            :title="inv.invoice_number || inv.seller_name || inv.id"
-                          />
+                            type="button"
+                            class="invoice-chip-btn"
+                            :title="inv.bad_debt ? '点击取消坏账' : '点击标记坏账'"
+                            @click="toggleInvoiceBadDebt(trip, inv)"
+                          >
+                            <Tag
+                              class="invoice-chip"
+                              :class="{ 'invoice-chip--baddebt': inv.bad_debt }"
+                              :severity="inv.bad_debt ? 'danger' : 'secondary'"
+                              :value="inv.invoice_number || inv.seller_name || inv.id"
+                              :title="inv.invoice_number || inv.seller_name || inv.id"
+                            />
+                          </button>
                           <span v-if="!row.invoices || row.invoices.length === 0" class="muted">-</span>
                         </div>
                       </template>
@@ -274,6 +300,17 @@
             </DatePicker>
             <small v-if="tripErrors.end" class="p-error">{{ tripErrors.end }}</small>
           </div>
+          <div class="col-12 md:col-6 field">
+            <label for="trip_reimburse_status">报销状态</label>
+            <Dropdown
+              id="trip_reimburse_status"
+              v-model="tripForm.reimburse_status"
+              :options="reimburseStatusOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="请选择"
+            />
+          </div>
           <div class="col-12 field">
             <label for="trip_note">备注（可选）</label>
             <Textarea id="trip_note" v-model.trim="tripForm.note" autoResize rows="2" />
@@ -328,8 +365,8 @@ import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
-import { paymentApi, tripsApi } from '@/api'
-import type { Payment, Trip, TripAssignPreview, TripCascadePreview, TripPaymentWithInvoices, TripSummary } from '@/types'
+import { invoiceApi, paymentApi, tripsApi } from '@/api'
+import type { Payment, Trip, TripAssignPreview, TripCascadePreview, TripPaymentInvoice, TripPaymentWithInvoices, TripSummary } from '@/types'
 import { useNotificationStore } from '@/stores/notifications'
 
 const toast = useToast()
@@ -484,8 +521,14 @@ const tripForm = reactive({
   name: '',
   start: null as Date | null,
   end: null as Date | null,
+  reimburse_status: 'unreimbursed' as 'unreimbursed' | 'reimbursed',
   note: '',
 })
+
+const reimburseStatusOptions = [
+  { label: '未报销', value: 'unreimbursed' },
+  { label: '已报销', value: 'reimbursed' },
+]
 
 const tripErrors = reactive({
   name: '',
@@ -529,6 +572,7 @@ const resetTripForm = () => {
   tripForm.name = ''
   tripForm.start = null
   tripForm.end = null
+  tripForm.reimburse_status = 'unreimbursed'
   tripForm.note = ''
   editingTrip.value = null
   tripErrors.name = ''
@@ -543,6 +587,7 @@ const openTripModal = (trip?: Trip) => {
     tripForm.name = trip.name
     tripForm.start = new Date(trip.start_time)
     tripForm.end = new Date(trip.end_time)
+    tripForm.reimburse_status = trip.reimburse_status === 'reimbursed' ? 'reimbursed' : 'unreimbursed'
     tripForm.note = trip.note || ''
   }
   tripModalVisible.value = true
@@ -556,6 +601,7 @@ const handleSaveTrip = async () => {
       name: tripForm.name,
       start_time: dayjs(tripForm.start!).toISOString(),
       end_time: dayjs(tripForm.end!).toISOString(),
+      reimburse_status: tripForm.reimburse_status,
       note: tripForm.note || undefined,
     }
 
@@ -703,6 +749,60 @@ const confirmDeleteTrip = async (trip: Trip) => {
     toast.add({ severity: 'error', summary: msg, life: 3500 })
     notifications.add({ severity: 'error', title: '行程删除预览失败', detail: `${trip.name}：${msg}` })
   }
+}
+
+const togglePaymentBadDebt = (trip: Trip, row: TripPaymentWithInvoices) => {
+  const next = !row.bad_debt
+  confirm.require({
+    header: next ? '标记坏账' : '取消坏账',
+    message: next ? '将该支付记录标记为坏账，并自动锁定该行程。继续？' : '取消该支付记录的坏账标记。继续？',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '确认',
+    rejectLabel: '取消',
+    accept: async () => {
+      try {
+        await paymentApi.update(row.id, { bad_debt: next })
+        toast.add({ severity: 'success', summary: next ? '已标记坏账' : '已取消坏账', life: 2000 })
+        notifications.add({
+          severity: next ? 'warn' : 'info',
+          title: next ? '支付记录已标记坏账' : '支付记录已取消坏账',
+          detail: `${trip.name}：${row.id}`,
+        })
+        await reloadAll()
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || '操作失败'
+        toast.add({ severity: 'error', summary: msg, life: 3500 })
+        notifications.add({ severity: 'error', title: '坏账操作失败', detail: msg })
+      }
+    },
+  })
+}
+
+const toggleInvoiceBadDebt = (trip: Trip, inv: TripPaymentInvoice) => {
+  const next = !inv.bad_debt
+  confirm.require({
+    header: next ? '标记坏账' : '取消坏账',
+    message: next ? '将该发票标记为坏账，并自动锁定关联行程。继续？' : '取消该发票的坏账标记。继续？',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '确认',
+    rejectLabel: '取消',
+    accept: async () => {
+      try {
+        await invoiceApi.update(inv.id, { bad_debt: next })
+        toast.add({ severity: 'success', summary: next ? '已标记坏账' : '已取消坏账', life: 2000 })
+        notifications.add({
+          severity: next ? 'warn' : 'info',
+          title: next ? '发票已标记坏账' : '发票已取消坏账',
+          detail: `${trip.name}：${inv.invoice_number || inv.id}`,
+        })
+        await reloadAll()
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || '操作失败'
+        toast.add({ severity: 'error', summary: msg, life: 3500 })
+        notifications.add({ severity: 'error', title: '坏账操作失败', detail: msg })
+      }
+    },
+  })
 }
 
 const unassignPayment = (paymentId: string) => {
@@ -949,6 +1049,12 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.sbm-lock-tag {
+  background: #111827;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
 .trip-actions {
   display: flex;
   align-items: center;
@@ -983,6 +1089,26 @@ onMounted(async () => {
 
 .invoice-chip {
   max-width: 240px;
+}
+
+.invoice-chip-btn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+}
+
+.invoice-chip-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--p-primary-color), transparent 40%);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+.invoice-chip--baddebt {
+  background: #111827;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .row-actions {

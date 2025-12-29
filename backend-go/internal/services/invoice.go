@@ -110,15 +110,51 @@ type UpdateInvoiceInput struct {
 	InvoiceDate   *string  `json:"invoice_date"`
 	Amount        *float64 `json:"amount"`
 	TaxAmount     *float64 `json:"tax_amount"`
+	BadDebt       *bool    `json:"bad_debt"`
 	SellerName    *string  `json:"seller_name"`
 	BuyerName     *string  `json:"buyer_name"`
 }
 
 func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
+	needsRecalc := input.BadDebt != nil || input.PaymentID != nil
+	var affectedTrips []string
+	if needsRecalc {
+		linked, err := s.repo.GetLinkedPayments(id)
+		if err != nil {
+			return err
+		}
+		for _, p := range linked {
+			if p.TripID != nil && strings.TrimSpace(*p.TripID) != "" {
+				affectedTrips = append(affectedTrips, strings.TrimSpace(*p.TripID))
+			}
+		}
+
+		// Legacy: invoices.payment_id -> payments.trip_id
+		before, err := s.repo.FindByID(id)
+		if err != nil {
+			return err
+		}
+		if before.PaymentID != nil && strings.TrimSpace(*before.PaymentID) != "" {
+			if tripID, err := getTripIDForPayment(strings.TrimSpace(*before.PaymentID)); err == nil && tripID != "" {
+				affectedTrips = append(affectedTrips, tripID)
+			}
+		}
+	}
+
 	data := make(map[string]interface{})
 
 	if input.PaymentID != nil {
-		data["payment_id"] = *input.PaymentID
+		trimmed := strings.TrimSpace(*input.PaymentID)
+		if trimmed == "" {
+			data["payment_id"] = nil
+		} else {
+			data["payment_id"] = trimmed
+			if needsRecalc {
+				if tripID, err := getTripIDForPayment(trimmed); err == nil && tripID != "" {
+					affectedTrips = append(affectedTrips, tripID)
+				}
+			}
+		}
 	}
 	if input.InvoiceNumber != nil {
 		data["invoice_number"] = *input.InvoiceNumber
@@ -132,6 +168,9 @@ func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
 	if input.TaxAmount != nil {
 		data["tax_amount"] = *input.TaxAmount
 	}
+	if input.BadDebt != nil {
+		data["bad_debt"] = *input.BadDebt
+	}
 	if input.SellerName != nil {
 		data["seller_name"] = *input.SellerName
 	}
@@ -143,7 +182,14 @@ func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
 		return nil
 	}
 
-	return s.repo.Update(id, data)
+	if err := s.repo.Update(id, data); err != nil {
+		return err
+	}
+
+	if !needsRecalc {
+		return nil
+	}
+	return recalcTripBadDebtLockedForTripIDs(affectedTrips)
 }
 
 func (s *InvoiceService) Delete(id string) error {
@@ -153,6 +199,22 @@ func (s *InvoiceService) Delete(id string) error {
 		return err
 	}
 
+	affectedTrips := make([]string, 0, 4)
+	linked, err := s.repo.GetLinkedPayments(id)
+	if err != nil {
+		return err
+	}
+	for _, p := range linked {
+		if p.TripID != nil && strings.TrimSpace(*p.TripID) != "" {
+			affectedTrips = append(affectedTrips, strings.TrimSpace(*p.TripID))
+		}
+	}
+	if invoice.PaymentID != nil && strings.TrimSpace(*invoice.PaymentID) != "" {
+		if tripID, err := getTripIDForPayment(strings.TrimSpace(*invoice.PaymentID)); err == nil && tripID != "" {
+			affectedTrips = append(affectedTrips, tripID)
+		}
+	}
+
 	// Delete file
 	filePath := invoice.FilePath
 	if !filepath.IsAbs(filePath) {
@@ -160,7 +222,11 @@ func (s *InvoiceService) Delete(id string) error {
 	}
 	_ = os.Remove(filePath) // Ignore error if file doesn't exist
 
-	return s.repo.Delete(id)
+	if err := s.repo.Delete(id); err != nil {
+		return err
+	}
+
+	return recalcTripBadDebtLockedForTripIDs(affectedTrips)
 }
 
 func (s *InvoiceService) GetStats() (*models.InvoiceStats, error) {
@@ -169,12 +235,40 @@ func (s *InvoiceService) GetStats() (*models.InvoiceStats, error) {
 
 // LinkPayment links an invoice to a payment
 func (s *InvoiceService) LinkPayment(invoiceID, paymentID string) error {
-	return s.repo.LinkPayment(invoiceID, paymentID)
+	if err := s.repo.LinkPayment(invoiceID, paymentID); err != nil {
+		return err
+	}
+
+	inv, err := s.repo.FindByID(invoiceID)
+	if err != nil {
+		return nil
+	}
+	if !inv.BadDebt {
+		return nil
+	}
+	if tripID, err := getTripIDForPayment(strings.TrimSpace(paymentID)); err == nil && tripID != "" {
+		return recalcTripBadDebtLocked(tripID)
+	}
+	return nil
 }
 
 // UnlinkPayment removes the link between an invoice and a payment
 func (s *InvoiceService) UnlinkPayment(invoiceID, paymentID string) error {
-	return s.repo.UnlinkPayment(invoiceID, paymentID)
+	if err := s.repo.UnlinkPayment(invoiceID, paymentID); err != nil {
+		return err
+	}
+
+	inv, err := s.repo.FindByID(invoiceID)
+	if err != nil {
+		return nil
+	}
+	if !inv.BadDebt {
+		return nil
+	}
+	if tripID, err := getTripIDForPayment(strings.TrimSpace(paymentID)); err == nil && tripID != "" {
+		return recalcTripBadDebtLocked(tripID)
+	}
+	return nil
 }
 
 // GetLinkedPayments returns all payments linked to an invoice

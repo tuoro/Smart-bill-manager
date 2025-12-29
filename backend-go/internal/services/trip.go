@@ -33,6 +33,8 @@ type CreateTripInput struct {
 	Name      string  `json:"name" binding:"required"`
 	StartTime string  `json:"start_time" binding:"required"`
 	EndTime   string  `json:"end_time" binding:"required"`
+	// unreimbursed|reimbursed (optional; defaults to unreimbursed)
+	ReimburseStatus *string `json:"reimburse_status"`
 	Note      *string `json:"note"`
 }
 
@@ -44,12 +46,24 @@ func (s *TripService) Create(input CreateTripInput) (*models.Trip, error) {
 		return nil, err
 	}
 
+	reimburseStatus := "unreimbursed"
+	if input.ReimburseStatus != nil {
+		reimburseStatus = strings.TrimSpace(*input.ReimburseStatus)
+	}
+	if reimburseStatus == "" {
+		reimburseStatus = "unreimbursed"
+	}
+	if reimburseStatus != "unreimbursed" && reimburseStatus != "reimbursed" {
+		return nil, fmt.Errorf("invalid reimburse_status")
+	}
+
 	trip := &models.Trip{
-		ID:        utils.GenerateUUID(),
-		Name:      strings.TrimSpace(input.Name),
-		StartTime: strings.TrimSpace(input.StartTime),
-		EndTime:   strings.TrimSpace(input.EndTime),
-		Note:      input.Note,
+		ID:              utils.GenerateUUID(),
+		Name:            strings.TrimSpace(input.Name),
+		StartTime:        strings.TrimSpace(input.StartTime),
+		EndTime:          strings.TrimSpace(input.EndTime),
+		ReimburseStatus: reimburseStatus,
+		Note:            input.Note,
 	}
 
 	if err := s.repo.Create(trip); err != nil {
@@ -70,6 +84,8 @@ type UpdateTripInput struct {
 	Name      *string `json:"name"`
 	StartTime *string `json:"start_time"`
 	EndTime   *string `json:"end_time"`
+	// unreimbursed|reimbursed
+	ReimburseStatus *string `json:"reimburse_status"`
 	Note      *string `json:"note"`
 }
 
@@ -95,6 +111,13 @@ func (s *TripService) Update(id string, input UpdateTripInput) error {
 	}
 	if input.Note != nil {
 		data["note"] = *input.Note
+	}
+	if input.ReimburseStatus != nil {
+		status := strings.TrimSpace(*input.ReimburseStatus)
+		if status != "unreimbursed" && status != "reimbursed" {
+			return fmt.Errorf("invalid reimburse_status")
+		}
+		data["reimburse_status"] = status
 	}
 
 	if (input.StartTime != nil || input.EndTime != nil) && (start == "" || end == "") {
@@ -250,6 +273,10 @@ func (s *TripService) AssignPaymentsByTime(tripID string, input AssignByTimeInpu
 		return nil, err
 	}
 
+	if err := recalcTripBadDebtLocked(tripID); err != nil {
+		return nil, err
+	}
+
 	return preview, nil
 }
 
@@ -259,6 +286,7 @@ type TripPaymentInvoice struct {
 	InvoiceDate   *string  `json:"invoice_date"`
 	Amount        *float64 `json:"amount"`
 	SellerName    *string  `json:"seller_name"`
+	BadDebt       bool     `json:"bad_debt"`
 }
 
 type TripPaymentWithInvoices struct {
@@ -333,6 +361,7 @@ func (s *TripService) GetPayments(tripID string, includeInvoices bool) ([]TripPa
 					InvoiceDate:   inv.InvoiceDate,
 					Amount:        inv.Amount,
 					SellerName:    inv.SellerName,
+					BadDebt:       inv.BadDebt,
 				})
 			}
 		}

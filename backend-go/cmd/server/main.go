@@ -45,8 +45,12 @@ func main() {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_time ON payments(transaction_time)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_trip_id ON payments(trip_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_bad_debt ON payments(bad_debt)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_time ON trips(start_time, end_time)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_reimburse_status ON trips(reimburse_status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_bad_debt_locked ON trips(bad_debt_locked)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_bad_debt ON invoices(bad_debt)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(created_at)")
 
 	// Ensure uploads directory exists

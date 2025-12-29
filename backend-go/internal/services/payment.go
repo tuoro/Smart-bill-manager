@@ -83,9 +83,20 @@ type UpdatePaymentInput struct {
 	Description     *string  `json:"description"`
 	TransactionTime *string  `json:"transaction_time"`
 	TripID          *string  `json:"trip_id"`
+	BadDebt         *bool    `json:"bad_debt"`
 }
 
 func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
+	var before *models.Payment
+	needsRecalc := input.TripID != nil || input.BadDebt != nil
+	if needsRecalc {
+		p, err := s.repo.FindByID(id)
+		if err != nil {
+			return err
+		}
+		before = p
+	}
+
 	data := make(map[string]interface{})
 
 	if input.Amount != nil {
@@ -114,16 +125,59 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 			data["trip_id"] = trimmed
 		}
 	}
+	if input.BadDebt != nil {
+		data["bad_debt"] = *input.BadDebt
+	}
 
 	if len(data) == 0 {
 		return nil
 	}
 
-	return s.repo.Update(id, data)
+	if err := s.repo.Update(id, data); err != nil {
+		return err
+	}
+
+	if !needsRecalc {
+		return nil
+	}
+
+	affected := make([]string, 0, 2)
+	if before != nil && before.TripID != nil && strings.TrimSpace(*before.TripID) != "" {
+		affected = append(affected, strings.TrimSpace(*before.TripID))
+	}
+
+	afterTripID := ""
+	if input.TripID != nil {
+		afterTripID = strings.TrimSpace(*input.TripID)
+	} else if before != nil && before.TripID != nil {
+		afterTripID = strings.TrimSpace(*before.TripID)
+	}
+	if afterTripID != "" {
+		affected = append(affected, afterTripID)
+	}
+
+	return recalcTripBadDebtLockedForTripIDs(affected)
 }
 
 func (s *PaymentService) Delete(id string) error {
-	return s.repo.Delete(id)
+	payment, err := s.repo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	var tripID string
+	if payment.TripID != nil {
+		tripID = strings.TrimSpace(*payment.TripID)
+	}
+
+	if err := s.repo.Delete(id); err != nil {
+		return err
+	}
+
+	if tripID == "" {
+		return nil
+	}
+	return recalcTripBadDebtLocked(tripID)
 }
 
 func (s *PaymentService) GetStats(startDate, endDate string) (*models.PaymentStats, error) {

@@ -1,6 +1,7 @@
 export interface Payment {
   id: string;
   trip_id?: string;
+  bad_debt?: boolean;
   amount: number;
   merchant?: string;
   category?: string;
@@ -17,6 +18,8 @@ export interface Trip {
   name: string;
   start_time: string;
   end_time: string;
+  reimburse_status?: 'unreimbursed' | 'reimbursed' | string;
+  bad_debt_locked?: boolean;
   note?: string;
   created_at?: string;
   updated_at?: string;
@@ -52,6 +55,7 @@ export interface TripPaymentInvoice {
   invoice_date?: string;
   amount?: number;
   seller_name?: string;
+  bad_debt?: boolean;
 }
 
 export interface TripPaymentWithInvoices extends Payment {
@@ -68,6 +72,7 @@ export interface Invoice {
   invoice_number?: string;
   invoice_date?: string;
   amount?: number;
+  bad_debt?: boolean;
   seller_name?: string;
   buyer_name?: string;
   extracted_data?: string;

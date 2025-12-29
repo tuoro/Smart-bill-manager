@@ -13,7 +13,7 @@ export const tripsApi = {
 
   create: (trip: Omit<Trip, 'id' | 'created_at' | 'updated_at'>) => api.post<ApiResponse<Trip>>('/trips', trip),
 
-  update: (id: string, trip: Partial<Pick<Trip, 'name' | 'start_time' | 'end_time' | 'note'>>) =>
+  update: (id: string, trip: Partial<Pick<Trip, 'name' | 'start_time' | 'end_time' | 'note' | 'reimburse_status'>>) =>
     api.put<ApiResponse<void>>(`/trips/${id}`, trip),
 
   getSummary: (id: string) => api.get<ApiResponse<TripSummary>>(`/trips/${id}/summary`),
@@ -31,4 +31,3 @@ export const tripsApi = {
 
   deleteCascade: (id: string) => api.delete<ApiResponse<TripCascadePreview>>(`/trips/${id}`),
 }
-

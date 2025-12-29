@@ -31,6 +31,8 @@ type PaymentFilter struct {
 	Offset    int
 	StartDate string
 	EndDate   string
+	StartTs   int64
+	EndTs     int64
 	Category  string
 }
 
@@ -39,17 +41,17 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 
 	query := database.GetDB().Model(&models.Payment{})
 
-	if filter.StartDate != "" {
-		query = query.Where("transaction_time >= ?", filter.StartDate)
+	if filter.StartTs > 0 {
+		query = query.Where("transaction_time_ts >= ?", filter.StartTs)
 	}
-	if filter.EndDate != "" {
-		query = query.Where("transaction_time <= ?", filter.EndDate)
+	if filter.EndTs > 0 {
+		query = query.Where("transaction_time_ts <= ?", filter.EndTs)
 	}
 	if filter.Category != "" {
 		query = query.Where("category = ?", filter.Category)
 	}
 
-	query = query.Order("transaction_time DESC")
+	query = query.Order("transaction_time_ts DESC")
 
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)

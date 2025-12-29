@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -10,7 +11,12 @@ import (
 	"smart-bill-manager/pkg/database"
 	"sort"
 	"strings"
+	"time"
+
+	"gorm.io/gorm"
 )
+
+var ErrMissingTransactionTime = errors.New("missing transaction time")
 
 type PaymentService struct {
 	repo        *repository.PaymentRepository
@@ -36,17 +42,31 @@ type CreatePaymentInput struct {
 }
 
 func (s *PaymentService) Create(input CreatePaymentInput) (*models.Payment, error) {
-	payment := &models.Payment{
-		ID:              utils.GenerateUUID(),
-		Amount:          input.Amount,
-		Merchant:        input.Merchant,
-		Category:        input.Category,
-		PaymentMethod:   input.PaymentMethod,
-		Description:     input.Description,
-		TransactionTime: input.TransactionTime,
+	t, err := parseRFC3339ToUTC(input.TransactionTime)
+	if err != nil {
+		return nil, fmt.Errorf("transaction_time must be RFC3339: %w", err)
 	}
 
-	if err := s.repo.Create(payment); err != nil {
+	payment := &models.Payment{
+		ID:                utils.GenerateUUID(),
+		Amount:            input.Amount,
+		Merchant:          input.Merchant,
+		Category:          input.Category,
+		PaymentMethod:     input.PaymentMethod,
+		Description:       input.Description,
+		TransactionTime:   t.Format(time.RFC3339),
+		TransactionTimeTs: unixMilli(t),
+		TripAssignSrc:     assignSrcAuto,
+		TripAssignState:   assignStateNoMatch,
+	}
+
+	db := database.GetDB()
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(payment).Error; err != nil {
+			return err
+		}
+		return autoAssignPaymentTx(tx, payment)
+	}); err != nil {
 		return nil, err
 	}
 
@@ -62,11 +82,30 @@ type PaymentFilterInput struct {
 }
 
 func (s *PaymentService) GetAll(filter PaymentFilterInput) ([]models.Payment, error) {
+	startTs := int64(0)
+	endTs := int64(0)
+	if strings.TrimSpace(filter.StartDate) != "" {
+		if t, err := parseRFC3339ToUTC(filter.StartDate); err == nil {
+			startTs = unixMilli(t)
+		} else {
+			return nil, fmt.Errorf("invalid startDate: %w", err)
+		}
+	}
+	if strings.TrimSpace(filter.EndDate) != "" {
+		if t, err := parseRFC3339ToUTC(filter.EndDate); err == nil {
+			endTs = unixMilli(t)
+		} else {
+			return nil, fmt.Errorf("invalid endDate: %w", err)
+		}
+	}
+
 	return s.repo.FindAll(repository.PaymentFilter{
 		Limit:     filter.Limit,
 		Offset:    filter.Offset,
 		StartDate: filter.StartDate,
 		EndDate:   filter.EndDate,
+		StartTs:   startTs,
+		EndTs:     endTs,
 		Category:  filter.Category,
 	})
 }
@@ -83,12 +122,13 @@ type UpdatePaymentInput struct {
 	Description     *string  `json:"description"`
 	TransactionTime *string  `json:"transaction_time"`
 	TripID          *string  `json:"trip_id"`
+	TripAssignSrc   *string  `json:"trip_assignment_source"`
 	BadDebt         *bool    `json:"bad_debt"`
 }
 
 func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 	var before *models.Payment
-	needsRecalc := input.TripID != nil || input.BadDebt != nil
+	needsRecalc := input.TripID != nil || input.TripAssignSrc != nil || input.BadDebt != nil
 	if needsRecalc {
 		p, err := s.repo.FindByID(id)
 		if err != nil {
@@ -115,14 +155,55 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 		data["description"] = *input.Description
 	}
 	if input.TransactionTime != nil {
-		data["transaction_time"] = *input.TransactionTime
+		t, err := parseRFC3339ToUTC(*input.TransactionTime)
+		if err != nil {
+			return fmt.Errorf("transaction_time must be RFC3339: %w", err)
+		}
+		data["transaction_time"] = t.Format(time.RFC3339)
+		data["transaction_time_ts"] = unixMilli(t)
 	}
+
+	normalizedTripID := ""
 	if input.TripID != nil {
 		trimmed := strings.TrimSpace(*input.TripID)
 		if trimmed == "" {
 			data["trip_id"] = nil
 		} else {
 			data["trip_id"] = trimmed
+			normalizedTripID = trimmed
+		}
+	} else if before != nil && before.TripID != nil {
+		normalizedTripID = strings.TrimSpace(*before.TripID)
+	}
+
+	if input.TripID != nil || input.TripAssignSrc != nil {
+		src := ""
+		if input.TripAssignSrc != nil {
+			src = strings.TrimSpace(*input.TripAssignSrc)
+		}
+		// Backward-compatible default: if caller changes trip_id without specifying source,
+		// treat non-empty trip_id as manual and empty as blocked (explicit user intent).
+		if src == "" {
+			if input.TripID != nil && strings.TrimSpace(*input.TripID) == "" {
+				src = assignSrcBlocked
+			} else if input.TripID != nil {
+				src = assignSrcManual
+			}
+		}
+		if src != "" {
+			if src != assignSrcAuto && src != assignSrcManual && src != assignSrcBlocked {
+				return fmt.Errorf("invalid trip_assignment_source")
+			}
+			data["trip_assignment_source"] = src
+			if src == assignSrcBlocked {
+				data["trip_assignment_state"] = assignStateBlocked
+				data["trip_id"] = nil
+				normalizedTripID = ""
+			} else if src == assignSrcManual && normalizedTripID != "" {
+				data["trip_assignment_state"] = assignStateAssigned
+			} else if src == assignSrcAuto {
+				// state will be recomputed by automatic logic elsewhere
+			}
 		}
 	}
 	if input.BadDebt != nil {
@@ -147,8 +228,12 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 	}
 
 	afterTripID := ""
-	if input.TripID != nil {
-		afterTripID = strings.TrimSpace(*input.TripID)
+	if v, ok := data["trip_id"]; ok {
+		if v == nil {
+			afterTripID = ""
+		} else if s, ok := v.(string); ok {
+			afterTripID = strings.TrimSpace(s)
+		}
 	} else if before != nil && before.TripID != nil {
 		afterTripID = strings.TrimSpace(*before.TripID)
 	}
@@ -189,27 +274,33 @@ type CreateFromScreenshotInput struct {
 	ScreenshotPath string
 }
 
-// CreateFromScreenshotBestEffort creates a payment from a screenshot and tries OCR,
-// but will still create the payment record even if OCR fails.
-func (s *PaymentService) CreateFromScreenshotBestEffort(input CreateFromScreenshotInput) (*models.Payment, *PaymentExtractedData, *string, error) {
-	var ocrError *string
+// CreateFromScreenshot creates a payment from a screenshot with OCR.
+// If OCR cannot extract a valid transaction time, this returns an error (policy A).
+func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (*models.Payment, *PaymentExtractedData, error) {
 
 	// Perform OCR on the screenshot with specialized payment screenshot recognition
 	text, err := s.ocrService.RecognizePaymentScreenshot(input.ScreenshotPath)
 	if err != nil {
-		msg := err.Error()
-		ocrError = &msg
-		text = ""
+		return nil, nil, err
 	}
 
 	// Parse payment data from OCR text
 	extracted, parseErr := s.ocrService.ParsePaymentScreenshot(text)
 	if parseErr != nil {
-		msg := parseErr.Error()
-		ocrError = &msg
-		extracted = &PaymentExtractedData{RawText: text}
-		extracted.PrettyText = formatPaymentPrettyText(text, extracted)
+		return nil, nil, parseErr
 	}
+
+	if extracted.TransactionTime == nil || strings.TrimSpace(*extracted.TransactionTime) == "" {
+		return nil, extracted, fmt.Errorf("%w", ErrMissingTransactionTime)
+	}
+
+	shanghai := loadLocationOrUTC("Asia/Shanghai")
+	payTime, err := parsePaymentTimeToUTC(*extracted.TransactionTime, shanghai)
+	if err != nil {
+		return nil, extracted, fmt.Errorf("%w: %v", ErrMissingTransactionTime, err)
+	}
+	utcTimeStr := payTime.Format(time.RFC3339)
+	extracted.TransactionTime = &utcTimeStr
 
 	// Store extracted data as JSON
 	extractedDataJSON, err := ExtractedDataToJSON(extracted)
@@ -220,13 +311,16 @@ func (s *PaymentService) CreateFromScreenshotBestEffort(input CreateFromScreensh
 
 	// Create payment record with extracted data
 	payment := &models.Payment{
-		ID:              utils.GenerateUUID(),
-		Amount:          0.0, // Default to 0.0, will be updated if amount is extracted
-		Merchant:        extracted.Merchant,
-		PaymentMethod:   extracted.PaymentMethod,
-		TransactionTime: "",
-		ScreenshotPath:  &input.ScreenshotPath,
-		ExtractedData:   extractedDataJSON,
+		ID:                utils.GenerateUUID(),
+		Amount:            0.0, // Default to 0.0, will be updated if amount is extracted
+		Merchant:          extracted.Merchant,
+		PaymentMethod:     extracted.PaymentMethod,
+		TransactionTime:   utcTimeStr,
+		TransactionTimeTs: unixMilli(payTime),
+		ScreenshotPath:    &input.ScreenshotPath,
+		ExtractedData:     extractedDataJSON,
+		TripAssignSrc:     assignSrcAuto,
+		TripAssignState:   assignStateNoMatch,
 	}
 
 	// Set amount if extracted
@@ -240,20 +334,17 @@ func (s *PaymentService) CreateFromScreenshotBestEffort(input CreateFromScreensh
 	}
 
 	// Set transaction time if extracted
-	if extracted.TransactionTime != nil {
-		payment.TransactionTime = *extracted.TransactionTime
+	db := database.GetDB()
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(payment).Error; err != nil {
+			return err
+		}
+		return autoAssignPaymentTx(tx, payment)
+	}); err != nil {
+		return nil, nil, err
 	}
 
-	// If no transaction time extracted, use current time
-	if payment.TransactionTime == "" {
-		payment.TransactionTime = utils.CurrentTimeString()
-	}
-
-	if err := s.repo.Create(payment); err != nil {
-		return nil, nil, ocrError, err
-	}
-
-	return payment, extracted, ocrError, nil
+	return payment, extracted, nil
 }
 
 // GetLinkedInvoices returns all invoices linked to a payment

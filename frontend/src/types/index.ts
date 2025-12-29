@@ -1,6 +1,8 @@
 export interface Payment {
   id: string;
   trip_id?: string;
+  trip_assignment_source?: 'auto' | 'manual' | 'blocked' | string;
+  trip_assignment_state?: 'assigned' | 'no_match' | 'overlap' | 'blocked' | string;
   bad_debt?: boolean;
   amount: number;
   merchant?: string;
@@ -8,6 +10,7 @@ export interface Payment {
   payment_method?: string;
   description?: string;
   transaction_time: string;
+  transaction_time_ts?: number;
   screenshot_path?: string;
   extracted_data?: string;
   created_at?: string;
@@ -18,6 +21,9 @@ export interface Trip {
   name: string;
   start_time: string;
   end_time: string;
+  start_time_ts?: number;
+  end_time_ts?: number;
+  timezone?: string;
   reimburse_status?: 'unreimbursed' | 'reimbursed' | string;
   bad_debt_locked?: boolean;
   note?: string;
@@ -31,15 +37,6 @@ export interface TripSummary {
   total_amount: number;
   linked_invoices: number;
   unlinked_payments: number;
-}
-
-export interface TripAssignPreview {
-  trip_id: string;
-  matched_payments: number;
-  will_assign: number;
-  already_in_this_trip: number;
-  assigned_other_trip: number;
-  skipped_other_trip_ids?: string[];
 }
 
 export interface TripCascadePreview {
@@ -60,6 +57,27 @@ export interface TripPaymentInvoice {
 
 export interface TripPaymentWithInvoices extends Payment {
   invoices: TripPaymentInvoice[];
+}
+
+export interface AssignmentChangeSummary {
+  range_start_ts: number;
+  range_end_ts: number;
+  auto_assigned: number;
+  auto_unassigned: number;
+  manual_blocked_overlaps: number;
+}
+
+export interface PendingCandidateTrip {
+  id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  timezone: string;
+}
+
+export interface PendingPayment {
+  payment: Payment;
+  candidates: PendingCandidateTrip[];
 }
 
 export interface Invoice {

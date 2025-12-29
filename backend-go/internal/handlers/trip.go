@@ -19,11 +19,13 @@ func NewTripHandler(tripService *services.TripService) *TripHandler {
 func (h *TripHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("", h.GetAll)
 	r.POST("", h.Create)
+	r.GET("/pending-payments", h.GetPendingPayments)
+	r.POST("/pending-payments/:paymentId/assign", h.AssignPendingPayment)
+	r.POST("/pending-payments/:paymentId/block", h.BlockPendingPayment)
 	r.GET("/:id", h.GetByID)
 	r.PUT("/:id", h.Update)
 	r.GET("/:id/summary", h.GetSummary)
 	r.GET("/:id/payments", h.GetPayments)
-	r.POST("/:id/assign-by-time", h.AssignByTime)
 	r.GET("/:id/cascade-preview", h.CascadePreview)
 	r.DELETE("/:id", h.DeleteCascade)
 }
@@ -43,12 +45,12 @@ func (h *TripHandler) Create(c *gin.Context) {
 		utils.Error(c, 400, "参数错误", err)
 		return
 	}
-	trip, err := h.tripService.Create(input)
+	trip, changes, err := h.tripService.Create(input)
 	if err != nil {
 		utils.Error(c, 400, "创建行程失败", err)
 		return
 	}
-	utils.Success(c, 201, "行程创建成功", trip)
+	utils.Success(c, 201, "行程创建成功", gin.H{"trip": trip, "changes": changes})
 }
 
 func (h *TripHandler) GetByID(c *gin.Context) {
@@ -68,11 +70,12 @@ func (h *TripHandler) Update(c *gin.Context) {
 		utils.Error(c, 400, "参数错误", err)
 		return
 	}
-	if err := h.tripService.Update(id, input); err != nil {
+	changes, err := h.tripService.Update(id, input)
+	if err != nil {
 		utils.Error(c, 400, "更新行程失败", err)
 		return
 	}
-	utils.Success(c, 200, "行程更新成功", nil)
+	utils.Success(c, 200, "行程更新成功", gin.H{"changes": changes})
 }
 
 func (h *TripHandler) GetSummary(c *gin.Context) {
@@ -94,19 +97,6 @@ func (h *TripHandler) GetPayments(c *gin.Context) {
 		return
 	}
 	utils.SuccessData(c, payments)
-}
-
-func (h *TripHandler) AssignByTime(c *gin.Context) {
-	id := c.Param("id")
-	var input services.AssignByTimeInput
-	_ = c.ShouldBindJSON(&input)
-
-	out, err := h.tripService.AssignPaymentsByTime(id, input)
-	if err != nil {
-		utils.Error(c, 400, "同步失败", err)
-		return
-	}
-	utils.SuccessData(c, out)
 }
 
 func (h *TripHandler) CascadePreview(c *gin.Context) {
@@ -146,4 +136,39 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 		return
 	}
 	utils.Success(c, 200, "行程已删除", out)
+}
+
+func (h *TripHandler) GetPendingPayments(c *gin.Context) {
+	out, err := h.tripService.GetPendingPayments()
+	if err != nil {
+		utils.Error(c, 500, "获取待处理支付失败", err)
+		return
+	}
+	utils.SuccessData(c, out)
+}
+
+func (h *TripHandler) AssignPendingPayment(c *gin.Context) {
+	paymentID := c.Param("paymentId")
+	var input struct {
+		TripID string `json:"trip_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		utils.Error(c, 400, "参数错误", err)
+		return
+	}
+
+	if err := h.tripService.AssignPendingPayment(paymentID, input.TripID); err != nil {
+		utils.Error(c, 400, "归属失败", err)
+		return
+	}
+	utils.Success(c, 200, "已归属", nil)
+}
+
+func (h *TripHandler) BlockPendingPayment(c *gin.Context) {
+	paymentID := c.Param("paymentId")
+	if err := h.tripService.BlockPendingPayment(paymentID); err != nil {
+		utils.Error(c, 400, "操作失败", err)
+		return
+	}
+	utils.Success(c, 200, "已保持无归属", nil)
 }

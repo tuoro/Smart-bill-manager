@@ -33,17 +33,18 @@ type CreateTripInput struct {
 	Name      string  `json:"name" binding:"required"`
 	StartTime string  `json:"start_time" binding:"required"`
 	EndTime   string  `json:"end_time" binding:"required"`
+	Timezone  *string `json:"timezone"`
 	// unreimbursed|reimbursed (optional; defaults to unreimbursed)
 	ReimburseStatus *string `json:"reimburse_status"`
-	Note      *string `json:"note"`
+	Note            *string `json:"note"`
 }
 
-func (s *TripService) Create(input CreateTripInput) (*models.Trip, error) {
+func (s *TripService) Create(input CreateTripInput) (*models.Trip, *AssignmentChangeSummary, error) {
 	if strings.TrimSpace(input.Name) == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, nil, fmt.Errorf("name is required")
 	}
 	if err := validateRFC3339Range(input.StartTime, input.EndTime); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	reimburseStatus := "unreimbursed"
@@ -54,22 +55,55 @@ func (s *TripService) Create(input CreateTripInput) (*models.Trip, error) {
 		reimburseStatus = "unreimbursed"
 	}
 	if reimburseStatus != "unreimbursed" && reimburseStatus != "reimbursed" {
-		return nil, fmt.Errorf("invalid reimburse_status")
+		return nil, nil, fmt.Errorf("invalid reimburse_status")
+	}
+
+	timezone := "Asia/Shanghai"
+	if input.Timezone != nil && strings.TrimSpace(*input.Timezone) != "" {
+		timezone = strings.TrimSpace(*input.Timezone)
+	}
+
+	st, err := parseRFC3339ToUTC(input.StartTime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("start_time must be RFC3339: %w", err)
+	}
+	et, err := parseRFC3339ToUTC(input.EndTime)
+	if err != nil {
+		return nil, nil, fmt.Errorf("end_time must be RFC3339: %w", err)
 	}
 
 	trip := &models.Trip{
 		ID:              utils.GenerateUUID(),
 		Name:            strings.TrimSpace(input.Name),
-		StartTime:        strings.TrimSpace(input.StartTime),
-		EndTime:          strings.TrimSpace(input.EndTime),
+		StartTime:       st.Format(time.RFC3339),
+		EndTime:         et.Format(time.RFC3339),
+		StartTimeTs:     unixMilli(st),
+		EndTimeTs:       unixMilli(et),
+		Timezone:        timezone,
 		ReimburseStatus: reimburseStatus,
 		Note:            input.Note,
 	}
 
-	if err := s.repo.Create(trip); err != nil {
-		return nil, err
+	var changes *AssignmentChangeSummary
+	var affectedTripIDs []string
+	db := database.GetDB()
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(trip).Error; err != nil {
+			return err
+		}
+		c, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, trip.StartTimeTs, trip.EndTimeTs)
+		if err != nil {
+			return err
+		}
+		changes = c
+		affectedTripIDs = tripIDs
+		return nil
+	}); err != nil {
+		return nil, nil, err
 	}
-	return trip, nil
+
+	_ = recalcTripBadDebtLockedForTripIDs(affectedTripIDs)
+	return trip, changes, nil
 }
 
 func (s *TripService) GetAll() ([]models.Trip, error) {
@@ -84,64 +118,118 @@ type UpdateTripInput struct {
 	Name      *string `json:"name"`
 	StartTime *string `json:"start_time"`
 	EndTime   *string `json:"end_time"`
+	Timezone  *string `json:"timezone"`
 	// unreimbursed|reimbursed
 	ReimburseStatus *string `json:"reimburse_status"`
-	Note      *string `json:"note"`
+	Note            *string `json:"note"`
 }
 
-func (s *TripService) Update(id string, input UpdateTripInput) error {
-	data := make(map[string]interface{})
+func (s *TripService) Update(id string, input UpdateTripInput) (*AssignmentChangeSummary, error) {
+	db := database.GetDB()
+	var changes *AssignmentChangeSummary
 
-	if input.Name != nil {
-		name := strings.TrimSpace(*input.Name)
-		if name == "" {
-			return fmt.Errorf("name is required")
+	var affectedTripIDs []string
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var existing models.Trip
+		if err := tx.Model(&models.Trip{}).Where("id = ?", id).First(&existing).Error; err != nil {
+			return err
 		}
-		data["name"] = name
-	}
-	start := ""
-	end := ""
-	if input.StartTime != nil {
-		start = strings.TrimSpace(*input.StartTime)
-		data["start_time"] = start
-	}
-	if input.EndTime != nil {
-		end = strings.TrimSpace(*input.EndTime)
-		data["end_time"] = end
-	}
-	if input.Note != nil {
-		data["note"] = *input.Note
-	}
-	if input.ReimburseStatus != nil {
-		status := strings.TrimSpace(*input.ReimburseStatus)
-		if status != "unreimbursed" && status != "reimbursed" {
-			return fmt.Errorf("invalid reimburse_status")
-		}
-		data["reimburse_status"] = status
-	}
+		oldStartTs := existing.StartTimeTs
+		oldEndTs := existing.EndTimeTs
+		newStartTs := oldStartTs
+		newEndTs := oldEndTs
 
-	if (input.StartTime != nil || input.EndTime != nil) && (start == "" || end == "") {
-		trip, err := s.repo.FindByID(id)
+		data := make(map[string]interface{})
+
+		if input.Name != nil {
+			name := strings.TrimSpace(*input.Name)
+			if name == "" {
+				return fmt.Errorf("name is required")
+			}
+			data["name"] = name
+		}
+
+		start := ""
+		end := ""
+		if input.StartTime != nil {
+			start = strings.TrimSpace(*input.StartTime)
+		} else {
+			start = existing.StartTime
+		}
+		if input.EndTime != nil {
+			end = strings.TrimSpace(*input.EndTime)
+		} else {
+			end = existing.EndTime
+		}
+
+		if input.StartTime != nil || input.EndTime != nil {
+			if err := validateRFC3339Range(start, end); err != nil {
+				return err
+			}
+			st, err := parseRFC3339ToUTC(start)
+			if err != nil {
+				return fmt.Errorf("start_time must be RFC3339: %w", err)
+			}
+			et, err := parseRFC3339ToUTC(end)
+			if err != nil {
+				return fmt.Errorf("end_time must be RFC3339: %w", err)
+			}
+			data["start_time"] = st.Format(time.RFC3339)
+			data["end_time"] = et.Format(time.RFC3339)
+			data["start_time_ts"] = unixMilli(st)
+			data["end_time_ts"] = unixMilli(et)
+			newStartTs = unixMilli(st)
+			newEndTs = unixMilli(et)
+		}
+
+		if input.Timezone != nil {
+			tz := strings.TrimSpace(*input.Timezone)
+			if tz == "" {
+				tz = "Asia/Shanghai"
+			}
+			data["timezone"] = tz
+		}
+
+		if input.Note != nil {
+			data["note"] = *input.Note
+		}
+		if input.ReimburseStatus != nil {
+			status := strings.TrimSpace(*input.ReimburseStatus)
+			if status != "unreimbursed" && status != "reimbursed" {
+				return fmt.Errorf("invalid reimburse_status")
+			}
+			data["reimburse_status"] = status
+		}
+
+		if len(data) > 0 {
+			if err := tx.Model(&models.Trip{}).Where("id = ?", id).Updates(data).Error; err != nil {
+				return err
+			}
+		}
+
+		unionStart := oldStartTs
+		if newStartTs < unionStart {
+			unionStart = newStartTs
+		}
+		unionEnd := oldEndTs
+		if newEndTs > unionEnd {
+			unionEnd = newEndTs
+		}
+
+		c, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, unionStart, unionEnd)
 		if err != nil {
 			return err
 		}
-		if start == "" {
-			start = trip.StartTime
-		}
-		if end == "" {
-			end = trip.EndTime
-		}
-	}
-	if start != "" || end != "" {
-		if err := validateRFC3339Range(start, end); err != nil {
-			return err
-		}
+		changes = c
+		affectedTripIDs = tripIDs
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if len(data) == 0 {
-		return nil
-	}
-	return s.repo.Update(id, data)
+	_ = recalcTripBadDebtLockedForTripIDs(affectedTripIDs)
+	return changes, nil
 }
 
 type TripSummary struct {
@@ -210,76 +298,6 @@ func (s *TripService) GetSummary(tripID string) (*TripSummary, error) {
 	return out, nil
 }
 
-type AssignByTimePreview struct {
-	TripID              string   `json:"trip_id"`
-	MatchedPayments     int      `json:"matched_payments"`
-	WillAssign          int      `json:"will_assign"`
-	AlreadyInThisTrip   int      `json:"already_in_this_trip"`
-	AssignedOtherTrip   int      `json:"assigned_other_trip"`
-	SkippedOtherTripIDs []string `json:"skipped_other_trip_ids,omitempty"`
-}
-
-type AssignByTimeInput struct {
-	DryRun bool `json:"dry_run"`
-}
-
-func (s *TripService) AssignPaymentsByTime(tripID string, input AssignByTimeInput) (*AssignByTimePreview, error) {
-	trip, err := s.repo.FindByID(tripID)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateRFC3339Range(trip.StartTime, trip.EndTime); err != nil {
-		return nil, err
-	}
-
-	db := database.GetDB()
-	var payments []models.Payment
-	if err := db.
-		Model(&models.Payment{}).
-		Where("transaction_time >= ? AND transaction_time <= ?", trip.StartTime, trip.EndTime).
-		Find(&payments).Error; err != nil {
-		return nil, err
-	}
-
-	preview := &AssignByTimePreview{TripID: tripID}
-	skippedOther := make(map[string]struct{})
-
-	for _, p := range payments {
-		preview.MatchedPayments++
-		if p.TripID == nil || strings.TrimSpace(*p.TripID) == "" {
-			preview.WillAssign++
-			continue
-		}
-		if strings.TrimSpace(*p.TripID) == tripID {
-			preview.AlreadyInThisTrip++
-			continue
-		}
-		preview.AssignedOtherTrip++
-		skippedOther[strings.TrimSpace(*p.TripID)] = struct{}{}
-	}
-	for id := range skippedOther {
-		preview.SkippedOtherTripIDs = append(preview.SkippedOtherTripIDs, id)
-	}
-
-	if input.DryRun || preview.WillAssign == 0 {
-		return preview, nil
-	}
-
-	// Assign only currently unassigned payments (safe default).
-	if err := db.
-		Model(&models.Payment{}).
-		Where("(trip_id IS NULL OR TRIM(trip_id) = '') AND transaction_time >= ? AND transaction_time <= ?", trip.StartTime, trip.EndTime).
-		Updates(map[string]interface{}{"trip_id": tripID}).Error; err != nil {
-		return nil, err
-	}
-
-	if err := recalcTripBadDebtLocked(tripID); err != nil {
-		return nil, err
-	}
-
-	return preview, nil
-}
-
 type TripPaymentInvoice struct {
 	ID            string   `json:"id"`
 	InvoiceNumber *string  `json:"invoice_number"`
@@ -298,7 +316,7 @@ func (s *TripService) GetPayments(tripID string, includeInvoices bool) ([]TripPa
 	db := database.GetDB()
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Order("transaction_time DESC").Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Order("transaction_time_ts DESC").Find(&payments).Error; err != nil {
 		return nil, err
 	}
 	if len(payments) == 0 {
@@ -450,6 +468,9 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 	}
 
 	db := database.GetDB()
+	var rangeStartTs int64
+	var rangeEndTs int64
+	var affectedTripIDs []string
 
 	// Transaction for DB operations.
 	err = db.Transaction(func(tx *gorm.DB) error {
@@ -458,6 +479,8 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 		if err := tx.Where("id = ?", tripID).First(&trip).Error; err != nil {
 			return err
 		}
+		rangeStartTs = trip.StartTimeTs
+		rangeEndTs = trip.EndTimeTs
 
 		// Collect payment IDs.
 		var paymentIDs []string
@@ -538,11 +561,22 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 		if err := tx.Where("id = ?", tripID).Delete(&models.Trip{}).Error; err != nil {
 			return err
 		}
+
+		// Trip removal may resolve overlaps; re-evaluate auto assignments in this range.
+		if rangeEndTs > rangeStartTs {
+			if _, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, rangeStartTs, rangeEndTs); err != nil {
+				return err
+			} else {
+				affectedTripIDs = tripIDs
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	_ = recalcTripBadDebtLockedForTripIDs(affectedTripIDs)
 
 	// Best-effort file cleanup after DB commit.
 	for _, p := range screenshotPaths {
@@ -574,11 +608,11 @@ func validateRFC3339Range(start, end string) error {
 	if start == "" || end == "" {
 		return fmt.Errorf("start_time and end_time are required")
 	}
-	st, err := time.Parse(time.RFC3339, start)
+	st, err := time.Parse(time.RFC3339Nano, start)
 	if err != nil {
 		return fmt.Errorf("start_time must be RFC3339: %w", err)
 	}
-	et, err := time.Parse(time.RFC3339, end)
+	et, err := time.Parse(time.RFC3339Nano, end)
 	if err != nil {
 		return fmt.Errorf("end_time must be RFC3339: %w", err)
 	}

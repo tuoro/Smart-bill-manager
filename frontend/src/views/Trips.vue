@@ -14,6 +14,7 @@
         <Tabs v-model:value="activeTab">
           <TabList>
             <Tab value="trips">按行程</Tab>
+            <Tab value="pending">待处理</Tab>
             <Tab value="calendar">日历</Tab>
           </TabList>
 
@@ -21,7 +22,7 @@
             <TabPanel value="trips">
               <div v-if="trips.length === 0" class="empty">
                 <div class="empty-title">暂无行程</div>
-                <div class="empty-sub">创建一个行程后，可同步归属该时间段的支付记录，并查看关联发票。</div>
+                <div class="empty-sub">创建一个行程后，系统会自动归属该时间段的支付记录；如遇行程重叠会进入“待处理”。</div>
                 <Button label="新增行程" icon="pi pi-plus" @click="openTripModal()" />
               </div>
 
@@ -55,13 +56,6 @@
 
                   <div class="trip-actions">
                     <div class="trip-actions-left">
-                      <Button
-                        label="同步该时间段支付记录"
-                        icon="pi pi-sync"
-                        class="p-button-outlined"
-                        :loading="syncingTripId === trip.id"
-                        @click="confirmSync(trip)"
-                      />
                       <Button label="编辑行程" icon="pi pi-pencil" class="p-button-text" @click="openTripModal(trip)" />
                       <Button
                         label="删除行程"
@@ -166,6 +160,72 @@
                   </DataTable>
                 </AccordionTab>
               </Accordion>
+            </TabPanel>
+
+            <TabPanel value="pending">
+              <div class="pending-panel">
+                <div class="pending-header">
+                  <div class="pending-title">待处理（行程重叠）</div>
+                  <Button label="刷新" icon="pi pi-refresh" class="p-button-outlined" @click="loadPendingPayments" />
+                </div>
+
+                <div v-if="pendingPayments.length === 0" class="empty">
+                  <div class="empty-title">暂无待处理</div>
+                  <div class="empty-sub">当支付时间同时命中多个行程时，会出现在这里等待你选择归属。</div>
+                </div>
+
+                <DataTable v-else :value="pendingPayments" responsiveLayout="scroll" class="pending-table">
+                  <Column header="金额" :style="{ width: '120px' }">
+                    <template #body="{ data: row }">
+                      <span class="amount">{{ formatMoney(row.payment.amount) }}</span>
+                    </template>
+                  </Column>
+                  <Column header="商家">
+                    <template #body="{ data: row }">
+                      <span class="sbm-ellipsis" :title="row.payment.merchant || '-'">{{ row.payment.merchant || '-' }}</span>
+                    </template>
+                  </Column>
+                  <Column header="支付时间" :style="{ width: '180px' }">
+                    <template #body="{ data: row }">{{ formatDateTime(row.payment.transaction_time) }}</template>
+                  </Column>
+                  <Column header="候选行程" :style="{ width: '320px' }">
+                    <template #body="{ data: row }">
+                      <Dropdown
+                        v-model="pendingSelection[row.payment.id]"
+                        :options="row.candidates.map((t:any)=>({label: `${t.name} · ${formatDateTime(t.start_time)}~${formatDateTime(t.end_time)}`, value: t.id}))"
+                        optionLabel="label"
+                        optionValue="value"
+                        placeholder="请选择归属行程"
+                        filter
+                        class="pending-dropdown"
+                      />
+                    </template>
+                  </Column>
+                  <Column header="操作" :style="{ width: '220px' }">
+                    <template #body="{ data: row }">
+                      <div class="row-actions">
+                        <Button
+                          size="small"
+                          icon="pi pi-check"
+                          label="归属"
+                          :disabled="!pendingSelection[row.payment.id]"
+                          :loading="pendingWorkingId === row.payment.id"
+                          @click="assignPending(row.payment.id)"
+                        />
+                        <Button
+                          size="small"
+                          class="p-button-outlined"
+                          severity="secondary"
+                          icon="pi pi-ban"
+                          label="保持无归属"
+                          :loading="pendingWorkingId === row.payment.id"
+                          @click="blockPending(row.payment.id)"
+                        />
+                      </div>
+                    </template>
+                  </Column>
+                </DataTable>
+              </div>
             </TabPanel>
 
             <TabPanel value="calendar">
@@ -311,6 +371,19 @@
               placeholder="请选择"
             />
           </div>
+          <div class="col-12 md:col-6 field">
+            <label for="trip_timezone">行程所属地/时区</label>
+            <Dropdown
+              id="trip_timezone"
+              v-model="tripForm.timezone"
+              :options="timezoneOptions"
+              optionLabel="label"
+              optionValue="value"
+              filter
+              :virtualScrollerOptions="{ itemSize: 38 }"
+              placeholder="请选择时区"
+            />
+          </div>
           <div class="col-12 field">
             <label for="trip_note">备注（可选）</label>
             <Textarea id="trip_note" v-model.trim="tripForm.note" autoResize rows="2" />
@@ -365,15 +438,16 @@ import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
+import { Temporal } from '@js-temporal/polyfill'
 import { invoiceApi, paymentApi, tripsApi } from '@/api'
-import type { Payment, Trip, TripAssignPreview, TripCascadePreview, TripPaymentInvoice, TripPaymentWithInvoices, TripSummary } from '@/types'
+import type { Payment, PendingPayment, Trip, TripCascadePreview, TripPaymentInvoice, TripPaymentWithInvoices, TripSummary } from '@/types'
 import { useNotificationStore } from '@/stores/notifications'
 
 const toast = useToast()
 const confirm = useConfirm()
 const notifications = useNotificationStore()
 
-const activeTab = ref<'trips' | 'calendar'>('trips')
+const activeTab = ref<'trips' | 'pending' | 'calendar'>('trips')
 
 const tripStartPicker = ref<any>(null)
 const tripEndPicker = ref<any>(null)
@@ -510,8 +584,11 @@ const summaries = reactive<Record<string, TripSummary>>({})
 const tripPayments = reactive<Record<string, TripPaymentWithInvoices[]>>({})
 
 const loadingPaymentsTripId = ref<string | null>(null)
-const syncingTripId = ref<string | null>(null)
 const deletingTripId = ref<string | null>(null)
+
+const pendingPayments = ref<PendingPayment[]>([])
+const pendingSelection = reactive<Record<string, string | null>>({})
+const pendingWorkingId = ref<string | null>(null)
 
 const tripModalVisible = ref(false)
 const savingTrip = ref(false)
@@ -522,6 +599,7 @@ const tripForm = reactive({
   start: null as Date | null,
   end: null as Date | null,
   reimburse_status: 'unreimbursed' as 'unreimbursed' | 'reimbursed',
+  timezone: 'Asia/Shanghai',
   note: '',
 })
 
@@ -529,6 +607,44 @@ const reimburseStatusOptions = [
   { label: '未报销', value: 'unreimbursed' },
   { label: '已报销', value: 'reimbursed' },
 ]
+
+const AREA_CN: Record<string, string> = {
+  Africa: '非洲',
+  America: '美洲',
+  Antarctica: '南极洲',
+  Arctic: '北极',
+  Asia: '亚洲',
+  Atlantic: '大西洋',
+  Australia: '澳洲',
+  Europe: '欧洲',
+  Indian: '印度洋',
+  Pacific: '太平洋',
+  Etc: '其他',
+}
+
+const tzLabel = (tz: string) => {
+  const parts = String(tz || '').split('/')
+  if (parts.length >= 2) {
+    const area = AREA_CN[parts[0]] || parts[0]
+    const rest = parts.slice(1).join('/').replace(/_/g, ' ')
+    return `${area}/${rest} (${tz})`
+  }
+  return tz
+}
+
+const timezoneOptions = computed(() => {
+  let zones: string[] = []
+  const anyIntl = Intl as any
+  if (anyIntl?.supportedValuesOf) {
+    try {
+      zones = anyIntl.supportedValuesOf('timeZone') as string[]
+    } catch {
+      zones = []
+    }
+  }
+  if (!zones || zones.length === 0) zones = ['Asia/Shanghai', 'Europe/Paris', 'America/New_York']
+  return zones.map((z) => ({ label: tzLabel(z), value: z }))
+})
 
 const tripErrors = reactive({
   name: '',
@@ -573,6 +689,7 @@ const resetTripForm = () => {
   tripForm.start = null
   tripForm.end = null
   tripForm.reimburse_status = 'unreimbursed'
+  tripForm.timezone = 'Asia/Shanghai'
   tripForm.note = ''
   editingTrip.value = null
   tripErrors.name = ''
@@ -588,31 +705,130 @@ const openTripModal = (trip?: Trip) => {
     tripForm.start = new Date(trip.start_time)
     tripForm.end = new Date(trip.end_time)
     tripForm.reimburse_status = trip.reimburse_status === 'reimbursed' ? 'reimbursed' : 'unreimbursed'
+    tripForm.timezone = trip.timezone || 'Asia/Shanghai'
     tripForm.note = trip.note || ''
   }
   tripModalVisible.value = true
+}
+
+const dateToParts = (d: Date) => ({
+  year: d.getFullYear(),
+  month: d.getMonth() + 1,
+  day: d.getDate(),
+  hour: d.getHours(),
+  minute: d.getMinutes(),
+  second: d.getSeconds(),
+})
+
+const isSameWallClock = (parts: ReturnType<typeof dateToParts>, zdt: any) => {
+  const pdt = zdt.toPlainDateTime()
+  return (
+    pdt.year === parts.year &&
+    pdt.month === parts.month &&
+    pdt.day === parts.day &&
+    pdt.hour === parts.hour &&
+    pdt.minute === parts.minute &&
+    pdt.second === parts.second
+  )
+}
+
+const toUtcIsoWithDstConfirm = async (d: Date, timeZone: string, label: string): Promise<string> => {
+  const parts = dateToParts(d)
+
+  const tryMake = (disambiguation: 'reject' | 'earlier' | 'later') =>
+    Temporal.ZonedDateTime.from({ ...parts, timeZone }, { disambiguation } as any)
+
+  try {
+    const zdt = tryMake('reject')
+    const ms = Number(zdt.toInstant().epochMilliseconds)
+    return new Date(ms).toISOString()
+  } catch {
+    // Distinguish ambiguous vs nonexistent by comparing wall-clock after disambiguation.
+    const early = tryMake('earlier')
+    const late = tryMake('later')
+    const earlySame = isSameWallClock(parts, early)
+    const lateSame = isSameWallClock(parts, late)
+
+    if (!earlySame || !lateSame) {
+      throw new Error(`${label}在所选时区不存在（夏令时切换），请重新选择`)
+    }
+
+    const earlyMs = Number(early.toInstant().epochMilliseconds)
+    const lateMs = Number(late.toInstant().epochMilliseconds)
+    if (earlyMs === lateMs) {
+      return new Date(earlyMs).toISOString()
+    }
+
+    const earlyOffset = early.offset
+    const lateOffset = late.offset
+
+    return await new Promise<string>((resolve, reject) => {
+      confirm.require({
+        header: '夏令时时间冲突',
+        message: `${label}在时区 ${timeZone} 存在两次，请选择：\n较早偏移 ${earlyOffset}\n较晚偏移 ${lateOffset}`,
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: `使用较早 (${earlyOffset})`,
+        rejectLabel: `使用较晚 (${lateOffset})`,
+        accept: () => resolve(new Date(earlyMs).toISOString()),
+        reject: () => resolve(new Date(lateMs).toISOString()),
+        onHide: () => reject(new Error('已取消选择')),
+      })
+    })
+  }
 }
 
 const handleSaveTrip = async () => {
   if (!validateTripForm()) return
   savingTrip.value = true
   try {
+    const startIso = await toUtcIsoWithDstConfirm(tripForm.start!, tripForm.timezone, '开始时间')
+    const endIso = await toUtcIsoWithDstConfirm(tripForm.end!, tripForm.timezone, '结束时间')
+
     const payload = {
       name: tripForm.name,
-      start_time: dayjs(tripForm.start!).toISOString(),
-      end_time: dayjs(tripForm.end!).toISOString(),
+      start_time: startIso,
+      end_time: endIso,
       reimburse_status: tripForm.reimburse_status,
+      timezone: tripForm.timezone,
       note: tripForm.note || undefined,
     }
 
     if (editingTrip.value) {
-      await tripsApi.update(editingTrip.value.id, payload)
+      const res = await tripsApi.update(editingTrip.value.id, payload)
+      const changes = (res.data as any)?.data?.changes
       toast.add({ severity: 'success', summary: '行程已更新', life: 2000 })
       notifications.add({ severity: 'success', title: '行程已更新', detail: payload.name })
+      if (changes?.auto_unassigned) {
+        notifications.add({
+          severity: 'warn',
+          title: '行程重叠已打回待处理',
+          detail: `自动打回 ${changes.auto_unassigned} 条；自动归属 ${changes.auto_assigned || 0} 条`,
+        })
+      } else if (changes?.auto_assigned) {
+        notifications.add({
+          severity: 'info',
+          title: '已自动归属支付记录',
+          detail: `自动归属 ${changes.auto_assigned} 条`,
+        })
+      }
     } else {
-      await tripsApi.create(payload as any)
+      const res = await tripsApi.create(payload as any)
+      const changes = (res.data as any)?.data?.changes
       toast.add({ severity: 'success', summary: '行程已创建', life: 2000 })
       notifications.add({ severity: 'success', title: '行程已创建', detail: payload.name })
+      if (changes?.auto_unassigned) {
+        notifications.add({
+          severity: 'warn',
+          title: '行程重叠已打回待处理',
+          detail: `自动打回 ${changes.auto_unassigned} 条；自动归属 ${changes.auto_assigned || 0} 条`,
+        })
+      } else if (changes?.auto_assigned) {
+        notifications.add({
+          severity: 'info',
+          title: '已自动归属支付记录',
+          detail: `自动归属 ${changes.auto_assigned} 条`,
+        })
+      }
     }
 
     tripModalVisible.value = false
@@ -646,6 +862,62 @@ const loadTripPayments = async (tripId: string) => {
   }
 }
 
+const loadPendingPayments = async () => {
+  const res = await tripsApi.pendingPayments()
+  pendingPayments.value = res.data.data || []
+
+  // Reset selections for current list.
+  const next: Record<string, string | null> = {}
+  for (const row of pendingPayments.value) {
+    next[row.payment.id] = pendingSelection[row.payment.id] || null
+  }
+  for (const k of Object.keys(pendingSelection)) delete pendingSelection[k]
+  for (const [k, v] of Object.entries(next)) pendingSelection[k] = v
+}
+
+const assignPending = async (paymentId: string) => {
+  const tripId = pendingSelection[paymentId]
+  if (!tripId) return
+  pendingWorkingId.value = paymentId
+  try {
+    await tripsApi.assignPendingPayment(paymentId, tripId)
+    toast.add({ severity: 'success', summary: '已归属', life: 2000 })
+    notifications.add({ severity: 'info', title: '待处理支付已归属', detail: `${paymentId} → ${tripNameById.value[tripId] || tripId}` })
+    await reloadAll()
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '归属失败'
+    toast.add({ severity: 'error', summary: msg, life: 3500 })
+    notifications.add({ severity: 'error', title: '归属失败', detail: msg })
+  } finally {
+    pendingWorkingId.value = null
+  }
+}
+
+const blockPending = (paymentId: string) => {
+  confirm.require({
+    header: '保持无归属',
+    message: '确认将该支付记录保持无归属，并阻止后续自动归属吗？',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '确认',
+    rejectLabel: '取消',
+    accept: async () => {
+      pendingWorkingId.value = paymentId
+      try {
+        await tripsApi.blockPendingPayment(paymentId)
+        toast.add({ severity: 'success', summary: '已保持无归属', life: 2000 })
+        notifications.add({ severity: 'info', title: '已保持无归属', detail: paymentId })
+        await reloadAll()
+      } catch (e: any) {
+        const msg = e?.response?.data?.message || '操作失败'
+        toast.add({ severity: 'error', summary: msg, life: 3500 })
+        notifications.add({ severity: 'error', title: '操作失败', detail: msg })
+      } finally {
+        pendingWorkingId.value = null
+      }
+    },
+  })
+}
+
 const handleTripOpen = (e: { index: number }) => {
   const trip = trips.value[e.index]
   if (!trip) return
@@ -660,50 +932,8 @@ const reloadAll = async () => {
   for (const t of trips.value) {
     if (tripPayments[t.id]) await loadTripPayments(t.id)
   }
+  await loadPendingPayments()
   await refreshCalendarMonth()
-}
-
-const confirmSync = async (trip: Trip) => {
-  syncingTripId.value = trip.id
-  try {
-    const res = await tripsApi.assignByTimePreview(trip.id)
-    const preview = res.data.data as TripAssignPreview | undefined
-    syncingTripId.value = null
-    if (!preview) return
-
-    confirm.require({
-      header: '同步确认',
-      message: `匹配到 ${preview.matched_payments} 条支付，预计同步 ${preview.will_assign} 条（已归属其他行程 ${preview.assigned_other_trip} 条将跳过）。继续吗？`,
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '同步',
-      rejectLabel: '取消',
-      accept: async () => {
-        syncingTripId.value = trip.id
-        try {
-          await tripsApi.assignByTime(trip.id)
-          toast.add({ severity: 'success', summary: '同步完成', life: 2200 })
-          notifications.add({
-            severity: 'success',
-            title: '行程同步完成',
-            detail: `${trip.name}：同步 ${preview.will_assign} 条（匹配 ${preview.matched_payments} 条）`,
-          })
-          await loadSummary(trip.id)
-          await loadTripPayments(trip.id)
-        } catch (e: any) {
-          const msg = e?.response?.data?.message || '同步失败'
-          toast.add({ severity: 'error', summary: msg, life: 3500 })
-          notifications.add({ severity: 'error', title: '行程同步失败', detail: `${trip.name}：${msg}` })
-        } finally {
-          syncingTripId.value = null
-        }
-      },
-    })
-  } catch (error: any) {
-    syncingTripId.value = null
-    const msg = error?.response?.data?.message || '获取预览失败'
-    toast.add({ severity: 'error', summary: msg, life: 3500 })
-    notifications.add({ severity: 'error', title: '行程同步预览失败', detail: `${trip.name}：${msg}` })
-  }
 }
 
 const confirmDeleteTrip = async (trip: Trip) => {
@@ -814,7 +1044,7 @@ const unassignPayment = (paymentId: string) => {
     rejectLabel: '取消',
     accept: async () => {
       try {
-        await paymentApi.update(paymentId, { trip_id: '' })
+        await paymentApi.update(paymentId, { trip_id: '', trip_assignment_source: 'blocked' })
         toast.add({ severity: 'success', summary: '已移出行程', life: 2000 })
         notifications.add({ severity: 'info', title: '支付记录已移出行程', detail: paymentId })
         await reloadAll()
@@ -852,7 +1082,7 @@ const confirmMovePayment = async () => {
   if (!movePaymentId.value || !movePaymentTargetTripId.value) return
   movingPayment.value = true
   try {
-    await paymentApi.update(movePaymentId.value, { trip_id: movePaymentTargetTripId.value })
+    await paymentApi.update(movePaymentId.value, { trip_id: movePaymentTargetTripId.value, trip_assignment_source: 'manual' })
     toast.add({ severity: 'success', summary: '已移动', life: 2000 })
     notifications.add({
       severity: 'info',
@@ -1116,6 +1346,30 @@ onMounted(async () => {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.pending-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pending-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pending-title {
+  font-weight: 900;
+  color: var(--p-text-color);
+}
+
+.pending-dropdown {
+  width: 100%;
+  max-width: 320px;
 }
 
 .calendar-layout {

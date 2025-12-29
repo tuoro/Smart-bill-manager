@@ -28,7 +28,7 @@ func (r *TripRepository) FindByID(id string) (*models.Trip, error) {
 
 func (r *TripRepository) FindAll() ([]models.Trip, error) {
 	var trips []models.Trip
-	err := database.GetDB().Model(&models.Trip{}).Order("start_time DESC").Find(&trips).Error
+	err := database.GetDB().Model(&models.Trip{}).Order("start_time_ts DESC").Find(&trips).Error
 	return trips, err
 }
 

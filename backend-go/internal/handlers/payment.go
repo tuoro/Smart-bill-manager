@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -188,28 +189,25 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 	// Always use forward slashes and "uploads/" prefix for consistency
 	relPath := "uploads/" + filename
 
-	// Process screenshot with OCR (best-effort)
-	payment, extracted, ocrError, err := h.paymentService.CreateFromScreenshotBestEffort(services.CreateFromScreenshotInput{
+	// Process screenshot with OCR (requires valid transaction time)
+	payment, extracted, err := h.paymentService.CreateFromScreenshot(services.CreateFromScreenshotInput{
 		ScreenshotPath: relPath,
 	})
 	if err != nil {
 		// Clean up the uploaded file on error
 		_ = os.Remove(filePath)
+		if errors.Is(err, services.ErrMissingTransactionTime) {
+			utils.Error(c, 400, "无法识别支付时间，请重新截图或手动录入支付记录", err)
+			return
+		}
 		utils.Error(c, 500, "识别支付截图失败", err)
 		return
 	}
 
-	message := "支付截图上传成功"
-	data := gin.H{
+	utils.Success(c, 201, "支付截图上传成功", gin.H{
 		"payment":   payment,
 		"extracted": extracted,
-	}
-	if ocrError != nil && *ocrError != "" {
-		message = "支付截图上传成功，但 OCR 识别失败，请手动填写"
-		data["ocr_error"] = *ocrError
-	}
-
-	utils.Success(c, 201, message, data)
+	})
 }
 
 func (h *PaymentHandler) GetLinkedInvoices(c *gin.Context) {

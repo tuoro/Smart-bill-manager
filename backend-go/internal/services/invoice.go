@@ -12,6 +12,8 @@ import (
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
+
+	"gorm.io/gorm"
 )
 
 type InvoiceService struct {
@@ -39,6 +41,15 @@ type CreateInvoiceInput struct {
 
 func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, error) {
 	id := utils.GenerateUUID()
+
+	if input.PaymentID != nil {
+		pid := strings.TrimSpace(*input.PaymentID)
+		if pid == "" {
+			input.PaymentID = nil
+		} else {
+			input.PaymentID = &pid
+		}
+	}
 
 	// Build absolute file path
 	filePath := input.FilePath
@@ -77,7 +88,25 @@ func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, erro
 		Source:        source,
 	}
 
-	if err := s.repo.Create(invoice); err != nil {
+	// Create invoice (and optional 1:1 payment link) atomically.
+	db := database.GetDB()
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(invoice).Error; err != nil {
+			return err
+		}
+		if input.PaymentID != nil {
+			pid := strings.TrimSpace(*input.PaymentID)
+			if pid != "" {
+				if err := tx.Table("invoice_payment_links").Create(&models.InvoicePaymentLink{
+					InvoiceID: invoice.ID,
+					PaymentID: pid,
+				}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
@@ -235,9 +264,12 @@ func (s *InvoiceService) GetStats() (*models.InvoiceStats, error) {
 
 // LinkPayment links an invoice to a payment
 func (s *InvoiceService) LinkPayment(invoiceID, paymentID string) error {
+	paymentID = strings.TrimSpace(paymentID)
 	if err := s.repo.LinkPayment(invoiceID, paymentID); err != nil {
 		return err
 	}
+	// Keep legacy pointer in sync (1:1).
+	_ = s.repo.Update(invoiceID, map[string]interface{}{"payment_id": paymentID})
 
 	inv, err := s.repo.FindByID(invoiceID)
 	if err != nil {
@@ -254,9 +286,12 @@ func (s *InvoiceService) LinkPayment(invoiceID, paymentID string) error {
 
 // UnlinkPayment removes the link between an invoice and a payment
 func (s *InvoiceService) UnlinkPayment(invoiceID, paymentID string) error {
+	paymentID = strings.TrimSpace(paymentID)
 	if err := s.repo.UnlinkPayment(invoiceID, paymentID); err != nil {
 		return err
 	}
+	// Keep legacy pointer in sync (1:1).
+	_ = s.repo.Update(invoiceID, map[string]interface{}{"payment_id": nil})
 
 	inv, err := s.repo.FindByID(invoiceID)
 	if err != nil {

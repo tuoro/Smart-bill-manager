@@ -82,4 +82,3 @@ func getTripIDForPayment(paymentID string) (string, error) {
 	}
 	return strings.TrimSpace(*payment.TripID), nil
 }
-

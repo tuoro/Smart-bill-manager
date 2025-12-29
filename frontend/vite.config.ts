@@ -10,6 +10,19 @@ export default defineConfig({
       '@': resolve(__dirname, 'src')
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('vue-echarts')) return 'echarts'
+            if (id.includes('@js-temporal/polyfill')) return 'temporal'
+            if (id.includes('dayjs')) return 'dayjs'
+          }
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': {

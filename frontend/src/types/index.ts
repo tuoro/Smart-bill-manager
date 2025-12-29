@@ -130,6 +130,7 @@ export interface DashboardData {
     countThisMonth: number;
     dailyStats: Record<string, number>;
   };
+  recentPayments: (Payment & { invoiceCount: number })[];
   invoices: {
     totalCount: number;
     totalAmount: number;

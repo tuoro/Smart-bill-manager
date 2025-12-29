@@ -155,6 +155,20 @@ func main() {
 		emailStatus, _ := emailService.GetMonitoringStatus()
 		recentEmails, _ := emailService.GetLogs("", 5)
 
+		// Recent payments with linked invoice status (1:1)
+		type recentPaymentRow struct {
+			models.Payment
+			InvoiceCount int `json:"invoiceCount" gorm:"column:invoice_count"`
+		}
+		recentPayments := make([]recentPaymentRow, 0)
+		_ = db.
+			Table("payments AS p").
+			Select(`p.*, CASE WHEN l.invoice_id IS NULL THEN 0 ELSE 1 END AS invoice_count`).
+			Joins("LEFT JOIN invoice_payment_links AS l ON l.payment_id = p.id").
+			Order("p.transaction_time_ts DESC, p.created_at DESC").
+			Limit(6).
+			Scan(&recentPayments).Error
+
 		c.JSON(200, gin.H{
 			"success": true,
 			"data": gin.H{
@@ -164,6 +178,7 @@ func main() {
 					"categoryStats":  paymentStats.CategoryStats,
 					"dailyStats":     paymentStats.DailyStats,
 				},
+				"recentPayments": recentPayments,
 				"invoices": gin.H{
 					"totalCount":  invoiceStats.TotalCount,
 					"totalAmount": invoiceStats.TotalAmount,

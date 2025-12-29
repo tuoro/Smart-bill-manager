@@ -141,7 +141,7 @@
           </template>
           <template #content>
             <div v-if="dailyData.length > 0" class="chart">
-              <v-chart :option="lineChartOption" autoresize />
+              <DailySpendLine :option="lineChartOption" />
             </div>
             <div v-else class="empty-mini">&#26242;&#26080;&#25968;&#25454;</div>
           </template>
@@ -159,19 +159,19 @@
                 />
                 <Tag v-else severity="success" :value="'\u5168\u90E8\u5DF2\u5173\u8054'" />
               </div>
-              <div class="match-actions">
-                <Button
-                  class="p-button-text"
-                  severity="secondary"
-                  icon="pi pi-refresh"
-                  :label="'\u5237\u65B0'"
-                  :loading="recentPaymentsLoading"
-                  @click="loadRecentPayments"
-                />
-                <Button
-                  class="p-button-outlined"
-                  severity="secondary"
-                  icon="pi pi-external-link"
+            <div class="match-actions">
+              <Button
+                class="p-button-text"
+                severity="secondary"
+                icon="pi pi-refresh"
+                :label="'\u5237\u65B0'"
+                :loading="recentPaymentsLoading"
+                @click="refreshRecentPayments"
+              />
+              <Button
+                class="p-button-outlined"
+                severity="secondary"
+                icon="pi pi-external-link"
                   :label="'\u53BB\u652F\u4ED8\u8BB0\u5F55'"
                   @click="router.push('/payments')"
                 />
@@ -305,13 +305,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import VChart from 'vue-echarts'
 import dayjs from 'dayjs'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
@@ -320,11 +315,11 @@ import ProgressBar from 'primevue/progressbar'
 import ProgressSpinner from 'primevue/progressspinner'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
-import { dashboardApi, paymentApi } from '@/api'
+import { dashboardApi } from '@/api'
 import { CHART_COLORS } from '@/utils/constants'
 import type { DashboardData, Payment } from '@/types'
 
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
+const DailySpendLine = defineAsyncComponent(() => import('@/components/charts/DailySpendLine.vue'))
 
 const router = useRouter()
 
@@ -334,8 +329,7 @@ const loading = ref(true)
 const data = ref<DashboardData | null>(null)
 
 const recentPaymentsLoading = ref(false)
-const recentPayments = ref<Payment[]>([])
-const paymentInvoiceCount = ref<Record<string, number>>({})
+const recentPayments = ref<(Payment & { invoiceCount: number })[]>([])
 
 const dailyData = computed(() => {
   if (!data.value?.payments.dailyStats) return []
@@ -351,41 +345,24 @@ const normalizeInlineText = (value?: string | null) => (value || '').replace(/\s
 
 const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 
-const unlinkedRecentCount = computed(
-  () => recentPayments.value.filter((p) => (paymentInvoiceCount.value[p.id] || 0) === 0).length
-)
+const unlinkedRecentCount = computed(() => recentPayments.value.filter((p) => (p.invoiceCount || 0) === 0).length)
 
 const recentPaymentRows = computed(() =>
-  recentPayments.value.map((p) => ({
-    ...p,
-    invoiceCount: paymentInvoiceCount.value[p.id] || 0,
-  }))
+  recentPayments.value.map((p) => ({ ...p, invoiceCount: p.invoiceCount || 0 }))
 )
 
-const loadRecentPayments = async () => {
+const refreshRecentPayments = async () => {
   recentPaymentsLoading.value = true
   try {
-    const res = await paymentApi.getAll({ limit: 6, offset: 0 })
-    const list = res.data.success && res.data.data ? res.data.data : []
-    const sorted = [...list].sort((a, b) => dayjs(b.transaction_time).valueOf() - dayjs(a.transaction_time).valueOf())
-    recentPayments.value = sorted.slice(0, 6)
-
-    const entries = await Promise.all(
-      recentPayments.value.map(async (p) => {
-        try {
-          const r = await paymentApi.getPaymentInvoices(p.id)
-          const count = r.data.success && r.data.data ? r.data.data.length : 0
-          return [p.id, count] as const
-        } catch {
-          return [p.id, 0] as const
-        }
-      })
-    )
-    paymentInvoiceCount.value = Object.fromEntries(entries)
+    const res = await dashboardApi.getSummary()
+    const next = res.data.success && res.data.data ? res.data.data : null
+    if (next) {
+      data.value = next
+      recentPayments.value = next.recentPayments || []
+    }
   } catch (error) {
     console.error('Failed to load recent payments:', error)
     recentPayments.value = []
-    paymentInvoiceCount.value = {}
   } finally {
     recentPaymentsLoading.value = false
   }
@@ -449,11 +426,13 @@ const lineChartOption = computed(() => ({
 const loadData = async () => {
   loading.value = true
   try {
-    const [res] = await Promise.all([dashboardApi.getSummary(), loadRecentPayments()])
+    const res = await dashboardApi.getSummary()
     data.value = res.data.success && res.data.data ? res.data.data : null
+    recentPayments.value = data.value?.recentPayments || []
   } catch (error) {
     console.error('Failed to load dashboard data:', error)
     data.value = null
+    recentPayments.value = []
   } finally {
     loading.value = false
   }

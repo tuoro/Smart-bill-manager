@@ -2,6 +2,5 @@ export { authApi, setToken, setStoredUser, getStoredUser, clearAuth, FILE_BASE_U
 export { paymentApi } from './payments'
 export { invoiceApi } from './invoices'
 export { emailApi } from './email'
-export { feishuApi } from './feishu'
 export { tripsApi } from './trips'
 export { dashboardApi } from './dashboard'

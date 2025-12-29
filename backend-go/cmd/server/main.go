@@ -37,8 +37,6 @@ func main() {
 		&models.InvoicePaymentLink{},
 		&models.EmailConfig{},
 		&models.EmailLog{},
-		&models.FeishuConfig{},
-		&models.FeishuLog{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -50,7 +48,6 @@ func main() {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_time ON trips(start_time, end_time)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(created_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_feishu_logs_date ON feishu_logs(created_at)")
 
 	// Ensure uploads directory exists
 	uploadsDir := cfg.UploadsDir
@@ -67,7 +64,6 @@ func main() {
 	paymentService := services.NewPaymentService()
 	invoiceService := services.NewInvoiceService(uploadsDir)
 	emailService := services.NewEmailService(uploadsDir, invoiceService)
-	feishuService := services.NewFeishuService(uploadsDir, invoiceService)
 	tripService := services.NewTripService(uploadsDir)
 
 	// No longer automatically creating admin - use setup page instead
@@ -126,14 +122,6 @@ func main() {
 	tripHandler := handlers.NewTripHandler(tripService)
 	tripHandler.RegisterRoutes(protectedGroup.Group("/trips"))
 
-	// Feishu routes (protected)
-	feishuHandler := handlers.NewFeishuHandler(feishuService)
-	feishuHandler.RegisterRoutes(protectedGroup.Group("/feishu"))
-
-	// Feishu webhook (public, for event subscription)
-	api.POST("/feishu/webhook", feishuHandler.Webhook)
-	api.POST("/feishu/webhook/:configId", feishuHandler.WebhookWithConfig)
-
 	// Logs routes
 	logsHandler := handlers.NewLogsHandler()
 	logsHandler.RegisterRoutes(protectedGroup.Group("/logs"))
@@ -179,7 +167,6 @@ func main() {
 	log.Printf("🚀 Smart Bill Manager API running on port %s", cfg.Port)
 	log.Printf("📊 Dashboard: http://localhost:%s", cfg.Port)
 	log.Println("📬 Email monitoring ready")
-	log.Println("🤖 Feishu webhook ready at /api/feishu/webhook")
 	log.Println("🔐 Auth system enabled")
 
 	if err := r.Run(addr); err != nil {

@@ -101,35 +101,6 @@ export interface EmailLog {
   created_at?: string;
 }
 
-export interface FeishuConfig {
-  id: string;
-  name: string;
-  app_id?: string;
-  app_secret?: string;
-  verification_token?: string;
-  encrypt_key?: string;
-  is_active: number;
-  created_at?: string;
-}
-
-export interface FeishuLog {
-  id: string;
-  config_id: string;
-  event_type?: string;
-  message_type?: string;
-  sender_id?: string;
-  sender_name?: string;
-  chat_id?: string;
-  message_id?: string;
-  content?: string;
-  file_name?: string;
-  file_key?: string;
-  has_attachment: number;
-  status: string;
-  error?: string;
-  created_at?: string;
-}
-
 export interface DashboardData {
   payments: {
     totalThisMonth: number;

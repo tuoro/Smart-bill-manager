@@ -29,10 +29,6 @@
           <i class="pi pi-inbox" />
           <span v-if="!isCollapsed">&#37038;&#31665;&#30417;&#25511;</span>
         </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/feishu' }" title="飞书机器人" @click="router.push('/feishu')">
-          <i class="pi pi-comments" />
-          <span v-if="!isCollapsed">&#39134;&#20070;&#26426;&#22120;&#20154;</span>
-        </button>
         <button class="nav-item" :class="{ active: currentRoute === '/logs' }" title="日志" @click="router.push('/logs')">
           <i class="pi pi-book" />
           <span v-if="!isCollapsed">&#26085;&#24535;</span>
@@ -105,7 +101,6 @@ const pageTitle = computed(() => {
     '/invoices': '\u53D1\u7968\u7BA1\u7406',
     '/trips': '\u884C\u7A0B\u65E5\u5386',
     '/email': '\u90AE\u7BB1\u76D1\u63A7',
-    '/feishu': '\u98DE\u4E66\u673A\u5668\u4EBA',
     '/logs': '\u65E5\u5FD7',
   }
   return titles[route.path] || titles['/dashboard']
@@ -393,4 +388,3 @@ const toggleUserMenu = (event: MouseEvent) => {
   }
 }
 </style>
-

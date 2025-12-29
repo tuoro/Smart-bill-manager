@@ -33,14 +33,14 @@
             <div class="stat">
               <div>
                 <div class="stat-title">&#26469;&#28304;&#20998;&#24067;</div>
-                 <div class="source-row">
-                   <Tag severity="success" :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`" />
-                   <Tag severity="info" :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`" />
-                  <Tag severity="warning" :value="`\u98DE\u4E66 ${sourceStats.feishu || 0}`" />
-                 </div>
-               </div>
-               <i class="pi pi-chart-pie stat-icon secondary" />
-             </div>
+                <div class="source-row">
+                  <Tag severity="success" :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`" />
+                  <Tag severity="info" :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`" />
+                  <Tag severity="secondary" :value="`\u5176\u4ED6 ${otherSourceCount}`" />
+                </div>
+                </div>
+                <i class="pi pi-chart-pie stat-icon secondary" />
+              </div>
           </template>
         </Card>
       </div>
@@ -584,8 +584,8 @@ const handleUnlinkPayment = async (paymentId: string) => {
 const getSourceLabel = (source?: string) => {
   const labels: Record<string, string> = {
     email: '\u90AE\u4EF6\u4E0B\u8F7D',
-    feishu: '\u98DE\u4E66\u673A\u5668\u4EBA',
-    dingtalk: '\u9489\u9489(\u5DF2\u79FB\u9664)',
+    feishu: '\u5916\u90E8\u5BFC\u5165',
+    dingtalk: '\u5916\u90E8\u5BFC\u5165',
     upload: '\u624B\u52A8\u4E0A\u4F20',
   }
   return labels[source || ''] || source || '\u672A\u77E5'
@@ -594,8 +594,8 @@ const getSourceLabel = (source?: string) => {
 const getSourceSeverity = (source?: string): 'info' | 'success' | 'warning' | 'secondary' => {
   const types: Record<string, 'info' | 'success' | 'warning' | 'secondary'> = {
     email: 'info',
-    feishu: 'warning',
-    dingtalk: 'warning',
+    feishu: 'secondary',
+    dingtalk: 'secondary',
     upload: 'success',
   }
   return types[source || ''] || 'secondary'
@@ -715,6 +715,16 @@ const handleReparse = async (id: string) => {
 }
 
 const sourceStats = computed(() => stats.value?.bySource || {})
+const otherSourceCount = computed(() => {
+  const m = sourceStats.value as Record<string, unknown>
+  let total = 0
+  for (const [k, v] of Object.entries(m)) {
+    if (k === 'upload' || k === 'email') continue
+    const n = Number(v || 0)
+    if (Number.isFinite(n)) total += n
+  }
+  return total
+})
 
 onMounted(() => {
   loadInvoices()

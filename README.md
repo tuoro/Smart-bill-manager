@@ -291,38 +291,22 @@ npm run dev
 ```
 Smart-bill-manager/
 ├── backend-go/              # Go 后端服务
-│   ├── cmd/
-│   │   └── server/
-│   │       └── main.go      # 应用入口
-│   ├── internal/
-│   │   ├── config/          # 配置管理
-│   │   ├── models/          # 数据模型
-│   │   ├── handlers/        # HTTP 处理器
-│   │   ├── services/        # 业务逻辑
-│   │   ├── middleware/      # 中间件
-│   │   ├── repository/      # 数据访问层
-│   │   └── utils/           # 工具函数
-│   ├── pkg/
-│   │   └── database/        # 数据库连接
-│   ├── go.mod
-│   └── go.sum
-├── frontend/               # 前端应用
-│   ├── src/
-│   │   ├── main.ts         # Vue 应用入口
-│   │   ├── App.vue         # 根组件
-│   │   ├── router/         # Vue Router 配置
-│   │   ├── stores/         # Pinia 状态管理
-│   │   ├── views/          # 页面视图
-│   │   ├── components/     # 可复用组件
-│   │   ├── api/            # API 服务
-│   │   └── types/          # TypeScript类型
-│   ├── public/             # 静态资源
-│   ├── Dockerfile          # 前端单独 Docker 配置
-│   └── nginx.conf          # 前端单独 Nginx 配置
-├── Dockerfile              # 统一 Docker 配置（前后端合一）
-├── nginx.conf              # 统一 Nginx 配置
-├── supervisord.conf        # Supervisor 进程管理配置
-├── docker-compose.yml      # Docker Compose 配置
+│   ├── cmd/server/main.go   # 应用入口
+│   ├── internal/            # 配置、模型、接口、服务、仓储、工具等
+│   ├── pkg/database/        # 数据库连接
+│   ├── go.mod / go.sum
+│   └── ...
+├── frontend/                # Vue 前端
+│   ├── src/ (main.ts、router、stores、views、components、api、types)
+│   ├── public/
+│   ├── Dockerfile / nginx.conf
+│   └── ...
+├── scripts/                 # OCR/PDF 辅助脚本（ocr_cli.py、pdf_text_cli.py 等）
+├── default_models.yaml      # RapidOCR 默认模型列表与校验（供自动下载/校验使用）
+├── Dockerfile               # 前后端统一镜像
+├── docker-compose.yml       # Compose 部署
+├── nginx.conf               # 统一 Nginx 配置
+├── supervisord.conf         # 进程管理配置
 └── README.md
 ```
 

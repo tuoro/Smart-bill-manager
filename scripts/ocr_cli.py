@@ -391,11 +391,12 @@ def main():
             except metadata.PackageNotFoundError:
                 pass
 
-            params: dict = {}
-            # Force PP-OCRv5 by default (per RapidOCR官方文档).
-            # If this fails (e.g. first-time model download issues), we fall back to RapidOCR defaults.
-            params.update(
-                {
+            # 默认使用 RapidOCR 的内置默认模型/配置（更接近官方默认行为）。
+            # 如需强制 PP-OCRv5，可设置：SBM_RAPIDOCR_FORCE_PPOCRV5=1
+            force_ppocrv5 = truthy(os.getenv("SBM_RAPIDOCR_FORCE_PPOCRV5"))
+            forced_params: dict | None = None
+            if force_ppocrv5:
+                forced_params = {
                     "Det.engine_type": EngineType.ONNXRUNTIME,
                     "Det.lang_type": LangDet.CH,
                     "Det.model_type": ModelType.MOBILE,
@@ -405,7 +406,6 @@ def main():
                     "Rec.model_type": ModelType.MOBILE,
                     "Rec.ocr_version": OCRVersion.PPOCRV5,
                 }
-            )
 
             # Optional: override RapidOCR's default model cache directory with a single mounted dir.
             # By default RapidOCR stores models under the Python package directory (rapidocr/models).
@@ -426,30 +426,28 @@ def main():
                     model_data_dir = ""
 
             if args.profile == "pdf":
-                params.update(
+                if forced_params is None:
+                    forced_params = {}
+                forced_params.update(
                     {
                         "Global.max_side_len": 4096,
                         "Global.min_height": 10,
                         "Global.text_score": 0.35,
                     }
                 )
-            elif args.profile == "default":
-                # 单次 OCR 提升长行召回（不做二次识别）：
-                # - 放宽宽高比限制，减少长行被过度压缩/截断
-                # - 增大 Rec 输入宽度，降低“扫二维码付款-给XXX”这类长行漏字概率
-                params.update(
-                    {
-                        "Global.width_height_ratio": 15,
-                        "Rec.rec_img_shape": [3, 48, 640],
-                    }
-                )
 
             if args.max_side_len is not None:
-                params["Global.max_side_len"] = int(args.max_side_len)
+                if forced_params is None:
+                    forced_params = {}
+                forced_params["Global.max_side_len"] = int(args.max_side_len)
             if args.min_height is not None:
-                params["Global.min_height"] = int(args.min_height)
+                if forced_params is None:
+                    forced_params = {}
+                forced_params["Global.min_height"] = int(args.min_height)
             if args.text_score is not None:
-                params["Global.text_score"] = float(args.text_score)
+                if forced_params is None:
+                    forced_params = {}
+                forced_params["Global.text_score"] = float(args.text_score)
 
             # Helper: run rapidocr with optional fallback to default params to avoid crashes such as
             # "list index out of range" from corrupted/partial models.
@@ -457,36 +455,36 @@ def main():
                 errors: list[str] = []
                 param_summary = {
                     "rapidocr": rapidocr_version,
-                    "ocr_version": "PP-OCRv5",
-                    "det": "onnxruntime:PP-OCRv5:ch:mobile",
-                    "rec": "onnxruntime:PP-OCRv5:ch:mobile",
+                    "ocr_version": "default",
+                    "det": "default",
+                    "rec": "default",
                     "cls": "default",
-                    "dict": "auto",
-                    "width_height_ratio": params.get("Global.width_height_ratio", "default"),
-                    "rec_img_shape": params.get("Rec.rec_img_shape", "default"),
+                    "dict": "default",
                     "model_dir": str(InferSession.DEFAULT_MODEL_PATH) if model_data_dir else "",
                 }
-                # First try with forced PP-OCRv5 params
+
                 try:
-                    ocr = RapidOCR(params=params or None)
+                    # 默认路径：完全走 RapidOCR 内置默认模型/配置
+                    ocr = RapidOCR()
                     out = ocr(path)
-                    return out, "custom", errors, param_summary
+                    return out, "default", errors, param_summary
                 except Exception as e:
-                    errors.append(f"custom_params_failed: {e}; params={param_summary}")
-                    # Fallback to RapidOCR defaults (letting RapidOCR auto-manage models)
-                    try:
-                        ocr = RapidOCR()
-                        out = ocr(path)
-                        fb_summary = dict(param_summary)
-                        fb_summary["ocr_version"] = "default"
-                        fb_summary["det"] = "default"
-                        fb_summary["rec"] = "default"
-                        fb_summary["cls"] = "default"
-                        fb_summary["dict"] = "default"
-                        return out, "fallback_default", errors, fb_summary
-                    except Exception as e2:
-                        errors.append(f"default_failed: {e2}")
-                        raise RuntimeError("; ".join(errors))
+                    errors.append(f"default_failed: {e}")
+
+                    # 可选：如果用户显式要求强制 PP-OCRv5，则再尝试一次自定义参数。
+                    if forced_params:
+                        try:
+                            ocr = RapidOCR(params=forced_params)
+                            out = ocr(path)
+                            fb_summary = dict(param_summary)
+                            fb_summary["ocr_version"] = "PP-OCRv5"
+                            fb_summary["det"] = "onnxruntime:PP-OCRv5:ch:mobile"
+                            fb_summary["rec"] = "onnxruntime:PP-OCRv5:ch:mobile"
+                            fb_summary["dict"] = "auto"
+                            return out, "custom_ppocrv5", errors, fb_summary
+                        except Exception as e2:
+                            errors.append(f"ppocrv5_failed: {e2}")
+                    raise RuntimeError("; ".join(errors))
 
             def build_result(out, backend: str, backend_errors: list[str], param_summary: dict):
                 txts = getattr(out, "txts", None) or ()

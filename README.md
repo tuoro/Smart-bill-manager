@@ -173,6 +173,8 @@ RapidOCR 的模型缓存也建议持久化（否则每次重建/重启可能需�
 - PDF：优先使用 PyMuPDF 提取内嵌文本（失败再走 RapidOCR）
 - 图片（PNG/JPG）：直接使用 RapidOCR v3
 
+支付截图（微信/支付宝等账单详情类页面）：会做一次布局感知后处理，把“标签列/值列”的 OCR 输出合并成更稳定的 `标签：值` 文本，提升字段提取稳定性。
+
 可用环境变量：
 - `SBM_OCR_ENGINE=rapidocr`（默认）
 - `SBM_OCR_DATA_DIR=/app/backend/data`（推荐；用于把 RapidOCR 自动下载的模型缓存到可持久化目录，便于容器重启后复用；模型会写入 `$SBM_OCR_DATA_DIR/rapidocr-models/`）

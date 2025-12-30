@@ -178,19 +178,40 @@ def apply_label_value_layout(lines: list[dict], profile: str) -> list[dict]:
     if profile != "default" or not lines:
         return lines
 
+    # Shared bill-detail labels across WeChat / Alipay / bank transfer screenshots.
+    # The goal is NOT to "understand" semantics here, only to stabilize the text stream
+    # into a more parseable "标签：值" form when OCR outputs a separate label/value column.
     label_set = {
+        # Common identifiers
         "交易单号",
+        "交易号",
         "商户单号",
         "订单号",
-        "商品",
-        "服务",
+        "流水号",
+        "转账单号",
+        # Time
+        "支付时间",
+        "付款时间",
+        "创建时间",
+        "交易时间",
+        "转账时间",
+        # Parties / institutions
+        "商户全称",
+        "商家",
+        "收款方",
+        "收款人",
+        "收款账户",
+        "付款方",
+        "收单机构",
+        "清算机构",
+        # Payment / status
         "支付方式",
         "付款方式",
         "当前状态",
-        "支付时间",
-        "转账时间",
-        "商户全称",
-        "收单机构",
+        # Other UI blocks
+        "商品",
+        "服务",
+        "商品说明",
     }
 
     def norm(t: str) -> str:

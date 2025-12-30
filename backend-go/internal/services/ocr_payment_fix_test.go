@@ -130,6 +130,107 @@ func TestParsePaymentScreenshot_WeChatQrPay_PayeeSplitLines(t *testing.T) {
 	}
 }
 
+func TestParsePaymentScreenshot_WeChatBillDetail_LabelListThenValues(t *testing.T) {
+	service := NewOCRService()
+
+	// Simulate a layout where OCR outputs all labels first, then values later.
+	// Key requirement: do NOT bind the next label as the value (e.g. "商户全称" -> "收单机构").
+	sampleText := `微信支付
+全部账单
+已支付
+闽辉超市
+-400.00
+交易单号
+商品
+支付方式
+当前状态
+支付时间
+商户全称
+收单机构
+商户单号
+服务
+支付成功
+2025年11月15日23:02:47
+闽辉超市
+招商银行信用卡(2506)
+4200002843202511153335484390
+上海市徐汇区闽辉杂货店
+中国工商银行股份有限公司牡丹卡中心
+由中国银联股份有限公司提供收款清算服务
+可在支持的商户扫码退款
+100160000351000012511150504679
+`
+
+	data, err := service.ParsePaymentScreenshot(sampleText)
+	if err != nil {
+		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
+	}
+
+	if data.Merchant == nil {
+		t.Fatalf("expected Merchant, got nil")
+	}
+	if *data.Merchant != "上海市徐汇区闽辉杂货店" {
+		t.Fatalf("expected Merchant=上海市徐汇区闽辉杂货店, got %q", *data.Merchant)
+	}
+
+	if data.PaymentMethod == nil {
+		t.Fatalf("expected PaymentMethod, got nil")
+	}
+	if *data.PaymentMethod != "招商银行信用卡(2506)" {
+		t.Fatalf("expected PaymentMethod=招商银行信用卡(2506), got %q", *data.PaymentMethod)
+	}
+
+	if data.TransactionTime == nil {
+		t.Fatalf("expected TransactionTime, got nil")
+	}
+	if *data.TransactionTime != "2025-11-15 23:02:47" {
+		t.Fatalf("expected TransactionTime=2025-11-15 23:02:47, got %q", *data.TransactionTime)
+	}
+
+	if data.OrderNumber == nil {
+		t.Fatalf("expected OrderNumber, got nil")
+	}
+	if *data.OrderNumber != "4200002843202511153335484390" {
+		t.Fatalf("expected OrderNumber=4200002843202511153335484390, got %q", *data.OrderNumber)
+	}
+}
+
+func TestParsePaymentScreenshot_Alipay_BillDetail_BasicFields(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `账单详情
+美团外卖
+-88.00
+支付时间
+2025年12月3日20:13:28
+付款方式
+招商银行信用卡(2506)
+交易号
+202512032013280001234567890123
+`
+
+	data, err := service.ParsePaymentScreenshot(sampleText)
+	if err != nil {
+		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
+	}
+
+	if data.Amount == nil || *data.Amount != 88.00 {
+		t.Fatalf("expected Amount=88.00, got %#v", data.Amount)
+	}
+	if data.Merchant == nil || *data.Merchant != "美团外卖" {
+		t.Fatalf("expected Merchant=美团外卖, got %#v", data.Merchant)
+	}
+	if data.TransactionTime == nil || *data.TransactionTime != "2025-12-3 20:13:28" {
+		t.Fatalf("expected TransactionTime=2025-12-3 20:13:28, got %#v", data.TransactionTime)
+	}
+	if data.PaymentMethod == nil || *data.PaymentMethod != "招商银行信用卡(2506)" {
+		t.Fatalf("expected PaymentMethod=招商银行信用卡(2506), got %#v", data.PaymentMethod)
+	}
+	if data.OrderNumber == nil || *data.OrderNumber != "202512032013280001234567890123" {
+		t.Fatalf("expected OrderNumber=202512032013280001234567890123, got %#v", data.OrderNumber)
+	}
+}
+
 // TestRemoveChineseSpaces_PreserveTimeSpace tests the fix for preserving space after 日
 func TestRemoveChineseSpaces_PreserveTimeSpace(t *testing.T) {
 	tests := []struct {

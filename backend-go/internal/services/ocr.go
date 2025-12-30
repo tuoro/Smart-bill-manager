@@ -1801,8 +1801,71 @@ func (s *OCRService) isBankTransfer(text string) bool {
 	return count >= 2
 }
 
+func extractInlineValueForLabel(line, label string) (string, bool) {
+	line = strings.TrimSpace(line)
+	label = strings.TrimSpace(label)
+	if line == "" || label == "" {
+		return "", false
+	}
+	if !strings.HasPrefix(line, label) {
+		return "", false
+	}
+	rest := strings.TrimSpace(strings.TrimPrefix(line, label))
+	rest = strings.TrimLeft(rest, "：:\t ")
+	rest = strings.TrimSpace(rest)
+	if rest == "" {
+		return "", false
+	}
+	return rest, true
+}
+
+func scanForwardValue(lines []string, labelIdx int, maxLookahead int, isBad func(string) bool) (string, bool) {
+	for j := labelIdx + 1; j < len(lines) && j <= labelIdx+maxLookahead; j++ {
+		cand := sanitizePaymentField(lines[j])
+		if cand == "" {
+			continue
+		}
+		if isBad != nil && isBad(cand) {
+			continue
+		}
+		return cand, true
+	}
+	return "", false
+}
+
+func extractValueByLabel(lines []string, label string, maxLookahead int, isBad func(string) bool) (string, bool) {
+	label = strings.TrimSpace(label)
+	if label == "" || len(lines) == 0 {
+		return "", false
+	}
+	if maxLookahead <= 0 {
+		maxLookahead = 3
+	}
+
+	for i, raw := range lines {
+		line := sanitizePaymentField(raw)
+		if line == "" {
+			continue
+		}
+		if v, ok := extractInlineValueForLabel(line, label); ok {
+			v = sanitizePaymentField(v)
+			if v != "" && (isBad == nil || !isBad(v)) {
+				return v, true
+			}
+		}
+		if line == label {
+			if v, ok := scanForwardValue(lines, i, maxLookahead, isBad); ok {
+				return v, true
+			}
+		}
+	}
+	return "", false
+}
+
 // parseWeChatPay extracts WeChat Pay information
 func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
+	lines := strings.Split(text, "\n")
+
 	isWeChatBillDetailLabel := func(v string) bool {
 		v = sanitizePaymentField(v)
 		if v == "" {
@@ -1811,7 +1874,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		labels := map[string]struct{}{
 			"交易单号": {}, "商品": {}, "支付方式": {}, "付款方式": {}, "当前状态": {}, "支付时间": {}, "转账时间": {},
 			"商户全称": {}, "收单机构": {}, "商户单号": {}, "服务": {}, "账单服务": {}, "可在支持的商户扫码退款": {},
-			"全部账单": {}, "已支付": {},
+			"全部账单": {}, "已支付": {}, "支付成功": {}, "转账成功": {},
 		}
 		_, ok := labels[v]
 		return ok
@@ -1878,75 +1941,108 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		}
 	}
 
-	// Extract merchant/receiver with additional patterns
-	// Priority: 商户全称标签 > 收款方/收款人/转账给 > 商品行（低置信度） > 通用全名
-	merchantRegexes := []*regexp.Regexp{
-		// Explicit full-name label
-		regexp.MustCompile(`商户全称[：:]?[\s]*([^\n\r]+)`),
-		// WeChat QR transfer style: "扫二维码付款-给XXXX"
-		// OCR may misread "二维码" as "维码/二 维 码" etc, so match loosely.
-		regexp.MustCompile(`扫.{0,4}码付款[-—－]?\s*给([^\n\r]+)`),
-		// 收款方/收款人
-		regexp.MustCompile(`收款方[：:]?[\s]*([^\s¥￥\n]+)`),
-		regexp.MustCompile(`收款人[：:]?[\s]*([^\s¥￥\n]+)`),
-		regexp.MustCompile(`转账给([^\s¥￥\n]+)`),
-		// 商品（低置信度兜底）
-		regexp.MustCompile(`商品[：:][\s]*([^\s(（\n]+)`),
-		regexp.MustCompile(`商品[\s]+([^\s(（\n]+)`),
-		// Lower priority: full merchant name
-		merchantFullNameRegex,
+	// Extract merchant/receiver (layout-aware, avoid capturing labels as values).
+	// Priority: QR-pay title payee > 收款方/收款人/转账给 > 商户全称 > 商品（仅看起来像商户时才优先） > 通用兜底
+	merchantIsBad := func(v string) bool {
+		v = sanitizePaymentField(v)
+		if v == "" || v == "备注" || v == "说明" {
+			return true
+		}
+		if isWeChatBillDetailLabel(v) {
+			return true
+		}
+		if isLikelyBankInstitution(v) {
+			return true
+		}
+		return false
 	}
-	for _, re := range merchantRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			merchant := strings.TrimSpace(match[1])
-			if merchant != "" {
-				merchant = sanitizePaymentField(merchant)
-				if isWeChatBillDetailLabel(merchant) {
-					continue
-				}
-				if merchant == "备注" {
-					continue
-				}
-				if merchant != "" && merchant != "说明" {
-					switch {
-					case strings.Contains(re.String(), "商户全称"):
-						if isLikelyBankInstitution(merchant) {
-							continue
-						}
-						data.Merchant = &merchant
-						data.MerchantSource = "wechat_fullname_label"
-						data.MerchantConfidence = 0.98
-					case strings.Contains(re.String(), "码付款"):
-						// "扫二维码付款-给XXX" usually refers to the payee (often a person). OCR might only
-						// catch 1 char; keep it but mark low confidence so UI can highlight.
-						if isLikelyBankInstitution(merchant) {
-							continue
-						}
-						data.Merchant = &merchant
-						data.MerchantSource = "wechat_qr_payee"
-						if len([]rune(merchant)) <= 1 {
-							data.MerchantConfidence = 0.3
-						} else {
-							data.MerchantConfidence = 0.85
-						}
-					case strings.Contains(re.String(), "收款方") || strings.Contains(re.String(), "收款人") || strings.Contains(re.String(), "转账给"):
-						data.Merchant = &merchant
-						data.MerchantSource = "wechat_label"
-						data.MerchantConfidence = 0.9
-					case strings.Contains(re.String(), "商品"):
-						if data.Merchant == nil {
-							data.Merchant = &merchant
-							data.MerchantSource = "wechat_item"
-							data.MerchantConfidence = 0.4
-						}
-					default:
-						data.Merchant = &merchant
-						data.MerchantSource = "wechat_fullname"
-						data.MerchantConfidence = 0.7
-					}
-				}
-				break
+	containsDigit := func(s string) bool {
+		for _, r := range s {
+			if unicode.IsDigit(r) {
+				return true
 			}
+		}
+		return false
+	}
+
+	// WeChat QR transfer style: "扫二维码付款-给XXXX"
+	// OCR may misread "二维码" as "维码/二 维 码" etc, so match loosely.
+	if m := regexp.MustCompile(`扫.{0,4}码付款[-—－]?\s*给([^\n\r]+)`).FindStringSubmatch(text); len(m) > 1 {
+		merchant := sanitizePaymentField(m[1])
+		if !merchantIsBad(merchant) {
+			data.Merchant = &merchant
+			data.MerchantSource = "wechat_qr_payee"
+			if len([]rune(merchant)) <= 1 {
+				data.MerchantConfidence = 0.3
+			} else {
+				data.MerchantConfidence = 0.85
+			}
+		}
+	}
+
+	// 收款方 / 收款人 / 转账给
+	if data.Merchant == nil {
+		for _, label := range []string{"收款方", "收款人", "转账给"} {
+			if v, ok := extractValueByLabel(lines, label, 4, merchantIsBad); ok {
+				merchant := sanitizePaymentField(v)
+				if !merchantIsBad(merchant) {
+					data.Merchant = &merchant
+					data.MerchantSource = "wechat_label"
+					data.MerchantConfidence = 0.9
+					break
+				}
+			}
+		}
+	}
+
+	// 商户全称：只接受“同一行内带值”的形式；如果是 label/value 分列或 label 先出现，交给后面的长扫描处理。
+	var fullNameCandidate string
+	for _, raw := range lines {
+		line := sanitizePaymentField(raw)
+		if v, ok := extractInlineValueForLabel(line, "商户全称"); ok {
+			fullNameCandidate = sanitizePaymentField(v)
+			if data.Merchant == nil && !merchantIsBad(fullNameCandidate) {
+				data.Merchant = &fullNameCandidate
+				data.MerchantSource = "wechat_fullname_label"
+				data.MerchantConfidence = 0.95
+			}
+			break
+		}
+	}
+
+	// 商品（低置信度兜底；如果看起来像商户名称，可以覆盖“商户全称”的超长公司名）
+	var itemCandidate string
+	itemIsBad := func(v string) bool {
+		v = sanitizePaymentField(v)
+		if merchantIsBad(v) {
+			return true
+		}
+		// Avoid "商品说明" -> "说明" style partial matches.
+		if v == "说明" || strings.HasPrefix(v, "说明") {
+			return true
+		}
+		return false
+	}
+	if v, ok := extractValueByLabel(lines, "商品", 3, itemIsBad); ok {
+		itemCandidate = sanitizePaymentField(v)
+	}
+	if itemCandidate != "" && !itemIsBad(itemCandidate) {
+		looksLikeMerchant := merchantGenericRegex.MatchString(itemCandidate) ||
+			(len([]rune(itemCandidate)) >= 2 && len([]rune(itemCandidate)) <= 12 && !containsDigit(itemCandidate))
+
+		if looksLikeMerchant {
+			// Prefer short merchant-like item over very long "商户全称".
+			if data.Merchant == nil || (fullNameCandidate != "" && len([]rune(fullNameCandidate)) > len([]rune(itemCandidate))+6) {
+				m := itemCandidate
+				data.Merchant = &m
+				data.MerchantSource = "wechat_item"
+				data.MerchantConfidence = 0.8
+			}
+		} else if data.Merchant == nil {
+			m := itemCandidate
+			data.Merchant = &m
+			data.MerchantSource = "wechat_item"
+			data.MerchantConfidence = 0.4
 		}
 	}
 	// If we still don't have merchant, try a line-based fallback for QR-pay title lines.
@@ -2004,9 +2100,8 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	}
 
 	// Some OCR outputs may place all labels first, then values.
-	// When that happens, regex-based "商户全称" capture may fail. Try a label-guided scan.
+	// When that happens, inline label parsing can still fail. Try a long label-guided scan.
 	if data.Merchant == nil {
-		lines := strings.Split(text, "\n")
 		for i, line := range lines {
 			if strings.TrimSpace(line) != "商户全称" {
 				continue
@@ -2015,10 +2110,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 			bestScore := -1
 			for j := i + 1; j < len(lines) && j <= i+40; j++ {
 				cand := sanitizePaymentField(lines[j])
-				if cand == "" || isWeChatBillDetailLabel(cand) {
-					continue
-				}
-				if isLikelyBankInstitution(cand) {
+				if merchantIsBad(cand) {
 					continue
 				}
 				if !merchantGenericRegex.MatchString(cand) {
@@ -2041,7 +2133,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 			}
 			if best != "" {
 				m := sanitizePaymentField(best)
-				if m != "" && !isWeChatBillDetailLabel(m) {
+				if m != "" && !merchantIsBad(m) {
 					data.Merchant = &m
 					data.MerchantSource = "wechat_fullname_label_scan"
 					data.MerchantConfidence = 0.9
@@ -2052,6 +2144,22 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	}
 
 	// Extract transaction time with support for various formats
+	// Prefer label-based extraction first to avoid "label next label" mis-binding.
+	timeIsBad := func(v string) bool {
+		v = sanitizePaymentField(v)
+		return v == "" || isWeChatBillDetailLabel(v)
+	}
+	if data.TransactionTime == nil {
+		for _, label := range []string{"支付时间", "转账时间", "交易时间"} {
+			if v, ok := extractValueByLabel(lines, label, 6, timeIsBad); ok {
+				timeStr := convertChineseDateToISO(v)
+				data.TransactionTime = &timeStr
+				data.TransactionTimeSource = "wechat_time_label"
+				data.TransactionTimeConfidence = 0.9
+				break
+			}
+		}
+	}
 	timeRegexes := []*regexp.Regexp{
 		// Standard format: 2024-01-01 12:00:00
 		regexp.MustCompile(`支付时间[：:]?[\s]*([\d]{4}-[\d]{1,2}-[\d]{1,2}\s[\d]{1,2}:[\d]{2}:[\d]{2})`),
@@ -2065,17 +2173,109 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		// Date only format
 		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日)`),
 	}
-	for _, re := range timeRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			timeStr := extractTimeFromMatch(match)
-			data.TransactionTime = &timeStr
-			data.TransactionTimeSource = "wechat_time_label"
-			data.TransactionTimeConfidence = 0.9
-			break
+	if data.TransactionTime == nil {
+		for _, re := range timeRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				timeStr := extractTimeFromMatch(match)
+				data.TransactionTime = &timeStr
+				data.TransactionTimeSource = "wechat_time_label"
+				data.TransactionTimeConfidence = 0.9
+				break
+			}
 		}
 	}
 
 	// Extract order number - handle both transaction and merchant order numbers
+	// Prefer label-based extraction first (covers "label column then values column" layouts better).
+	orderIsBad := func(v string) bool {
+		v = sanitizePaymentField(v)
+		if v == "" || isWeChatBillDetailLabel(v) {
+			return true
+		}
+		// Avoid binding a date/time line as an order id.
+		if strings.ContainsRune(v, '年') || strings.ContainsRune(v, '月') || strings.ContainsRune(v, '日') || strings.ContainsRune(v, ':') {
+			return true
+		}
+		digits := 0
+		for _, r := range v {
+			if unicode.IsDigit(r) {
+				digits++
+			}
+		}
+		// WeChat ids are typically long numeric strings.
+		return digits < 12
+	}
+	if data.OrderNumber == nil {
+		nonDigit := regexp.MustCompile(`\D`)
+		for _, label := range []string{"交易单号", "转账单号", "商户单号", "订单号", "流水号"} {
+			if v, ok := extractValueByLabel(lines, label, 6, orderIsBad); ok {
+				clean := strings.ReplaceAll(v, " ", "")
+				clean = strings.TrimLeft(clean, "：:")
+				digitsOnly := nonDigit.ReplaceAllString(clean, "")
+				if len(digitsOnly) >= 12 {
+					orderNum := digitsOnly
+					data.OrderNumber = &orderNum
+					data.OrderNumberSource = "wechat_order"
+					data.OrderNumberConfidence = 0.9
+					break
+				}
+			}
+		}
+	}
+	// If labels exist but values are far away (labels-first layout), do a longer scan for digit-like ids.
+	if data.OrderNumber == nil {
+		nonDigit := regexp.MustCompile(`\D`)
+		best := ""
+		bestScore := -1
+
+		scoreCandidate := func(s string) int {
+			score := len(s)
+			// Prefer WeChat transaction ids (often 28 digits, sometimes starting with 42).
+			if len(s) >= 26 && len(s) <= 32 {
+				score += 40
+			}
+			if strings.HasPrefix(s, "42") {
+				score += 15
+			}
+			return score
+		}
+
+		for _, label := range []string{"交易单号", "转账单号", "商户单号", "订单号", "流水号"} {
+			for i, line := range lines {
+				if strings.TrimSpace(line) != label {
+					continue
+				}
+				for j := i + 1; j < len(lines) && j <= i+60; j++ {
+					cand := sanitizePaymentField(lines[j])
+					if cand == "" || isWeChatBillDetailLabel(cand) {
+						continue
+					}
+					// Avoid mistaking time/date for an order id (e.g. "2025年11月15日23:02:47").
+					if strings.ContainsRune(cand, '年') || strings.ContainsRune(cand, '月') || strings.ContainsRune(cand, '日') || strings.ContainsRune(cand, ':') {
+						continue
+					}
+					cand = strings.TrimLeft(cand, "：:")
+					cand = strings.ReplaceAll(cand, " ", "")
+					digits := nonDigit.ReplaceAllString(cand, "")
+					if len(digits) < 16 {
+						continue
+					}
+					if sc := scoreCandidate(digits); sc > bestScore {
+						bestScore = sc
+						best = digits
+					}
+				}
+				// Keep scanning other occurrences of the same label; stop only after trying earlier labels.
+			}
+			if best != "" {
+				orderNum := best
+				data.OrderNumber = &orderNum
+				data.OrderNumberSource = "wechat_order_label_scan"
+				data.OrderNumberConfidence = 0.8
+				break
+			}
+		}
+	}
 	orderRegexes := []*regexp.Regexp{
 		regexp.MustCompile(`交易单号[：:]?[\s]*([\d]+)`),
 		regexp.MustCompile(`商户单号[：:]?[\s]*([\d]+)`),
@@ -2084,29 +2284,51 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		// Transfer receipts sometimes wrap lines or insert spaces
 		regexp.MustCompile(`转账单号[：:]?[\s]*([\d][\d\s]+)`),
 	}
-	for _, re := range orderRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			orderNum := strings.ReplaceAll(match[1], " ", "")
-			data.OrderNumber = &orderNum
-			data.OrderNumberSource = "wechat_order"
-			data.OrderNumberConfidence = 0.9
-			break
+	if data.OrderNumber == nil {
+		for _, re := range orderRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				orderNum := strings.ReplaceAll(match[1], " ", "")
+				data.OrderNumber = &orderNum
+				data.OrderNumberSource = "wechat_order"
+				data.OrderNumberConfidence = 0.9
+				break
+			}
 		}
 	}
 
 	// Extract actual payment method from text
+	// Prefer label-based extraction first to avoid "支付方式\n当前状态" etc.
+	methodIsBad := func(v string) bool {
+		v = sanitizePaymentMethod(v)
+		return v == "" || isWeChatBillDetailLabel(v)
+	}
+	if data.PaymentMethod == nil {
+		for _, label := range []string{"支付方式", "付款方式"} {
+			if v, ok := extractValueByLabel(lines, label, 6, methodIsBad); ok {
+				method := sanitizePaymentMethod(v)
+				if method != "" && !isWeChatBillDetailLabel(method) {
+					data.PaymentMethod = &method
+					data.PaymentMethodSource = "wechat_method_label"
+					data.PaymentMethodConfidence = 0.9
+					break
+				}
+			}
+		}
+	}
 	paymentMethodRegexes := []*regexp.Regexp{
 		// 支付方式：<换行>招商银行信用卡(2506)
 		regexp.MustCompile(`支付方式[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
 	}
-	for _, re := range paymentMethodRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			method := sanitizePaymentMethod(strings.TrimSpace(match[1]))
-			if method != "" && !isWeChatBillDetailLabel(method) {
-				data.PaymentMethod = &method
-				data.PaymentMethodSource = "wechat_method_label"
-				data.PaymentMethodConfidence = 0.9
-				break
+	if data.PaymentMethod == nil {
+		for _, re := range paymentMethodRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				method := sanitizePaymentMethod(strings.TrimSpace(match[1]))
+				if method != "" && !isWeChatBillDetailLabel(method) {
+					data.PaymentMethod = &method
+					data.PaymentMethodSource = "wechat_method_label"
+					data.PaymentMethodConfidence = 0.9
+					break
+				}
 			}
 		}
 	}
@@ -2153,6 +2375,8 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 
 // parseAlipay extracts Alipay information
 func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
+	lines := strings.Split(text, "\n")
+
 	// Extract amount with support for negative numbers and large amounts
 	amountRegexes := []*regexp.Regexp{
 		// Negative amount with optional currency symbol
@@ -2175,37 +2399,104 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 	}
 
 	// Extract merchant - prioritize short names
-	if m := extractAlipayMerchantFromBillDetail(text); m != "" {
-		data.Merchant = &m
-		data.MerchantSource = "alipay_bill_detail"
-		data.MerchantConfidence = 0.9
-	}
-	merchantRegexes := []*regexp.Regexp{
-		// NOTE: Require delimiter to avoid matching "商品说明" -> "说明".
-		regexp.MustCompile(`商品[：:][\s]*([^\s(（\n]+)`),
-		regexp.MustCompile(`商品[\s]+([^\s(（\n]+)`),
-		regexp.MustCompile(`商家[：:]?[\s]*([^\s¥￥\n]+)`),
-		regexp.MustCompile(`收款方[：:]?[\s]*([^\s¥￥\n]+)`),
-		regexp.MustCompile(`付款给([^\s¥￥\n]+)`),
-		merchantFullNameRegex,
-	}
-	for _, re := range merchantRegexes {
-		if data.Merchant != nil {
-			break
+	alipayMerchantIsBad := func(v string) bool {
+		v = sanitizePaymentField(v)
+		if v == "" || v == "说明" || v == "详情" {
+			return true
 		}
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			merchant := sanitizePaymentField(match[1])
-			if merchant == "" || merchant == "说明" {
-				continue
+		switch v {
+		case "账单详情", "交易成功", "付款成功",
+			"支付时间", "付款时间", "创建时间", "交易时间",
+			"支付方式", "付款方式",
+			"商品说明", "查看购物详情", "服务详情", "进入小程序",
+			"收单机构", "清算机构":
+			return true
+		}
+		// Avoid "商品说明" -> "说明" style partial matches.
+		if v == "商品说明" || strings.HasPrefix(v, "说明") {
+			return true
+		}
+		return false
+	}
+
+	if data.Merchant == nil {
+		if m := extractAlipayMerchantFromBillDetail(text); m != "" {
+			data.Merchant = &m
+			data.MerchantSource = "alipay_bill_detail"
+			data.MerchantConfidence = 0.9
+		}
+	}
+
+	// Labels commonly seen in Alipay receipts.
+	if data.Merchant == nil {
+		for _, label := range []string{"商家", "收款方"} {
+			if v, ok := extractValueByLabel(lines, label, 6, alipayMerchantIsBad); ok {
+				merchant := sanitizePaymentField(v)
+				if !alipayMerchantIsBad(merchant) {
+					data.Merchant = &merchant
+					data.MerchantSource = "alipay_label"
+					data.MerchantConfidence = 0.85
+					break
+				}
 			}
-			data.Merchant = &merchant
-			data.MerchantSource = "alipay_label"
-			data.MerchantConfidence = 0.8
-			break
+		}
+	}
+
+	// 商品（仅在看起来像“商户简称/门店名”时才作为兜底）
+	if data.Merchant == nil {
+		itemIsBad := func(v string) bool {
+			v = sanitizePaymentField(v)
+			if alipayMerchantIsBad(v) {
+				return true
+			}
+			if v == "说明" || strings.HasPrefix(v, "说明") {
+				return true
+			}
+			return false
+		}
+		if v, ok := extractValueByLabel(lines, "商品", 3, itemIsBad); ok {
+			item := sanitizePaymentField(v)
+			if item != "" && !itemIsBad(item) {
+				looksLikeMerchant := merchantGenericRegex.MatchString(item) ||
+					(len([]rune(item)) >= 2 && len([]rune(item)) <= 12 && !strings.ContainsAny(item, "0123456789"))
+				if looksLikeMerchant {
+					data.Merchant = &item
+					data.MerchantSource = "alipay_item"
+					data.MerchantConfidence = 0.7
+				}
+			}
+		}
+	}
+
+	// Lower priority: full merchant name
+	if data.Merchant == nil {
+		if match := merchantFullNameRegex.FindStringSubmatch(text); len(match) > 1 {
+			merchant := sanitizePaymentField(match[1])
+			if merchant != "" && !alipayMerchantIsBad(merchant) {
+				data.Merchant = &merchant
+				data.MerchantSource = "alipay_fullname"
+				data.MerchantConfidence = 0.7
+			}
 		}
 	}
 
 	// Extract transaction time
+	// Prefer label-based extraction first.
+	timeIsBad := func(v string) bool {
+		v = sanitizePaymentField(v)
+		return v == "" || v == "账单详情"
+	}
+	if data.TransactionTime == nil {
+		for _, label := range []string{"支付时间", "付款时间", "创建时间", "交易时间"} {
+			if v, ok := extractValueByLabel(lines, label, 6, timeIsBad); ok {
+				timeStr := convertChineseDateToISO(v)
+				data.TransactionTime = &timeStr
+				data.TransactionTimeSource = "alipay_time_label"
+				data.TransactionTimeConfidence = 0.85
+				break
+			}
+		}
+	}
 	timeRegexes := []*regexp.Regexp{
 		// Alipay often prints "支付时间" and sometimes omits the space between date and time.
 		regexp.MustCompile(`支付时间[：:]?[\s]*([\d]{4}-[\d]{1,2}-[\d]{1,2})[\s]*([\d]{1,2}:[\d]{2}:[\d]{2})`),
@@ -2221,17 +2512,39 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日)([\d]{1,2}:[\d]{2}:[\d]{2})`),
 		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日)`),
 	}
-	for _, re := range timeRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			timeStr := extractTimeFromMatch(match)
-			data.TransactionTime = &timeStr
-			data.TransactionTimeSource = "alipay_time_label"
-			data.TransactionTimeConfidence = 0.85
-			break
+	if data.TransactionTime == nil {
+		for _, re := range timeRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				timeStr := extractTimeFromMatch(match)
+				data.TransactionTime = &timeStr
+				data.TransactionTimeSource = "alipay_time_label"
+				data.TransactionTimeConfidence = 0.85
+				break
+			}
 		}
 	}
 
 	// Extract order number
+	// Prefer label-based extraction first.
+	if data.OrderNumber == nil {
+		orderIsBad := func(v string) bool {
+			v = sanitizePaymentField(v)
+			return v == "" || v == "账单详情"
+		}
+		for _, label := range []string{"交易单号", "交易号", "订单号", "商户单号", "流水号"} {
+			if v, ok := extractValueByLabel(lines, label, 6, orderIsBad); ok {
+				orderNum := strings.ReplaceAll(v, " ", "")
+				orderNum = strings.TrimLeft(orderNum, "：:")
+				orderNum = sanitizePaymentField(orderNum)
+				if orderNum != "" {
+					data.OrderNumber = &orderNum
+					data.OrderNumberSource = "alipay_order"
+					data.OrderNumberConfidence = 0.9
+					break
+				}
+			}
+		}
+	}
 	orderRegexes := []*regexp.Regexp{
 		regexp.MustCompile(`交易单号[：:]?[\s]*([\d]+)`),
 		regexp.MustCompile(`商户单号[：:]?[\s]*([\d]+)`),
@@ -2239,31 +2552,53 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 		regexp.MustCompile(`交易号[：:]?[\s]*([\d]+)`),
 		regexp.MustCompile(`流水号[：:]?[\s]*([\d]+)`),
 	}
-	for _, re := range orderRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			orderNum := strings.ReplaceAll(match[1], " ", "")
-			data.OrderNumber = &orderNum
-			data.OrderNumberSource = "alipay_order"
-			data.OrderNumberConfidence = 0.9
-			break
+	if data.OrderNumber == nil {
+		for _, re := range orderRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				orderNum := strings.ReplaceAll(match[1], " ", "")
+				data.OrderNumber = &orderNum
+				data.OrderNumberSource = "alipay_order"
+				data.OrderNumberConfidence = 0.9
+				break
+			}
 		}
 	}
 
 	// Extract payment method
-	paymentMethodRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
-	}
-	for _, re := range paymentMethodRegexes {
-		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			method := strings.TrimSpace(match[1])
-			if method != "" {
-				method = sanitizePaymentMethod(method)
+	// Prefer label-based extraction first.
+	if data.PaymentMethod == nil {
+		methodIsBad := func(v string) bool {
+			v = sanitizePaymentMethod(v)
+			return v == ""
+		}
+		for _, label := range []string{"支付方式", "付款方式"} {
+			if v, ok := extractValueByLabel(lines, label, 6, methodIsBad); ok {
+				method := sanitizePaymentMethod(v)
 				if method != "" {
 					data.PaymentMethod = &method
 					data.PaymentMethodSource = "alipay_method_label"
-					data.PaymentMethodConfidence = 0.8
+					data.PaymentMethodConfidence = 0.85
+					break
 				}
-				break
+			}
+		}
+	}
+	paymentMethodRegexes := []*regexp.Regexp{
+		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
+	}
+	if data.PaymentMethod == nil {
+		for _, re := range paymentMethodRegexes {
+			if match := re.FindStringSubmatch(text); len(match) > 1 {
+				method := strings.TrimSpace(match[1])
+				if method != "" {
+					method = sanitizePaymentMethod(method)
+					if method != "" {
+						data.PaymentMethod = &method
+						data.PaymentMethodSource = "alipay_method_label"
+						data.PaymentMethodConfidence = 0.8
+					}
+					break
+				}
 			}
 		}
 	}

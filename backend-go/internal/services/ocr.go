@@ -1719,10 +1719,12 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 	// Try to detect payment platform and extract accordingly
 	if s.isWeChatPay(text) {
 		s.parseWeChatPay(text, data)
-	} else if s.isAlipay(text) {
-		s.parseAlipay(text, data)
 	} else if s.isJDBillDetail(text) {
 		s.parseJDBillDetail(text, data)
+	} else if s.isUnionPayBillDetail(text) {
+		s.parseUnionPayBillDetail(text, data)
+	} else if s.isAlipay(text) {
+		s.parseAlipay(text, data)
 	} else if s.isBankTransfer(text) {
 		s.parseBankTransfer(text, data)
 	}
@@ -1819,6 +1821,32 @@ func (s *OCRService) isJDBillDetail(text string) bool {
 		return true
 	}
 	if strings.Contains(text, "总订单编号") || strings.Contains(text, "商户单号") {
+		return true
+	}
+	return false
+}
+
+// isUnionPayBillDetail checks if text looks like UnionPay (云闪付) bill detail UI.
+func (s *OCRService) isUnionPayBillDetail(text string) bool {
+	if !strings.Contains(text, "账单详情") {
+		return false
+	}
+	// Avoid misclassifying JD.
+	if s.isJDBillDetail(text) {
+		return false
+	}
+	// Strong signals for UnionPay bill detail.
+	if strings.Contains(text, "云闪付") {
+		return true
+	}
+	if strings.Contains(text, "订单金额") && strings.Contains(text, "订单时间") {
+		return true
+	}
+	if strings.Contains(text, "商户订单号") && strings.Contains(text, "订单编号") {
+		return true
+	}
+	// UnionPay often shows "在此商户的交易" entry.
+	if strings.Contains(text, "在此商户的交易") && strings.Contains(text, "订单时间") {
 		return true
 	}
 	return false
@@ -2644,6 +2672,138 @@ func (s *OCRService) parseJDBillDetail(text string, data *PaymentExtractedData) 
 					data.PaymentMethod = &method
 					data.PaymentMethodSource = "jd_method"
 					data.PaymentMethodConfidence = 0.85
+					break
+				}
+			}
+		}
+	}
+}
+
+// parseUnionPayBillDetail extracts fields from UnionPay (云闪付) bill detail screenshots.
+func (s *OCRService) parseUnionPayBillDetail(text string, data *PaymentExtractedData) {
+	lines := strings.Split(text, "\n")
+
+	// Amount: prefer "订单金额", fallback to negative amount line.
+	if data.Amount == nil {
+		if v, ok := extractValueByLabel(lines, "订单金额", 4, nil); ok {
+			if amount := parseAmount(v); amount != nil && *amount >= MinValidAmount {
+				data.Amount = amount
+				data.AmountSource = "unionpay_amount_label"
+				data.AmountConfidence = 0.9
+			}
+		}
+	}
+	if data.Amount == nil {
+		if m := negativeAmountRegex.FindStringSubmatch(text); len(m) > 1 {
+			if amount := parseAmount(m[1]); amount != nil && *amount >= MinValidAmount {
+				data.Amount = amount
+				data.AmountSource = "unionpay_amount"
+				data.AmountConfidence = 0.85
+			}
+		}
+	}
+
+	// Merchant: first meaningful line after "账单详情" and before the amount line.
+	if data.Merchant == nil {
+		block := map[string]struct{}{
+			"账单详情": {}, "当前状态": {}, "交易成功": {}, "支付成功": {},
+			"订单金额": {}, "付款方式": {}, "支付方式": {}, "订单时间": {}, "订单编号": {}, "商户订单号": {},
+			"点击查看": {}, "点击查看>": {}, "在此商户的交易": {},
+		}
+		amountLineRe := regexp.MustCompile(`^\s*[-−]\s*[¥￥]?\s*[\d,]+(?:\.\d{1,2})?\s*$`)
+		foundDetail := false
+		for i := 0; i < len(lines); i++ {
+			line := sanitizePaymentField(lines[i])
+			if line == "" {
+				continue
+			}
+			if line == "账单详情" {
+				foundDetail = true
+				continue
+			}
+			if !foundDetail {
+				continue
+			}
+			if amountLineRe.MatchString(line) {
+				break
+			}
+			if _, ok := block[line]; ok {
+				continue
+			}
+			// Skip badge-like fragments.
+			if len([]rune(line)) <= 2 && strings.ContainsAny(line, "+·•") {
+				continue
+			}
+			if len([]rune(line)) >= 2 && len([]rune(line)) <= MaxMerchantNameLength {
+				m := line
+				data.Merchant = &m
+				data.MerchantSource = "unionpay_bill_detail"
+				data.MerchantConfidence = 0.9
+				break
+			}
+		}
+	}
+
+	// Time: "订单时间" (fallback to 交易时间/支付时间).
+	if data.TransactionTime == nil {
+		timeIsBad := func(v string) bool {
+			v = sanitizePaymentField(v)
+			return v == "" || v == "交易成功" || v == "当前状态"
+		}
+		for _, label := range []string{"订单时间", "交易时间", "支付时间"} {
+			if v, ok := extractValueByLabel(lines, label, 6, timeIsBad); ok {
+				t := convertChineseDateToISO(v)
+				data.TransactionTime = &t
+				data.TransactionTimeSource = "unionpay_time_label"
+				data.TransactionTimeConfidence = 0.9
+				break
+			}
+		}
+	}
+
+	// Order/transaction id: prefer 商户订单号 (more useful unique id), fallback to 订单编号.
+	if data.OrderNumber == nil {
+		nonDigit := regexp.MustCompile(`\D`)
+		orderIsBad := func(v string) bool {
+			v = sanitizePaymentField(v)
+			if v == "" || strings.ContainsRune(v, '年') || strings.ContainsRune(v, ':') {
+				return true
+			}
+			digits := nonDigit.ReplaceAllString(v, "")
+			return len(digits) < 8
+		}
+		for _, label := range []string{"商户订单号", "订单编号"} {
+			if v, ok := extractValueByLabel(lines, label, 6, orderIsBad); ok {
+				digits := nonDigit.ReplaceAllString(v, "")
+				if digits == "" {
+					continue
+				}
+				order := digits
+				data.OrderNumber = &order
+				if label == "商户订单号" {
+					data.OrderNumberSource = "unionpay_merchant_order"
+				} else {
+					data.OrderNumberSource = "unionpay_order"
+				}
+				data.OrderNumberConfidence = 0.9
+				break
+			}
+		}
+	}
+
+	// Payment method: "付款方式" (fallback to 支付方式).
+	if data.PaymentMethod == nil {
+		methodIsBad := func(v string) bool {
+			v = sanitizePaymentMethod(v)
+			return v == "" || strings.Contains(v, "账单详情") || strings.Contains(v, "交易成功")
+		}
+		for _, label := range []string{"付款方式", "支付方式"} {
+			if v, ok := extractValueByLabel(lines, label, 6, methodIsBad); ok {
+				method := sanitizePaymentMethod(v)
+				if method != "" {
+					data.PaymentMethod = &method
+					data.PaymentMethodSource = "unionpay_method_label"
+					data.PaymentMethodConfidence = 0.9
 					break
 				}
 			}
@@ -4613,7 +4773,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 
 // parseAmount parses amount string to float64
 func parseAmount(s string) *float64 {
-	// Remove commas and spaces
+	// Remove currency symbols, commas and spaces
+	s = strings.NewReplacer("￥", "", "¥", "").Replace(s)
 	s = strings.ReplaceAll(s, ",", "")
 	s = strings.ReplaceAll(s, " ", "")
 	s = strings.TrimSpace(s)

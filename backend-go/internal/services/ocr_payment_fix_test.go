@@ -342,6 +342,63 @@ func TestParsePaymentScreenshot_JDPay_BillDetail_ShouldExtractTimeAndOrder(t *te
 	}
 }
 
+func TestParsePaymentScreenshot_UnionPay_BillDetail_ShouldUseUnionPaySources(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `账单详情
+东方航空 (航空客票）
+-￥1,301.00
+当前状态
+交易成功
+订单金额
+￥1,301.00
+付款方式
+招商银行银联储蓄卡[6797]
+订单时间
+2025年6月19日17:21:58
+订单编号
+512652026153924297531
+商户订单号
+2025061973403096
+在此商户的交易
+点击查看>`
+
+	data, err := service.ParsePaymentScreenshot(sampleText)
+	if err != nil {
+		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
+	}
+	if data.Amount == nil || *data.Amount != 1301.00 {
+		t.Fatalf("expected Amount=1301.00, got %#v", data.Amount)
+	}
+	if data.AmountSource != "unionpay_amount_label" {
+		t.Fatalf("expected AmountSource=unionpay_amount_label, got %q", data.AmountSource)
+	}
+	if data.Merchant == nil || *data.Merchant != "东方航空 (航空客票）" {
+		t.Fatalf("expected Merchant=东方航空 (航空客票）, got %#v", data.Merchant)
+	}
+	if data.MerchantSource != "unionpay_bill_detail" {
+		t.Fatalf("expected MerchantSource=unionpay_bill_detail, got %q", data.MerchantSource)
+	}
+	if data.PaymentMethod == nil || *data.PaymentMethod != "招商银行银联储蓄卡[6797]" {
+		t.Fatalf("expected PaymentMethod=招商银行银联储蓄卡[6797], got %#v", data.PaymentMethod)
+	}
+	if data.PaymentMethodSource != "unionpay_method_label" {
+		t.Fatalf("expected PaymentMethodSource=unionpay_method_label, got %q", data.PaymentMethodSource)
+	}
+	if data.TransactionTime == nil || *data.TransactionTime != "2025-6-19 17:21:58" {
+		t.Fatalf("expected TransactionTime=2025-6-19 17:21:58, got %#v", data.TransactionTime)
+	}
+	if data.TransactionTimeSource != "unionpay_time_label" {
+		t.Fatalf("expected TransactionTimeSource=unionpay_time_label, got %q", data.TransactionTimeSource)
+	}
+	if data.OrderNumber == nil || *data.OrderNumber != "2025061973403096" {
+		t.Fatalf("expected OrderNumber=2025061973403096, got %#v", data.OrderNumber)
+	}
+	if data.OrderNumberSource != "unionpay_merchant_order" {
+		t.Fatalf("expected OrderNumberSource=unionpay_merchant_order, got %q", data.OrderNumberSource)
+	}
+}
+
 // TestRemoveChineseSpaces_PreserveTimeSpace tests the fix for preserving space after 日
 func TestRemoveChineseSpaces_PreserveTimeSpace(t *testing.T) {
 	tests := []struct {

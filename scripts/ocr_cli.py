@@ -310,20 +310,20 @@ def main():
                 try:
                     ocr = RapidOCR(params=params or None)
                     out = ocr(path)
-                    return out, "custom"
+                    return out, "custom", errors
                 except Exception as e:
                     errors.append(f"custom_params_failed: {e}")
                     # Fallback to RapidOCR defaults (letting RapidOCR auto-manage models)
                     try:
                         ocr = RapidOCR()
                         out = ocr(path)
-                        return out, "fallback_default"
+                        return out, "fallback_default", errors
                     except Exception as e2:
                         errors.append(f"default_failed: {e2}")
                         raise RuntimeError("; ".join(errors))
 
             def run_one(path: str):
-                out, backend = run_with_fallback(path)
+                out, backend, backend_errors = run_with_fallback(path)
                 txts = getattr(out, "txts", None) or ()
                 scores = getattr(out, "scores", None) or ()
                 boxes = getattr(out, "boxes", None)
@@ -350,6 +350,7 @@ def main():
                     "line_count": len(lines),
                     "score": score_lines(lines),
                     "backend": backend,
+                    "backend_errors": backend_errors,
                 }
 
             multipass = safe_int(os.getenv("SBM_RAPIDOCR_MULTIPASS"), 1 if args.profile == "pdf" else 0)
@@ -379,7 +380,14 @@ def main():
                         r = run_one(out_path)
                         if debug:
                             variants_debug.append(
-                                {"variant": name, "score": r["score"], "lines": r["line_count"], "chars": len(r["text"])}
+                                {
+                                    "variant": name,
+                                    "score": r["score"],
+                                    "lines": r["line_count"],
+                                    "chars": len(r["text"]),
+                                    "backend": r.get("backend", ""),
+                                    "backend_errors": r.get("backend_errors", []),
+                                }
                             )
                         if r["score"] > best["score"]:
                             best = r
@@ -394,6 +402,7 @@ def main():
             "profile": args.profile,
             "variant": best_variant,
             "backend": best.get("backend", ""),
+            "backend_errors": best.get("backend_errors", []),
         }
         if debug:
             payload["variants"] = variants_debug

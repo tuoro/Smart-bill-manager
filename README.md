@@ -167,7 +167,7 @@ RapidOCR 的模型缓存也建议持久化（否则每次重建/重启可能需�
 
 #### OCR（RapidOCR v3，CPU）
 
-默认使用 `RapidOCR v3 + onnxruntime` 在 CPU 上进行识别，并默认强制使用 **PP-OCRv5（mobile）** 权重（更好的识别效果；如首次下载模型失败会自动回退到 RapidOCR 默认配置）。
+默认使用 `RapidOCR v3 + onnxruntime` 在 CPU 上进行识别，使用 RapidOCR 的**内置默认模型/配置**。
 
 发票识别支持 **PDF/图片**：
 - PDF：优先使用 PyMuPDF 提取内嵌文本（失败再走 RapidOCR）
@@ -175,7 +175,7 @@ RapidOCR 的模型缓存也建议持久化（否则每次重建/重启可能需�
 
 可用环境变量：
 - `SBM_OCR_ENGINE=rapidocr`（默认）
-- `SBM_OCR_DATA_DIR=/app/backend/data`（推荐；用于把 RapidOCR 自动下载的模型缓存到可持久化目录，便于容器重启后复用；默认模型会写入 `$SBM_OCR_DATA_DIR/rapidocr-models/`。如果你把该变量直接设为 `/opt/rapidocr-models` 这种“模型目录本身”，也会直接使用该目录）
+- `SBM_OCR_DATA_DIR=/app/backend/data`（推荐；用于把 RapidOCR 自动下载的模型缓存到可持久化目录，便于容器重启后复用；模型会写入 `$SBM_OCR_DATA_DIR/rapidocr-models/`）
 - `SBM_PDF_TEXT_EXTRACTOR=pymupdf|off`（默认 `pymupdf`：优先用 PyMuPDF 提取 PDF 内嵌文本；失败再走 OCR）
 - `SBM_PDF_OCR_DPI=220`（可选，范围建议 `120-450`；更高更清晰但更慢）
 - `SBM_RAPIDOCR_MULTIPASS=1`（可选；对 `profile=pdf` 默认启用，用多种增强版本选最优结果）
@@ -212,12 +212,12 @@ docker-compose up -d --build
 docker build -t smart-bill-manager .
 
 # 运行容器
-docker run -d \
+  docker run -d \
   --name smart-bill-manager \
   -p 80:80 \
+  -e SBM_OCR_DATA_DIR=/app/backend/data \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
-  -v rapidocr-models:/opt/rapidocr-models \
   smart-bill-manager
 ```
 

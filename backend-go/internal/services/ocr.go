@@ -304,18 +304,6 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 				fmt.Printf("[OCR] model cache dir: %s\n", strings.TrimSpace(s))
 			}
 		}
-		if v, ok := result.Params["qr_rescue"]; ok {
-			switch vv := v.(type) {
-			case bool:
-				if vv {
-					fmt.Printf("[OCR] note: wechat QR payee rescue used\n")
-				}
-			case string:
-				if strings.EqualFold(strings.TrimSpace(vv), "true") || strings.TrimSpace(vv) == "1" {
-					fmt.Printf("[OCR] note: wechat QR payee rescue used\n")
-				}
-			}
-		}
 	}
 	if result.Variant != "" {
 		fmt.Printf("[OCR] OCR extracted %d lines, %d characters (engine=%s profile=%s variant=%s backend=%s)\n", result.LineCount, len(result.Text), engine, profile, result.Variant, be)
@@ -2015,7 +2003,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		}
 	}
 
-	// PP-OCRv5 may output bill-detail pages with all labels first, then values.
+	// Some OCR outputs may place all labels first, then values.
 	// When that happens, regex-based "商户全称" capture may fail. Try a label-guided scan.
 	if data.Merchant == nil {
 		lines := strings.Split(text, "\n")

@@ -1721,6 +1721,8 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 		s.parseWeChatPay(text, data)
 	} else if s.isAlipay(text) {
 		s.parseAlipay(text, data)
+	} else if s.isJDBillDetail(text) {
+		s.parseJDBillDetail(text, data)
 	} else if s.isBankTransfer(text) {
 		s.parseBankTransfer(text, data)
 	}
@@ -1793,12 +1795,33 @@ func (s *OCRService) isAlipay(text string) bool {
 func (s *OCRService) isBankTransfer(text string) bool {
 	keywords := []string{"银行", "转账", "交易成功", "电子回单"}
 	count := 0
+	hasStrongSignal := false
 	for _, keyword := range keywords {
 		if strings.Contains(text, keyword) {
 			count++
+			if keyword == "转账" || keyword == "电子回单" {
+				hasStrongSignal = true
+			}
 		}
 	}
-	return count >= 2
+	// "银行" + "交易成功" is too generic (may match JD/other bill-detail UIs),
+	// require at least one strong signal (转账 / 电子回单).
+	return hasStrongSignal && count >= 2
+}
+
+// isJDBillDetail checks if text looks like JD Pay bill detail UI.
+func (s *OCRService) isJDBillDetail(text string) bool {
+	// JD bill detail often contains: 账单详情 + 创建时间 + (总订单编号/商户单号) and does not necessarily include "支付宝/微信".
+	if !strings.Contains(text, "账单详情") {
+		return false
+	}
+	if strings.Contains(text, "京东") || strings.Contains(text, "JD") {
+		return true
+	}
+	if strings.Contains(text, "总订单编号") || strings.Contains(text, "商户单号") {
+		return true
+	}
+	return false
 }
 
 func extractInlineValueForLabel(line, label string) (string, bool) {
@@ -2483,6 +2506,148 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	}
 	if data.PaymentMethod != nil && data.PaymentMethodConfidence == 0 {
 		data.PaymentMethodConfidence = 0.6
+	}
+}
+
+// parseJDBillDetail extracts fields from JD Pay bill detail screenshots.
+func (s *OCRService) parseJDBillDetail(text string, data *PaymentExtractedData) {
+	lines := strings.Split(text, "\n")
+
+	// Amount: prefer negative amount shown on the page.
+	if data.Amount == nil {
+		if m := negativeAmountRegex.FindStringSubmatch(text); len(m) > 1 {
+			if amount := parseAmount(m[1]); amount != nil && *amount >= MinValidAmount {
+				data.Amount = amount
+				data.AmountSource = "jd_amount"
+				data.AmountConfidence = 0.9
+			}
+		}
+	}
+
+	// Merchant: first meaningful line near "账单详情" and before amount.
+	if data.Merchant == nil {
+		block := map[string]struct{}{
+			"账单详情": {}, "交易成功": {}, "支付成功": {}, "更多": {}, "服务详情": {}, "其他服务": {}, "账单分类": {},
+			"查看常见问题": {}, "对此账单有疑问": {},
+		}
+		amountLineRe := regexp.MustCompile(`^\s*[-−]\s*[¥￥]?\s*[\d,]+(?:\.\d{1,2})?\s*$`)
+		foundDetail := false
+		for i := 0; i < len(lines); i++ {
+			line := sanitizePaymentField(lines[i])
+			if line == "" {
+				continue
+			}
+			if line == "账单详情" {
+				foundDetail = true
+				continue
+			}
+			if !foundDetail {
+				continue
+			}
+			if amountLineRe.MatchString(line) {
+				break
+			}
+			if _, ok := block[line]; ok {
+				continue
+			}
+			// Skip badge-like fragments such as "5+"
+			if len([]rune(line)) <= 2 && strings.ContainsAny(line, "+·•") {
+				continue
+			}
+			if len([]rune(line)) >= 2 && len([]rune(line)) <= MaxMerchantNameLength {
+				m := line
+				data.Merchant = &m
+				data.MerchantSource = "jd_title"
+				data.MerchantConfidence = 0.85
+				break
+			}
+		}
+	}
+
+	// Time: JD uses "创建时间" (also accept 交易时间/支付时间 if present).
+	if data.TransactionTime == nil {
+		timeIsBad := func(v string) bool {
+			v = sanitizePaymentField(v)
+			return v == "" || v == "交易成功"
+		}
+		for _, label := range []string{"交易时间", "支付时间", "创建时间"} {
+			if v, ok := extractValueByLabel(lines, label, 6, timeIsBad); ok {
+				t := convertChineseDateToISO(v)
+				data.TransactionTime = &t
+				data.TransactionTimeSource = "jd_time"
+				data.TransactionTimeConfidence = 0.85
+				break
+			}
+		}
+	}
+
+	// Order/transaction id: prefer 交易单号/交易号, otherwise use 商户单号, then 总订单编号.
+	if data.OrderNumber == nil {
+		nonDigit := regexp.MustCompile(`\D`)
+		orderIsBad := func(v string) bool {
+			v = sanitizePaymentField(v)
+			if v == "" || strings.ContainsRune(v, '年') || strings.ContainsRune(v, ':') {
+				return true
+			}
+			digits := nonDigit.ReplaceAllString(v, "")
+			return len(digits) < 8
+		}
+
+		type candidate struct {
+			label string
+			src   string
+		}
+		cands := []candidate{
+			{label: "交易单号", src: "jd_trade_no"},
+			{label: "交易号", src: "jd_trade_no"},
+			{label: "商户单号", src: "jd_merchant_order"},
+			{label: "总订单编号", src: "jd_total_order"},
+			{label: "订单编号", src: "jd_order"},
+		}
+
+		best := ""
+		bestSrc := ""
+		bestScore := -1
+		for _, c := range cands {
+			if v, ok := extractValueByLabel(lines, c.label, 6, orderIsBad); ok {
+				digits := nonDigit.ReplaceAllString(v, "")
+				if digits == "" {
+					continue
+				}
+				score := len(digits)
+				// Prefer longer ids (more likely to be unique transaction/merchant ids).
+				if score > bestScore {
+					bestScore = score
+					best = digits
+					bestSrc = c.src
+				}
+			}
+		}
+		if best != "" {
+			order := best
+			data.OrderNumber = &order
+			data.OrderNumberSource = bestSrc
+			data.OrderNumberConfidence = 0.85
+		}
+	}
+
+	// Payment method: label-based.
+	if data.PaymentMethod == nil {
+		methodIsBad := func(v string) bool {
+			v = sanitizePaymentMethod(v)
+			return v == "" || strings.Contains(v, "账单详情") || strings.Contains(v, "交易成功")
+		}
+		for _, label := range []string{"支付方式", "付款方式"} {
+			if v, ok := extractValueByLabel(lines, label, 6, methodIsBad); ok {
+				method := sanitizePaymentMethod(v)
+				if method != "" {
+					data.PaymentMethod = &method
+					data.PaymentMethodSource = "jd_method"
+					data.PaymentMethodConfidence = 0.85
+					break
+				}
+			}
+		}
 	}
 }
 

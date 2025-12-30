@@ -299,6 +299,49 @@ func TestParsePaymentScreenshot_Alipay_BillDetail_BasicFields(t *testing.T) {
 	}
 }
 
+func TestParsePaymentScreenshot_JDPay_BillDetail_ShouldExtractTimeAndOrder(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `8:22
+账单详情
+5+
+京东平台商户
+-13,897.00
+交易成功
+支付方式
+招商银行信用卡（2506）>
+创建时间
+2025-12-26 14:51:37
+总订单编号
+3359217016960312
+商户单号
+14083542512261451360858907847
+服务详情
+`
+
+	data, err := service.ParsePaymentScreenshot(sampleText)
+	if err != nil {
+		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
+	}
+
+	if data.Amount == nil || *data.Amount != 13897.00 {
+		t.Fatalf("expected Amount=13897.00, got %#v", data.Amount)
+	}
+	if data.Merchant == nil || *data.Merchant != "京东平台商户" {
+		t.Fatalf("expected Merchant=京东平台商户, got %#v", data.Merchant)
+	}
+	if data.PaymentMethod == nil || *data.PaymentMethod != "招商银行信用卡(2506)" {
+		t.Fatalf("expected PaymentMethod=招商银行信用卡(2506), got %#v", data.PaymentMethod)
+	}
+	if data.TransactionTime == nil || *data.TransactionTime != "2025-12-26 14:51:37" {
+		t.Fatalf("expected TransactionTime=2025-12-26 14:51:37, got %#v", data.TransactionTime)
+	}
+	// Prefer merchant order id when no explicit "交易单号/交易号" is present.
+	if data.OrderNumber == nil || *data.OrderNumber != "14083542512261451360858907847" {
+		t.Fatalf("expected OrderNumber=14083542512261451360858907847, got %#v", data.OrderNumber)
+	}
+}
+
 // TestRemoveChineseSpaces_PreserveTimeSpace tests the fix for preserving space after 日
 func TestRemoveChineseSpaces_PreserveTimeSpace(t *testing.T) {
 	tests := []struct {

@@ -286,8 +286,15 @@
             <span>发票号码</span>
             <span>
               {{ getInvoiceExtracted(previewInvoice)?.invoice_number || '-' }}
-              <small v-if="getInvoiceExtracted(previewInvoice)?.invoice_number_source" class="ocr-hint">
-                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.invoice_number_source) }}
+              <small
+                v-if="getInvoiceExtracted(previewInvoice)?.invoice_number_source || getInvoiceExtracted(previewInvoice)?.invoice_number_confidence"
+                class="ocr-hint"
+                :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.invoice_number_confidence)"
+              >
+                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.invoice_number_source) || '未识别' }}
+                <span v-if="getInvoiceExtracted(previewInvoice)?.invoice_number_confidence">
+                  （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.invoice_number_confidence) }}）
+                </span>
               </small>
             </span>
           </div>
@@ -295,8 +302,15 @@
             <span>开票日期</span>
             <span>
               {{ getInvoiceExtracted(previewInvoice)?.invoice_date || '-' }}
-              <small v-if="getInvoiceExtracted(previewInvoice)?.invoice_date_source" class="ocr-hint">
-                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.invoice_date_source) }}
+              <small
+                v-if="getInvoiceExtracted(previewInvoice)?.invoice_date_source || getInvoiceExtracted(previewInvoice)?.invoice_date_confidence"
+                class="ocr-hint"
+                :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.invoice_date_confidence)"
+              >
+                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.invoice_date_source) || '未识别' }}
+                <span v-if="getInvoiceExtracted(previewInvoice)?.invoice_date_confidence">
+                  （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.invoice_date_confidence) }}）
+                </span>
               </small>
             </span>
           </div>
@@ -304,8 +318,15 @@
             <span>价税合计</span>
             <span>
               {{ getInvoiceExtracted(previewInvoice)?.amount ?? '-' }}
-              <small v-if="getInvoiceExtracted(previewInvoice)?.amount_source" class="ocr-hint">
-                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.amount_source) }}
+              <small
+                v-if="getInvoiceExtracted(previewInvoice)?.amount_source || getInvoiceExtracted(previewInvoice)?.amount_confidence"
+                class="ocr-hint"
+                :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.amount_confidence)"
+              >
+                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.amount_source) || '未识别' }}
+                <span v-if="getInvoiceExtracted(previewInvoice)?.amount_confidence">
+                  （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.amount_confidence) }}）
+                </span>
               </small>
             </span>
           </div>
@@ -313,8 +334,15 @@
             <span>税额</span>
             <span>
               {{ getInvoiceExtracted(previewInvoice)?.tax_amount ?? '-' }}
-              <small v-if="getInvoiceExtracted(previewInvoice)?.tax_amount_source" class="ocr-hint">
-                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.tax_amount_source) }}
+              <small
+                v-if="getInvoiceExtracted(previewInvoice)?.tax_amount_source || getInvoiceExtracted(previewInvoice)?.tax_amount_confidence"
+                class="ocr-hint"
+                :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.tax_amount_confidence)"
+              >
+                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.tax_amount_source) || '未识别' }}
+                <span v-if="getInvoiceExtracted(previewInvoice)?.tax_amount_confidence">
+                  （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.tax_amount_confidence) }}）
+                </span>
               </small>
             </span>
           </div>
@@ -322,8 +350,15 @@
             <span>销售方</span>
             <span>
               {{ getInvoiceExtracted(previewInvoice)?.seller_name || '-' }}
-              <small v-if="getInvoiceExtracted(previewInvoice)?.seller_name_source" class="ocr-hint">
-                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.seller_name_source) }}
+              <small
+                v-if="getInvoiceExtracted(previewInvoice)?.seller_name_source || getInvoiceExtracted(previewInvoice)?.seller_name_confidence"
+                class="ocr-hint"
+                :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.seller_name_confidence)"
+              >
+                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.seller_name_source) || '未识别' }}
+                <span v-if="getInvoiceExtracted(previewInvoice)?.seller_name_confidence">
+                  （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.seller_name_confidence) }}）
+                </span>
               </small>
             </span>
           </div>
@@ -331,8 +366,15 @@
             <span>购买方</span>
             <span>
               {{ getInvoiceExtracted(previewInvoice)?.buyer_name || '-' }}
-              <small v-if="getInvoiceExtracted(previewInvoice)?.buyer_name_source" class="ocr-hint">
-                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.buyer_name_source) }}
+              <small
+                v-if="getInvoiceExtracted(previewInvoice)?.buyer_name_source || getInvoiceExtracted(previewInvoice)?.buyer_name_confidence"
+                class="ocr-hint"
+                :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.buyer_name_confidence)"
+              >
+                来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.buyer_name_source) || '未识别' }}
+                <span v-if="getInvoiceExtracted(previewInvoice)?.buyer_name_confidence">
+                  （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.buyer_name_confidence) }}）
+                </span>
               </small>
             </span>
           </div>
@@ -384,16 +426,22 @@ import type { Invoice, Payment } from '@/types'
 interface InvoiceExtractedData {
   invoice_number?: string
   invoice_number_source?: string
+  invoice_number_confidence?: number
   invoice_date?: string
   invoice_date_source?: string
+  invoice_date_confidence?: number
   amount?: number
   amount_source?: string
+  amount_confidence?: number
   tax_amount?: number
   tax_amount_source?: string
+  tax_amount_confidence?: number
   seller_name?: string
   seller_name_source?: string
+  seller_name_confidence?: number
   buyer_name?: string
   buyer_name_source?: string
+  buyer_name_confidence?: number
 }
 
 const formatSourceLabel = (src?: string) => {
@@ -415,6 +463,20 @@ const formatSourceLabel = (src?: string) => {
     seller_section: '销售方区块',
   }
   return map[src] || src
+}
+
+const confidenceLabel = (c?: number) => {
+  if (c === undefined || c === null) return ''
+  if (c >= 0.8) return '高'
+  if (c >= 0.6) return '中'
+  return '低'
+}
+
+const confidenceClass = (c?: number) => {
+  const label = confidenceLabel(c)
+  if (label === '低') return 'ocr-hint-low'
+  if (label === '中') return 'ocr-hint-mid'
+  return ''
 }
 
 const toast = useToast()
@@ -1187,5 +1249,14 @@ onMounted(() => {
   margin-left: 6px;
   color: var(--color-text-tertiary);
   font-size: 0.8rem;
+}
+
+.ocr-hint-low {
+  color: #d97706;
+  font-weight: 800;
+}
+
+.ocr-hint-mid {
+  color: var(--color-text-secondary);
 }
 </style>

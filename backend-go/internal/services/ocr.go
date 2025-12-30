@@ -129,23 +129,23 @@ func ocrEngineInstallHint(engine string) string {
 
 // PaymentExtractedData represents extracted payment information
 type PaymentExtractedData struct {
-	Amount                *float64 `json:"amount"`
-	AmountSource          string   `json:"amount_source,omitempty"`
-	AmountConfidence      float64  `json:"amount_confidence,omitempty"`
-	Merchant              *string  `json:"merchant"`
-	MerchantSource        string   `json:"merchant_source,omitempty"`
-	MerchantConfidence    float64  `json:"merchant_confidence,omitempty"`
-	TransactionTime       *string  `json:"transaction_time"`
-	TransactionTimeSource string   `json:"transaction_time_source,omitempty"`
-	TransactionTimeConfidence float64 `json:"transaction_time_confidence,omitempty"`
-	PaymentMethod         *string  `json:"payment_method"`
-	PaymentMethodSource   string   `json:"payment_method_source,omitempty"`
-	PaymentMethodConfidence float64 `json:"payment_method_confidence,omitempty"`
-	OrderNumber           *string  `json:"order_number"`
-	OrderNumberSource     string   `json:"order_number_source,omitempty"`
-	OrderNumberConfidence float64  `json:"order_number_confidence,omitempty"`
-	RawText               string   `json:"raw_text"`
-	PrettyText            string   `json:"pretty_text,omitempty"`
+	Amount                    *float64 `json:"amount"`
+	AmountSource              string   `json:"amount_source,omitempty"`
+	AmountConfidence          float64  `json:"amount_confidence,omitempty"`
+	Merchant                  *string  `json:"merchant"`
+	MerchantSource            string   `json:"merchant_source,omitempty"`
+	MerchantConfidence        float64  `json:"merchant_confidence,omitempty"`
+	TransactionTime           *string  `json:"transaction_time"`
+	TransactionTimeSource     string   `json:"transaction_time_source,omitempty"`
+	TransactionTimeConfidence float64  `json:"transaction_time_confidence,omitempty"`
+	PaymentMethod             *string  `json:"payment_method"`
+	PaymentMethodSource       string   `json:"payment_method_source,omitempty"`
+	PaymentMethodConfidence   float64  `json:"payment_method_confidence,omitempty"`
+	OrderNumber               *string  `json:"order_number"`
+	OrderNumberSource         string   `json:"order_number_source,omitempty"`
+	OrderNumberConfidence     float64  `json:"order_number_confidence,omitempty"`
+	RawText                   string   `json:"raw_text"`
+	PrettyText                string   `json:"pretty_text,omitempty"`
 }
 
 type InvoiceLineItem struct {
@@ -157,21 +157,27 @@ type InvoiceLineItem struct {
 
 // InvoiceExtractedData represents extracted invoice information
 type InvoiceExtractedData struct {
-	InvoiceNumber       *string           `json:"invoice_number"`
-	InvoiceNumberSource string            `json:"invoice_number_source,omitempty"`
-	InvoiceDate         *string           `json:"invoice_date"`
-	InvoiceDateSource   string            `json:"invoice_date_source,omitempty"`
-	Amount              *float64          `json:"amount"`
-	AmountSource        string            `json:"amount_source,omitempty"`
-	TaxAmount           *float64          `json:"tax_amount"`
-	TaxAmountSource     string            `json:"tax_amount_source,omitempty"`
-	SellerName          *string           `json:"seller_name"`
-	SellerNameSource    string            `json:"seller_name_source,omitempty"`
-	BuyerName           *string           `json:"buyer_name"`
-	BuyerNameSource     string            `json:"buyer_name_source,omitempty"`
-	Items               []InvoiceLineItem `json:"items,omitempty"`
-	RawText             string            `json:"raw_text"`
-	PrettyText          string            `json:"pretty_text,omitempty"`
+	InvoiceNumber           *string           `json:"invoice_number"`
+	InvoiceNumberSource     string            `json:"invoice_number_source,omitempty"`
+	InvoiceNumberConfidence float64           `json:"invoice_number_confidence,omitempty"`
+	InvoiceDate             *string           `json:"invoice_date"`
+	InvoiceDateSource       string            `json:"invoice_date_source,omitempty"`
+	InvoiceDateConfidence   float64           `json:"invoice_date_confidence,omitempty"`
+	Amount                  *float64          `json:"amount"`
+	AmountSource            string            `json:"amount_source,omitempty"`
+	AmountConfidence        float64           `json:"amount_confidence,omitempty"`
+	TaxAmount               *float64          `json:"tax_amount"`
+	TaxAmountSource         string            `json:"tax_amount_source,omitempty"`
+	TaxAmountConfidence     float64           `json:"tax_amount_confidence,omitempty"`
+	SellerName              *string           `json:"seller_name"`
+	SellerNameSource        string            `json:"seller_name_source,omitempty"`
+	SellerNameConfidence    float64           `json:"seller_name_confidence,omitempty"`
+	BuyerName               *string           `json:"buyer_name"`
+	BuyerNameSource         string            `json:"buyer_name_source,omitempty"`
+	BuyerNameConfidence     float64           `json:"buyer_name_confidence,omitempty"`
+	Items                   []InvoiceLineItem `json:"items,omitempty"`
+	RawText                 string            `json:"raw_text"`
+	PrettyText              string            `json:"pretty_text,omitempty"`
 }
 
 // OCRCLIResponse represents the response from the Python OCR CLI script.
@@ -3531,13 +3537,10 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 
 // ParseInvoiceData extracts invoice information from OCR text
 func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error) {
-	data := &InvoiceExtractedData{
-		RawText: text,
-	}
+	data := &InvoiceExtractedData{RawText: text}
 
 	parsedText := normalizeInvoiceTextForParsing(text)
 
-	// Extract invoice number - support both same-line and newline-separated formats
 	invoiceNumRegexes := []*regexp.Regexp{
 		regexp.MustCompile(`发票号码[：:]?\s*[\n\r]?\s*(\d+)`),
 		regexp.MustCompile(`发票代码[：:]?\s*[\n\r]?\s*(\d+)`),
@@ -3545,25 +3548,17 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	}
 	for _, re := range invoiceNumRegexes {
 		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-			invoiceNum := match[1]
-			setStringWithSource(&data.InvoiceNumber, &data.InvoiceNumberSource, invoiceNum, "label")
+			setStringWithSourceAndConfidence(&data.InvoiceNumber, &data.InvoiceNumberSource, &data.InvoiceNumberConfidence, match[1], "label", 0.9)
 			break
 		}
 	}
-
-	// If not found, try to match standalone invoice numbers (8-25 digits)
-	// This handles old format invoices (8 digits) and electronic invoices (20+ digits)
 	if data.InvoiceNumber == nil {
-		// Match 8-digit numbers on their own line (old invoice format)
-		// or 20-25 digit numbers (electronic invoice format)
 		standaloneNumRegex := regexp.MustCompile(`(?m)^(\d{8}|\d{20,25})$`)
 		if match := standaloneNumRegex.FindStringSubmatch(parsedText); len(match) > 1 {
-			invoiceNum := match[1]
-			setStringWithSource(&data.InvoiceNumber, &data.InvoiceNumberSource, invoiceNum, "standalone")
+			setStringWithSourceAndConfidence(&data.InvoiceNumber, &data.InvoiceNumberSource, &data.InvoiceNumberConfidence, match[1], "standalone", 0.7)
 		}
 	}
 
-	// Extract invoice date - support both same-line and newline-separated formats
 	dateRegexes := []*regexp.Regexp{
 		regexp.MustCompile(`开票日期[：:]?\s*[\n\r]?\s*(\d{4}年\d{1,2}月\d{1,2}日)`),
 		regexp.MustCompile(`开票日期[：:]?\s*[\n\r]?\s*(\d{4}-\d{2}-\d{2})`),
@@ -3571,129 +3566,109 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	}
 	for _, re := range dateRegexes {
 		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-			date := match[1]
-			setStringWithSource(&data.InvoiceDate, &data.InvoiceDateSource, date, "label")
+			setStringWithSourceAndConfidence(&data.InvoiceDate, &data.InvoiceDateSource, &data.InvoiceDateConfidence, match[1], "label", 0.9)
 			break
 		}
 	}
-
-	// If not found, try to match space-separated date format: "2025 年07 月02 日"
 	if data.InvoiceDate == nil {
 		if match := spaceDelimitedDatePattern.FindStringSubmatch(parsedText); len(match) > 3 {
-			// Reconstruct date: "2025年07月02日"
 			date := fmt.Sprintf("%s年%s月%s日", match[1], match[2], match[3])
-			setStringWithSource(&data.InvoiceDate, &data.InvoiceDateSource, date, "spaced_label")
+			setStringWithSourceAndConfidence(&data.InvoiceDate, &data.InvoiceDateSource, &data.InvoiceDateConfidence, date, "spaced_label", 0.8)
 		}
 	}
-
-	// If not found, try to match standalone date format (YYYY年M月D日 or YYYY年MM月DD日)
-	// This is common in electronic invoices where the date appears on its own line
 	if data.InvoiceDate == nil {
 		standaloneDateRegex := regexp.MustCompile(`(\d{4}年\d{1,2}月\d{1,2}日)`)
 		if match := standaloneDateRegex.FindStringSubmatch(parsedText); len(match) > 1 {
-			date := match[1]
-			setStringWithSource(&data.InvoiceDate, &data.InvoiceDateSource, date, "standalone")
+			setStringWithSourceAndConfidence(&data.InvoiceDate, &data.InvoiceDateSource, &data.InvoiceDateConfidence, match[1], "standalone", 0.7)
 		}
 	}
 
-	// Extract amount - support newline-separated formats like "（小写）\n¥\n3080.00"
-	amountRegexes := []*regexp.Regexp{
-		// Prefer tax-inclusive total (价税合计).
-		regexp.MustCompile(`价税合计\s*[（(]?\s*小写\s*[)）]?\s*[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
-		regexp.MustCompile(`总计\s*[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
-		// "合计金额(小写)" is usually tax-exclusive; keep as fallback.
-		regexp.MustCompile(`合计金额\s*[（(]?\s*小写\s*[)）]?\s*[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
-		regexp.MustCompile(`[（(]?\s*小写\s*[)）]?\s*[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
-		regexp.MustCompile(`金额\s*[：:]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`),
+	amountRegexes := []struct {
+		re   *regexp.Regexp
+		src  string
+		conf float64
+	}{
+		{regexp.MustCompile(`价税合计\s*[（(]?小写[）)]?\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "tax_total_label", 0.9},
+		{regexp.MustCompile(`(?s)价税合计[（(]?大写[）)]?.{0,20}（小写）\s*[¥￥]?\s*([\d,.]+)`), "tax_total_label_daxie_then_xiaoxie", 0.9},
+		{regexp.MustCompile(`总计\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "total_label", 0.85},
+		{regexp.MustCompile(`合计\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "sum_label", 0.8},
+		{regexp.MustCompile(`合计金额[（(]?小写[）)]?\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "sum_amount_label", 0.8},
+		{regexp.MustCompile(`小写\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "xiaoxie_label", 0.7},
+		{regexp.MustCompile(`金额\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "generic_amount", 0.6},
 	}
-	for _, re := range amountRegexes {
-		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
+	for _, cfg := range amountRegexes {
+		if match := cfg.re.FindStringSubmatch(parsedText); len(match) > 1 {
 			if amount := parseAmount(match[1]); amount != nil {
-				setAmountWithSource(&data.Amount, &data.AmountSource, amount, "tax_total_label")
+				setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, amount, cfg.src, cfg.conf)
 				break
 			}
 		}
 	}
-
-	// If not found, try to find amount after Chinese character amount (e.g., "叁仟零捌拾圆整" followed by "¥3080.00")
-	// This handles the electronic invoice format where the amount appears after the Chinese text
-	// Include both simplified (万) and traditional (萬) characters
 	if data.Amount == nil {
-		chineseAmountRegex := regexp.MustCompile(`[零壹贰叁肆伍陆柒捌玖拾佰仟万萬亿]+圆整[\s\n\r]*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`)
+		chineseAmountRegex := regexp.MustCompile(`[零壹贰叁肆伍陆柒捌玖拾佰仟万亿]+圆整[\s\n\r]*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`)
 		if match := chineseAmountRegex.FindStringSubmatch(parsedText); len(match) > 1 {
 			if amount := parseAmount(match[1]); amount != nil {
-				setAmountWithSource(&data.Amount, &data.AmountSource, amount, "chinese_amount")
+				setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, amount, "chinese_amount", 0.7)
 			}
 		}
 	}
-
-	// If still not found, try to match standalone amount at the end of text
-	// This handles cases where the amount appears as a final value like "￥19.58" or "￥100"
 	if data.Amount == nil {
-		// Match amount with ￥ or ¥ symbol, possibly on its own line
-		// Support amounts with or without decimal places
 		standaloneAmountRegex := regexp.MustCompile(`[¥￥]\s*([\d]+(?:\.[\d]{1,2})?)(?:\s*$|\s*\n|$)`)
-		// Find all matches and take the last one (most likely to be the total)
 		matches := standaloneAmountRegex.FindAllStringSubmatch(parsedText, -1)
 		if len(matches) > 0 {
-			lastMatch := matches[len(matches)-1]
-			if len(lastMatch) > 1 {
-				if amount := parseAmount(lastMatch[1]); amount != nil {
-					setAmountWithSource(&data.Amount, &data.AmountSource, amount, "standalone_amount")
+			last := matches[len(matches)-1]
+			if len(last) > 1 {
+				if amount := parseAmount(last[1]); amount != nil {
+					setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, amount, "standalone_amount", 0.6)
 				}
 			}
 		}
 	}
-
-	// If we still failed (or picked an obviously too-small value), choose the max currency amount.
-	// This handles common invoice layouts where totals are listed as multiple currency values:
-	//   ¥121.80 (价税合计), ¥107.79 (不含税), ¥14.01 (税额)
-	currencyAmountRegex := regexp.MustCompile(`[\x{00A5}\x{FFE5}]\s*([\d]+(?:\.[\d]{1,2})?)`)
-	curMatches := currencyAmountRegex.FindAllStringSubmatch(parsedText, -1)
-	var maxAmt *float64
-	for _, m := range curMatches {
-		if len(m) < 2 {
-			continue
-		}
-		if a := parseAmount(m[1]); a != nil && *a >= MinValidAmount {
-			if maxAmt == nil || *a > *maxAmt {
-				maxAmt = a
+	if data.Amount == nil {
+		currencyAmountRegex := regexp.MustCompile(`[¥￥]\s*([\d]+(?:\.[\d]{1,2})?)`)
+		curMatches := currencyAmountRegex.FindAllStringSubmatch(parsedText, -1)
+		var maxAmt *float64
+		for _, m := range curMatches {
+			if len(m) < 2 {
+				continue
+			}
+			if a := parseAmount(m[1]); a != nil && *a >= MinValidAmount {
+				if maxAmt == nil || *a > *maxAmt {
+					maxAmt = a
+				}
 			}
 		}
-	}
-	if maxAmt != nil {
-		if data.Amount == nil || *data.Amount < *maxAmt {
-			setAmountWithSource(&data.Amount, &data.AmountSource, maxAmt, "max_currency")
+		if maxAmt != nil {
+			setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, maxAmt, "max_currency", 0.5)
 		}
 	}
 
-	// Extract tax amount
-	taxRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`税额[：:]?\s*[¥￥]?([\d,.]+)`),
-		regexp.MustCompile(`税金[：:]?\s*[¥￥]?([\d,.]+)`),
+	taxRegexes := []struct {
+		re   *regexp.Regexp
+		conf float64
+	}{
+		{regexp.MustCompile(`税额[:：]?\s*[¥￥]?([\d,.]+)`), 0.8},
+		{regexp.MustCompile(`税金[:：]?\s*[¥￥]?([\d,.]+)`), 0.8},
 	}
-	for _, re := range taxRegexes {
-		if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
+	for _, cfg := range taxRegexes {
+		if match := cfg.re.FindStringSubmatch(parsedText); len(match) > 1 {
 			if tax := parseAmount(match[1]); tax != nil {
-				setAmountWithSource(&data.TaxAmount, &data.TaxAmountSource, tax, "tax_label")
+				setAmountWithSourceAndConfidence(&data.TaxAmount, &data.TaxAmountSource, &data.TaxAmountConfidence, tax, "tax_label", cfg.conf)
 				break
 			}
 		}
 	}
 
-	// Use position-based method to extract buyer and seller names
-	buyer, seller := s.extractBuyerAndSellerByPosition(parsedText)
-	if buyer != nil {
-		setStringWithSource(&data.BuyerName, &data.BuyerNameSource, *buyer, "position")
-	}
-	if seller != nil {
-		setStringWithSource(&data.SellerName, &data.SellerNameSource, *seller, "position")
+	if buyer, seller := s.extractBuyerAndSellerByPosition(parsedText); buyer != nil || seller != nil {
+		if buyer != nil {
+			setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, *buyer, "position", 0.7)
+		}
+		if seller != nil {
+			setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, *seller, "position", 0.7)
+		}
 	}
 
-	// If position-based method didn't find buyer, try fallback regex methods
 	if data.BuyerName == nil {
-		// Extract buyer name - handle both inline and newline-separated formats
-		// First try patterns with explicit "购买方" prefix
 		buyerRegexes := []*regexp.Regexp{
 			regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
 			regexp.MustCompile(`购买方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
@@ -3701,50 +3676,30 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 		for _, re := range buyerRegexes {
 			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-				buyer := strings.TrimSpace(match[1])
-				// Filter out section headers like "信息" (information) that might be captured
-				// Also filter out labels like "名称：" or "名称:"
-				if buyer != "" && buyer != "信" && buyer != "息" && buyer != "名称：" && buyer != "名称:" {
-					setStringWithSource(&data.BuyerName, &data.BuyerNameSource, buyer, "buyer_label")
+				val := strings.TrimSpace(match[1])
+				if val != "" && val != "信息" && val != "名称：" && val != "名称:" {
+					setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, val, "buyer_label", 0.8)
 					break
 				}
 			}
 		}
-
-		// If not found, try to find in buyer section context
-		// Look for buyer section and extract tax ID followed by name or just name
-		// Format: "购买方信息 统一社会信用代码/纳税人识别号： 名称：个人"
 		if data.BuyerName == nil {
-			// Match tax ID (optional, may be empty for individuals) followed by name
-			buyerSectionRegex := regexp.MustCompile(`(?s)购.*?买.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
+			buyerSectionRegex := regexp.MustCompile(`(?s)购买方信息.*?纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
 			if match := buyerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
-				buyer := strings.TrimSpace(match[2])
-				// Filter out labels and section markers
-				if buyer != "" && buyer != "销" && buyer != "售" && buyer != "方" && buyer != "名称：" && buyer != "名称:" {
-					setStringWithSource(&data.BuyerName, &data.BuyerNameSource, buyer, "buyer_section")
+				val := strings.TrimSpace(match[2])
+				if val != "" && val != "名称" {
+					setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, val, "buyer_section", 0.8)
 				}
 			}
 		}
-
-		// If still not found, try to match "个人" (individual) as a standalone buyer
 		if data.BuyerName == nil {
-			individualRegex := regexp.MustCompile(`(个人)`)
-			if match := individualRegex.FindStringSubmatch(parsedText); len(match) > 1 {
-				buyer := match[1]
-				setStringWithSource(&data.BuyerName, &data.BuyerNameSource, buyer, "buyer_individual")
+			if match := regexp.MustCompile(`(个人)`).FindStringSubmatch(parsedText); len(match) > 1 {
+				setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, match[1], "buyer_individual", 0.6)
 			}
-		}
-
-		// Final cleanup: if buyer name was set to a label by mistake, clear it
-		if data.BuyerName != nil && (*data.BuyerName == "名称：" || *data.BuyerName == "名称:") {
-			data.BuyerName = nil
 		}
 	}
 
-	// If position-based method didn't find seller, try fallback regex methods
 	if data.SellerName == nil {
-		// Extract seller name - handle both inline and newline-separated formats
-		// First try patterns with explicit "销售方" prefix
 		sellerRegexes := []*regexp.Regexp{
 			regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
 			regexp.MustCompile(`销售方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
@@ -3752,59 +3707,59 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 		for _, re := range sellerRegexes {
 			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-				seller := strings.TrimSpace(match[1])
-				// Filter out section headers like "信息" (information) that might be captured
-				if seller != "" && seller != "信" && seller != "息" {
-					setStringWithSource(&data.SellerName, &data.SellerNameSource, seller, "seller_label")
+				val := strings.TrimSpace(match[1])
+				if val != "" && val != "信息" && val != "名称：" && val != "名称:" {
+					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_label", 0.8)
 					break
 				}
 			}
 		}
-
-		// If not found, try to find in seller section context
-		// Look for seller section and extract tax ID followed by name
-		// Format: "销售方信息 统一社会信用代码/纳税人识别号：92310109MA1KMFLM1K 名称：上海市虹口区鹏侠百货商店"
 		if data.SellerName == nil {
-			// Match tax ID followed by company name
-			sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?售.*?方.*?信.*?息.*?统一社会信用代码/纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
+			sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
 			if match := sellerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
-				seller := strings.TrimSpace(match[2])
-				if seller != "" && seller != "购" && seller != "买" && seller != "方" {
-					setStringWithSource(&data.SellerName, &data.SellerNameSource, seller, "seller_section")
+				val := strings.TrimSpace(match[2])
+				if val != "" && val != "名称" {
+					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_section", 0.8)
 				}
 			}
 		}
-
-		// If still not found, try a more flexible pattern looking for tax ID followed by name
-		// This handles cases where the seller info appears without explicit section markers
 		if data.SellerName == nil {
-			// Look for patterns like: tax ID on one line, then "名称：" followed by name
-			flexibleSellerRegex := regexp.MustCompile(fmt.Sprintf(`\b(%s)\b[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
-			if match := flexibleSellerRegex.FindStringSubmatch(parsedText); len(match) > 2 {
-				seller := strings.TrimSpace(match[2])
-				// Additional validation: check if this looks like a company name
-				// Sellers should not be "个人" (individual) - that would be a buyer
-				if seller != "" && len(seller) > 2 && seller != "个人" {
-					setStringWithSource(&data.SellerName, &data.SellerNameSource, seller, "seller_taxid_name")
+			taxThenName := regexp.MustCompile(fmt.Sprintf(`\b(%s)\b[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
+			if match := taxThenName.FindStringSubmatch(parsedText); len(match) > 2 {
+				val := strings.TrimSpace(match[2])
+				if val != "" && val != "个人" && len(val) > 2 {
+					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_taxid_name", 0.7)
 				}
 			}
 		}
-
-		// If still not found, try to find company name appearing BEFORE tax ID
-		// This is common in OCR output where data sequence differs from labels
-		// Pattern: company name (containing 公司/商店/企业/中心/etc.) on one line, followed by tax ID
 		if data.SellerName == nil {
-			// Look for company/store name followed by tax ID on next line
-			// Company indicators: 公司, 商店, 企业, 中心, 厂, 店, etc.
-			companyBeforeTaxIDRegex := regexp.MustCompile(fmt.Sprintf(`([^\n\r]*(?:公司|商店|企业|中心|厂|店|行|社|院|局|部)[^\n\r]*)[\s\n\r]+(%s)`, taxIDPattern))
-			if match := companyBeforeTaxIDRegex.FindStringSubmatch(parsedText); len(match) > 2 {
-				seller := strings.TrimSpace(match[1])
-				// Validate it's not too short and doesn't contain obvious non-name content
-				if len(seller) > 3 && seller != "个人" {
-					data.SellerName = &seller
+			companyBeforeTaxID := regexp.MustCompile(fmt.Sprintf(`([^\n\r]*(?:公司|商店|企业|中心|厂|店|行|社|院|局)[^\n\r]*)[\s\n\r]+(%s)`, taxIDPattern))
+			if match := companyBeforeTaxID.FindStringSubmatch(parsedText); len(match) > 2 {
+				val := strings.TrimSpace(match[1])
+				if val != "" && val != "个人" && len(val) > 3 {
+					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_company_before_taxid", 0.6)
 				}
 			}
 		}
+	}
+
+	if data.InvoiceNumber != nil && data.InvoiceNumberConfidence == 0 {
+		data.InvoiceNumberConfidence = 0.6
+	}
+	if data.InvoiceDate != nil && data.InvoiceDateConfidence == 0 {
+		data.InvoiceDateConfidence = 0.7
+	}
+	if data.Amount != nil && data.AmountConfidence == 0 {
+		data.AmountConfidence = 0.6
+	}
+	if data.TaxAmount != nil && data.TaxAmountConfidence == 0 {
+		data.TaxAmountConfidence = 0.6
+	}
+	if data.SellerName != nil && data.SellerNameConfidence == 0 {
+		data.SellerNameConfidence = 0.6
+	}
+	if data.BuyerName != nil && data.BuyerNameConfidence == 0 {
+		data.BuyerNameConfidence = 0.6
 	}
 
 	data.Items = extractInvoiceLineItems(parsedText)
@@ -3865,6 +3820,37 @@ func setAmountWithSource(target **float64, source *string, val *float64, src str
 		*target = val
 		if source != nil && src != "" {
 			*source = src
+		}
+	}
+}
+
+func setStringWithSourceAndConfidence(target **string, source *string, confidence *float64, val, src string, conf float64) {
+	if strings.TrimSpace(val) == "" {
+		return
+	}
+	if *target == nil || strings.TrimSpace(**target) == "" {
+		v := strings.TrimSpace(val)
+		*target = &v
+		if source != nil && src != "" {
+			*source = src
+		}
+		if confidence != nil && conf > 0 {
+			*confidence = conf
+		}
+	}
+}
+
+func setAmountWithSourceAndConfidence(target **float64, source *string, confidence *float64, val *float64, src string, conf float64) {
+	if val == nil {
+		return
+	}
+	if *target == nil || **target == 0 {
+		*target = val
+		if source != nil && src != "" {
+			*source = src
+		}
+		if confidence != nil && conf > 0 {
+			*confidence = conf
 		}
 	}
 }

@@ -1893,15 +1893,16 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 
 	// Extract actual payment method from text
 	paymentMethodRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`支付方式[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
+		// 支付方式：<换行>招商银行信用卡(2506)
+		regexp.MustCompile(`支付方式[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
 	}
 	for _, re := range paymentMethodRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
-			method := strings.TrimSpace(match[1])
+			method := sanitizePaymentMethod(strings.TrimSpace(match[1]))
 			if method != "" {
 				data.PaymentMethod = &method
 				data.PaymentMethodSource = "wechat_method_label"
-				data.PaymentMethodConfidence = 0.8
+				data.PaymentMethodConfidence = 0.9
 				break
 			}
 		}
@@ -2033,7 +2034,7 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 
 	// Extract payment method
 	paymentMethodRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
+		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
 	}
 	for _, re := range paymentMethodRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {
@@ -2141,7 +2142,7 @@ func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) 
 
 	// Extract payment method
 	paymentMethodRegexes := []*regexp.Regexp{
-		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?[\s]*([^\n]+?)(?:\s*由|$)`),
+		regexp.MustCompile(`(?:支付方式|付款方式)[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
 	}
 	for _, re := range paymentMethodRegexes {
 		if match := re.FindStringSubmatch(text); len(match) > 1 {

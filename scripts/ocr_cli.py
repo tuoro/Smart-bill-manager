@@ -17,6 +17,7 @@ import contextlib
 import json
 import traceback
 import os
+import re
 import sys
 import tempfile
 from importlib import metadata
@@ -391,11 +392,13 @@ def main():
             except metadata.PackageNotFoundError:
                 pass
 
-            # 默认使用 RapidOCR 的内置默认模型/配置（更接近官方默认行为）。
-            # 如需强制 PP-OCRv5，可设置：SBM_RAPIDOCR_FORCE_PPOCRV5=1
-            force_ppocrv5 = truthy(os.getenv("SBM_RAPIDOCR_FORCE_PPOCRV5"))
+            # 默认使用 PP-OCRv5 快速版（mobile）。如需切回 RapidOCR 默认模型链路，可设置：
+            # SBM_RAPIDOCR_USE_DEFAULT=1
+            use_default_models = truthy(os.getenv("SBM_RAPIDOCR_USE_DEFAULT"))
+
             forced_params: dict | None = None
-            if force_ppocrv5:
+            qr_rescue_params: dict | None = None
+            if not use_default_models:
                 forced_params = {
                     "Det.engine_type": EngineType.ONNXRUNTIME,
                     "Det.lang_type": LangDet.CH,
@@ -405,6 +408,14 @@ def main():
                     "Rec.lang_type": LangRec.CH,
                     "Rec.model_type": ModelType.MOBILE,
                     "Rec.ocr_version": OCRVersion.PPOCRV5,
+                }
+                # WeChat “扫码付款-给XX”救援：只在触发时对 ROI 二次 OCR。
+                # 默认用 Rec server 更稳；如需更快可设置：SBM_RAPIDOCR_QR_RESCUE_REC=mobile
+                rescue_rec = (os.getenv("SBM_RAPIDOCR_QR_RESCUE_REC") or "server").strip().lower()
+                rescue_rec_model = ModelType.MOBILE if rescue_rec == "mobile" else ModelType.SERVER
+                qr_rescue_params = {
+                    **forced_params,
+                    "Rec.model_type": rescue_rec_model,
                 }
 
             # Optional: override RapidOCR's default model cache directory with a single mounted dir.
@@ -426,65 +437,90 @@ def main():
                     model_data_dir = ""
 
             if args.profile == "pdf":
-                if forced_params is None:
-                    forced_params = {}
-                forced_params.update(
-                    {
-                        "Global.max_side_len": 4096,
-                        "Global.min_height": 10,
-                        "Global.text_score": 0.35,
-                    }
-                )
+                if forced_params is not None:
+                    forced_params.update(
+                        {
+                            "Global.max_side_len": 4096,
+                            "Global.min_height": 10,
+                            "Global.text_score": 0.35,
+                        }
+                    )
+                if qr_rescue_params is not None:
+                    qr_rescue_params.update(
+                        {
+                            "Global.max_side_len": 4096,
+                            "Global.min_height": 10,
+                            "Global.text_score": 0.35,
+                        }
+                    )
 
             if args.max_side_len is not None:
-                if forced_params is None:
-                    forced_params = {}
-                forced_params["Global.max_side_len"] = int(args.max_side_len)
+                if forced_params is not None:
+                    forced_params["Global.max_side_len"] = int(args.max_side_len)
+                if qr_rescue_params is not None:
+                    qr_rescue_params["Global.max_side_len"] = int(args.max_side_len)
             if args.min_height is not None:
-                if forced_params is None:
-                    forced_params = {}
-                forced_params["Global.min_height"] = int(args.min_height)
+                if forced_params is not None:
+                    forced_params["Global.min_height"] = int(args.min_height)
+                if qr_rescue_params is not None:
+                    qr_rescue_params["Global.min_height"] = int(args.min_height)
             if args.text_score is not None:
-                if forced_params is None:
-                    forced_params = {}
-                forced_params["Global.text_score"] = float(args.text_score)
+                if forced_params is not None:
+                    forced_params["Global.text_score"] = float(args.text_score)
+                if qr_rescue_params is not None:
+                    qr_rescue_params["Global.text_score"] = float(args.text_score)
 
             # Helper: run rapidocr with optional fallback to default params to avoid crashes such as
             # "list index out of range" from corrupted/partial models.
             def run_with_fallback(path: str):
                 errors: list[str] = []
+                if forced_params is None:
+                    param_summary = {
+                        "rapidocr": rapidocr_version,
+                        "ocr_version": "default",
+                        "det": "default",
+                        "rec": "default",
+                        "cls": "default",
+                        "dict": "default",
+                        "model_dir": str(InferSession.DEFAULT_MODEL_PATH) if model_data_dir else "",
+                    }
+                    try:
+                        ocr = RapidOCR()
+                        out = ocr(path)
+                        return out, "default", errors, param_summary
+                    except Exception as e:
+                        errors.append(f"default_failed: {e}")
+                        raise RuntimeError("; ".join(errors))
+
+                # Default path: PP-OCRv5 mobile (fast). If it fails, fall back to RapidOCR defaults.
                 param_summary = {
                     "rapidocr": rapidocr_version,
-                    "ocr_version": "default",
-                    "det": "default",
-                    "rec": "default",
+                    "ocr_version": "PP-OCRv5",
+                    "det": "onnxruntime:PP-OCRv5:ch:mobile",
+                    "rec": "onnxruntime:PP-OCRv5:ch:mobile",
                     "cls": "default",
-                    "dict": "default",
+                    "dict": "auto",
                     "model_dir": str(InferSession.DEFAULT_MODEL_PATH) if model_data_dir else "",
                 }
-
                 try:
-                    # 默认路径：完全走 RapidOCR 内置默认模型/配置
-                    ocr = RapidOCR()
+                    ocr = RapidOCR(params=forced_params)
                     out = ocr(path)
-                    return out, "default", errors, param_summary
+                    return out, "custom", errors, param_summary
                 except Exception as e:
-                    errors.append(f"default_failed: {e}")
-
-                    # 可选：如果用户显式要求强制 PP-OCRv5，则再尝试一次自定义参数。
-                    if forced_params:
-                        try:
-                            ocr = RapidOCR(params=forced_params)
-                            out = ocr(path)
-                            fb_summary = dict(param_summary)
-                            fb_summary["ocr_version"] = "PP-OCRv5"
-                            fb_summary["det"] = "onnxruntime:PP-OCRv5:ch:mobile"
-                            fb_summary["rec"] = "onnxruntime:PP-OCRv5:ch:mobile"
-                            fb_summary["dict"] = "auto"
-                            return out, "custom_ppocrv5", errors, fb_summary
-                        except Exception as e2:
-                            errors.append(f"ppocrv5_failed: {e2}")
-                    raise RuntimeError("; ".join(errors))
+                    errors.append(f"custom_failed: {e}; params={param_summary}")
+                    try:
+                        ocr = RapidOCR()
+                        out = ocr(path)
+                        fb_summary = dict(param_summary)
+                        fb_summary["ocr_version"] = "default"
+                        fb_summary["det"] = "default"
+                        fb_summary["rec"] = "default"
+                        fb_summary["cls"] = "default"
+                        fb_summary["dict"] = "default"
+                        return out, "fallback_default", errors, fb_summary
+                    except Exception as e2:
+                        errors.append(f"fallback_default_failed: {e2}")
+                        raise RuntimeError("; ".join(errors))
 
             def build_result(out, backend: str, backend_errors: list[str], param_summary: dict):
                 txts = getattr(out, "txts", None) or ()
@@ -525,11 +561,121 @@ def main():
                 out, backend, backend_errors, param_summary = run_with_fallback(path)
                 return build_result(out, backend, backend_errors, param_summary)
 
+            def extract_wechat_qr_payee(text: str) -> str | None:
+                title_re = re.compile(r"扫.{0,6}码付款[-—－]?\s*给([^\s¥￥\n\r]{1,20})")
+                for line in (text or "").splitlines():
+                    line = (line or "").strip()
+                    if not line:
+                        continue
+                    if "码付款" not in line or "给" not in line:
+                        continue
+                    m = title_re.search(line)
+                    if not m:
+                        continue
+                    payee = (m.group(1) or "").strip()
+                    if payee:
+                        return payee
+                return None
+
+            def maybe_rescue_wechat_qr_payee(src_path: str, current: dict) -> dict:
+                # Only for profile=default and PP-OCRv5 mode
+                if args.profile != "default":
+                    return current
+                if forced_params is None or qr_rescue_params is None:
+                    return current
+
+                payee = extract_wechat_qr_payee(current.get("text", "") or "")
+                if not payee or len(payee) >= 2:
+                    return current
+
+                pil_img = load_pil_image(src_path)
+                if pil_img is None:
+                    return current
+
+                w, h = pil_img.size
+                # ROI: 上半部居中的标题行区域（覆盖“扫二维码付款-给XXX”和金额上方）
+                left = int(w * 0.10)
+                right = int(w * 0.90)
+                top = int(h * 0.16)
+                bottom = int(h * 0.42)
+                if right <= left or bottom <= top:
+                    return current
+
+                roi = pil_img.crop((left, top, right, bottom)).convert("RGB")
+                roi = roi.resize((roi.size[0] * 2, roi.size[1] * 2))
+
+                with tempfile.TemporaryDirectory(prefix="sbm-ocr-roi-") as td:
+                    roi_path = str(Path(td) / "wechat_qr_roi.png")
+                    try:
+                        roi.save(roi_path, format="PNG", optimize=True)
+                    except Exception:
+                        return current
+
+                    rescue_rec = qr_rescue_params.get("Rec.model_type")
+                    rescue_rec_desc = "onnxruntime:PP-OCRv5:ch:server" if rescue_rec == ModelType.SERVER else "onnxruntime:PP-OCRv5:ch:mobile"
+                    rescue_summary = {
+                        "rapidocr": rapidocr_version,
+                        "ocr_version": "PP-OCRv5",
+                        "det": "onnxruntime:PP-OCRv5:ch:mobile",
+                        "rec": rescue_rec_desc,
+                        "cls": "default",
+                        "dict": "auto",
+                        "model_dir": str(InferSession.DEFAULT_MODEL_PATH) if model_data_dir else "",
+                    }
+
+                    try:
+                        ocr = RapidOCR(params=qr_rescue_params)
+                        out = ocr(roi_path)
+                        rescue = build_result(out, "qr_rescue_roi", [], rescue_summary)
+                    except Exception:
+                        # If rescue fails, keep original result.
+                        return current
+
+                new_payee = extract_wechat_qr_payee(rescue.get("text", "") or "")
+                if not new_payee or len(new_payee) < 2:
+                    return current
+
+                # Patch the original output: replace the truncated title line if present, otherwise append.
+                lines = (current.get("lines") or []).copy()
+                title_re = re.compile(r"(扫.{0,6}码付款[-—－]?\s*给)([^\s¥￥\n\r]{1,20})")
+                replaced = False
+                for idx, ln in enumerate(lines):
+                    t = (ln.get("text") or "").strip()
+                    if not t:
+                        continue
+                    m = title_re.search(t)
+                    if not m:
+                        continue
+                    patched = f"{m.group(1)}{new_payee}"
+                    if patched != t:
+                        ln2 = dict(ln)
+                        ln2["text"] = patched
+                        lines[idx] = ln2
+                        replaced = True
+                    break
+
+                if not replaced:
+                    # append synthetic title line to help downstream extraction
+                    lines.insert(0, {"text": f"扫二维码付款-给{new_payee}", "confidence": 0.99})
+
+                text = "\n".join([(l.get("text") or "") for l in lines])
+
+                out = dict(current)
+                out["text"] = text
+                out["lines"] = lines
+                out["line_count"] = len(lines)
+                out["backend"] = f"{current.get('backend','custom')}+qr_rescue"
+                params = dict(out.get("params") or {})
+                params["qr_rescue"] = True
+                out["params"] = params
+                return out
+
             multipass = safe_int(os.getenv("SBM_RAPIDOCR_MULTIPASS"), 1 if args.profile == "pdf" else 0)
             rotate180 = truthy(os.getenv("SBM_RAPIDOCR_ROTATE180")) or (args.profile == "pdf")
             debug = args.debug or truthy(os.getenv("SBM_OCR_DEBUG"))
 
             best = run_one(image_path)
+            best = maybe_rescue_wechat_qr_payee(image_path, best)
             best_variant = "original"
             variants_debug = []
             if debug:

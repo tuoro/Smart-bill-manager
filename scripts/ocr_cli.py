@@ -433,6 +433,16 @@ def main():
                         "Global.text_score": 0.35,
                     }
                 )
+            elif args.profile == "default":
+                # 单次 OCR 提升长行召回（不做二次识别）：
+                # - 放宽宽高比限制，减少长行被过度压缩/截断
+                # - 增大 Rec 输入宽度，降低“扫二维码付款-给XXX”这类长行漏字概率
+                params.update(
+                    {
+                        "Global.width_height_ratio": 15,
+                        "Rec.rec_img_shape": [3, 48, 640],
+                    }
+                )
 
             if args.max_side_len is not None:
                 params["Global.max_side_len"] = int(args.max_side_len)
@@ -445,11 +455,6 @@ def main():
             # "list index out of range" from corrupted/partial models.
             def run_with_fallback(path: str):
                 errors: list[str] = []
-                # Det-tuning for tricky UI screenshots (e.g. WeChat bill pages) where the detector may
-                # produce overly tight boxes and truncate the tail/head of a long line.
-                # Keep it mild to avoid too much noise.
-                box_thresh = 0.5 if args.profile == "default" else None
-                unclip_ratio = 2.2 if args.profile == "default" else None
                 param_summary = {
                     "rapidocr": rapidocr_version,
                     "ocr_version": "PP-OCRv5",
@@ -457,21 +462,21 @@ def main():
                     "rec": "onnxruntime:PP-OCRv5:ch:mobile",
                     "cls": "default",
                     "dict": "auto",
-                    "box_thresh": box_thresh if box_thresh is not None else "default",
-                    "unclip_ratio": unclip_ratio if unclip_ratio is not None else "default",
+                    "width_height_ratio": params.get("Global.width_height_ratio", "default"),
+                    "rec_img_shape": params.get("Rec.rec_img_shape", "default"),
                     "model_dir": str(InferSession.DEFAULT_MODEL_PATH) if model_data_dir else "",
                 }
                 # First try with forced PP-OCRv5 params
                 try:
                     ocr = RapidOCR(params=params or None)
-                    out = ocr(path, box_thresh=box_thresh, unclip_ratio=unclip_ratio)
+                    out = ocr(path)
                     return out, "custom", errors, param_summary
                 except Exception as e:
                     errors.append(f"custom_params_failed: {e}; params={param_summary}")
                     # Fallback to RapidOCR defaults (letting RapidOCR auto-manage models)
                     try:
                         ocr = RapidOCR()
-                        out = ocr(path, box_thresh=box_thresh, unclip_ratio=unclip_ratio)
+                        out = ocr(path)
                         fb_summary = dict(param_summary)
                         fb_summary["ocr_version"] = "default"
                         fb_summary["det"] = "default"

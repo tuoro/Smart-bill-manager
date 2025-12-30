@@ -445,6 +445,11 @@ def main():
             # "list index out of range" from corrupted/partial models.
             def run_with_fallback(path: str):
                 errors: list[str] = []
+                # Det-tuning for tricky UI screenshots (e.g. WeChat bill pages) where the detector may
+                # produce overly tight boxes and truncate the tail/head of a long line.
+                # Keep it mild to avoid too much noise.
+                box_thresh = 0.5 if args.profile == "default" else None
+                unclip_ratio = 2.2 if args.profile == "default" else None
                 param_summary = {
                     "rapidocr": rapidocr_version,
                     "ocr_version": "PP-OCRv5",
@@ -452,19 +457,21 @@ def main():
                     "rec": "onnxruntime:PP-OCRv5:ch:mobile",
                     "cls": "default",
                     "dict": "auto",
+                    "box_thresh": box_thresh if box_thresh is not None else "default",
+                    "unclip_ratio": unclip_ratio if unclip_ratio is not None else "default",
                     "model_dir": str(InferSession.DEFAULT_MODEL_PATH) if model_data_dir else "",
                 }
                 # First try with forced PP-OCRv5 params
                 try:
                     ocr = RapidOCR(params=params or None)
-                    out = ocr(path)
+                    out = ocr(path, box_thresh=box_thresh, unclip_ratio=unclip_ratio)
                     return out, "custom", errors, param_summary
                 except Exception as e:
                     errors.append(f"custom_params_failed: {e}; params={param_summary}")
                     # Fallback to RapidOCR defaults (letting RapidOCR auto-manage models)
                     try:
                         ocr = RapidOCR()
-                        out = ocr(path)
+                        out = ocr(path, box_thresh=box_thresh, unclip_ratio=unclip_ratio)
                         fb_summary = dict(param_summary)
                         fb_summary["ocr_version"] = "default"
                         fb_summary["det"] = "default"

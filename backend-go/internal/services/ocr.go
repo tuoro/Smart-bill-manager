@@ -264,12 +264,15 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	var result OCRCLIResponse
 	if err := unmarshalPossiblyNoisyJSON(output, &result); err != nil {
 		if execErr != nil {
+			fmt.Printf("[OCR] RapidOCR CLI exec error: %v, output=%s\n", execErr, stripANSIEscapes(string(output)))
 			return "", fmt.Errorf("failed to execute RapidOCR CLI: %w (output: %s)", execErr, string(output))
 		}
+		fmt.Printf("[OCR] RapidOCR CLI JSON parse失败: %v, output=%s\n", err, stripANSIEscapes(string(output)))
 		return "", fmt.Errorf("failed to parse OCR CLI output: %w (output: %s)", err, string(output))
 	}
 
 	if !result.Success {
+		fmt.Printf("[OCR] RapidOCR CLI returned error: %s, output=%s\n", result.Error, stripANSIEscapes(string(output)))
 		return "", fmt.Errorf("OCR error: %s", result.Error)
 	}
 

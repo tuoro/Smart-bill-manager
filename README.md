@@ -97,6 +97,7 @@ docker run -d \
   -p 80:80 \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
+  -v rapidocr-models:/opt/rapidocr-models \
   ghcr.io/tuoro/smart-bill-manager:latest
 ```
 
@@ -127,10 +128,12 @@ services:
     volumes:
       - app-data:/app/backend/data
       - app-uploads:/app/backend/uploads
+      - rapidocr-models:/opt/rapidocr-models
 
 volumes:
   app-data:
   app-uploads:
+  rapidocr-models:
 ```
 
 2. **启动服务**
@@ -178,6 +181,12 @@ docker-compose down
 - `SBM_RAPIDOCR_ROTATE180=true`（可选；对 `profile=pdf` 默认启用，兼容倒置扫描）
 - `SBM_OCR_DEBUG=true`（可选；返回更多 OCR 变体评分信息，便于排查）
 
+**OCR 模型缓存与目录映射**
+- 默认模型：自动下载 **PP-OCRv5 mobile**（det/rec/cls/dict ONNX），下载后会做 SHA256 校验；默认模型目录 `/opt/rapidocr-models`。
+- `SBM_RAPIDOCR_MODEL_DIR=/your/host/path`：自定义/持久化模型目录。Docker 部署建议把此目录映射为卷，首次下载后复用，避免每次冷启动重复拉取。
+- 如需自定义模型（det/rec/cls/dict），可用对应的环境变量覆盖；文件会校验 SHA256，不匹配则忽略并回退默认下载。
+- GitHub Actions 官方 Runner 无 GPU，可在 CI 用 CPU 构建镜像；镜像发布后在有 GPU 的环境（如 Unraid）运行即可。后续可在设置页面集中配置模型目录/切换模型。
+
 #### 发票购销方 ROI（可选）
 
 默认情况下，发票 PDF 解析会对 **整页图片** 做 OCR，并仅注入二维码可稳定提取的抬头字段（如发票代码/号码/日期/价税合计）。
@@ -212,6 +221,7 @@ docker run -d \
   -p 80:80 \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
+  -v rapidocr-models:/opt/rapidocr-models \
   smart-bill-manager
 ```
 

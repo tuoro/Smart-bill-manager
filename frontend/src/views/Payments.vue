@@ -227,7 +227,7 @@
                 :class="confidenceClass(ocrResult?.amount_confidence)"
               >
                 &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.amount_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.amount_confidence">&#xff08;&#20449;&#24230;&#65306;{{ confidenceLabel(ocrResult?.amount_confidence) }}&#xff09;</span>
+                <span v-if="ocrResult?.amount_confidence">（置信度：{{ confidenceLabel(ocrResult?.amount_confidence) }}）</span>
               </small>
               <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
             </div>
@@ -241,7 +241,7 @@
                 :class="confidenceClass(ocrResult?.merchant_confidence)"
               >
                 &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.merchant_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.merchant_confidence">&#xff08;&#20449;&#24230;&#65306;{{ confidenceLabel(ocrResult?.merchant_confidence) }}&#xff09;</span>
+                <span v-if="ocrResult?.merchant_confidence">（置信度：{{ confidenceLabel(ocrResult?.merchant_confidence) }}）</span>
               </small>
             </div>
 
@@ -254,7 +254,7 @@
                 :class="confidenceClass(ocrResult?.payment_method_confidence)"
               >
                 &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.payment_method_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.payment_method_confidence">&#xff08;&#20449;&#24230;&#65306;{{ confidenceLabel(ocrResult?.payment_method_confidence) }}&#xff09;</span>
+                <span v-if="ocrResult?.payment_method_confidence">（置信度：{{ confidenceLabel(ocrResult?.payment_method_confidence) }}）</span>
               </small>
             </div>
 
@@ -268,7 +268,7 @@
                 :class="confidenceClass(ocrResult?.transaction_time_confidence)"
               >
                 &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.transaction_time_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.transaction_time_confidence">&#xff08;&#20449;&#24230;&#65306;{{ confidenceLabel(ocrResult?.transaction_time_confidence) }}&#xff09;</span>
+                <span v-if="ocrResult?.transaction_time_confidence">（置信度：{{ confidenceLabel(ocrResult?.transaction_time_confidence) }}）</span>
               </small>
             </div>
 
@@ -281,7 +281,7 @@
                 :class="confidenceClass(ocrResult?.order_number_confidence)"
               >
                 &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.order_number_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.order_number_confidence">&#xff08;&#20449;&#24230;&#65306;{{ confidenceLabel(ocrResult?.order_number_confidence) }}&#xff09;</span>
+                <span v-if="ocrResult?.order_number_confidence">（置信度：{{ confidenceLabel(ocrResult?.order_number_confidence) }}）</span>
               </small>
             </div>
 

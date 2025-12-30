@@ -1125,7 +1125,10 @@ const handleReparseOcr = async (paymentId: string) => {
       toast.add({ severity: 'success', summary: '重新解析成功', life: 2000 })
       notifications.add({ severity: 'success', title: '支付截图已重新解析', detail: paymentId })
       const detailRes = await paymentApi.getById(paymentId)
-      if (detailRes.data.success && res.data.data) detailPayment.value = res.data.data
+      if (detailRes.data.success && detailRes.data.data) {
+        // 刷新当前详情数据，避免重新打开才能看到最新字段
+        detailPayment.value = detailRes.data.data
+      }
       await loadPayments()
     }
   } catch (error: unknown) {

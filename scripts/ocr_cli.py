@@ -398,7 +398,7 @@ def main():
                 {
                     "Det.engine_type": EngineType.ONNXRUNTIME,
                     "Det.lang_type": LangDet.CH,
-                    "Det.model_type": ModelType.MOBILE,
+                    "Det.model_type": ModelType.SERVER,
                     "Det.ocr_version": OCRVersion.PPOCRV5,
                     "Rec.engine_type": EngineType.ONNXRUNTIME,
                     "Rec.lang_type": LangRec.CH,
@@ -448,7 +448,7 @@ def main():
                 param_summary = {
                     "rapidocr": rapidocr_version,
                     "ocr_version": "PP-OCRv5",
-                    "det": "onnxruntime:PP-OCRv5:ch:mobile",
+                    "det": "onnxruntime:PP-OCRv5:ch:server",
                     "rec": "onnxruntime:PP-OCRv5:ch:mobile",
                     "cls": "default",
                     "dict": "auto",

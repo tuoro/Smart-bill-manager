@@ -7,7 +7,7 @@
             <div class="stat">
               <div>
                 <div class="stat-title">&#21457;&#31080;&#24635;&#25968;</div>
-                <div class="stat-value">{{ stats?.totalCount || 0 }}</div>
+                <div class="stat-value">{{ displayStats.totalCount }}</div>
               </div>
               <i class="pi pi-file stat-icon info" />
             </div>
@@ -20,7 +20,7 @@
             <div class="stat">
               <div>
                 <div class="stat-title">&#21457;&#31080;&#24635;&#37329;&#39069;</div>
-                <div class="stat-value">{{ `\u00A5${(stats?.totalAmount || 0).toFixed(2)}` }}</div>
+                <div class="stat-value">{{ `\u00A5${displayStats.totalAmount.toFixed(2)}` }}</div>
               </div>
               <i class="pi pi-receipt stat-icon success" />
             </div>
@@ -50,12 +50,22 @@
       <template #title>
         <div class="header">
           <span>&#21457;&#31080;&#21015;&#34920;</span>
-          <Button :label="'\u4E0A\u4F20\u53D1\u7968'" icon="pi pi-upload" @click="openUploadModal" />
+          <div class="toolbar">
+            <DatePicker
+              v-model="dateRange"
+              selectionMode="range"
+              :manualInput="false"
+              dateFormat="yy-mm-dd"
+              :placeholder="'开票日期范围'"
+              @update:modelValue="handleDateChange"
+            />
+            <Button :label="'\u4E0A\u4F20\u53D1\u7968'" icon="pi pi-upload" @click="openUploadModal" />
+          </div>
         </div>
       </template>
       <template #content>
         <DataTable
-          :value="invoices"
+          :value="filteredInvoices"
           :loading="loading"
           :paginator="true"
           :rows="pageSize"
@@ -168,7 +178,7 @@
             </div>
             <div class="col-12 md:col-6 field">
               <label for="inv_date">开票日期</label>
-              <InputText id="inv_date" v-model.trim="uploadOcrForm.invoice_date" placeholder="YYYY年MM月DD日 或 YYYY-MM-DD" />
+              <DatePicker id="inv_date" v-model="uploadOcrForm.invoice_date" :manualInput="false" dateFormat="yy-mm-dd" :placeholder="'开票日期'" />
               <small
                 v-if="uploadOcrResult?.invoice_date_source || uploadOcrResult?.invoice_date_confidence"
                 class="ocr-hint"
@@ -191,19 +201,6 @@
                 <span v-if="uploadOcrResult?.amount_confidence">（置信度：{{ confidenceLabel(uploadOcrResult?.amount_confidence) }}）</span>
               </small>
             </div>
-            <div class="col-12 md:col-6 field">
-              <label for="inv_tax">税额</label>
-              <InputNumber id="inv_tax" v-model="uploadOcrForm.tax_amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0" :useGrouping="false" />
-              <small
-                v-if="uploadOcrResult?.tax_amount_source || uploadOcrResult?.tax_amount_confidence"
-                class="ocr-hint"
-                :class="confidenceClass(uploadOcrResult?.tax_amount_confidence)"
-              >
-                来源：{{ formatSourceLabel(uploadOcrResult?.tax_amount_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="uploadOcrResult?.tax_amount_confidence">（置信度：{{ confidenceLabel(uploadOcrResult?.tax_amount_confidence) }}）</span>
-              </small>
-            </div>
-
             <div class="col-12 md:col-6 field">
               <label for="inv_seller">销售方</label>
               <InputText id="inv_seller" v-model.trim="uploadOcrForm.seller_name" />
@@ -461,22 +458,6 @@
               </span>
             </div>
             <div class="field-row">
-              <span>税额</span>
-              <span>
-                {{ getInvoiceExtracted(previewInvoice)?.tax_amount ?? '-' }}
-                <small
-                  v-if="getInvoiceExtracted(previewInvoice)?.tax_amount_source || getInvoiceExtracted(previewInvoice)?.tax_amount_confidence"
-                  class="ocr-hint"
-                  :class="confidenceClass(getInvoiceExtracted(previewInvoice)?.tax_amount_confidence)"
-                >
-                  来源：{{ formatSourceLabel(getInvoiceExtracted(previewInvoice)?.tax_amount_source) || '未识别' }}
-                  <span v-if="getInvoiceExtracted(previewInvoice)?.tax_amount_confidence">
-                    （置信度：{{ confidenceLabel(getInvoiceExtracted(previewInvoice)?.tax_amount_confidence) }}）
-                  </span>
-                </small>
-              </span>
-            </div>
-            <div class="field-row">
               <span>销售方</span>
               <span>
                 {{ getInvoiceExtracted(previewInvoice)?.seller_name || '-' }}
@@ -542,6 +523,7 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Divider from 'primevue/divider'
+import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
@@ -620,6 +602,7 @@ const confirm = useConfirm()
 const loading = ref(false)
 const invoices = ref<Invoice[]>([])
 const pageSize = ref(10)
+const dateRange = ref<Date[] | null>(null)
 
 const stats = ref<{ totalCount: number; totalAmount: number; bySource: Record<string, number> } | null>(null)
 
@@ -635,9 +618,8 @@ const uploadOcrResult = ref<InvoiceExtractedData | null>(null)
 const uploadConfirmed = ref(false)
 const uploadOcrForm = reactive({
   invoice_number: '',
-  invoice_date: '',
+  invoice_date: null as Date | null,
   amount: null as number | null,
-  tax_amount: null as number | null,
   seller_name: '',
   buyer_name: '',
 })
@@ -693,6 +675,40 @@ const loadStats = async () => {
   }
 }
 
+const handleDateChange = () => {
+  // 这里使用前端过滤，不需要请求后端
+}
+
+const filteredInvoices = computed(() => {
+  const start = dateRange.value?.[0] ? dayjs(dateRange.value[0]).startOf('day') : null
+  const end = dateRange.value?.[1] ? dayjs(dateRange.value[1]).endOf('day') : null
+  if (!start || !end) return invoices.value
+  return invoices.value.filter(inv => {
+    const d = parseInvoiceDateToDayjs(inv.invoice_date)
+    if (!d) return false
+    return !d.isBefore(start) && !d.isAfter(end)
+  })
+})
+
+const computeStatsFromInvoices = (list: Invoice[]) => {
+  let totalAmount = 0
+  const bySource: Record<string, number> = {}
+  for (const inv of list) {
+    if (typeof inv.amount === 'number') totalAmount += inv.amount
+    const src = inv.source || 'unknown'
+    bySource[src] = (bySource[src] || 0) + 1
+  }
+  return { totalCount: list.length, totalAmount, bySource }
+}
+
+const displayStats = computed(() => {
+  const start = dateRange.value?.[0]
+  const end = dateRange.value?.[1]
+  if (start && end) return computeStatsFromInvoices(filteredInvoices.value)
+  if (stats.value) return stats.value
+  return computeStatsFromInvoices(invoices.value)
+})
+
 const openUploadModal = () => {
   selectedFiles.value = []
   if (invoiceInput.value) invoiceInput.value.value = ''
@@ -702,9 +718,8 @@ const openUploadModal = () => {
   uploadOcrResult.value = null
   uploadConfirmed.value = false
   uploadOcrForm.invoice_number = ''
-  uploadOcrForm.invoice_date = ''
+  uploadOcrForm.invoice_date = null
   uploadOcrForm.amount = null
-  uploadOcrForm.tax_amount = null
   uploadOcrForm.seller_name = ''
   uploadOcrForm.buyer_name = ''
   uploadModalVisible.value = true
@@ -719,9 +734,8 @@ const resetUploadDraftState = () => {
   uploadOcrResult.value = null
   uploadConfirmed.value = false
   uploadOcrForm.invoice_number = ''
-  uploadOcrForm.invoice_date = ''
+  uploadOcrForm.invoice_date = null
   uploadOcrForm.amount = null
-  uploadOcrForm.tax_amount = null
   uploadOcrForm.seller_name = ''
   uploadOcrForm.buyer_name = ''
 }
@@ -808,9 +822,8 @@ const handleUpload = async () => {
       const extracted = getInvoiceExtracted(createdInvoice)
       uploadOcrResult.value = extracted
       uploadOcrForm.invoice_number = extracted?.invoice_number || ''
-      uploadOcrForm.invoice_date = extracted?.invoice_date || ''
+      uploadOcrForm.invoice_date = parseInvoiceDateToDate(extracted?.invoice_date)
       uploadOcrForm.amount = extracted?.amount ?? null
-      uploadOcrForm.tax_amount = extracted?.tax_amount ?? null
       uploadOcrForm.seller_name = extracted?.seller_name || ''
       uploadOcrForm.buyer_name = extracted?.buyer_name || ''
     }
@@ -837,9 +850,8 @@ const handleSaveUploadedInvoice = async () => {
   try {
     const payload: Partial<Invoice> = {
       invoice_number: uploadOcrForm.invoice_number || undefined,
-      invoice_date: uploadOcrForm.invoice_date || undefined,
+      invoice_date: uploadOcrForm.invoice_date ? dayjs(uploadOcrForm.invoice_date).format('YYYY-MM-DD') : undefined,
       amount: uploadOcrForm.amount === null ? undefined : Number(uploadOcrForm.amount),
-      tax_amount: uploadOcrForm.tax_amount === null ? undefined : Number(uploadOcrForm.tax_amount),
       seller_name: uploadOcrForm.seller_name || undefined,
       buyer_name: uploadOcrForm.buyer_name || undefined,
     }
@@ -1048,6 +1060,25 @@ const formatInvoiceDate = (date?: string) => {
   return date
 }
 
+const parseInvoiceDateToDayjs = (date?: string | null) => {
+  const raw = String(date || '').trim()
+  if (!raw) return null
+  const direct = dayjs(raw)
+  if (direct.isValid()) return direct
+  const m = raw.match(/(\\d{4})\\D+(\\d{1,2})\\D+(\\d{1,2})/)
+  if (!m) return null
+  const y = m[1]
+  const mm = m[2].padStart(2, '0')
+  const dd = m[3].padStart(2, '0')
+  const parsed = dayjs(`${y}-${mm}-${dd}`)
+  return parsed.isValid() ? parsed : null
+}
+
+const parseInvoiceDateToDate = (date?: string | null) => {
+  const parsed = parseInvoiceDateToDayjs(date)
+  return parsed ? parsed.toDate() : null
+}
+
 const getParseStatusLabel = (status?: string) => {
   const labels: Record<string, string> = {
     pending: '\u5F85\u89E3\u6790',
@@ -1123,7 +1154,7 @@ const handleReparse = async (id: string) => {
   }
 }
 
-const sourceStats = computed(() => stats.value?.bySource || {})
+const sourceStats = computed(() => displayStats.value.bySource || {})
 const otherSourceCount = computed(() => {
   const m = sourceStats.value as Record<string, unknown>
   let total = 0
@@ -1152,6 +1183,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }

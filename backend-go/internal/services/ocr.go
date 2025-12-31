@@ -82,7 +82,9 @@ var (
 	}
 
 	// Payment parsing - compiled regex patterns for reuse
-	negativeAmountRegex   = regexp.MustCompile(`[-−][\s]*[¥￥]?[\s]*([\d,]+\.?\d*)`)
+	// Negative amounts in screenshots usually include decimals (e.g. "-400.00", "-13,897.00").
+	// Avoid matching non-money ids like "ZZHK-0007-..." where "-0007" is not an amount.
+	negativeAmountRegex   = regexp.MustCompile("[-\u2212]\\s*(?:[\u00A5￥]\\s*)?(\\d+(?:,\\d{3})*(?:\\.\\d{1,2}))")
 	merchantFullNameRegex = regexp.MustCompile(`商户全称[：:]?[\s]*([^\n收单机构支付方式]+?)[\s]*(?:收单机构|支付方式|\n|$)`)
 	merchantGenericRegex  = regexp.MustCompile(`([^\n]+(?:店|行|公司|商户|超市|餐厅|饭店|有限公司))`)
 
@@ -1687,6 +1689,8 @@ func convertChineseDateToISO(dateStr string) string {
 	dateStr = strings.ReplaceAll(dateStr, "年", "-")
 	dateStr = strings.ReplaceAll(dateStr, "月", "-")
 	dateStr = strings.ReplaceAll(dateStr, "日", "")
+	// Common OCR output uses "/" as date separator.
+	dateStr = strings.ReplaceAll(dateStr, "/", "-")
 	return strings.TrimSpace(dateStr)
 }
 
@@ -1868,6 +1872,19 @@ func extractInlineValueForLabel(line, label string) (string, bool) {
 		return "", false
 	}
 	return rest, true
+}
+
+func indexOfExactLine(lines []string, needle string) int {
+	needle = strings.TrimSpace(needle)
+	if needle == "" {
+		return -1
+	}
+	for i, raw := range lines {
+		if strings.TrimSpace(raw) == needle {
+			return i
+		}
+	}
+	return -1
 }
 
 func scanForwardValue(lines []string, labelIdx int, maxLookahead int, isBad func(string) bool) (string, bool) {
@@ -3075,6 +3092,223 @@ func (s *OCRService) parseAlipay(text string, data *PaymentExtractedData) {
 
 // parseBankTransfer extracts bank transfer information
 func (s *OCRService) parseBankTransfer(text string, data *PaymentExtractedData) {
+	isBankReceipt := strings.Contains(text, "电子回单") || strings.Contains(text, "汇款电子回单") || strings.Contains(text, "境内汇款电子回单")
+	if isBankReceipt {
+		lines := strings.Split(text, "\n")
+
+		isReceiptLabel := func(v string) bool {
+			v = sanitizePaymentField(v)
+			if v == "" {
+				return true
+			}
+			labels := map[string]struct{}{
+				"ICBC": {}, "中国工商银行": {}, "境内汇款电子回单": {}, "电子回单": {}, "来自中国工商银行手机银行": {},
+				"收款银行": {}, "收款户名": {}, "收款卡号": {}, "收款金额": {}, "手续费": {}, "合计": {},
+				"付款户名": {}, "付款卡号": {}, "付款银行": {},
+				"指令序号": {}, "回单编号": {}, "交易时间": {}, "附言": {},
+				"重要提示": {}, "专用章": {}, "手机银行跨行汇款、跨行信用卡还款免收手续费": {},
+			}
+			_, ok := labels[v]
+			return ok
+		}
+
+		findAfterLabel := func(label string, maxLookahead int, pred func(string) bool) (string, bool) {
+			idx := indexOfExactLine(lines, label)
+			if idx < 0 {
+				return "", false
+			}
+			if maxLookahead <= 0 {
+				maxLookahead = 30
+			}
+			for j := idx + 1; j < len(lines) && j <= idx+maxLookahead; j++ {
+				cand := sanitizePaymentField(lines[j])
+				if cand == "" || isReceiptLabel(cand) {
+					continue
+				}
+				if pred == nil || pred(cand) {
+					return cand, true
+				}
+			}
+			return "", false
+		}
+
+		// 收款金额：可能被拆成多行（收款金额/手续费/合计/免费/中文大写/数字金额）。
+		if data.Amount == nil {
+			if idx := indexOfExactLine(lines, "收款金额"); idx >= 0 {
+				best := ""
+				bestVal := 0.0
+				moneyDigitsRe := regexp.MustCompile(`([\d,]+(?:\.\d{1,2})?)`)
+				for j := idx + 1; j < len(lines) && j <= idx+20; j++ {
+					cand := sanitizePaymentField(lines[j])
+					if cand == "" || isReceiptLabel(cand) {
+						continue
+					}
+					if strings.Contains(cand, "元") || strings.Contains(cand, "人民币") || strings.ContainsRune(cand, '.') {
+						if m := moneyDigitsRe.FindStringSubmatch(cand); len(m) > 1 {
+							if v := parseAmount(m[1]); v != nil && *v >= MinValidAmount {
+								if *v > bestVal {
+									bestVal = *v
+									best = m[1]
+								}
+							}
+						}
+					}
+					// Stop scanning when we reach payer section.
+					if strings.TrimSpace(cand) == "付款户名" {
+						break
+					}
+				}
+				if best != "" {
+					if v := parseAmount(best); v != nil {
+						data.Amount = v
+						data.AmountSource = "bank_amount_label"
+						data.AmountConfidence = 0.9
+					}
+				}
+			}
+		}
+
+		// 收款户名（商家/收款方）
+		if data.Merchant == nil {
+			if idx := indexOfExactLine(lines, "收款户名"); idx >= 0 {
+				best := ""
+				bestScore := -1
+				for j := idx + 1; j < len(lines) && j <= idx+25; j++ {
+					cand := sanitizePaymentField(lines[j])
+					if cand == "" || isReceiptLabel(cand) {
+						continue
+					}
+					// Skip banks and masked numbers.
+					if strings.Contains(cand, "银行") {
+						continue
+					}
+					if strings.Contains(cand, "****") || strings.Contains(cand, "***") {
+						continue
+					}
+					// Prefer longer plausible names (公司/中心/店/行...).
+					score := len([]rune(cand))
+					if strings.Contains(cand, "公司") || strings.Contains(cand, "中心") || strings.Contains(cand, "店") || strings.Contains(cand, "行") {
+						score += 20
+					}
+					if score > bestScore {
+						bestScore = score
+						best = cand
+					}
+					// Stop if we reach amount section.
+					if strings.TrimSpace(cand) == "收款金额" {
+						break
+					}
+				}
+				if best != "" {
+					m := best
+					data.Merchant = &m
+					data.MerchantSource = "bank_label"
+					data.MerchantConfidence = 0.85
+				}
+			}
+		}
+
+		// 交易时间
+		if data.TransactionTime == nil {
+			dateTimeRe := regexp.MustCompile(`\d{4}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?`)
+			if v, ok := findAfterLabel("交易时间", 50, func(s string) bool { return dateTimeRe.MatchString(s) }); ok {
+				t := convertChineseDateToISO(v)
+				data.TransactionTime = &t
+				data.TransactionTimeSource = "bank_time_label"
+				data.TransactionTimeConfidence = 0.9
+			}
+		}
+
+		// 回单编号/指令序号
+		if data.OrderNumber == nil {
+			receiptNoRe := regexp.MustCompile(`^[A-Za-z]{2,}[A-Za-z0-9-]{6,}$`)
+			if v, ok := findAfterLabel("回单编号", 60, func(s string) bool { return receiptNoRe.MatchString(strings.ReplaceAll(s, " ", "")) }); ok {
+				order := sanitizePaymentField(strings.ReplaceAll(v, " ", ""))
+				if order != "" {
+					data.OrderNumber = &order
+					data.OrderNumberSource = "bank_order_label"
+					data.OrderNumberConfidence = 0.9
+				}
+			}
+		}
+		if data.OrderNumber == nil {
+			digitsRe := regexp.MustCompile(`^\d{12,}$`)
+			if v, ok := findAfterLabel("指令序号", 60, func(s string) bool { return digitsRe.MatchString(strings.ReplaceAll(s, " ", "")) }); ok {
+				order := sanitizePaymentField(strings.ReplaceAll(v, " ", ""))
+				if order != "" {
+					data.OrderNumber = &order
+					data.OrderNumberSource = "bank_order_label"
+					data.OrderNumberConfidence = 0.85
+				}
+			}
+		}
+
+		// 付款银行 + 尾号（付款卡号）
+		if data.PaymentMethod == nil {
+			cardTail := ""
+			tailRe := regexp.MustCompile(`(\d{4})$`)
+			// Prefer payer card tail ("付款卡号") instead of payee card tail.
+			if idx := indexOfExactLine(lines, "付款卡号"); idx >= 0 {
+				for j := idx + 1; j < len(lines) && j <= idx+10; j++ {
+					s := sanitizePaymentField(lines[j])
+					if s == "" || isReceiptLabel(s) {
+						continue
+					}
+					if strings.Contains(s, "****") {
+						if m := tailRe.FindStringSubmatch(s); len(m) > 1 {
+							cardTail = m[1]
+							break
+						}
+					}
+				}
+			}
+			if cardTail == "" {
+				for _, raw := range lines {
+					s := sanitizePaymentField(raw)
+					if strings.Contains(s, "****") {
+						if m := tailRe.FindStringSubmatch(s); len(m) > 1 {
+							cardTail = m[1]
+							break
+						}
+					}
+				}
+			}
+			bankName := ""
+			// Prefer explicit "付款银行" nearby.
+			if idx := indexOfExactLine(lines, "付款银行"); idx >= 0 {
+				for j := idx + 1; j < len(lines) && j <= idx+10; j++ {
+					cand := sanitizePaymentField(lines[j])
+					if cand == "" || isReceiptLabel(cand) {
+						continue
+					}
+					if strings.Contains(cand, "银行") {
+						bankName = cand
+						break
+					}
+				}
+			}
+			if bankName == "" {
+				for _, raw := range lines {
+					cand := sanitizePaymentField(raw)
+					if strings.Contains(cand, "银行") && !strings.Contains(cand, "收款银行") {
+						bankName = cand
+						break
+					}
+				}
+			}
+			if bankName != "" && cardTail != "" {
+				method := fmt.Sprintf("%s(%s)", bankName, cardTail)
+				method = sanitizePaymentMethod(method)
+				data.PaymentMethod = &method
+				data.PaymentMethodSource = "bank_method_label"
+				data.PaymentMethodConfidence = 0.8
+			}
+		}
+
+		// Do not fall through to generic bank transfer parsing (it may mis-bind amounts from ids).
+		return
+	}
+
 	// Extract amount with support for negative numbers and large amounts
 	amountRegexes := []*regexp.Regexp{
 		negativeAmountRegex,

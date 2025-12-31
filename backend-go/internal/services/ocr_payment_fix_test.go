@@ -399,6 +399,62 @@ func TestParsePaymentScreenshot_UnionPay_BillDetail_ShouldUseUnionPaySources(t *
 	}
 }
 
+func TestParsePaymentScreenshot_BankReceipt_ICBC_ShouldExtractAmountTimeOrderPayee(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `ICBC
+中国工商银行
+境内汇款电子回单
+收款银行
+收款户名
+收款卡号
+3101****3384
+浙江泰隆商业银行
+上海辰帆绿化园艺中心
+收款金额
+手续费
+合计
+免费
+肆仟零壹拾元整
+4,010.00元（人民币）
+付款户名
+付款卡号
+付款银行
+*洪军
+6217****4366
+中国工商银行
+指令序号
+回单编号
+交易时间
+附言
+花卉采购
+ZZHK-0007-5517-0170-0168
+2025/01/06 15:21
+030319015006127327262681698
+`
+
+	data, err := service.ParsePaymentScreenshot(sampleText)
+	if err != nil {
+		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
+	}
+
+	if data.Amount == nil || *data.Amount != 4010.00 {
+		t.Fatalf("expected Amount=4010.00, got %#v", data.Amount)
+	}
+	if data.Merchant == nil || *data.Merchant != "上海辰帆绿化园艺中心" {
+		t.Fatalf("expected Merchant=上海辰帆绿化园艺中心, got %#v", data.Merchant)
+	}
+	if data.TransactionTime == nil || *data.TransactionTime != "2025-01-06 15:21" {
+		t.Fatalf("expected TransactionTime=2025-01-06 15:21, got %#v", data.TransactionTime)
+	}
+	if data.OrderNumber == nil || *data.OrderNumber != "ZZHK-0007-5517-0170-0168" {
+		t.Fatalf("expected OrderNumber=ZZHK-0007-5517-0170-0168, got %#v", data.OrderNumber)
+	}
+	if data.PaymentMethod == nil || *data.PaymentMethod != "中国工商银行(4366)" {
+		t.Fatalf("expected PaymentMethod=中国工商银行(4366), got %#v", data.PaymentMethod)
+	}
+}
+
 // TestRemoveChineseSpaces_PreserveTimeSpace tests the fix for preserving space after 日
 func TestRemoveChineseSpaces_PreserveTimeSpace(t *testing.T) {
 	tests := []struct {

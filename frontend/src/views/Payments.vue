@@ -989,6 +989,7 @@ const formatSourceLabel = (src?: string) => {
     jd_time: '京东时间标签',
     wechat_order: '微信单号标签',
     alipay_order: '支付宝单号标签',
+    bank_order_label: '银行单号标签',
     jd_trade_no: '京东交易号标签',
     jd_merchant_order: '京东商户单号标签',
     jd_total_order: '京东总订单编号',

@@ -272,6 +272,8 @@
       :style="{ width: '860px', maxWidth: '94vw' }"
       :breakpoints="{ '960px': '94vw', '640px': '96vw' }"
       :contentStyle="{ padding: '14px 16px' }"
+      :closable="!invoiceDetailEditing && !savingInvoiceDetail"
+      :closeOnEscape="!invoiceDetailEditing && !savingInvoiceDetail"
     >
       <div v-if="previewInvoice" class="preview">
         <div class="header-row">
@@ -280,20 +282,67 @@
             <span>{{ previewInvoice.original_name }}</span>
           </div>
           <div class="actions">
+            <Button
+              v-if="!invoiceDetailEditing"
+              class="p-button-outlined"
+              severity="secondary"
+              icon="pi pi-pencil"
+              :label="'\u7F16\u8F91'"
+              @click="enterInvoiceEditMode"
+            />
             <Button class="p-button-outlined" severity="secondary" icon="pi pi-external-link" :label="'\u67E5\u770B\u539F\u6587\u4EF6'" @click="downloadFile(previewInvoice)" />
-            <Button class="p-button-outlined" severity="secondary" icon="pi pi-refresh" :label="'\u91CD\u65B0\u89E3\u6790'" :loading="parseStatusPending" @click="handleReparse(previewInvoice.id)" />
+            <Button
+              class="p-button-outlined"
+              severity="secondary"
+              icon="pi pi-refresh"
+              :label="'\u91CD\u65B0\u89E3\u6790'"
+              :loading="parseStatusPending"
+              :disabled="invoiceDetailEditing || savingInvoiceDetail"
+              @click="handleReparse(previewInvoice.id)"
+            />
           </div>
         </div>
 
         <div class="grid sbm-grid-tight">
           <div class="col-12 md:col-6">
-            <div class="kv"><div class="k">&#21457;&#31080;&#21495;</div><div class="v">{{ previewInvoice.invoice_number || '-' }}</div></div>
+            <div class="kv">
+              <div class="k">发票号</div>
+              <div class="v">
+                <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.invoice_number" />
+                <template v-else>{{ previewInvoice.invoice_number || '-' }}</template>
+              </div>
+            </div>
           </div>
           <div class="col-12 md:col-6">
-            <div class="kv"><div class="k">&#24320;&#31080;&#26102;&#38388;</div><div class="v">{{ formatInvoiceDate(previewInvoice.invoice_date) }}</div></div>
+            <div class="kv">
+              <div class="k">开票时间</div>
+              <div class="v">
+                <DatePicker
+                  v-if="invoiceDetailEditing"
+                  v-model="invoiceDetailForm.invoice_date"
+                  :manualInput="false"
+                  dateFormat="yy-mm-dd"
+                  :placeholder="'开票日期'"
+                />
+                <template v-else>{{ formatInvoiceDate(previewInvoice.invoice_date) }}</template>
+              </div>
+            </div>
           </div>
           <div class="col-12 md:col-6">
-            <div class="kv"><div class="k">&#37329;&#39069;</div><div class="v money">{{ previewInvoice.amount ? `\u00A5${previewInvoice.amount.toFixed(2)}` : '-' }}</div></div>
+            <div class="kv">
+              <div class="k">金额</div>
+              <div class="v" :class="{ money: !invoiceDetailEditing }">
+                <InputNumber
+                  v-if="invoiceDetailEditing"
+                  v-model="invoiceDetailForm.amount"
+                  :minFractionDigits="2"
+                  :maxFractionDigits="2"
+                  :min="0"
+                  :useGrouping="false"
+                />
+                <template v-else>{{ previewInvoice.amount ? `\u00A5${previewInvoice.amount.toFixed(2)}` : '-' }}</template>
+              </div>
+            </div>
           </div>
           <div class="col-12 md:col-6">
             <div class="kv">
@@ -304,10 +353,22 @@
             </div>
           </div>
           <div class="col-12">
-            <div class="kv"><div class="k">&#38144;&#21806;&#26041;</div><div class="v">{{ previewInvoice.seller_name || '-' }}</div></div>
+            <div class="kv">
+              <div class="k">销售方</div>
+              <div class="v">
+                <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.seller_name" />
+                <template v-else>{{ previewInvoice.seller_name || '-' }}</template>
+              </div>
+            </div>
           </div>
           <div class="col-12">
-            <div class="kv"><div class="k">&#36141;&#20080;&#26041;</div><div class="v">{{ previewInvoice.buyer_name || '-' }}</div></div>
+            <div class="kv">
+              <div class="k">购买方</div>
+              <div class="v">
+                <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.buyer_name" />
+                <template v-else>{{ previewInvoice.buyer_name || '-' }}</template>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -506,7 +567,11 @@
       </div>
 
       <template #footer>
-        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="previewVisible = false" />
+        <div v-if="invoiceDetailEditing" class="dialog-footer-center">
+          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" :disabled="savingInvoiceDetail" @click="cancelInvoiceEditMode" />
+          <Button type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="savingInvoiceDetail" @click="saveInvoiceEditMode" />
+        </div>
+        <Button v-else type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="previewVisible = false" />
       </template>
     </Dialog>
   </div>
@@ -645,6 +710,15 @@ const removeSelectedFile = (idx: number) => {
 const previewVisible = ref(false)
 const previewInvoice = ref<Invoice | null>(null)
 const parseStatusPending = ref(false)
+const invoiceDetailEditing = ref(false)
+const savingInvoiceDetail = ref(false)
+const invoiceDetailForm = reactive({
+  invoice_number: '',
+  invoice_date: null as Date | null,
+  amount: null as number | null,
+  seller_name: '',
+  buyer_name: '',
+})
 
 // Linked payments state
 const loadingLinkedPayments = ref(false)
@@ -906,12 +980,71 @@ const handleDelete = async (id: string) => {
 
 const openPreview = (invoice: Invoice) => {
   previewInvoice.value = invoice
+  invoiceDetailEditing.value = false
+  savingInvoiceDetail.value = false
+  invoiceDetailForm.invoice_number = invoice.invoice_number || ''
+  invoiceDetailForm.invoice_date = parseInvoiceDateToDate(invoice.invoice_date)
+  invoiceDetailForm.amount = invoice.amount ?? null
+  invoiceDetailForm.seller_name = invoice.seller_name || ''
+  invoiceDetailForm.buyer_name = invoice.buyer_name || ''
   previewVisible.value = true
   loadLinkedPayments(invoice.id)
 }
 
 const downloadFile = (invoice: Invoice) => {
   window.open(`${FILE_BASE_URL}/${invoice.file_path}`, '_blank')
+}
+
+const enterInvoiceEditMode = () => {
+  if (!previewInvoice.value) return
+  invoiceDetailEditing.value = true
+  invoiceDetailForm.invoice_number = previewInvoice.value.invoice_number || ''
+  invoiceDetailForm.invoice_date = parseInvoiceDateToDate(previewInvoice.value.invoice_date)
+  invoiceDetailForm.amount = previewInvoice.value.amount ?? null
+  invoiceDetailForm.seller_name = previewInvoice.value.seller_name || ''
+  invoiceDetailForm.buyer_name = previewInvoice.value.buyer_name || ''
+}
+
+const cancelInvoiceEditMode = () => {
+  if (!previewInvoice.value) {
+    invoiceDetailEditing.value = false
+    return
+  }
+  invoiceDetailForm.invoice_number = previewInvoice.value.invoice_number || ''
+  invoiceDetailForm.invoice_date = parseInvoiceDateToDate(previewInvoice.value.invoice_date)
+  invoiceDetailForm.amount = previewInvoice.value.amount ?? null
+  invoiceDetailForm.seller_name = previewInvoice.value.seller_name || ''
+  invoiceDetailForm.buyer_name = previewInvoice.value.buyer_name || ''
+  invoiceDetailEditing.value = false
+}
+
+const saveInvoiceEditMode = async () => {
+  if (!previewInvoice.value) return
+  savingInvoiceDetail.value = true
+  try {
+    const payload: Partial<Invoice> = {
+      invoice_number: invoiceDetailForm.invoice_number || undefined,
+      invoice_date: invoiceDetailForm.invoice_date ? dayjs(invoiceDetailForm.invoice_date).format('YYYY-MM-DD') : undefined,
+      amount: invoiceDetailForm.amount === null ? undefined : Number(invoiceDetailForm.amount),
+      seller_name: invoiceDetailForm.seller_name || undefined,
+      buyer_name: invoiceDetailForm.buyer_name || undefined,
+    }
+    await invoiceApi.update(previewInvoice.value.id, payload)
+    const refreshed = await invoiceApi.getById(previewInvoice.value.id)
+    if (refreshed.data.success && refreshed.data.data) {
+      previewInvoice.value = refreshed.data.data
+    } else {
+      previewInvoice.value = { ...previewInvoice.value, ...payload } as Invoice
+    }
+    toast.add({ severity: 'success', summary: '已保存', life: 2000 })
+    invoiceDetailEditing.value = false
+    await loadInvoices()
+    await loadStats()
+  } catch {
+    toast.add({ severity: 'error', summary: '保存失败', life: 3000 })
+  } finally {
+    savingInvoiceDetail.value = false
+  }
 }
 
 const loadLinkedPayments = async (invoiceId: string) => {

@@ -145,11 +145,14 @@
           </div>
         </div>
 
-        <Message v-if="!uploadOcrResult" severity="info" :closable="false">
+        <Message v-if="!uploadedInvoiceId" severity="info" :closable="false">
           请选择文件，点击“上传”解析后可在下方修改识别结果。
         </Message>
+        <Message v-else-if="uploadedInvoiceId && !uploadOcrResult" severity="warn" :closable="false">
+          已上传，但未解析出可用的 OCR 摘要（可能仍在解析中或解析失败）。你仍可手动填写后保存，也可以稍后在发票详情里点击“重新解析”。
+        </Message>
 
-        <form v-else class="p-fluid ocr-form" @submit.prevent="handleSaveUploadedInvoice">
+        <form v-if="uploadedInvoiceId" class="p-fluid ocr-form" @submit.prevent="handleSaveUploadedInvoice">
           <div class="grid">
             <div class="col-12 md:col-6 field">
               <label for="inv_num">发票号码</label>
@@ -237,10 +240,10 @@
             severity="secondary"
             :label="'\u53D6\u6D88'"
             :disabled="uploading || savingUploadOcr"
-            @click="uploadModalVisible = false"
+            @click="handleCancelUpload"
           />
           <Button
-            v-if="!uploadOcrResult"
+            v-if="!uploadedInvoiceId"
             type="button"
             :label="'\u4E0A\u4F20'"
             icon="pi pi-check"
@@ -517,7 +520,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import Accordion from 'primevue/accordion'
 import AccordionTab from 'primevue/accordiontab'
@@ -527,6 +530,9 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Divider from 'primevue/divider'
+import InputNumber from 'primevue/inputnumber'
+import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -610,8 +616,10 @@ const uploading = ref(false)
 const savingUploadOcr = ref(false)
 const selectedFiles = ref<File[]>([])
 const invoiceInput = ref<HTMLInputElement | null>(null)
+const uploadedInvoiceIds = ref<string[]>([])
 const uploadedInvoiceId = ref<string | null>(null)
 const uploadOcrResult = ref<InvoiceExtractedData | null>(null)
+const uploadConfirmed = ref(false)
 const uploadOcrForm = reactive({
   invoice_number: '',
   invoice_date: '',
@@ -675,8 +683,10 @@ const loadStats = async () => {
 const openUploadModal = () => {
   selectedFiles.value = []
   if (invoiceInput.value) invoiceInput.value.value = ''
+  uploadedInvoiceIds.value = []
   uploadedInvoiceId.value = null
   uploadOcrResult.value = null
+  uploadConfirmed.value = false
   uploadOcrForm.invoice_number = ''
   uploadOcrForm.invoice_date = ''
   uploadOcrForm.amount = null
@@ -684,6 +694,39 @@ const openUploadModal = () => {
   uploadOcrForm.seller_name = ''
   uploadOcrForm.buyer_name = ''
   uploadModalVisible.value = true
+}
+
+const resetUploadDraftState = () => {
+  selectedFiles.value = []
+  if (invoiceInput.value) invoiceInput.value.value = ''
+  uploadedInvoiceIds.value = []
+  uploadedInvoiceId.value = null
+  uploadOcrResult.value = null
+  uploadConfirmed.value = false
+  uploadOcrForm.invoice_number = ''
+  uploadOcrForm.invoice_date = ''
+  uploadOcrForm.amount = null
+  uploadOcrForm.tax_amount = null
+  uploadOcrForm.seller_name = ''
+  uploadOcrForm.buyer_name = ''
+}
+
+const discardUploadedInvoices = async () => {
+  const ids = uploadedInvoiceIds.value.filter(Boolean)
+  if (ids.length === 0) return
+  const results = await Promise.allSettled(ids.map(id => invoiceApi.delete(id)))
+  const failed = results.filter(r => r.status === 'rejected').length
+  if (failed === 0) {
+    toast.add({ severity: 'info', summary: '已取消并删除本次上传的发票', life: 2200 })
+  } else {
+    toast.add({ severity: 'warn', summary: `已取消，但有 ${failed} 条上传记录删除失败（可在列表中手动删除）`, life: 4000 })
+  }
+  await loadInvoices()
+  await loadStats()
+}
+
+const handleCancelUpload = () => {
+  uploadModalVisible.value = false
 }
 
 const onInvoiceInputChange = (event: Event) => {
@@ -737,10 +780,12 @@ const handleUpload = async () => {
     if (selectedFiles.value.length === 1) {
       const res = await invoiceApi.upload(selectedFiles.value[0])
       createdInvoice = res.data?.data || null
+      uploadedInvoiceIds.value = createdInvoice ? [createdInvoice.id] : []
     } else {
       const res = await invoiceApi.uploadMultiple(selectedFiles.value)
       const createdList = res.data?.data || []
       createdInvoice = createdList.length > 0 ? createdList[0] : null
+      uploadedInvoiceIds.value = createdList.map(it => it.id)
     }
     if (createdInvoice) {
       uploadedInvoiceId.value = createdInvoice.id
@@ -784,6 +829,7 @@ const handleSaveUploadedInvoice = async () => {
     }
     await invoiceApi.update(uploadedInvoiceId.value, payload)
     toast.add({ severity: 'success', summary: '\u53D1\u7968\u4FE1\u606F\u5DF2\u66F4\u65B0', life: 2000 })
+    uploadConfirmed.value = true
     uploadModalVisible.value = false
     await loadInvoices()
     await loadStats()
@@ -793,6 +839,18 @@ const handleSaveUploadedInvoice = async () => {
     savingUploadOcr.value = false
   }
 }
+
+watch(
+  () => uploadModalVisible.value,
+  async visible => {
+    if (visible) return
+    if (uploading.value || savingUploadOcr.value) return
+    if (!uploadConfirmed.value) {
+      await discardUploadedInvoices()
+    }
+    resetUploadDraftState()
+  },
+)
 
 const confirmDelete = (id: string) => {
   confirm.require({

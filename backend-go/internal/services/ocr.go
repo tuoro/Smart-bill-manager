@@ -3200,14 +3200,14 @@ func (s *OCRService) parseAlipayTransferVoucher(text string, data *PaymentExtrac
 
 	// Payment method: this is an Alipay transfer voucher.
 	if data.PaymentMethod == nil {
-		m := "支付宝"
+		m := "支付宝转账"
 		data.PaymentMethod = &m
 		data.PaymentMethodSource = "alipay_transfer"
 		data.PaymentMethodConfidence = 0.8
 	}
 	if data.PaymentMethod != nil && data.PaymentMethodSource == "alipay_infer" {
 		// Upgrade low-confidence inference for vouchers.
-		m := "支付宝"
+		m := "支付宝转账"
 		data.PaymentMethod = &m
 		data.PaymentMethodSource = "alipay_transfer"
 		data.PaymentMethodConfidence = 0.8

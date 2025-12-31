@@ -507,8 +507,8 @@ user***@example.com
 	if data.OrderNumberSource != "alipay_transfer_voucher_no" {
 		t.Fatalf("expected OrderNumberSource=alipay_transfer_voucher_no, got %q", data.OrderNumberSource)
 	}
-	if data.PaymentMethod == nil || *data.PaymentMethod != "支付宝" {
-		t.Fatalf("expected PaymentMethod=支付宝, got %#v", data.PaymentMethod)
+	if data.PaymentMethod == nil || *data.PaymentMethod != "支付宝转账" {
+		t.Fatalf("expected PaymentMethod=支付宝转账, got %#v", data.PaymentMethod)
 	}
 	if data.PaymentMethodSource != "alipay_transfer" {
 		t.Fatalf("expected PaymentMethodSource=alipay_transfer, got %q", data.PaymentMethodSource)

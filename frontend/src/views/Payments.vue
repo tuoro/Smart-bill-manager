@@ -55,7 +55,6 @@
               @update:modelValue="handleDateChange"
             />
             <Button :label="'\u4E0A\u4F20\u622A\u56FE'" icon="pi pi-image" severity="success" @click="openScreenshotModal" />
-            <Button :label="'\u6DFB\u52A0\u8BB0\u5F55'" icon="pi pi-plus" @click="openModal()" />
           </div>
         </div>
       </template>
@@ -103,11 +102,10 @@
               <Button class="p-button-text" :label="`\u67E5\u770B (${row.invoiceCount || 0})`" @click="viewLinkedInvoices(row)" />
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '170px' }">
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '120px' }">
             <template #body="{ data: row }">
               <div class="row-actions">
                 <Button class="p-button-text" icon="pi pi-eye" @click="openPaymentDetail(row)" />
-                <Button class="p-button-text" icon="pi pi-pencil" @click="openModal(row)" />
                 <Button class="p-button-text p-button-danger" icon="pi pi-trash" @click="confirmDelete(row.id)" />
               </div>
             </template>
@@ -115,51 +113,6 @@
         </DataTable>
       </template>
     </Card>
-
-    <Dialog
-      v-model:visible="modalVisible"
-      modal
-      :header="editingPayment ? '\u7F16\u8F91\u652F\u4ED8\u8BB0\u5F55' : '\u6DFB\u52A0\u652F\u4ED8\u8BB0\u5F55'"
-      :style="{ width: '620px', maxWidth: '92vw' }"
-    >
-      <form class="p-fluid" @submit.prevent="handleSubmit">
-        <div class="grid">
-          <div class="col-12 md:col-6 field">
-            <label for="amount">&#37329;&#39069;</label>
-            <InputNumber
-              id="amount"
-              v-model="form.amount"
-              :minFractionDigits="2"
-              :maxFractionDigits="2"
-              :min="0"
-              :useGrouping="false"
-            />
-            <small v-if="errors.amount" class="p-error">{{ errors.amount }}</small>
-          </div>
-          <div class="col-12 md:col-6 field">
-            <label for="merchant">&#21830;&#23478;</label>
-            <InputText id="merchant" v-model.trim="form.merchant" />
-          </div>
-          <div class="col-12 md:col-6 field">
-            <label for="method">&#25903;&#20184;&#26041;&#24335;</label>
-            <InputText id="method" v-model.trim="form.payment_method" />
-          </div>
-          <div class="col-12 field">
-            <label for="time">&#20132;&#26131;&#26102;&#38388;</label>
-            <DatePicker id="time" v-model="form.transaction_time" showTime :manualInput="false" />
-            <small v-if="errors.transaction_time" class="p-error">{{ errors.transaction_time }}</small>
-          </div>
-          <div class="col-12 field">
-            <label for="desc">&#22791;&#27880;</label>
-            <Textarea id="desc" v-model="form.description" autoResize rows="3" />
-          </div>
-        </div>
-        <div class="footer">
-          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="modalVisible = false" />
-          <Button type="submit" :label="'\u4FDD\u5B58'" icon="pi pi-check" />
-        </div>
-      </form>
-    </Dialog>
 
     <Dialog
       v-model:visible="uploadScreenshotModalVisible"
@@ -635,19 +588,6 @@ const avgAmount = computed(() => {
   return count ? total / count : 0
 })
 
-// Payment CRUD dialog
-const modalVisible = ref(false)
-const editingPayment = ref<Payment | null>(null)
-
-const form = reactive({
-  amount: 0,
-  merchant: '',
-  payment_method: '',
-  description: '',
-  transaction_time: new Date(),
-})
-const errors = reactive({ amount: '', transaction_time: '' })
-
 // Screenshot upload + OCR
 const uploadScreenshotModalVisible = ref(false)
 const uploadingScreenshot = ref(false)
@@ -764,14 +704,6 @@ const paymentDetailForm = reactive({
   transaction_time: null as Date | null,
 })
 
-const validatePaymentForm = () => {
-  errors.amount = ''
-  errors.transaction_time = ''
-  if (form.amount === null || Number.isNaN(Number(form.amount)) || Number(form.amount) <= 0) errors.amount = '\u8BF7\u8F93\u5165\u91D1\u989D'
-  if (!form.transaction_time) errors.transaction_time = '\u8BF7\u9009\u62E9\u4EA4\u6613\u65F6\u95F4'
-  return !errors.amount && !errors.transaction_time
-}
-
 const validateOcrForm = () => {
   ocrErrors.amount = ''
   ocrErrors.transaction_time = ''
@@ -823,62 +755,6 @@ const normalizePaymentMethodText = (value?: string | null) => {
 const handleDateChange = () => {
   loadPayments()
   loadStats()
-}
-
-const openModal = (payment?: Payment) => {
-  errors.amount = ''
-  errors.transaction_time = ''
-  if (payment) {
-    editingPayment.value = payment
-    form.amount = payment.amount
-    form.merchant = payment.merchant || ''
-    form.payment_method = normalizePaymentMethodText(payment.payment_method || '')
-    form.description = payment.description || ''
-    form.transaction_time = new Date(payment.transaction_time)
-  } else {
-    editingPayment.value = null
-    form.amount = 0
-    form.merchant = ''
-    form.payment_method = ''
-    form.description = ''
-    form.transaction_time = new Date()
-  }
-  modalVisible.value = true
-}
-
-const handleSubmit = async () => {
-  if (!validatePaymentForm()) return
-  try {
-    const payload = {
-      amount: Number(form.amount),
-      merchant: form.merchant,
-      payment_method: form.payment_method,
-      description: form.description,
-      transaction_time: dayjs(form.transaction_time).toISOString(),
-    }
-    if (editingPayment.value) {
-      await paymentApi.update(editingPayment.value.id, payload)
-      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
-      notifications.add({
-        severity: 'success',
-        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u66F4\u65B0',
-        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
-      })
-    } else {
-      await paymentApi.create(payload)
-      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u521B\u5EFA\u6210\u529F', life: 2000 })
-      notifications.add({
-        severity: 'success',
-        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u521B\u5EFA',
-        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
-      })
-    }
-    modalVisible.value = false
-    await loadPayments()
-    await loadStats()
-  } catch {
-    toast.add({ severity: 'error', summary: '\u64CD\u4F5C\u5931\u8D25', life: 3000 })
-  }
 }
 
 const confirmDelete = (id: string) => {

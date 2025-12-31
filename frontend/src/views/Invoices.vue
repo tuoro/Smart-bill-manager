@@ -102,11 +102,10 @@
           <Column field="created_at" :header="'\u4E0A\u4F20\u65F6\u95F4'" sortable :style="{ width: '170px' }">
             <template #body="{ data: row }">{{ formatDateTime(row.created_at) }}</template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '160px' }">
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '120px' }">
             <template #body="{ data: row }">
               <div class="row-actions">
                 <Button class="p-button-text" icon="pi pi-eye" @click="openPreview(row)" />
-                <Button class="p-button-text" icon="pi pi-download" @click="downloadFile(row)" />
                 <Button class="p-button-text p-button-danger" icon="pi pi-trash" @click="confirmDelete(row.id)" />
               </div>
             </template>

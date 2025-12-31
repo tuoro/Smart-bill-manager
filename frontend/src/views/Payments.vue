@@ -498,7 +498,21 @@
             <div class="kv">
               <div class="k">&#20132;&#26131;&#26102;&#38388;</div>
               <div class="v">
-                <DatePicker v-if="paymentDetailEditing" v-model="paymentDetailForm.transaction_time" showTime :manualInput="false" />
+                <template v-if="paymentDetailEditing">
+                  <InputText
+                    :modelValue="formatDateTimeDraft(paymentDetailForm.transaction_time)"
+                    readonly
+                    :placeholder="'请选择交易时间'"
+                    @click="openPaymentTimePicker"
+                  />
+                  <div v-if="paymentDetailTimePickerOpen" class="sbm-time-picker">
+                    <DatePicker v-model="paymentDetailTimeDraft" inline showTime :manualInput="false" />
+                    <div class="sbm-time-picker-footer">
+                      <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="cancelPaymentTimePicker" />
+                      <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmPaymentTimePicker" />
+                    </div>
+                  </div>
+                </template>
                 <template v-else>{{ formatDateTime(detailPayment.transaction_time) }}</template>
               </div>
             </div>
@@ -737,6 +751,8 @@ const detailPayment = ref<Payment | null>(null)
 const reparsingOcr = ref(false)
 const paymentDetailEditing = ref(false)
 const savingPaymentDetail = ref(false)
+const paymentDetailTimePickerOpen = ref(false)
+const paymentDetailTimeDraft = ref<Date | null>(null)
 const paymentDetailForm = reactive({
   amount: 0,
   merchant: '',
@@ -1161,6 +1177,8 @@ const openPaymentDetail = (payment: Payment) => {
   detailPayment.value = payment
   paymentDetailEditing.value = false
   savingPaymentDetail.value = false
+  paymentDetailTimePickerOpen.value = false
+  paymentDetailTimeDraft.value = null
   paymentDetailForm.amount = Number(payment.amount || 0)
   paymentDetailForm.merchant = payment.merchant || ''
   paymentDetailForm.payment_method = normalizePaymentMethodText(payment.payment_method || '')
@@ -1169,9 +1187,33 @@ const openPaymentDetail = (payment: Payment) => {
   paymentDetailVisible.value = true
 }
 
+const formatDateTimeDraft = (date: Date | null) => {
+  if (!date) return ''
+  return dayjs(date).format('YYYY-MM-DD HH:mm')
+}
+
+const openPaymentTimePicker = () => {
+  if (!paymentDetailEditing.value) return
+  paymentDetailTimeDraft.value = paymentDetailForm.transaction_time ? new Date(paymentDetailForm.transaction_time) : new Date()
+  paymentDetailTimePickerOpen.value = true
+}
+
+const cancelPaymentTimePicker = () => {
+  paymentDetailTimePickerOpen.value = false
+  paymentDetailTimeDraft.value = null
+}
+
+const confirmPaymentTimePicker = () => {
+  if (!paymentDetailTimeDraft.value) return
+  paymentDetailForm.transaction_time = new Date(paymentDetailTimeDraft.value)
+  paymentDetailTimePickerOpen.value = false
+}
+
 const enterPaymentEditMode = () => {
   if (!detailPayment.value) return
   paymentDetailEditing.value = true
+  paymentDetailTimePickerOpen.value = false
+  paymentDetailTimeDraft.value = null
   paymentDetailForm.amount = Number(detailPayment.value.amount || 0)
   paymentDetailForm.merchant = detailPayment.value.merchant || ''
   paymentDetailForm.payment_method = normalizePaymentMethodText(detailPayment.value.payment_method || '')
@@ -1184,6 +1226,8 @@ const cancelPaymentEditMode = () => {
     paymentDetailEditing.value = false
     return
   }
+  paymentDetailTimePickerOpen.value = false
+  paymentDetailTimeDraft.value = null
   paymentDetailForm.amount = Number(detailPayment.value.amount || 0)
   paymentDetailForm.merchant = detailPayment.value.merchant || ''
   paymentDetailForm.payment_method = normalizePaymentMethodText(detailPayment.value.payment_method || '')
@@ -1205,6 +1249,7 @@ const savePaymentEditMode = async () => {
 
   savingPaymentDetail.value = true
   try {
+    paymentDetailTimePickerOpen.value = false
     const payload = {
       amount: Number(paymentDetailForm.amount),
       merchant: paymentDetailForm.merchant,
@@ -1713,6 +1758,21 @@ watch(
 
 .sbm-ocr-hint-mid {
   color: var(--color-text-secondary);
+}
+
+.sbm-time-picker {
+  margin-top: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: var(--radius-md);
+  padding: 10px;
+}
+
+.sbm-time-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
 }
 </style>
 

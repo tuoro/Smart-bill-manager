@@ -109,7 +109,7 @@
       v-model:visible="uploadModalVisible"
       modal
       :header="'\u4E0A\u4F20\u53D1\u7968'"
-      :style="{ width: '720px', maxWidth: '96vw' }"
+      :style="{ width: '880px', maxWidth: '96vw' }"
       :closable="!uploading && !savingUploadOcr"
     >
       <div class="upload-screenshot-layout">
@@ -230,6 +230,18 @@
             </div>
           </div>
         </form>
+
+        <div v-if="uploadedInvoice && (getInvoiceRawText(uploadedInvoice) || getInvoicePrettyText(uploadedInvoice))" class="raw-section">
+          <div class="raw-title">OCR 文本</div>
+          <Accordion>
+            <AccordionTab v-if="getInvoicePrettyText(uploadedInvoice)" :header="'点击查看 OCR 整理版文本'">
+              <pre class="raw-text">{{ getInvoicePrettyText(uploadedInvoice) }}</pre>
+            </AccordionTab>
+            <AccordionTab v-if="getInvoiceRawText(uploadedInvoice)" :header="'点击查看 OCR 原始文本'">
+              <pre class="raw-text">{{ getInvoiceRawText(uploadedInvoice) }}</pre>
+            </AccordionTab>
+          </Accordion>
+        </div>
       </div>
 
       <template #footer>
@@ -618,6 +630,7 @@ const selectedFiles = ref<File[]>([])
 const invoiceInput = ref<HTMLInputElement | null>(null)
 const uploadedInvoiceIds = ref<string[]>([])
 const uploadedInvoiceId = ref<string | null>(null)
+const uploadedInvoice = ref<Invoice | null>(null)
 const uploadOcrResult = ref<InvoiceExtractedData | null>(null)
 const uploadConfirmed = ref(false)
 const uploadOcrForm = reactive({
@@ -685,6 +698,7 @@ const openUploadModal = () => {
   if (invoiceInput.value) invoiceInput.value.value = ''
   uploadedInvoiceIds.value = []
   uploadedInvoiceId.value = null
+  uploadedInvoice.value = null
   uploadOcrResult.value = null
   uploadConfirmed.value = false
   uploadOcrForm.invoice_number = ''
@@ -701,6 +715,7 @@ const resetUploadDraftState = () => {
   if (invoiceInput.value) invoiceInput.value.value = ''
   uploadedInvoiceIds.value = []
   uploadedInvoiceId.value = null
+  uploadedInvoice.value = null
   uploadOcrResult.value = null
   uploadConfirmed.value = false
   uploadOcrForm.invoice_number = ''
@@ -789,6 +804,7 @@ const handleUpload = async () => {
     }
     if (createdInvoice) {
       uploadedInvoiceId.value = createdInvoice.id
+      uploadedInvoice.value = createdInvoice
       const extracted = getInvoiceExtracted(createdInvoice)
       uploadOcrResult.value = extracted
       uploadOcrForm.invoice_number = extracted?.invoice_number || ''
@@ -1478,9 +1494,9 @@ onMounted(() => {
 }
 
 .ocr-hint {
-  display: inline-block;
-  margin-left: 6px;
+  display: block;
   color: var(--color-text-tertiary);
+  margin-top: 2px;
   font-size: 0.8rem;
 }
 

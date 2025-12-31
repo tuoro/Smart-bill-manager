@@ -1771,9 +1771,23 @@ watch(
   padding: 8px;
 }
 
+.sbm-time-picker :deep(.p-datepicker) {
+  display: inline-block;
+}
+
 .sbm-time-picker :deep(.p-datepicker),
 .sbm-time-picker :deep(.p-datepicker-panel) {
   width: auto !important;
+}
+
+.sbm-time-picker :deep(.p-datepicker-panel-inline) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sbm-time-picker :deep(.p-datepicker-calendar-container) {
+  padding: 0 0.4rem;
 }
 
 .sbm-time-picker :deep(.p-datepicker-panel) {
@@ -1784,12 +1798,9 @@ watch(
   padding: 0.6rem 0.7rem;
 }
 
-.sbm-time-picker :deep(.p-datepicker-calendar-container) {
-  padding: 0 0.4rem;
-}
-
 .sbm-time-picker :deep(.p-datepicker-time-picker) {
   padding: 0.6rem 0.7rem;
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .sbm-time-picker-footer {

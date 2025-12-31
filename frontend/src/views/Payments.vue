@@ -80,18 +80,16 @@
               <span class="sbm-ellipsis" :title="normalizeInlineText(row.merchant)">{{ normalizeInlineText(row.merchant) || '-' }}</span>
             </template>
           </Column>
-          <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '190px' }" headerClass="col-center" bodyClass="col-center">
+          <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '190px' }">
             <template #body="{ data: row }">
-              <div class="cell-center">
-                <Tag
-                  v-if="row.payment_method"
-                  class="sbm-tag-ellipsis"
-                  severity="success"
-                  :value="normalizePaymentMethodText(row.payment_method)"
-                  :title="normalizePaymentMethodText(row.payment_method)"
-                />
-                <span v-else>-</span>
-              </div>
+              <Tag
+                v-if="row.payment_method"
+                class="sbm-tag-ellipsis"
+                severity="success"
+                :value="normalizePaymentMethodText(row.payment_method)"
+                :title="normalizePaymentMethodText(row.payment_method)"
+              />
+              <span v-else>-</span>
             </template>
           </Column>
           <Column :header="'\u5907\u6CE8'" :style="{ width: '240px' }">
@@ -99,19 +97,17 @@
               <span class="sbm-ellipsis" :title="normalizeInlineText(row.description)">{{ normalizeInlineText(row.description) || '-' }}</span>
             </template>
           </Column>
-          <Column field="transaction_time" :header="'\u4EA4\u6613\u65F6\u95F4'" sortable :style="{ width: '170px' }" headerClass="col-center" bodyClass="col-center">
+          <Column field="transaction_time" :header="'\u4EA4\u6613\u65F6\u95F4'" sortable :style="{ width: '170px' }">
             <template #body="{ data: row }">
-              <div class="cell-center">{{ formatDateTime(row.transaction_time) }}</div>
+              {{ formatDateTime(row.transaction_time) }}
             </template>
           </Column>
-          <Column :header="'\u5173\u8054\u53D1\u7968'" :style="{ width: '120px' }" headerClass="col-center" bodyClass="col-center">
+          <Column :header="'\u5173\u8054\u53D1\u7968'" :style="{ width: '120px' }">
             <template #body="{ data: row }">
-              <div class="cell-center">
-                <Button size="small" class="p-button-text" :label="`\u67E5\u770B (${row.invoiceCount || 0})`" @click="viewLinkedInvoices(row)" />
-              </div>
+              <Button size="small" class="p-button-text" :label="`\u67E5\u770B (${row.invoiceCount || 0})`" @click="viewLinkedInvoices(row)" />
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '110px' }" headerClass="col-center" bodyClass="col-center">
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '110px' }">
             <template #body="{ data: row }">
               <div class="row-actions">
                 <Button class="p-button-text" icon="pi pi-eye" @click="openPaymentDetail(row)" />
@@ -1401,17 +1397,7 @@ watch(
 .row-actions {
   display: flex;
   gap: 6px;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-}
-
-.cell-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-width: 0;
+  justify-content: flex-start;
 }
 
 .payments-table :deep(.p-datatable-table) {
@@ -1424,28 +1410,6 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.payments-table :deep(.col-center) {
-  text-align: center !important;
-}
-
-.payments-table :deep(th.col-center .p-datatable-column-header-content) {
-  position: relative;
-  width: 100%;
-  justify-content: center;
-  padding-inline-end: 18px;
-}
-
-.payments-table :deep(th.col-center .p-datatable-column-title) {
-  flex: 1 1 auto;
-  text-align: center;
-  width: 100%;
-}
-
-.payments-table :deep(th.col-center .p-datatable-sort-icon) {
-  position: absolute;
-  inset-inline-end: 0;
 }
 
 .sbm-ellipsis {

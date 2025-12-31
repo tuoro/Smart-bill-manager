@@ -184,6 +184,7 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 		FilePath:     "uploads/" + filename,
 		FileSize:     file.Size,
 		Source:       "upload",
+		IsDraft:      true,
 	})
 	if err != nil {
 		utils.Error(c, 500, "上传发票失败", err)
@@ -252,6 +253,7 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 			FilePath:     "uploads/" + filename,
 			FileSize:     file.Size,
 			Source:       "upload",
+			IsDraft:      true,
 		})
 		if err != nil {
 			continue

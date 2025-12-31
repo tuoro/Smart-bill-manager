@@ -21,7 +21,7 @@ export const paymentApi = {
   create: (payment: Omit<Payment, 'id' | 'created_at'>) =>
     api.post<ApiResponse<Payment>>('/payments', payment),
   
-  update: (id: string, payment: Partial<Payment>) =>
+  update: (id: string, payment: (Partial<Payment> & { confirm?: boolean })) =>
     api.put<ApiResponse<void>>(`/payments/${id}`, payment),
   
   delete: (id: string) =>

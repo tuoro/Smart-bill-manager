@@ -1,5 +1,6 @@
 export interface Payment {
   id: string;
+  is_draft?: boolean;
   trip_id?: string;
   trip_assignment_source?: 'auto' | 'manual' | 'blocked' | string;
   trip_assignment_state?: 'assigned' | 'no_match' | 'overlap' | 'blocked' | string;
@@ -83,6 +84,7 @@ export interface PendingPayment {
 
 export interface Invoice {
   id: string;
+  is_draft?: boolean;
   payment_id?: string;
   filename: string;
   original_name: string;

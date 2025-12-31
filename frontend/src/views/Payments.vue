@@ -851,7 +851,7 @@ const handleSaveOcrResult = async () => {
     }
 
     if (uploadedPaymentId.value) {
-      await paymentApi.update(uploadedPaymentId.value, payload)
+      await paymentApi.update(uploadedPaymentId.value, { ...payload, confirm: true })
       toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
       notifications.add({
         severity: 'success',

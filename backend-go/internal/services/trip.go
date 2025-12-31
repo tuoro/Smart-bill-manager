@@ -244,7 +244,7 @@ func (s *TripService) GetSummary(tripID string) (*TripSummary, error) {
 	db := database.GetDB()
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Find(&payments).Error; err != nil {
 		return nil, err
 	}
 
@@ -337,7 +337,7 @@ func (s *TripService) GetPayments(tripID string, includeInvoices bool) ([]TripPa
 	db := database.GetDB()
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Order("transaction_time_ts DESC").Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Order("transaction_time_ts DESC").Find(&payments).Error; err != nil {
 		return nil, err
 	}
 	if len(payments) == 0 {
@@ -382,7 +382,7 @@ func (s *TripService) GetPayments(tripID string, includeInvoices bool) ([]TripPa
 	}
 
 	var invoices []models.Invoice
-	if err := db.Model(&models.Invoice{}).Where("id IN ?", invoiceIDs).Find(&invoices).Error; err != nil {
+	if err := db.Model(&models.Invoice{}).Where("id IN ?", invoiceIDs).Where("is_draft = 0").Find(&invoices).Error; err != nil {
 		return nil, err
 	}
 	invByID := make(map[string]models.Invoice, len(invoices))
@@ -420,7 +420,7 @@ func (s *TripService) GetCascadePreview(tripID string) (*CascadePreview, []strin
 	db := database.GetDB()
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Find(&payments).Error; err != nil {
 		return nil, nil, nil, err
 	}
 	paymentIDs := make([]string, 0, len(payments))
@@ -505,7 +505,7 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 
 		// Collect payment IDs.
 		var paymentIDs []string
-		if err := tx.Model(&models.Payment{}).Where("trip_id = ?", tripID).Pluck("id", &paymentIDs).Error; err != nil {
+		if err := tx.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Pluck("id", &paymentIDs).Error; err != nil {
 			return err
 		}
 

@@ -29,7 +29,7 @@ export const invoiceApi = {
     })
   },
   
-  update: (id: string, invoice: Partial<Invoice>) =>
+  update: (id: string, invoice: (Partial<Invoice> & { confirm?: boolean })) =>
     api.put<ApiResponse<void>>(`/invoices/${id}`, invoice),
   
   delete: (id: string) =>

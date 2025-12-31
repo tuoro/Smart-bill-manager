@@ -7,6 +7,7 @@ import (
 // Invoice represents an invoice record
 type Invoice struct {
 	ID            string    `json:"id" gorm:"primaryKey"`
+	IsDraft       bool      `json:"is_draft" gorm:"not null;default:false;index"`
 	PaymentID     *string   `json:"payment_id" gorm:"index"` // Keep for backward compatibility
 	Filename      string    `json:"filename" gorm:"not null"`
 	OriginalName  string    `json:"original_name" gorm:"not null"`

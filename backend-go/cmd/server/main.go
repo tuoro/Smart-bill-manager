@@ -203,6 +203,7 @@ func main() {
 			Table("payments AS p").
 			Select(`p.*, CASE WHEN l.invoice_id IS NULL THEN 0 ELSE 1 END AS invoice_count`).
 			Joins("LEFT JOIN invoice_payment_links AS l ON l.payment_id = p.id").
+			Where("p.is_draft = 0").
 			Order("p.transaction_time_ts DESC, p.created_at DESC").
 			Limit(6).
 			Scan(&recentPayments).Error

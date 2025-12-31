@@ -55,12 +55,18 @@ func (r *InvoiceRepository) FindByID(id string) (*models.Invoice, error) {
 type InvoiceFilter struct {
 	Limit  int
 	Offset int
+	// IncludeDraft controls whether draft records are included.
+	// By default, drafts are hidden from normal list/stats flows.
+	IncludeDraft bool
 }
 
 func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, error) {
 	var invoices []models.Invoice
 
 	query := database.GetDB().Model(&models.Invoice{}).Order("created_at DESC")
+	if !filter.IncludeDraft {
+		query = query.Where("is_draft = 0")
+	}
 
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
@@ -75,7 +81,7 @@ func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, err
 
 func (r *InvoiceRepository) FindByPaymentID(paymentID string) ([]models.Invoice, error) {
 	var invoices []models.Invoice
-	err := database.GetDB().Where("payment_id = ?", paymentID).Find(&invoices).Error
+	err := database.GetDB().Where("payment_id = ?", paymentID).Where("is_draft = 0").Find(&invoices).Error
 	return invoices, err
 }
 
@@ -108,6 +114,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var totals totalsRow
 	if err := database.GetDB().
 		Table("invoices").
+		Where("is_draft = 0").
 		Select("COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_amount").
 		Scan(&totals).Error; err != nil {
 		return nil, err
@@ -123,6 +130,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var srcRows []srcRow
 	if err := database.GetDB().
 		Table("invoices").
+		Where("is_draft = 0").
 		Select(`CASE WHEN source IS NULL OR TRIM(source) = '' THEN 'unknown' ELSE source END AS src, COUNT(*) AS cnt`).
 		Group("src").
 		Scan(&srcRows).Error; err != nil {
@@ -140,6 +148,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var monthRows []monthRow
 	if err := database.GetDB().
 		Table("invoices").
+		Where("is_draft = 0").
 		Where("invoice_date IS NOT NULL AND LENGTH(invoice_date) >= 7 AND amount IS NOT NULL").
 		Select(`SUBSTR(invoice_date, 1, 7) AS m, COALESCE(SUM(amount), 0) AS total`).
 		Group("m").
@@ -192,6 +201,7 @@ func (r *InvoiceRepository) GetLinkedPayments(invoiceID string) ([]models.Paymen
 	err := database.GetDB().
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.payment_id = payments.id").
 		Where("invoice_payment_links.invoice_id = ?", invoiceID).
+		Where("payments.is_draft = 0").
 		Find(&payments).Error
 	return payments, err
 }
@@ -202,6 +212,8 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 
 	base := database.GetDB().Model(&models.Payment{})
 	baseNoAmount := database.GetDB().Model(&models.Payment{})
+	base = base.Where("is_draft = 0")
+	baseNoAmount = baseNoAmount.Where("is_draft = 0")
 
 	// If invoice has amount, filter by similar amounts (within 10% range)
 	if invoice.Amount != nil {
@@ -280,7 +292,7 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 func (r *InvoiceRepository) SuggestInvoices(payment *models.Payment, limit int) ([]models.Invoice, error) {
 	var invoices []models.Invoice
 
-	query := database.GetDB().Model(&models.Invoice{})
+	query := database.GetDB().Model(&models.Invoice{}).Where("is_draft = 0")
 	absAmount := 0.0
 	hasAmount := false
 

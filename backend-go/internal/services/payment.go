@@ -98,6 +98,9 @@ type PaymentFilterInput struct {
 	StartDate string `form:"startDate"`
 	EndDate   string `form:"endDate"`
 	Category  string `form:"category"`
+	// IncludeDraft controls whether draft records are included in listing/stats.
+	// Default is false.
+	IncludeDraft bool `form:"includeDraft"`
 }
 
 func (s *PaymentService) GetAll(filter PaymentFilterInput) ([]models.Payment, error) {
@@ -126,6 +129,7 @@ func (s *PaymentService) GetAll(filter PaymentFilterInput) ([]models.Payment, er
 		StartTs:   startTs,
 		EndTs:     endTs,
 		Category:  filter.Category,
+		IncludeDraft: filter.IncludeDraft,
 	})
 }
 
@@ -189,6 +193,7 @@ type UpdatePaymentInput struct {
 	TripID          *string  `json:"trip_id"`
 	TripAssignSrc   *string  `json:"trip_assignment_source"`
 	BadDebt         *bool    `json:"bad_debt"`
+	Confirm         *bool    `json:"confirm"`
 }
 
 func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
@@ -273,6 +278,9 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 	}
 	if input.BadDebt != nil {
 		data["bad_debt"] = *input.BadDebt
+	}
+	if input.Confirm != nil && *input.Confirm {
+		data["is_draft"] = false
 	}
 
 	if len(data) == 0 {
@@ -393,6 +401,7 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 	// Create payment record with extracted data
 	payment := &models.Payment{
 		ID:                utils.GenerateUUID(),
+		IsDraft:           true,
 		Amount:            0.0, // Default to 0.0, will be updated if amount is extracted
 		Merchant:          extracted.Merchant,
 		PaymentMethod:     extracted.PaymentMethod,
@@ -471,7 +480,7 @@ func (s *PaymentService) SuggestInvoices(paymentID string, limit int, debug bool
 
 	if len(candidates) == 0 {
 		var total int64
-		_ = database.GetDB().Model(&models.Invoice{}).Count(&total).Error
+		_ = database.GetDB().Model(&models.Invoice{}).Where("is_draft = 0").Count(&total).Error
 		if debug {
 			log.Printf("[MATCH] payment=%s repo candidates=0, fallback to recent invoices (total=%d)", paymentID, total)
 		}
@@ -479,6 +488,7 @@ func (s *PaymentService) SuggestInvoices(paymentID string, limit int, debug bool
 			var recent []models.Invoice
 			_ = database.GetDB().
 				Model(&models.Invoice{}).
+				Where("is_draft = 0").
 				Order("created_at DESC").
 				Limit(maxCandidates).
 				Find(&recent).Error

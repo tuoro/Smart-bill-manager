@@ -37,6 +37,7 @@ type CreateInvoiceInput struct {
 	FilePath     string  `json:"file_path"`
 	FileSize     int64   `json:"file_size"`
 	Source       string  `json:"source"`
+	IsDraft      bool    `json:"is_draft"`
 }
 
 func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, error) {
@@ -70,6 +71,7 @@ func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, erro
 
 	invoice := &models.Invoice{
 		ID:            id,
+		IsDraft:       input.IsDraft,
 		PaymentID:     input.PaymentID,
 		Filename:      input.Filename,
 		OriginalName:  input.OriginalName,
@@ -114,14 +116,16 @@ func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, erro
 }
 
 type InvoiceFilterInput struct {
-	Limit  int `form:"limit"`
-	Offset int `form:"offset"`
+	Limit        int  `form:"limit"`
+	Offset       int  `form:"offset"`
+	IncludeDraft bool `form:"includeDraft"`
 }
 
 func (s *InvoiceService) GetAll(filter InvoiceFilterInput) ([]models.Invoice, error) {
 	return s.repo.FindAll(repository.InvoiceFilter{
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+		Limit:        filter.Limit,
+		Offset:       filter.Offset,
+		IncludeDraft: filter.IncludeDraft,
 	})
 }
 
@@ -142,6 +146,7 @@ type UpdateInvoiceInput struct {
 	BadDebt       *bool    `json:"bad_debt"`
 	SellerName    *string  `json:"seller_name"`
 	BuyerName     *string  `json:"buyer_name"`
+	Confirm       *bool    `json:"confirm"`
 }
 
 func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
@@ -205,6 +210,9 @@ func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
 	}
 	if input.BuyerName != nil {
 		data["buyer_name"] = *input.BuyerName
+	}
+	if input.Confirm != nil && *input.Confirm {
+		data["is_draft"] = false
 	}
 
 	if len(data) == 0 {
@@ -351,7 +359,7 @@ func (s *InvoiceService) SuggestPayments(invoiceID string, limit int, debug bool
 		// Safety net: if repository-side filters are too strict (or data is missing),
 		// fall back to the most recent payments so scoring still has something to rank.
 		var total int64
-		_ = database.GetDB().Model(&models.Payment{}).Count(&total).Error
+		_ = database.GetDB().Model(&models.Payment{}).Where("is_draft = 0").Count(&total).Error
 		if debug {
 			log.Printf("[MATCH] invoice=%s repo candidates=0, fallback to recent payments (total=%d)", invoiceID, total)
 		}
@@ -359,6 +367,7 @@ func (s *InvoiceService) SuggestPayments(invoiceID string, limit int, debug bool
 			var recent []models.Payment
 			_ = database.GetDB().
 				Model(&models.Payment{}).
+				Where("is_draft = 0").
 				Order("transaction_time DESC").
 				Limit(maxCandidates).
 				Find(&recent).Error

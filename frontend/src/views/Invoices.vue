@@ -931,7 +931,20 @@ const handleSaveUploadedInvoice = async () => {
       seller_name: uploadOcrForm.seller_name || undefined,
       buyer_name: uploadOcrForm.buyer_name || undefined,
     }
-    await invoiceApi.update(uploadedInvoiceId.value, payload)
+    await invoiceApi.update(uploadedInvoiceId.value, { ...payload, confirm: true })
+
+    const restIds = uploadedInvoiceIds.value.filter(id => id && id !== uploadedInvoiceId.value)
+    if (restIds.length > 0) {
+      const results = await Promise.allSettled(restIds.map(id => invoiceApi.update(id, { confirm: true })))
+      const failed = results.filter(r => r.status === 'rejected').length
+      if (failed > 0) {
+        toast.add({
+          severity: 'warn',
+          summary: `已保存，但有 ${failed} 个发票确认失败（可在列表中重新编辑/保存）`,
+          life: 4500,
+        })
+      }
+    }
     toast.add({ severity: 'success', summary: '\u53D1\u7968\u4FE1\u606F\u5DF2\u66F4\u65B0', life: 2000 })
     uploadConfirmed.value = true
     uploadModalVisible.value = false

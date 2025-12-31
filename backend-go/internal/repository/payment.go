@@ -34,12 +34,18 @@ type PaymentFilter struct {
 	StartTs   int64
 	EndTs     int64
 	Category  string
+	// IncludeDraft controls whether draft records are included.
+	// By default, drafts are hidden from normal list/stats flows.
+	IncludeDraft bool
 }
 
 func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, error) {
 	var payments []models.Payment
 
 	query := database.GetDB().Model(&models.Payment{})
+	if !filter.IncludeDraft {
+		query = query.Where("is_draft = 0")
+	}
 
 	if filter.StartTs > 0 {
 		query = query.Where("transaction_time_ts >= ?", filter.StartTs)
@@ -83,7 +89,7 @@ func (r *PaymentRepository) Delete(id string) error {
 func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.PaymentStats, error) {
 	var payments []models.Payment
 
-	query := database.GetDB().Model(&models.Payment{})
+	query := database.GetDB().Model(&models.Payment{}).Where("is_draft = 0")
 
 	if startDate != "" {
 		query = query.Where("transaction_time >= ?", startDate)
@@ -131,6 +137,7 @@ func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.Payment
 // startTs/endTs are UTC unix milliseconds; 0 means unbounded.
 func (r *PaymentRepository) GetStatsByTs(startTs, endTs int64) (*models.PaymentStats, error) {
 	applyFilter := func(q *gorm.DB) *gorm.DB {
+		q = q.Where("is_draft = 0")
 		if startTs > 0 {
 			q = q.Where("transaction_time_ts >= ?", startTs)
 		}
@@ -211,6 +218,7 @@ func (r *PaymentRepository) GetLinkedInvoices(paymentID string) ([]models.Invoic
 	err := database.GetDB().
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.invoice_id = invoices.id").
 		Where("invoice_payment_links.payment_id = ?", paymentID).
+		Where("invoices.is_draft = 0").
 		Find(&invoices).Error
 	return invoices, err
 }

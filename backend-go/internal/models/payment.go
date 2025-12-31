@@ -7,6 +7,7 @@ import (
 // Payment represents a payment record
 type Payment struct {
 	ID                string    `json:"id" gorm:"primaryKey"`
+	IsDraft           bool      `json:"is_draft" gorm:"not null;default:false;index"`
 	TripID            *string   `json:"trip_id" gorm:"index"`
 	TripAssignSrc     string    `json:"trip_assignment_source" gorm:"column:trip_assignment_source;not null;default:auto;index"`   // auto|manual|blocked
 	TripAssignState   string    `json:"trip_assignment_state" gorm:"column:trip_assignment_state;not null;default:no_match;index"` // assigned|no_match|overlap|blocked

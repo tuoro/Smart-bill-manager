@@ -422,6 +422,7 @@
       :contentStyle="{ padding: '14px 16px' }"
       :closable="!paymentDetailEditing && !savingPaymentDetail"
       :closeOnEscape="!paymentDetailEditing && !savingPaymentDetail"
+      @hide="onPaymentDetailHide"
     >
       <div v-if="detailPayment" class="detail">
         <div class="header-row">
@@ -503,15 +504,15 @@
                     :modelValue="formatDateTimeDraft(paymentDetailForm.transaction_time)"
                     readonly
                     :placeholder="'请选择交易时间'"
-                    @click="openPaymentTimePicker"
+                    @click="togglePaymentTimePanel"
                   />
-                  <div v-if="paymentDetailTimePickerOpen" class="sbm-time-picker">
+                  <OverlayPanel ref="paymentTimePanel" :dismissable="true" :showCloseIcon="false" class="payment-time-panel" @show="onPaymentTimePanelShow" @hide="onPaymentTimePanelHide">
                     <DatePicker v-model="paymentDetailTimeDraft" inline showTime :manualInput="false" />
-                    <div class="sbm-time-picker-footer">
-                      <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="cancelPaymentTimePicker" />
-                      <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmPaymentTimePicker" />
+                    <div class="payment-time-panel-footer">
+                      <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="cancelPaymentTimePanel" />
+                      <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmPaymentTimePanel" />
                     </div>
-                  </div>
+                  </OverlayPanel>
                 </template>
                 <template v-else>{{ formatDateTime(detailPayment.transaction_time) }}</template>
               </div>
@@ -566,7 +567,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import Accordion from 'primevue/accordion'
@@ -582,6 +583,7 @@ import Image from 'primevue/image'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
+import OverlayPanel from 'primevue/overlaypanel'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -751,7 +753,8 @@ const detailPayment = ref<Payment | null>(null)
 const reparsingOcr = ref(false)
 const paymentDetailEditing = ref(false)
 const savingPaymentDetail = ref(false)
-const paymentDetailTimePickerOpen = ref(false)
+const paymentTimePanel = ref<InstanceType<typeof OverlayPanel> | null>(null)
+const paymentTimeLastTarget = ref<HTMLElement | null>(null)
 const paymentDetailTimeDraft = ref<Date | null>(null)
 const paymentDetailForm = reactive({
   amount: 0,
@@ -1177,7 +1180,8 @@ const openPaymentDetail = (payment: Payment) => {
   detailPayment.value = payment
   paymentDetailEditing.value = false
   savingPaymentDetail.value = false
-  paymentDetailTimePickerOpen.value = false
+  paymentTimePanel.value?.hide?.()
+  paymentTimeLastTarget.value = null
   paymentDetailTimeDraft.value = null
   paymentDetailForm.amount = Number(payment.amount || 0)
   paymentDetailForm.merchant = payment.merchant || ''
@@ -1192,27 +1196,126 @@ const formatDateTimeDraft = (date: Date | null) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
 }
 
-const openPaymentTimePicker = () => {
-  if (!paymentDetailEditing.value) return
-  paymentDetailTimeDraft.value = paymentDetailForm.transaction_time ? new Date(paymentDetailForm.transaction_time) : new Date()
-  paymentDetailTimePickerOpen.value = true
+const isPaymentTimePanelOpen = () => {
+  const p = paymentTimePanel.value as any
+  return !!p?.visible
 }
 
-const cancelPaymentTimePicker = () => {
-  paymentDetailTimePickerOpen.value = false
+const getPaymentTimeOverlayEl = (): HTMLElement | null => {
+  const p = paymentTimePanel.value as any
+  const container = p?.container as HTMLElement | undefined
+  if (container) return container
+  return (
+    (document.querySelector('.p-popover.payment-time-panel') as HTMLElement | null) ||
+    (document.querySelector('.p-overlaypanel.payment-time-panel') as HTMLElement | null)
+  )
+}
+
+const forcePaymentTimeBelow = () => {
+  if (typeof window === 'undefined') return
+  const target = paymentTimeLastTarget.value
+  if (!target) return
+
+  const overlay = getPaymentTimeOverlayEl()
+  if (!overlay) return
+
+  const rect = target.getBoundingClientRect()
+  const scrollX = window.scrollX || document.documentElement.scrollLeft || 0
+  const scrollY = window.scrollY || document.documentElement.scrollTop || 0
+  const gap = 6
+  const top = rect.bottom + scrollY + gap
+
+  const w = overlay.getBoundingClientRect().width || overlay.offsetWidth
+  const minLeft = scrollX + 8
+  const maxLeft = scrollX + window.innerWidth - w - 8
+  const desiredLeft = rect.left + scrollX
+  const left = Number.isFinite(w) && w > 0 ? Math.max(minLeft, Math.min(desiredLeft, maxLeft)) : desiredLeft
+
+  overlay.style.top = ''
+  overlay.style.bottom = ''
+  overlay.style.left = ''
+  overlay.style.right = ''
+  overlay.style.insetBlockStart = `${top}px`
+  overlay.style.insetBlockEnd = 'auto'
+  overlay.style.insetInlineStart = `${left}px`
+  overlay.style.insetInlineEnd = 'auto'
+
+  const available = window.innerHeight - rect.bottom - gap - 16
+  const content =
+    (overlay.querySelector('.p-popover-content') as HTMLElement | null) ||
+    (overlay.querySelector('.p-overlaypanel-content') as HTMLElement | null)
+  if (content) {
+    const maxH = Math.max(240, Math.floor(available))
+    content.style.maxHeight = `${maxH}px`
+    content.style.overflow = 'auto'
+  }
+}
+
+const realignPaymentTimePanel = async () => {
+  await nextTick()
+  const p = paymentTimePanel.value
+  if (!p) return
+  if (!isPaymentTimePanelOpen()) return
+
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => {
+      p.alignOverlay()
+      forcePaymentTimeBelow()
+    })
+    return
+  }
+  p.alignOverlay()
+  forcePaymentTimeBelow()
+}
+
+const togglePaymentTimePanel = (event: MouseEvent) => {
+  if (!paymentDetailEditing.value) return
+  paymentTimeLastTarget.value = event.currentTarget as HTMLElement | null
+  paymentDetailTimeDraft.value = paymentDetailForm.transaction_time ? new Date(paymentDetailForm.transaction_time) : new Date()
+  paymentTimePanel.value?.toggle(event)
+  void realignPaymentTimePanel()
+}
+
+const onPaymentTimePanelShow = async () => {
+  await realignPaymentTimePanel()
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => forcePaymentTimeBelow())
+  } else {
+    forcePaymentTimeBelow()
+  }
+}
+
+const onPaymentTimePanelHide = () => {
+  paymentTimeLastTarget.value = null
+}
+
+const cancelPaymentTimePanel = () => {
+  paymentDetailTimeDraft.value = paymentDetailForm.transaction_time ? new Date(paymentDetailForm.transaction_time) : new Date()
+  paymentTimePanel.value?.hide?.()
+}
+
+const confirmPaymentTimePanel = () => {
+  if (!paymentDetailTimeDraft.value) return
+  paymentDetailForm.transaction_time = new Date(paymentDetailTimeDraft.value)
+  paymentTimePanel.value?.hide?.()
+}
+
+const onPaymentDetailHide = () => {
+  paymentTimePanel.value?.hide?.()
+  paymentTimeLastTarget.value = null
   paymentDetailTimeDraft.value = null
 }
 
-const confirmPaymentTimePicker = () => {
-  if (!paymentDetailTimeDraft.value) return
-  paymentDetailForm.transaction_time = new Date(paymentDetailTimeDraft.value)
-  paymentDetailTimePickerOpen.value = false
+const handlePaymentTimeViewportChange = () => {
+  if (!isPaymentTimePanelOpen()) return
+  void realignPaymentTimePanel()
 }
 
 const enterPaymentEditMode = () => {
   if (!detailPayment.value) return
   paymentDetailEditing.value = true
-  paymentDetailTimePickerOpen.value = false
+  paymentTimePanel.value?.hide?.()
+  paymentTimeLastTarget.value = null
   paymentDetailTimeDraft.value = null
   paymentDetailForm.amount = Number(detailPayment.value.amount || 0)
   paymentDetailForm.merchant = detailPayment.value.merchant || ''
@@ -1226,7 +1329,8 @@ const cancelPaymentEditMode = () => {
     paymentDetailEditing.value = false
     return
   }
-  paymentDetailTimePickerOpen.value = false
+  paymentTimePanel.value?.hide?.()
+  paymentTimeLastTarget.value = null
   paymentDetailTimeDraft.value = null
   paymentDetailForm.amount = Number(detailPayment.value.amount || 0)
   paymentDetailForm.merchant = detailPayment.value.merchant || ''
@@ -1249,7 +1353,7 @@ const savePaymentEditMode = async () => {
 
   savingPaymentDetail.value = true
   try {
-    paymentDetailTimePickerOpen.value = false
+    paymentTimePanel.value?.hide?.()
     const payload = {
       amount: Number(paymentDetailForm.amount),
       merchant: paymentDetailForm.merchant,
@@ -1350,11 +1454,23 @@ const tryOpenMatchFromRoute = async () => {
 }
 
 onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handlePaymentTimeViewportChange, { passive: true })
+    window.addEventListener('orientationchange', handlePaymentTimeViewportChange, { passive: true } as any)
+    window.addEventListener('scroll', handlePaymentTimeViewportChange, true)
+  }
   void (async () => {
     await loadPayments()
     await loadStats()
     await tryOpenMatchFromRoute()
   })()
+})
+
+onBeforeUnmount(() => {
+  if (typeof window === 'undefined') return
+  window.removeEventListener('resize', handlePaymentTimeViewportChange as any)
+  window.removeEventListener('orientationchange', handlePaymentTimeViewportChange as any)
+  window.removeEventListener('scroll', handlePaymentTimeViewportChange as any, true)
 })
 
 watch(
@@ -1760,54 +1876,70 @@ watch(
   color: var(--color-text-secondary);
 }
 
-.sbm-time-picker {
-  margin-top: 8px;
-  display: inline-block;
-  width: fit-content;
-  max-width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: var(--radius-md);
-  padding: 8px;
+:global(.p-popover.payment-time-panel),
+:global(.p-overlaypanel.payment-time-panel) {
+  width: auto;
+  max-width: calc(100vw - 16px);
+  border-radius: 16px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
 }
 
-.sbm-time-picker :deep(.p-datepicker) {
-  display: inline-block;
+:global(.p-popover.payment-time-panel .p-popover-arrow),
+:global(.p-overlaypanel.payment-time-panel .p-overlaypanel-arrow) {
+  display: none;
 }
 
-.sbm-time-picker :deep(.p-datepicker),
-.sbm-time-picker :deep(.p-datepicker-panel) {
+:global(.p-popover.payment-time-panel .p-popover-content),
+:global(.p-overlaypanel.payment-time-panel .p-overlaypanel-content) {
+  padding: 10px 12px 8px;
+}
+
+:global(.payment-time-panel .p-datepicker) {
+  display: inline-block;
+  font-size: 0.92rem;
+}
+
+:global(.payment-time-panel .p-datepicker),
+:global(.payment-time-panel .p-datepicker-panel) {
   width: auto !important;
 }
 
-.sbm-time-picker :deep(.p-datepicker-panel-inline) {
+:global(.payment-time-panel .p-datepicker-panel-inline) {
   display: flex;
   align-items: flex-start;
   gap: 8px;
 }
 
-.sbm-time-picker :deep(.p-datepicker-calendar-container) {
+:global(.payment-time-panel .p-datepicker-calendar-container) {
   padding: 0 0.4rem;
 }
 
-.sbm-time-picker :deep(.p-datepicker-panel) {
-  font-size: 0.92rem;
+:global(.payment-time-panel .p-datepicker-header) {
+  padding: 0.55rem 0.65rem;
 }
 
-.sbm-time-picker :deep(.p-datepicker-header) {
-  padding: 0.6rem 0.7rem;
-}
-
-.sbm-time-picker :deep(.p-datepicker-time-picker) {
-  padding: 0.6rem 0.7rem;
+:global(.payment-time-panel .p-datepicker-time-picker) {
+  padding: 0.55rem 0.65rem;
   border-left: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.sbm-time-picker-footer {
+@media (max-width: 640px) {
+  :global(.payment-time-panel .p-datepicker-panel-inline) {
+    flex-direction: column;
+  }
+
+  :global(.payment-time-panel .p-datepicker-time-picker) {
+    border-left: 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+}
+
+.payment-time-panel-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 10px;
+  padding-top: 10px;
 }
 </style>
 

@@ -95,7 +95,7 @@ func TestParsePaymentScreenshot_WeChatQrPay_PayeeTitleLine(t *testing.T) {
 	service := NewOCRService()
 
 	sampleText := `微信支付
-扫二维码付款-给黄凯文
+扫二维码付款-给张三
 -4500.00
 转账时间 2025年12月2日10:07:30
 转账单号 10001073012025120200787809648`
@@ -104,8 +104,8 @@ func TestParsePaymentScreenshot_WeChatQrPay_PayeeTitleLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
 	}
-	if data.Merchant == nil || *data.Merchant != "黄凯文" {
-		t.Fatalf("expected Merchant=黄凯文, got %#v", data.Merchant)
+	if data.Merchant == nil || *data.Merchant != "张三" {
+		t.Fatalf("expected Merchant=张三, got %#v", data.Merchant)
 	}
 	if data.MerchantConfidence <= 0.0 {
 		t.Fatalf("expected MerchantConfidence to be set, got %v", data.MerchantConfidence)
@@ -117,7 +117,7 @@ func TestParsePaymentScreenshot_WeChatQrPay_PayeeSplitLines(t *testing.T) {
 
 	sampleText := `微信支付
 扫二维码付款-给
-黄凯文
+张三
 -4500.00
 转账时间 2025年12月2日10:07:30`
 
@@ -125,8 +125,8 @@ func TestParsePaymentScreenshot_WeChatQrPay_PayeeSplitLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParsePaymentScreenshot returned error: %v", err)
 	}
-	if data.Merchant == nil || *data.Merchant != "黄凯文" {
-		t.Fatalf("expected Merchant=黄凯文, got %#v", data.Merchant)
+	if data.Merchant == nil || *data.Merchant != "张三" {
+		t.Fatalf("expected Merchant=张三, got %#v", data.Merchant)
 	}
 }
 
@@ -408,7 +408,7 @@ func TestParsePaymentScreenshot_BankReceipt_ICBC_ShouldExtractAmountTimeOrderPay
 收款银行
 收款户名
 收款卡号
-3101****3384
+3101****0000
 浙江泰隆商业银行
 上海辰帆绿化园艺中心
 收款金额
@@ -420,8 +420,8 @@ func TestParsePaymentScreenshot_BankReceipt_ICBC_ShouldExtractAmountTimeOrderPay
 付款户名
 付款卡号
 付款银行
-*洪军
-6217****4366
+*张三
+6217****1234
 中国工商银行
 指令序号
 回单编号
@@ -450,8 +450,8 @@ ZZHK-0007-5517-0170-0168
 	if data.OrderNumber == nil || *data.OrderNumber != "ZZHK-0007-5517-0170-0168" {
 		t.Fatalf("expected OrderNumber=ZZHK-0007-5517-0170-0168, got %#v", data.OrderNumber)
 	}
-	if data.PaymentMethod == nil || *data.PaymentMethod != "中国工商银行(4366)" {
-		t.Fatalf("expected PaymentMethod=中国工商银行(4366), got %#v", data.PaymentMethod)
+	if data.PaymentMethod == nil || *data.PaymentMethod != "中国工商银行(1234)" {
+		t.Fatalf("expected PaymentMethod=中国工商银行(1234), got %#v", data.PaymentMethod)
 	}
 }
 
@@ -464,19 +464,19 @@ func TestParsePaymentScreenshot_AlipayTransferVoucher_ShouldExtractPayeeTimeAndV
 实际到账为准。
 支付宝（中国）
 收款方姓名
-啊对
+张三
 收款方账号
-************5555
+************0000
 收款方银行
 招商银行
 付款方姓名
-阿贝多
+李四
 付款方账号
-abcdrdg@qq.com
+user***@example.com
 转账时间
 2025-11-2812:57
 凭证编号
-2025112820004001143564
+202511282000400111005900
 09884243
 转账附言
 转账
@@ -489,8 +489,8 @@ abcdrdg@qq.com
 	if data.Amount == nil || *data.Amount != 6000.00 {
 		t.Fatalf("expected Amount=6000.00, got %#v", data.Amount)
 	}
-	if data.Merchant == nil || *data.Merchant != "周豪" {
-		t.Fatalf("expected Merchant=周豪, got %#v", data.Merchant)
+	if data.Merchant == nil || *data.Merchant != "张三" {
+		t.Fatalf("expected Merchant=张三, got %#v", data.Merchant)
 	}
 	if data.MerchantSource != "alipay_transfer_payee" {
 		t.Fatalf("expected MerchantSource=alipay_transfer_payee, got %q", data.MerchantSource)

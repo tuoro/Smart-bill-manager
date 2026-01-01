@@ -522,7 +522,9 @@ const go = (path: string) => {
 <style>
 /* Drawer is teleported to <body>, so styles must be global. */
 .p-drawer.mobile-drawer {
-  width: clamp(220px, 66vw, 280px);
+  width: min(62vw, 260px) !important;
+  min-width: 220px;
+  box-sizing: border-box;
   border-radius: 0 20px 20px 0;
 }
 
@@ -531,7 +533,7 @@ const go = (path: string) => {
 }
 
 .p-drawer.mobile-drawer .p-drawer-header {
-  padding: 16px 16px 8px;
+  padding: 14px 14px 8px;
 }
 
 .p-drawer.mobile-drawer .p-drawer-header .drawer-header {
@@ -545,5 +547,23 @@ const go = (path: string) => {
   letter-spacing: -0.2px;
   font-size: 20px;
   line-height: 1.2;
+}
+
+.p-drawer.mobile-drawer .mobile-nav {
+  padding: 12px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.p-drawer.mobile-drawer .mobile-nav .nav-item {
+  width: 100%;
+  font-size: 14px;
+  height: 46px;
+}
+
+.p-drawer.mobile-drawer .mobile-nav .nav-item i {
+  font-size: 19px;
 }
 </style>

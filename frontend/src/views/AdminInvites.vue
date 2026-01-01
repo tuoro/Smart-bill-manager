@@ -5,6 +5,18 @@
         <div class="header">
           <span>邀请码管理</span>
           <div class="toolbar">
+            <Button
+              class="p-button-danger p-button-outlined"
+              icon="pi pi-trash"
+              :label="batchDeleteMode ? `删除所选（${selectedInvites.length}）` : '删除所选'"
+              @click="onBulkDeleteClick"
+            />
+            <Button
+              v-if="batchDeleteMode"
+              class="p-button-text"
+              label="取消"
+              @click="exitBatchDeleteMode"
+            />
             <Dropdown
               v-model="expiresInDays"
               :options="expiresOptions"
@@ -37,13 +49,6 @@
               optionValue="value"
               aria-label="筛选是否已使用"
             />
-            <Button
-              class="p-button-danger p-button-outlined"
-              icon="pi pi-trash"
-              label="删除所选"
-              :disabled="selectedInvites.length === 0"
-              @click="confirmDeleteSelected"
-            />
           </div>
 
           <DataTable
@@ -57,7 +62,7 @@
             dataKey="id"
             v-model:selection="selectedInvites"
           >
-            <Column selectionMode="multiple" :style="{ width: '48px' }" />
+            <Column v-if="batchDeleteMode" selectionMode="multiple" :style="{ width: '48px' }" />
             <Column field="code_hint" header="标识" :style="{ width: '18%' }" />
             <Column field="createdAt" header="生成时间" :style="{ width: '22%' }">
               <template #body="{ data: row }">{{ formatDateTime(row.createdAt) }}</template>
@@ -79,18 +84,6 @@
               <template #body="{ data: row }">
                 <span v-if="row.usedAt">{{ formatDateTime(row.usedAt) }}</span>
                 <span v-else class="muted">-</span>
-              </template>
-            </Column>
-            <Column header="操作" :style="{ width: '10%' }">
-              <template #body="{ data: row }">
-                <Button
-                  class="p-button-text p-button-danger p-button-sm"
-                  icon="pi pi-trash"
-                  aria-label="删除邀请码"
-                  title="删除邀请码"
-                  :disabled="!!row.usedAt"
-                  @click="confirmDeleteInvite(row)"
-                />
               </template>
             </Column>
           </DataTable>
@@ -136,6 +129,7 @@ const isAdmin = computed(() => authStore.user?.role === 'admin')
 const loading = ref(false)
 const invites = ref<InviteRow[]>([])
 const selectedInvites = ref<InviteRow[]>([])
+const batchDeleteMode = ref(false)
 
 type UsedFilterValue = 'all' | 'unused' | 'used'
 const usedFilter = ref<UsedFilterValue>('all')
@@ -207,24 +201,6 @@ const createInvite = async () => {
   }
 }
 
-const deleteInvite = async (row: InviteRow) => {
-  if (!isAdmin.value) return
-  loading.value = true
-  try {
-    const res = await authApi.adminDeleteInvite(row.id)
-    if (res.data.success) {
-      toast.add({ severity: 'success', summary: '邀请码已删除', life: 1800 })
-      await loadInvites()
-      return
-    }
-    toast.add({ severity: 'error', summary: res.data.message || '删除邀请码失败', life: 3000 })
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '删除邀请码失败', life: 3000 })
-  } finally {
-    loading.value = false
-  }
-}
-
 const deleteSelected = async (rows: InviteRow[]) => {
   if (!isAdmin.value) return
   if (rows.length === 0) return
@@ -248,6 +224,7 @@ const deleteSelected = async (rows: InviteRow[]) => {
 
     selectedInvites.value = []
     await loadInvites()
+    batchDeleteMode.value = false
   } finally {
     loading.value = false
   }
@@ -284,24 +261,23 @@ const confirmDeleteSelected = () => {
   })
 }
 
-const confirmDeleteInvite = (row: InviteRow) => {
+const exitBatchDeleteMode = () => {
+  batchDeleteMode.value = false
+  selectedInvites.value = []
+}
+
+const onBulkDeleteClick = () => {
   if (!isAdmin.value) return
-  if (row.usedAt) {
-    toast.add({ severity: 'warn', summary: '邀请码已被使用，无法删除', life: 2500 })
+  if (!batchDeleteMode.value) {
+    batchDeleteMode.value = true
+    toast.add({ severity: 'info', summary: '请选择要删除的邀请码', life: 2000 })
     return
   }
-
-  confirm.require({
-    message: `确定删除邀请码「${row.code_hint}」吗？`,
-    header: '删除确认',
-    icon: 'pi pi-exclamation-triangle',
-    acceptLabel: '删除',
-    rejectLabel: '取消',
-    acceptClass: 'p-button-danger',
-    accept: () => {
-      void deleteInvite(row)
-    },
-  })
+  if (selectedInvites.value.length === 0) {
+    toast.add({ severity: 'warn', summary: '请先选择要删除的邀请码', life: 2200 })
+    return
+  }
+  confirmDeleteSelected()
 }
 
 const copyLastCode = async () => {
@@ -354,7 +330,7 @@ onMounted(() => {
 .list-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
 }

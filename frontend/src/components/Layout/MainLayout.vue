@@ -9,29 +9,17 @@
       </div>
 
       <nav class="nav">
-        <button class="nav-item" :class="{ active: currentRoute === '/dashboard' }" title="仪表盘" @click="router.push('/dashboard')">
-          <i class="pi pi-chart-bar" />
-          <span v-if="!isCollapsed">&#20202;&#34920;&#30424;</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/payments' }" title="支付记录" @click="router.push('/payments')">
-          <i class="pi pi-wallet" />
-          <span v-if="!isCollapsed">&#25903;&#20184;&#35760;&#24405;</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/invoices' }" title="发票管理" @click="router.push('/invoices')">
-          <i class="pi pi-file" />
-          <span v-if="!isCollapsed">&#21457;&#31080;&#31649;&#29702;</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/trips' }" title="行程日历" @click="router.push('/trips')">
-          <i class="pi pi-calendar" />
-          <span v-if="!isCollapsed">&#34892;&#31243;&#26085;&#21382;</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/email' }" title="邮箱监控" @click="router.push('/email')">
-          <i class="pi pi-inbox" />
-          <span v-if="!isCollapsed">&#37038;&#31665;&#30417;&#25511;</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/logs' }" title="日志" @click="router.push('/logs')">
-          <i class="pi pi-book" />
-          <span v-if="!isCollapsed">&#26085;&#24535;</span>
+        <button
+          v-for="item in navItems"
+          :key="item.path"
+          class="nav-item"
+          :class="{ active: currentRoute === item.path }"
+          type="button"
+          :title="item.label"
+          @click="router.push(item.path)"
+        >
+          <i :class="item.icon" />
+          <span v-if="!isCollapsed">{{ item.label }}</span>
         </button>
       </nav>
 
@@ -64,29 +52,16 @@
       </template>
 
       <nav class="drawer-nav">
-        <button class="nav-item" :class="{ active: currentRoute === '/dashboard' }" type="button" @click="go('/dashboard')">
-          <i class="pi pi-chart-bar" />
-          <span>仪表盘</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/payments' }" type="button" @click="go('/payments')">
-          <i class="pi pi-wallet" />
-          <span>支付记录</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/invoices' }" type="button" @click="go('/invoices')">
-          <i class="pi pi-file" />
-          <span>发票管理</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/trips' }" type="button" @click="go('/trips')">
-          <i class="pi pi-calendar" />
-          <span>行程日历</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/email' }" type="button" @click="go('/email')">
-          <i class="pi pi-inbox" />
-          <span>邮箱监控</span>
-        </button>
-        <button class="nav-item" :class="{ active: currentRoute === '/logs' }" type="button" @click="go('/logs')">
-          <i class="pi pi-book" />
-          <span>日志</span>
+        <button
+          v-for="item in navItems"
+          :key="item.path"
+          class="nav-item"
+          :class="{ active: currentRoute === item.path }"
+          type="button"
+          @click="go(item.path)"
+        >
+          <i :class="item.icon" />
+          <span>{{ item.label }}</span>
         </button>
       </nav>
     </Drawer>
@@ -94,20 +69,23 @@
     <div class="content">
       <header class="topbar">
         <div class="topbar-left">
+          <div class="page-kicker">Overview</div>
+          <h2 class="page-title">{{ pageTitle }}</h2>
+        </div>
+
+        <div class="topbar-right">
+          <NotificationCenter />
+
           <Button
             v-if="isMobile"
             class="mobile-menu-btn"
             severity="secondary"
-            text
+            outlined
             icon="pi pi-bars"
             aria-label="菜单"
             @click="mobileNavVisible = true"
           />
-          <div class="page-kicker">Overview</div>
-          <h2 class="page-title">{{ pageTitle }}</h2>
-        </div>
-        <div class="topbar-right">
-          <NotificationCenter />
+
           <button class="user-button" type="button" @click="toggleUserMenu">
             <Avatar v-if="userAvatarLabel" :label="userAvatarLabel" shape="circle" class="user-avatar" />
             <Avatar v-else icon="pi pi-user" shape="circle" class="user-avatar" />
@@ -144,6 +122,15 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 
+const navItems = [
+  { path: '/dashboard', label: '仪表盘', icon: 'pi pi-chart-bar' },
+  { path: '/payments', label: '支付记录', icon: 'pi pi-wallet' },
+  { path: '/invoices', label: '发票管理', icon: 'pi pi-file' },
+  { path: '/trips', label: '行程日历', icon: 'pi pi-calendar' },
+  { path: '/email', label: '邮箱监控', icon: 'pi pi-inbox' },
+  { path: '/logs', label: '日志', icon: 'pi pi-book' },
+] as const
+
 const isCollapsed = ref(true)
 const showChangePasswordDialog = ref(false)
 const userMenu = ref<InstanceType<typeof Menu> | null>(null)
@@ -171,23 +158,23 @@ onBeforeUnmount(() => {
 
 const pageTitle = computed(() => {
   const titles: Record<string, string> = {
-    '/dashboard': '\u4EEA\u8868\u76D8',
-    '/payments': '\u652F\u4ED8\u8BB0\u5F55',
-    '/invoices': '\u53D1\u7968\u7BA1\u7406',
-    '/trips': '\u884C\u7A0B\u65E5\u5386',
-    '/email': '\u90AE\u7BB1\u76D1\u63A7',
-    '/logs': '\u65E5\u5FD7',
+    '/dashboard': '仪表盘',
+    '/payments': '支付记录',
+    '/invoices': '发票管理',
+    '/trips': '行程日历',
+    '/email': '邮箱监控',
+    '/logs': '日志',
   }
   return titles[route.path] || titles['/dashboard']
 })
 
-const userDisplayName = computed(() => authStore.user?.username?.trim() || '\u7528\u6237')
+const userDisplayName = computed(() => authStore.user?.username?.trim() || '用户')
 
 const userAvatarLabel = computed(() => {
   const trimmed = userDisplayName.value.trim()
-  if (!trimmed || trimmed === '\u7528\u6237') return ''
+  if (!trimmed || trimmed === '用户') return ''
   const first = trimmed[0]
-  if (/^\d$/.test(first)) return ''
+  if (/^\\d$/.test(first)) return ''
   return /[a-z]/i.test(first) ? first.toUpperCase() : first
 })
 
@@ -198,7 +185,7 @@ const userMenuItems = computed(() => [
     disabled: true,
   },
   {
-    label: '\u4FEE\u6539\u5BC6\u7801',
+    label: '修改密码',
     icon: 'pi pi-key',
     command: () => {
       showChangePasswordDialog.value = true
@@ -206,11 +193,11 @@ const userMenuItems = computed(() => [
   },
   { separator: true },
   {
-    label: '\u9000\u51FA\u767B\u5F55',
+    label: '退出登录',
     icon: 'pi pi-sign-out',
     command: () => {
       authStore.logout()
-      toast.add({ severity: 'success', summary: '\u5DF2\u9000\u51FA\u767B\u5F55', life: 2000 })
+      toast.add({ severity: 'success', summary: '已退出登录', life: 2000 })
       router.push('/login')
     },
   },
@@ -376,11 +363,12 @@ const go = (path: string) => {
 
 .topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 10px 10px 0;
   position: relative;
   z-index: 20;
+  gap: 12px;
 }
 
 .topbar-left {
@@ -388,14 +376,14 @@ const go = (path: string) => {
   flex-direction: column;
   gap: 2px;
   min-width: 180px;
+  flex: 1;
+  min-width: 0;
 }
 
 .mobile-menu-btn {
   width: 42px;
   height: 42px;
   border-radius: 12px !important;
-  align-self: flex-start;
-  margin-bottom: 6px;
 }
 
 .page-kicker {
@@ -415,7 +403,8 @@ const go = (path: string) => {
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex: 0 0 auto;
 }
 
 .user-button {
@@ -465,10 +454,6 @@ const go = (path: string) => {
   .layout {
     padding: 12px;
     gap: 12px;
-  }
-
-  .topbar-left {
-    min-width: 0;
   }
 
   .page-title {

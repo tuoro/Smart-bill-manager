@@ -143,6 +143,16 @@ const handleRegister = async () => {
   margin-bottom: 18px;
 }
 
+.p-fluid {
+  width: 100%;
+}
+
+.p-fluid form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .subtitle {
   margin: 10px 0 0;
   color: var(--p-text-muted-color);
@@ -151,7 +161,9 @@ const handleRegister = async () => {
 }
 
 .field {
-  margin-bottom: 14px;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .field label {
@@ -159,6 +171,12 @@ const handleRegister = async () => {
   margin-bottom: 6px;
   font-weight: 600;
   color: var(--color-text-secondary);
+}
+
+.field :deep(.p-inputtext),
+.field :deep(.p-password),
+.field :deep(.p-password input) {
+  width: 100%;
 }
 
 .submit-btn {
@@ -179,9 +197,4 @@ const handleRegister = async () => {
 .muted {
   color: var(--p-text-muted-color);
 }
-
-:deep(.p-password input) {
-  width: 100%;
-}
 </style>
-

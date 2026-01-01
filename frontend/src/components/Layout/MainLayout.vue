@@ -327,8 +327,6 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
 
 .sidebar {
   width: fit-content;
-  min-width: 212px;
-  max-width: 260px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -336,7 +334,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   position: sticky;
   top: 20px;
   height: calc(100vh - 40px);
-  padding: 20px 14px 14px;
+  padding: 20px 10px 14px;
   border-radius: 24px;
   background: var(--p-surface-50);
 }
@@ -362,7 +360,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   align-items: center;
   justify-content: flex-start;
   color: var(--p-text-color);
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -405,7 +403,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
   border-radius: 12px;
   background: transparent;
@@ -414,8 +412,9 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   transition: all var(--transition-base);
   text-align: left;
   position: relative;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .sidebar.collapsed .nav-item {
@@ -426,7 +425,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
 }
 
 .nav-item i {
-  font-size: 19px;
+  font-size: 20px;
 }
 
 .nav-item:hover {

@@ -223,18 +223,6 @@ func (s *OCRService) RecognizeImage(imagePath string) (string, error) {
 	return s.RecognizeWithRapidOCR(imagePath)
 }
 
-func (s *OCRService) RecognizeImageCached(imagePath string, fileSHA256 *string) (string, error) {
-	key := buildOCRCacheKey("image", fileSHA256, imagePath, getOCREngine(), nil)
-	if txt, ok := loadOCRTextCache(key); ok {
-		return txt, nil
-	}
-	txt, err := s.RecognizeWithRapidOCR(imagePath)
-	if err == nil && strings.TrimSpace(txt) != "" {
-		saveOCRTextCache(key, txt)
-	}
-	return txt, err
-}
-
 // RecognizeImageEnhanced performs OCR without any local image preprocessing (RapidOCR v3 only).
 func (s *OCRService) RecognizeImageEnhanced(imagePath string) (string, error) {
 	return s.RecognizeWithRapidOCR(imagePath)
@@ -459,30 +447,6 @@ func (s *OCRService) RecognizePaymentScreenshot(imagePath string) (string, error
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("RapidOCR returned empty text")
 	}
-	return text, nil
-}
-
-func (s *OCRService) RecognizePaymentScreenshotCached(imagePath string, fileSHA256 *string) (string, error) {
-	fmt.Printf("[OCR] Starting payment screenshot recognition for: %s\n", imagePath)
-
-	if !s.isRapidOCRAvailable() {
-		engine := getOCREngine()
-		return "", fmt.Errorf("OCR engine is not available (%s: %s)", engine, ocrEngineInstallHint(engine))
-	}
-
-	key := buildOCRCacheKey("payment_screenshot", fileSHA256, imagePath, getOCREngine(), nil)
-	if txt, ok := loadOCRTextCache(key); ok {
-		return txt, nil
-	}
-
-	text, err := s.RecognizeWithRapidOCR(imagePath)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(text) == "" {
-		return "", fmt.Errorf("RapidOCR returned empty text")
-	}
-	saveOCRTextCache(key, text)
 	return text, nil
 }
 
@@ -905,18 +869,6 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 	}
 
 	return result, nil
-}
-
-func (s *OCRService) RecognizePDFCached(pdfPath string, fileSHA256 *string) (string, error) {
-	key := buildOCRCacheKey("pdf", fileSHA256, pdfPath, getOCREngine(), []string{"--profile", "pdf"})
-	if txt, ok := loadOCRTextCache(key); ok {
-		return txt, nil
-	}
-	txt, err := s.RecognizePDF(pdfPath)
-	if err == nil && strings.TrimSpace(txt) != "" {
-		saveOCRTextCache(key, txt)
-	}
-	return txt, err
 }
 
 func (s *OCRService) injectInvoicePartiesFromRegions(tempDir, imgPath string) (injected string, buyerOK bool, sellerOK bool) {

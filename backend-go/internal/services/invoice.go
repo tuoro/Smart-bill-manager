@@ -112,7 +112,7 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 	invoiceNumber, invoiceDate, sellerName, buyerName,
 		amount, taxAmount,
 		extractedData, rawText,
-		parseStatus, parseError := s.parseInvoiceFile(filePath, inv.Filename, inv.FileSHA256)
+		parseStatus, parseError := s.parseInvoiceFile(filePath, inv.Filename)
 
 	updateData := map[string]any{
 		"parse_status": parseStatus,
@@ -222,7 +222,7 @@ func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, erro
 	invoiceNumber, invoiceDate, sellerName, buyerName,
 		amount, taxAmount,
 		extractedData, rawText,
-		parseStatus, parseError := s.parseInvoiceFile(filePath, input.Filename, input.FileSHA256)
+		parseStatus, parseError := s.parseInvoiceFile(filePath, input.Filename)
 
 	source := input.Source
 	if source == "" {
@@ -760,7 +760,7 @@ func strValueOrNil(v *string) interface{} {
 // parseInvoiceFile parses an invoice file and returns the extracted data.
 // - PDF: PyMuPDF fast-path (with RapidOCR fallback) via OCRService.RecognizePDF
 // - Images: RapidOCR v3 via OCRService.RecognizeImage
-func (s *InvoiceService) parseInvoiceFile(filePath, filename string, fileSHA256 *string) (
+func (s *InvoiceService) parseInvoiceFile(filePath, filename string) (
 	invoiceNumber, invoiceDate, sellerName, buyerName *string,
 	amount, taxAmount *float64,
 	extractedData, rawText *string,
@@ -783,9 +783,9 @@ func (s *InvoiceService) parseInvoiceFile(filePath, filename string, fileSHA256 
 		err  error
 	)
 	if ext == ".pdf" {
-		text, err = s.ocrService.RecognizePDFCached(filePath, fileSHA256)
+		text, err = s.ocrService.RecognizePDF(filePath)
 	} else {
-		text, err = s.ocrService.RecognizeImageCached(filePath, fileSHA256)
+		text, err = s.ocrService.RecognizeImage(filePath)
 	}
 	if err != nil {
 		parseStatus = "failed"
@@ -846,7 +846,7 @@ func (s *InvoiceService) Reparse(id string) (*models.Invoice, error) {
 	invoiceNumber, invoiceDate, sellerName, buyerName,
 		amount, taxAmount,
 		extractedData, rawText,
-		parseStatus, parseError := s.parseInvoiceFile(filePath, invoice.Filename, invoice.FileSHA256)
+		parseStatus, parseError := s.parseInvoiceFile(filePath, invoice.Filename)
 
 	// Update the invoice with parsed data
 	updateData := map[string]interface{}{

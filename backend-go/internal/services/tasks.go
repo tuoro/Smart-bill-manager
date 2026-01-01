@@ -115,16 +115,20 @@ func (s *TaskService) StartWorker() {
 
 func (s *TaskService) processOne() error {
 	var t models.Task
-	err := s.db.
+	res := s.db.
 		Where("status = ?", TaskStatusQueued).
-		Order("created_at ASC").
-		First(&t).Error
-	if err != nil {
-		return err
+		Order("created_at ASC, id ASC").
+		Limit(1).
+		Find(&t)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 
 	// Claim the task.
-	res := s.db.Model(&models.Task{}).
+	res = s.db.Model(&models.Task{}).
 		Where("id = ? AND status = ?", t.ID, TaskStatusQueued).
 		Updates(map[string]any{
 			"status": TaskStatusProcessing,
@@ -173,4 +177,3 @@ func (s *TaskService) processOne() error {
 	}).Error
 	return nil
 }
-

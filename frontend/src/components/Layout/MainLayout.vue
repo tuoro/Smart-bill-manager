@@ -75,38 +75,40 @@
     </Drawer>
 
     <div class="content">
-      <header class="topbar">
-        <div class="topbar-left">
-          <div class="page-kicker">Overview</div>
-          <h2 class="page-title">{{ pageTitle }}</h2>
-        </div>
+      <div class="content-inner">
+        <header class="topbar">
+          <div class="topbar-left">
+            <div class="page-kicker">智能账单管理</div>
+            <h2 class="page-title">{{ pageTitle }}</h2>
+          </div>
 
-        <div class="topbar-right">
-          <NotificationCenter />
+          <div class="topbar-right">
+            <NotificationCenter />
 
-          <Button
-            v-if="isMobile"
-            class="mobile-menu-btn"
-            severity="secondary"
-            outlined
-            icon="pi pi-bars"
-            aria-label="菜单"
-            @click="mobileNavVisible = true"
-          />
+            <Button
+              v-if="isMobile"
+              class="mobile-menu-btn"
+              severity="secondary"
+              outlined
+              icon="pi pi-bars"
+              aria-label="菜单"
+              @click="mobileNavVisible = true"
+            />
 
-          <button class="user-button" type="button" @click="toggleUserMenu">
-            <Avatar v-if="userAvatarLabel" :label="userAvatarLabel" shape="circle" class="user-avatar" />
-            <Avatar v-else icon="pi pi-user" shape="circle" class="user-avatar" />
-            <span class="username">{{ userDisplayName }}</span>
-            <i class="pi pi-angle-down" />
-          </button>
-          <Menu ref="userMenu" :model="userMenuItems" popup />
-        </div>
-      </header>
+            <button class="user-button" type="button" @click="toggleUserMenu">
+              <Avatar v-if="userAvatarLabel" :label="userAvatarLabel" shape="circle" class="user-avatar" />
+              <Avatar v-else icon="pi pi-user" shape="circle" class="user-avatar" />
+              <span class="username">{{ userDisplayName }}</span>
+              <i class="pi pi-angle-down" />
+            </button>
+            <Menu ref="userMenu" :model="userMenuItems" popup />
+          </div>
+        </header>
 
-      <main class="main">
-        <router-view />
-      </main>
+        <main class="main">
+          <router-view />
+        </main>
+      </div>
     </div>
 
     <ChangePassword v-model="showChangePasswordDialog" />
@@ -114,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import Avatar from 'primevue/avatar'
@@ -158,7 +160,7 @@ type MobileNavItem = {
 
 const mobileNavModel = computed<MobileNavItem[]>(() => [
   {
-    key: 'getting-started',
+    key: 'overview',
     label: '概览',
     icon: 'pi pi-home',
     items: [{ label: '仪表盘', route: '/dashboard' }],
@@ -221,16 +223,16 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', updateIsMobile as any)
 })
 
+watch(
+  () => route.path,
+  () => syncMobileExpandedKeys(),
+)
+
 const pageTitle = computed(() => {
-  const titles: Record<string, string> = {
-    '/dashboard': '仪表盘',
-    '/payments': '支付记录',
-    '/invoices': '发票管理',
-    '/trips': '行程日历',
-    '/email': '邮箱监控',
-    '/logs': '日志',
-  }
-  return titles[route.path] || titles['/dashboard']
+  const metaTitle = route.meta?.title
+  if (typeof metaTitle === 'string' && metaTitle.trim()) return metaTitle
+  const fallback = navItems.find((n) => n.path === route.path)?.label
+  return fallback || '仪表盘'
 })
 
 const userDisplayName = computed(() => authStore.user?.username?.trim() || '用户')
@@ -431,6 +433,12 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   overflow: visible;
 }
 
+.content-inner {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
 .topbar {
   display: flex;
   align-items: flex-start;
@@ -524,6 +532,10 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   .layout {
     padding: 12px;
     gap: 12px;
+  }
+
+  .content-inner {
+    max-width: none;
   }
 
   .page-title {
@@ -654,3 +666,4 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   background: var(--p-primary-color);
 }
 </style>
+

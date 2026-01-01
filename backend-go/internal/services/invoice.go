@@ -119,14 +119,21 @@ func (s *InvoiceService) Create(input CreateInvoiceInput) (*models.Invoice, erro
 	if invoice.InvoiceNumber != nil {
 		n := strings.TrimSpace(*invoice.InvoiceNumber)
 		if n != "" {
-			if cands, err := FindInvoiceCandidatesByInvoiceNumber(n, invoice.ID, 5); err == nil && len(cands) > 0 {
-				invoice.DedupStatus = DedupStatusSuspected
-				ref := cands[0].ID
-				invoice.DedupRefID = &ref
-				_ = db.Model(&models.Invoice{}).Where("id = ?", invoice.ID).Updates(map[string]interface{}{
-					"dedup_status": DedupStatusSuspected,
-					"dedup_ref_id": ref,
-				}).Error
+			cfg, _ := GetSystemSettings()
+			if cfg.Dedupe.SoftEnabled {
+				limit := cfg.Dedupe.InvoiceNumberMaxCandidates
+				if limit <= 0 {
+					limit = 5
+				}
+				if cands, err := FindInvoiceCandidatesByInvoiceNumber(n, invoice.ID, limit); err == nil && len(cands) > 0 {
+					invoice.DedupStatus = DedupStatusSuspected
+					ref := cands[0].ID
+					invoice.DedupRefID = &ref
+					_ = db.Model(&models.Invoice{}).Where("id = ?", invoice.ID).Updates(map[string]interface{}{
+						"dedup_status": DedupStatusSuspected,
+						"dedup_ref_id": ref,
+					}).Error
+				}
 			}
 		}
 	}
@@ -236,16 +243,23 @@ func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
 			nextNo = strings.TrimSpace(*inv.InvoiceNumber)
 		}
 		if nextNo != "" {
-			cands, err := FindInvoiceCandidatesByInvoiceNumber(nextNo, id, 5)
-			if err != nil {
-				return err
-			}
-			if len(cands) > 0 && !force {
-				return &DuplicateError{
-					Kind:       "suspected_duplicate",
-					Reason:     "invoice_number",
-					Entity:     "invoice",
-					Candidates: cands,
+			cfg, _ := GetSystemSettings()
+			if cfg.Dedupe.SoftEnabled {
+				limit := cfg.Dedupe.InvoiceNumberMaxCandidates
+				if limit <= 0 {
+					limit = 5
+				}
+				cands, err := FindInvoiceCandidatesByInvoiceNumber(nextNo, id, limit)
+				if err != nil {
+					return err
+				}
+				if len(cands) > 0 && !force {
+					return &DuplicateError{
+						Kind:       "suspected_duplicate",
+						Reason:     "invoice_number",
+						Entity:     "invoice",
+						Candidates: cands,
+					}
 				}
 			}
 		}
@@ -292,6 +306,12 @@ func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
 	// Persist dedup status changes on confirm.
 	if confirming && before != nil {
 		force := input.ForceDuplicateSave != nil && *input.ForceDuplicateSave
+		cfg, _ := GetSystemSettings()
+		softEnabled := cfg.Dedupe.SoftEnabled
+		limit := cfg.Dedupe.InvoiceNumberMaxCandidates
+		if limit <= 0 {
+			limit = 5
+		}
 
 		nextNo := ""
 		if input.InvoiceNumber != nil {
@@ -299,8 +319,11 @@ func (s *InvoiceService) Update(id string, input UpdateInvoiceInput) error {
 		} else if before.InvoiceNumber != nil {
 			nextNo = strings.TrimSpace(*before.InvoiceNumber)
 		}
-		if nextNo != "" {
-			if cands, err := FindInvoiceCandidatesByInvoiceNumber(nextNo, id, 5); err == nil && len(cands) > 0 {
+		if !softEnabled {
+			data["dedup_status"] = DedupStatusOK
+			data["dedup_ref_id"] = nil
+		} else if nextNo != "" {
+			if cands, err := FindInvoiceCandidatesByInvoiceNumber(nextNo, id, limit); err == nil && len(cands) > 0 {
 				if force {
 					data["dedup_status"] = DedupStatusForced
 					data["dedup_ref_id"] = cands[0].ID

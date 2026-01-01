@@ -69,6 +69,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/AdminInvites.vue'),
         meta: { title: '邀请码管理', requiresAdmin: true },
       },
+      {
+        path: 'admin/settings',
+        name: 'AdminSettings',
+        component: () => import('@/views/AdminSettings.vue'),
+        meta: { title: '系统设置', requiresAdmin: true },
+      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

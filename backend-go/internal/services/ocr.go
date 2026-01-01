@@ -64,6 +64,13 @@ func getPDFOCRDPI() int {
 	return pdfOCRDPI
 }
 
+func getRapidOCRTimeout() time.Duration {
+	if s, err := GetSystemSettings(); err == nil && s.OCR.TimeoutMs > 0 {
+		return time.Duration(s.OCR.TimeoutMs) * time.Millisecond
+	}
+	return rapidOCRTimeout
+}
+
 var (
 	// Compiled regex patterns for better performance
 	amountRegex = regexp.MustCompile(amountPattern)
@@ -119,6 +126,12 @@ func NewOCRService() *OCRService {
 }
 
 func getOCREngine() string {
+	if s, err := GetSystemSettings(); err == nil {
+		engine := strings.ToLower(strings.TrimSpace(s.OCR.Engine))
+		if engine == "rapidocr" {
+			return "rapidocr"
+		}
+	}
 	engine := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_OCR_ENGINE")))
 	// This project ships with RapidOCR v3 (onnxruntime CPU) as the default/recommended engine.
 	// Other engines are intentionally not supported in the default Docker image.
@@ -251,7 +264,7 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	}
 
 	// Execute Python script
-	ctx, cancel := context.WithTimeout(context.Background(), rapidOCRTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), getRapidOCRTimeout())
 	defer cancel()
 
 	run := func(python string) ([]byte, error) {

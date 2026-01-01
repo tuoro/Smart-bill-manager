@@ -229,11 +229,23 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 
 	dedup := interface{}(nil)
 	if payment != nil && payment.DedupStatus == services.DedupStatusSuspected {
-		if cands, derr := services.FindPaymentCandidatesByAmountTime(payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
-			dedup = gin.H{
-				"kind":       "suspected_duplicate",
-				"reason":     "amount_time",
-				"candidates": cands,
+		cfg, _ := services.GetSystemSettings()
+		softEnabled := cfg.Dedupe.SoftEnabled
+		windowMin := cfg.Dedupe.PaymentAmountTimeWindowMin
+		maxCands := cfg.Dedupe.PaymentAmountTimeMaxCandidates
+		if windowMin <= 0 {
+			softEnabled = false
+		}
+		if maxCands <= 0 {
+			maxCands = 5
+		}
+		if softEnabled {
+			if cands, derr := services.FindPaymentCandidatesByAmountTime(payment.Amount, payment.TransactionTimeTs, payment.ID, time.Duration(windowMin)*time.Minute, maxCands); derr == nil && len(cands) > 0 {
+				dedup = gin.H{
+					"kind":       "suspected_duplicate",
+					"reason":     "amount_time",
+					"candidates": cands,
+				}
 			}
 		}
 	}

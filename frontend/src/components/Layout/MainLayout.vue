@@ -503,19 +503,22 @@ const go = (path: string) => {
   .username {
     display: none;
   }
+
+  .mobile-nav {
+    padding-top: 12px;
+  }
 }
 </style>
 
 <style>
 /* Drawer is teleported to <body>, so styles must be global. */
 .p-drawer.mobile-drawer {
-  width: fit-content;
-  max-width: min(86vw, 360px);
+  width: clamp(240px, 72vw, 300px);
   border-radius: 0 20px 20px 0;
 }
 
 .p-drawer.mobile-drawer .p-drawer-content {
-  padding: 10px 10px 16px;
+  padding: 8px 10px 14px;
 }
 
 .p-drawer.mobile-drawer .p-drawer-header {
@@ -531,5 +534,7 @@ const go = (path: string) => {
 .p-drawer.mobile-drawer .p-drawer-header .drawer-title {
   font-weight: 800;
   letter-spacing: -0.2px;
+  font-size: 20px;
+  line-height: 1.2;
 }
 </style>

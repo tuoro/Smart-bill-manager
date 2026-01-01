@@ -507,13 +507,22 @@ const go = (path: string) => {
   .mobile-nav {
     padding-top: 12px;
   }
+
+  .mobile-nav .nav-item {
+    font-size: 14px;
+    height: 46px;
+  }
+
+  .mobile-nav .nav-item i {
+    font-size: 19px;
+  }
 }
 </style>
 
 <style>
 /* Drawer is teleported to <body>, so styles must be global. */
 .p-drawer.mobile-drawer {
-  width: clamp(240px, 72vw, 300px);
+  width: clamp(220px, 66vw, 280px);
   border-radius: 0 20px 20px 0;
 }
 

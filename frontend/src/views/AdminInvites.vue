@@ -63,7 +63,7 @@
             v-model:selection="selectedInvites"
           >
             <Column v-if="batchDeleteMode" selectionMode="multiple" :style="{ width: '48px' }" />
-            <Column field="code_hint" header="标识" :style="{ width: '18%' }" />
+            <Column field="code_hint" header="邀请码" :style="{ width: '18%' }" />
             <Column field="createdAt" header="生成时间" :style="{ width: '22%' }">
               <template #body="{ data: row }">{{ formatDateTime(row.createdAt) }}</template>
             </Column>

@@ -219,17 +219,6 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 	// - hash duplicate: hard block (no override)
 	// - amount+time duplicate: allow only with force_duplicate_save
 	if confirming && before != nil {
-		cfg, _ := GetSystemSettings()
-		softEnabled := cfg.Dedupe.SoftEnabled
-		windowMin := cfg.Dedupe.PaymentAmountTimeWindowMin
-		maxCands := cfg.Dedupe.PaymentAmountTimeMaxCandidates
-		if windowMin <= 0 {
-			softEnabled = false
-		}
-		if maxCands <= 0 {
-			maxCands = 5
-		}
-
 		force := input.ForceDuplicateSave != nil && *input.ForceDuplicateSave
 
 		hash := ""
@@ -261,18 +250,16 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 			}
 		}
 
-		if softEnabled {
-			cands, err := FindPaymentCandidatesByAmountTime(nextAmount, nextTs, id, time.Duration(windowMin)*time.Minute, maxCands)
-			if err != nil {
-				return err
-			}
-			if len(cands) > 0 && !force {
-				return &DuplicateError{
-					Kind:       "suspected_duplicate",
-					Reason:     "amount_time",
-					Entity:     "payment",
-					Candidates: cands,
-				}
+		cands, err := FindPaymentCandidatesByAmountTime(nextAmount, nextTs, id, 5*time.Minute, 5)
+		if err != nil {
+			return err
+		}
+		if len(cands) > 0 && !force {
+			return &DuplicateError{
+				Kind:       "suspected_duplicate",
+				Reason:     "amount_time",
+				Entity:     "payment",
+				Candidates: cands,
 			}
 		}
 	}
@@ -355,17 +342,6 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 
 	// Persist dedup status changes on confirm.
 	if confirming && before != nil {
-		cfg, _ := GetSystemSettings()
-		softEnabled := cfg.Dedupe.SoftEnabled
-		windowMin := cfg.Dedupe.PaymentAmountTimeWindowMin
-		maxCands := cfg.Dedupe.PaymentAmountTimeMaxCandidates
-		if windowMin <= 0 {
-			softEnabled = false
-		}
-		if maxCands <= 0 {
-			maxCands = 5
-		}
-
 		force := input.ForceDuplicateSave != nil && *input.ForceDuplicateSave
 
 		nextAmount := before.Amount
@@ -379,20 +355,15 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 			}
 		}
 
-		if softEnabled {
-			cands, err := FindPaymentCandidatesByAmountTime(nextAmount, nextTs, id, time.Duration(windowMin)*time.Minute, maxCands)
-			if err == nil && len(cands) > 0 {
-				if force {
-					data["dedup_status"] = DedupStatusForced
-					data["dedup_ref_id"] = cands[0].ID
-				} else {
-					// Should have been blocked above, but keep safe default.
-					data["dedup_status"] = DedupStatusSuspected
-					data["dedup_ref_id"] = cands[0].ID
-				}
+		cands, err := FindPaymentCandidatesByAmountTime(nextAmount, nextTs, id, 5*time.Minute, 5)
+		if err == nil && len(cands) > 0 {
+			if force {
+				data["dedup_status"] = DedupStatusForced
+				data["dedup_ref_id"] = cands[0].ID
 			} else {
-				data["dedup_status"] = DedupStatusOK
-				data["dedup_ref_id"] = nil
+				// Should have been blocked above, but keep safe default.
+				data["dedup_status"] = DedupStatusSuspected
+				data["dedup_ref_id"] = cands[0].ID
 			}
 		} else {
 			data["dedup_status"] = DedupStatusOK
@@ -568,26 +539,14 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 
 	// Mark suspected duplicates for UI (amount+time) if we have a meaningful timestamp.
 	if payment.Amount > 0 && payment.TransactionTimeTs > 0 {
-		cfg, _ := GetSystemSettings()
-		softEnabled := cfg.Dedupe.SoftEnabled
-		windowMin := cfg.Dedupe.PaymentAmountTimeWindowMin
-		maxCands := cfg.Dedupe.PaymentAmountTimeMaxCandidates
-		if windowMin <= 0 {
-			softEnabled = false
-		}
-		if maxCands <= 0 {
-			maxCands = 5
-		}
-		if softEnabled {
-			if cands, err := FindPaymentCandidatesByAmountTime(payment.Amount, payment.TransactionTimeTs, payment.ID, time.Duration(windowMin)*time.Minute, maxCands); err == nil && len(cands) > 0 {
-				payment.DedupStatus = DedupStatusSuspected
-				ref := cands[0].ID
-				payment.DedupRefID = &ref
-				_ = db.Model(&models.Payment{}).Where("id = ?", payment.ID).Updates(map[string]interface{}{
-					"dedup_status": DedupStatusSuspected,
-					"dedup_ref_id": ref,
-				}).Error
-			}
+		if cands, err := FindPaymentCandidatesByAmountTime(payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); err == nil && len(cands) > 0 {
+			payment.DedupStatus = DedupStatusSuspected
+			ref := cands[0].ID
+			payment.DedupRefID = &ref
+			_ = db.Model(&models.Payment{}).Where("id = ?", payment.ID).Updates(map[string]interface{}{
+				"dedup_status": DedupStatusSuspected,
+				"dedup_ref_id": ref,
+			}).Error
 		}
 	}
 

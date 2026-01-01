@@ -226,18 +226,11 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 	if invoice != nil && invoice.DedupStatus == services.DedupStatusSuspected && invoice.InvoiceNumber != nil {
 		no := strings.TrimSpace(*invoice.InvoiceNumber)
 		if no != "" {
-			cfg, _ := services.GetSystemSettings()
-			if cfg.Dedupe.SoftEnabled {
-				limit := cfg.Dedupe.InvoiceNumberMaxCandidates
-				if limit <= 0 {
-					limit = 5
-				}
-				if cands, derr := services.FindInvoiceCandidatesByInvoiceNumber(no, invoice.ID, limit); derr == nil && len(cands) > 0 {
-					dedup = gin.H{
-						"kind":       "suspected_duplicate",
-						"reason":     "invoice_number",
-						"candidates": cands,
-					}
+			if cands, derr := services.FindInvoiceCandidatesByInvoiceNumber(no, invoice.ID, 5); derr == nil && len(cands) > 0 {
+				dedup = gin.H{
+					"kind":       "suspected_duplicate",
+					"reason":     "invoice_number",
+					"candidates": cands,
 				}
 			}
 		}

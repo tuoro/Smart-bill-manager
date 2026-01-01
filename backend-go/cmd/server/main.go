@@ -34,7 +34,6 @@ func main() {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Invite{},
-		&models.SystemSetting{},
 		&models.Payment{},
 		&models.Trip{},
 		&models.Invoice{},
@@ -104,7 +103,6 @@ func main() {
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_invoice_id ON invoice_payment_links(invoice_id)")
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_payment_id ON invoice_payment_links(payment_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(created_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_system_settings_updated_at ON system_settings(updated_at)")
 
 	// Ensure uploads directory exists
 	uploadsDir := cfg.UploadsDir
@@ -191,8 +189,6 @@ func main() {
 	adminGroup.Use(middleware.RequireAdmin())
 	adminInvitesHandler := handlers.NewAdminInvitesHandler(authService)
 	adminInvitesHandler.RegisterRoutes(adminGroup.Group("/invites"))
-	adminSettingsHandler := handlers.NewAdminSettingsHandler()
-	adminSettingsHandler.RegisterRoutes(adminGroup.Group("/settings"))
 
 	// Dashboard endpoint
 	protectedGroup.GET("/dashboard", func(c *gin.Context) {

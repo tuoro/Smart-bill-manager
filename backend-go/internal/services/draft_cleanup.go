@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,64 +18,47 @@ func StartDraftCleanup(db *gorm.DB, uploadsDir string) {
 		return
 	}
 
-	lastRun := time.Time{}
-	cleanupOnce := func() {
-		s, err := GetSystemSettings()
-		if err != nil {
-			s = defaultSystemSettings()
-		}
-
-		if !s.Cleanup.Enabled || s.Cleanup.DraftTTLHours <= 0 {
-			return
-		}
-
-		ttl := time.Duration(s.Cleanup.DraftTTLHours) * time.Hour
-		cutoff := time.Now().Add(-ttl)
-
-		max := s.Cleanup.MaxDeletePerRun
-		payDeleted, invDeleted, fileDeleted := cleanupDraftsOnce(db, uploadsDir, cutoff, max)
-		orphanDeleted := 0
-		if s.Cleanup.OrphanFileTTLHours > 0 {
-			orphanCutoff := time.Now().Add(-time.Duration(s.Cleanup.OrphanFileTTLHours) * time.Hour)
-			orphanDeleted = cleanupOrphanFilesOnce(db, uploadsDir, orphanCutoff, max)
-		}
-
-		if payDeleted > 0 || invDeleted > 0 || fileDeleted > 0 || orphanDeleted > 0 {
-			log.Printf(
-				"[DraftCleanup] removed payments=%d invoices=%d files=%d orphans=%d (draft_cutoff=%s)",
-				payDeleted,
-				invDeleted,
-				fileDeleted,
-				orphanDeleted,
-				cutoff.Format(time.RFC3339),
-			)
-		}
-		lastRun = time.Now()
+	ttlHours := envInt("SBM_DRAFT_TTL_HOURS", 6)
+	intervalMinutes := envInt("SBM_DRAFT_CLEANUP_INTERVAL_MINUTES", 15)
+	if ttlHours <= 0 || intervalMinutes <= 0 {
+		log.Printf("[DraftCleanup] disabled (SBM_DRAFT_TTL_HOURS=%d SBM_DRAFT_CLEANUP_INTERVAL_MINUTES=%d)", ttlHours, intervalMinutes)
+		return
 	}
 
-	// Initial run
-	cleanupOnce()
+	ttl := time.Duration(ttlHours) * time.Hour
+	interval := time.Duration(intervalMinutes) * time.Minute
 
+	cleanupOnce := func() {
+		cutoff := time.Now().Add(-ttl)
+		payDeleted, invDeleted, fileDeleted := cleanupDraftsOnce(db, uploadsDir, cutoff)
+		if payDeleted > 0 || invDeleted > 0 || fileDeleted > 0 {
+			log.Printf("[DraftCleanup] removed payments=%d invoices=%d files=%d (cutoff=%s)", payDeleted, invDeleted, fileDeleted, cutoff.Format(time.RFC3339))
+		}
+	}
+
+	cleanupOnce()
 	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for range ticker.C {
-			s, err := GetSystemSettings()
-			if err != nil {
-				s = defaultSystemSettings()
-			}
-			if !s.Cleanup.Enabled || s.Cleanup.DraftTTLHours <= 0 || s.Cleanup.IntervalMinutes <= 0 {
-				continue
-			}
-			interval := time.Duration(s.Cleanup.IntervalMinutes) * time.Minute
-			if lastRun.IsZero() || time.Since(lastRun) >= interval {
-				cleanupOnce()
-			}
+			cleanupOnce()
 		}
 	}()
 }
 
-func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time, maxDeletePerRun int) (paymentsDeleted int, invoicesDeleted int, filesDeleted int) {
+func envInt(key string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time) (paymentsDeleted int, invoicesDeleted int, filesDeleted int) {
 	type payRow struct {
 		ID             string
 		ScreenshotPath *string
@@ -83,7 +67,6 @@ func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time, maxDele
 	_ = db.Model(&models.Payment{}).
 		Select("id, screenshot_path").
 		Where("is_draft = 1 AND created_at < ?", cutoff).
-		Limit(maxDeletePerRun).
 		Scan(&payRows).Error
 
 	type invRow struct {
@@ -94,7 +77,6 @@ func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time, maxDele
 	_ = db.Model(&models.Invoice{}).
 		Select("id, file_path").
 		Where("is_draft = 1 AND created_at < ?", cutoff).
-		Limit(maxDeletePerRun).
 		Scan(&invRows).Error
 
 	payIDs := make([]string, 0, len(payRows))
@@ -138,99 +120,6 @@ func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time, maxDele
 	return paymentsDeleted, invoicesDeleted, filesDeleted
 }
 
-func cleanupOrphanFilesOnce(db *gorm.DB, uploadsDir string, cutoff time.Time, maxDeletePerRun int) int {
-	uploadsDir = strings.TrimSpace(uploadsDir)
-	if uploadsDir == "" {
-		return 0
-	}
-
-	refs := make(map[string]struct{}, 1024)
-
-	type payRef struct {
-		ScreenshotPath *string `gorm:"column:screenshot_path"`
-	}
-	var payRefs []payRef
-	_ = db.Model(&models.Payment{}).Select("screenshot_path").Where("screenshot_path IS NOT NULL AND TRIM(screenshot_path) != ''").Scan(&payRefs).Error
-	for _, r := range payRefs {
-		if r.ScreenshotPath == nil {
-			continue
-		}
-		if p := normalizeStoredUploadsPath(*r.ScreenshotPath); p != "" {
-			refs[p] = struct{}{}
-		}
-	}
-
-	type invRef struct {
-		FilePath string `gorm:"column:file_path"`
-	}
-	var invRefs []invRef
-	_ = db.Model(&models.Invoice{}).Select("file_path").Where("file_path IS NOT NULL AND TRIM(file_path) != ''").Scan(&invRefs).Error
-	for _, r := range invRefs {
-		if p := normalizeStoredUploadsPath(r.FilePath); p != "" {
-			refs[p] = struct{}{}
-		}
-	}
-
-	removed := 0
-	_ = filepath.WalkDir(uploadsDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if maxDeletePerRun > 0 && removed >= maxDeletePerRun {
-			return filepath.SkipAll
-		}
-		info, statErr := d.Info()
-		if statErr != nil {
-			return nil
-		}
-		if info.ModTime().After(cutoff) {
-			return nil
-		}
-
-		rel, relErr := filepath.Rel(uploadsDir, path)
-		if relErr != nil {
-			return nil
-		}
-		stored := normalizeStoredUploadsPath(rel)
-		if stored == "" {
-			return nil
-		}
-		if _, ok := refs[stored]; ok {
-			return nil
-		}
-
-		if rmErr := os.Remove(path); rmErr == nil {
-			removed++
-		}
-		return nil
-	})
-
-	return removed
-}
-
-func normalizeStoredUploadsPath(storedPath string) string {
-	p := strings.TrimSpace(storedPath)
-	if p == "" {
-		return ""
-	}
-	p = strings.ReplaceAll(p, "\\", "/")
-	p = strings.TrimPrefix(p, "/")
-	p = strings.TrimPrefix(p, "uploads/")
-	p = strings.TrimPrefix(p, "./")
-	p = strings.TrimPrefix(p, "/")
-	if p == "" {
-		return ""
-	}
-	p = filepath.ToSlash(filepath.Clean(p))
-	if p == "." || p == ".." || strings.HasPrefix(p, "../") {
-		return ""
-	}
-	return "uploads/" + p
-}
-
 func removeStoredFile(uploadsDir string, storedPath string) bool {
 	p := strings.TrimSpace(storedPath)
 	if p == "" {
@@ -267,3 +156,4 @@ func resolveUploadsPathAbs(uploadsDir, storedPath string) string {
 	abs = filepath.Clean(abs)
 	return abs
 }
+

@@ -130,48 +130,6 @@ export const authApi = {
     >('/admin/invites', { params: { limit } }),
 
   adminDeleteInvite: (id: string) => api.delete<ApiResponse<{ deleted: boolean }>>(`/admin/invites/${id}`),
-
-  adminGetSettings: () =>
-    api.get<
-      ApiResponse<{
-        ocr: { engine: string; worker_mode: string; max_concurrency: number; timeout_ms: number }
-        dedupe: {
-          strict_hash_reject: boolean
-          soft_enabled: boolean
-          payment_amount_time_window_minutes: number
-          payment_amount_time_max_candidates: number
-          invoice_number_max_candidates: number
-        }
-        cleanup: {
-          enabled: boolean
-          draft_ttl_hours: number
-          interval_minutes: number
-          orphan_file_ttl_hours: number
-          max_delete_per_run: number
-        }
-      }>
-    >('/admin/settings'),
-
-  adminUpdateSettings: (patch: any) =>
-    api.put<
-      ApiResponse<{
-        ocr: { engine: string; worker_mode: string; max_concurrency: number; timeout_ms: number }
-        dedupe: {
-          strict_hash_reject: boolean
-          soft_enabled: boolean
-          payment_amount_time_window_minutes: number
-          payment_amount_time_max_candidates: number
-          invoice_number_max_candidates: number
-        }
-        cleanup: {
-          enabled: boolean
-          draft_ttl_hours: number
-          interval_minutes: number
-          orphan_file_ttl_hours: number
-          max_delete_per_run: number
-        }
-      }>
-    >('/admin/settings', patch),
 }
 
 export default api

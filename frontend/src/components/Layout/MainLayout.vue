@@ -318,7 +318,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
 .layout {
   min-height: 100vh;
   display: flex;
-  gap: 20px;
+  gap: 24px;
   padding: 20px;
   width: 100%;
   margin: 0;
@@ -334,7 +334,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   position: sticky;
   top: 20px;
   height: calc(100vh - 40px);
-  padding: 20px 12px 14px;
+  padding: 20px 14px 14px;
   border-radius: 24px;
   background: var(--p-surface-50);
 }
@@ -369,7 +369,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   cursor: pointer;
   gap: 10px;
   user-select: none;
-  padding: 0 6px;
+  padding: 0 10px;
 }
 
 .brand-logo {
@@ -403,7 +403,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
   border-radius: 12px;
   background: transparent;
@@ -412,7 +412,7 @@ const onMobileNavItemClick = (event: MouseEvent, item: any) => {
   transition: all var(--transition-base);
   text-align: left;
   position: relative;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
 }

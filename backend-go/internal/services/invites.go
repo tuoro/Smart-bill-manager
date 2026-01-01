@@ -124,6 +124,27 @@ func (s *AuthService) ListInvites(limit int) ([]models.Invite, error) {
 	return out, nil
 }
 
+func (s *AuthService) DeleteInvite(id string) error {
+	db := database.GetDB()
+
+	var inv models.Invite
+	if err := db.Where("id = ?", id).First(&inv).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	if inv.UsedAt != nil {
+		return ErrInviteUsed
+	}
+
+	if err := db.Delete(&models.Invite{}, "id = ?", id).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *AuthService) RegisterWithInvite(inviteCode, username, password string, email *string) (*AuthResult, error) {
 	normalized := normalizeInviteCode(inviteCode)
 	if normalized == "" {

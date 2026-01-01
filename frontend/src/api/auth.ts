@@ -128,6 +128,8 @@ export const authApi = {
         }>
       >
     >('/admin/invites', { params: { limit } }),
+
+  adminDeleteInvite: (id: string) => api.delete<ApiResponse<{ deleted: boolean }>>(`/admin/invites/${id}`),
 }
 
 export default api

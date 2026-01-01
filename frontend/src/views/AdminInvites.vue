@@ -29,15 +29,35 @@
             <small v-if="lastExpiresHint" class="muted">{{ lastExpiresHint }}</small>
           </div>
 
+          <div class="list-toolbar">
+            <SelectButton
+              v-model="usedFilter"
+              :options="usedFilterOptions"
+              optionLabel="label"
+              optionValue="value"
+              aria-label="筛选是否已使用"
+            />
+            <Button
+              class="p-button-danger p-button-outlined"
+              icon="pi pi-trash"
+              label="删除所选"
+              :disabled="selectedInvites.length === 0"
+              @click="confirmDeleteSelected"
+            />
+          </div>
+
           <DataTable
             class="invites-table"
-            :value="invites"
+            :value="filteredInvites"
             :loading="loading"
             responsiveLayout="scroll"
             :paginator="true"
             :rows="20"
             :rowsPerPageOptions="[10, 20, 50]"
+            dataKey="id"
+            v-model:selection="selectedInvites"
           >
+            <Column selectionMode="multiple" :style="{ width: '48px' }" />
             <Column field="code_hint" header="标识" :style="{ width: '18%' }" />
             <Column field="createdAt" header="生成时间" :style="{ width: '22%' }">
               <template #body="{ data: row }">{{ formatDateTime(row.createdAt) }}</template>
@@ -61,6 +81,18 @@
                 <span v-else class="muted">-</span>
               </template>
             </Column>
+            <Column header="操作" :style="{ width: '10%' }">
+              <template #body="{ data: row }">
+                <Button
+                  class="p-button-text p-button-danger p-button-sm"
+                  icon="pi pi-trash"
+                  aria-label="删除邀请码"
+                  title="删除邀请码"
+                  :disabled="!!row.usedAt"
+                  @click="confirmDeleteInvite(row)"
+                />
+              </template>
+            </Column>
           </DataTable>
         </div>
       </template>
@@ -75,9 +107,11 @@ import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import Dropdown from 'primevue/dropdown'
+import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import dayjs from 'dayjs'
 import { authApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
@@ -94,15 +128,33 @@ type InviteRow = {
 }
 
 const toast = useToast()
+const confirm = useConfirm()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.user?.role === 'admin')
 
 const loading = ref(false)
 const invites = ref<InviteRow[]>([])
+const selectedInvites = ref<InviteRow[]>([])
+
+type UsedFilterValue = 'all' | 'unused' | 'used'
+const usedFilter = ref<UsedFilterValue>('all')
+const usedFilterOptions: Array<{ label: string; value: UsedFilterValue }> = [
+  { label: '全部', value: 'all' },
+  { label: '未使用', value: 'unused' },
+  { label: '已使用', value: 'used' },
+]
+
+const filteredInvites = computed(() => {
+  const list = invites.value
+  if (usedFilter.value === 'unused') return list.filter((x) => !x.usedAt)
+  if (usedFilter.value === 'used') return list.filter((x) => !!x.usedAt)
+  return list
+})
 
 const expiresInDays = ref<number>(7)
 const expiresOptions = [
+  { label: '1 天过期', value: 1 },
   { label: '7 天过期', value: 7 },
   { label: '30 天过期', value: 30 },
   { label: '永不过期', value: 0 },
@@ -155,6 +207,103 @@ const createInvite = async () => {
   }
 }
 
+const deleteInvite = async (row: InviteRow) => {
+  if (!isAdmin.value) return
+  loading.value = true
+  try {
+    const res = await authApi.adminDeleteInvite(row.id)
+    if (res.data.success) {
+      toast.add({ severity: 'success', summary: '邀请码已删除', life: 1800 })
+      await loadInvites()
+      return
+    }
+    toast.add({ severity: 'error', summary: res.data.message || '删除邀请码失败', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: e.response?.data?.message || '删除邀请码失败', life: 3000 })
+  } finally {
+    loading.value = false
+  }
+}
+
+const deleteSelected = async (rows: InviteRow[]) => {
+  if (!isAdmin.value) return
+  if (rows.length === 0) return
+  loading.value = true
+  try {
+    const results = await Promise.allSettled(rows.map((r) => authApi.adminDeleteInvite(r.id)))
+    let ok = 0
+    let failed = 0
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.data?.success) ok++
+      else failed++
+    }
+
+    if (ok > 0 && failed === 0) {
+      toast.add({ severity: 'success', summary: `已删除 ${ok} 个邀请码`, life: 2000 })
+    } else if (ok > 0 && failed > 0) {
+      toast.add({ severity: 'warn', summary: `已删除 ${ok} 个，失败 ${failed} 个`, life: 3000 })
+    } else {
+      toast.add({ severity: 'error', summary: '删除失败', life: 3000 })
+    }
+
+    selectedInvites.value = []
+    await loadInvites()
+  } finally {
+    loading.value = false
+  }
+}
+
+const confirmDeleteSelected = () => {
+  if (!isAdmin.value) return
+  const selected = selectedInvites.value
+  if (selected.length === 0) return
+
+  const deletable = selected.filter((r) => !r.usedAt)
+  const used = selected.filter((r) => !!r.usedAt)
+
+  if (deletable.length === 0) {
+    toast.add({ severity: 'warn', summary: '所选邀请码均已使用，无法删除', life: 2500 })
+    return
+  }
+
+  const message =
+    used.length > 0
+      ? `确定删除选中的 ${deletable.length} 个未使用邀请码吗？（已使用 ${used.length} 个将跳过）`
+      : `确定删除选中的 ${deletable.length} 个未使用邀请码吗？`
+
+  confirm.require({
+    message,
+    header: '批量删除确认',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      void deleteSelected(deletable)
+    },
+  })
+}
+
+const confirmDeleteInvite = (row: InviteRow) => {
+  if (!isAdmin.value) return
+  if (row.usedAt) {
+    toast.add({ severity: 'warn', summary: '邀请码已被使用，无法删除', life: 2500 })
+    return
+  }
+
+  confirm.require({
+    message: `确定删除邀请码「${row.code_hint}」吗？`,
+    header: '删除确认',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      void deleteInvite(row)
+    },
+  })
+}
+
 const copyLastCode = async () => {
   if (!lastCode.value) return
   try {
@@ -200,6 +349,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .last-code {

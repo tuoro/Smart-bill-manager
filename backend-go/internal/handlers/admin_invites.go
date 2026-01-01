@@ -27,6 +27,7 @@ type CreateInviteInput struct {
 func (h *AdminInvitesHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("", h.CreateInvite)
 	r.GET("", h.ListInvites)
+	r.DELETE("/:id", h.DeleteInvite)
 }
 
 func (h *AdminInvitesHandler) CreateInvite(c *gin.Context) {
@@ -92,3 +93,26 @@ func (h *AdminInvitesHandler) ListInvites(c *gin.Context) {
 	utils.SuccessData(c, out)
 }
 
+func (h *AdminInvitesHandler) DeleteInvite(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		utils.Error(c, 400, "缺少 id", nil)
+		return
+	}
+
+	if err := h.authService.DeleteInvite(id); err != nil {
+		switch err {
+		case services.ErrNotFound:
+			utils.Error(c, 404, "邀请码不存在", err)
+			return
+		case services.ErrInviteUsed:
+			utils.Error(c, 400, "邀请码已被使用，无法删除", err)
+			return
+		default:
+			utils.Error(c, 500, "删除邀请码失败", err)
+			return
+		}
+	}
+
+	utils.SuccessData(c, gin.H{"deleted": true})
+}

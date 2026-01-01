@@ -1375,7 +1375,7 @@ onMounted(async () => {
   .trip-table :deep(.p-datatable-table),
   .pending-table :deep(.p-datatable-table) {
     width: max-content;
-    min-width: 100%;
+    min-width: 960px;
   }
 }
 

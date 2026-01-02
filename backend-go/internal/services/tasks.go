@@ -31,6 +31,7 @@ type TaskService struct {
 	paymentSvc    *PaymentService
 	invoiceSvc    *InvoiceService
 	pollInterval  time.Duration
+	wakeCh        chan struct{}
 }
 
 func NewTaskService(db *gorm.DB, paymentSvc *PaymentService, invoiceSvc *InvoiceService) *TaskService {
@@ -39,6 +40,17 @@ func NewTaskService(db *gorm.DB, paymentSvc *PaymentService, invoiceSvc *Invoice
 		paymentSvc:   paymentSvc,
 		invoiceSvc:   invoiceSvc,
 		pollInterval: 800 * time.Millisecond,
+		wakeCh:       make(chan struct{}, 1),
+	}
+}
+
+func (s *TaskService) wake() {
+	if s.wakeCh == nil {
+		return
+	}
+	select {
+	case s.wakeCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -74,6 +86,9 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 	}
 	err := q.First(&existing).Error
 	if err == nil {
+		if existing.Status == TaskStatusQueued {
+			s.wake()
+		}
 		return &existing, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -91,6 +106,7 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 	if err := s.db.Create(t).Error; err != nil {
 		return nil, err
 	}
+	s.wake()
 	return t, nil
 }
 
@@ -156,19 +172,51 @@ func (s *TaskService) StartWorker() {
 	}
 	processingTTL := getEnvSeconds("SBM_TASK_PROCESSING_TTL_SECONDS", 3600)
 	reapInterval := getEnvSeconds("SBM_TASK_REAPER_INTERVAL_SECONDS", 30)
+	idleMin := getEnvMillis("SBM_TASK_IDLE_MIN_MS", 200)
+	idleMax := getEnvMillis("SBM_TASK_IDLE_MAX_MS", 5000)
 	if reapInterval < 5*time.Second {
 		reapInterval = 5 * time.Second
 	}
 	if processingTTL < 30*time.Second {
 		processingTTL = 30 * time.Second
 	}
+	if idleMin < 50*time.Millisecond {
+		idleMin = 50 * time.Millisecond
+	}
+	if idleMax < idleMin {
+		idleMax = idleMin
+	}
 
-	log.Printf("[TaskWorker] started poll=%s ttl=%s reaper=%s", s.pollInterval, processingTTL, reapInterval)
+	log.Printf("[TaskWorker] started idle=[%s,%s] ttl=%s reaper=%s", idleMin, idleMax, processingTTL, reapInterval)
 	go func() {
+		idleSleep := idleMin
 		for {
-			time.Sleep(s.pollInterval)
-			if err := s.processOne(); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			err := s.processOne()
+			if err == nil {
+				idleSleep = idleMin
+				continue
+			}
+
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if idleSleep < idleMax {
+					idleSleep *= 2
+					if idleSleep > idleMax {
+						idleSleep = idleMax
+					}
+				}
+			} else {
 				log.Printf("[TaskWorker] process error: %v", err)
+				idleSleep = idleMin
+			}
+
+			timer := time.NewTimer(idleSleep)
+			select {
+			case <-s.wakeCh:
+				if !timer.Stop() {
+					<-timer.C
+				}
+				idleSleep = idleMin
+			case <-timer.C:
 			}
 		}
 	}()
@@ -205,6 +253,18 @@ func getEnvSeconds(key string, defaultSeconds int) time.Duration {
 		return time.Duration(defaultSeconds) * time.Second
 	}
 	return time.Duration(n) * time.Second
+}
+
+func getEnvMillis(key string, defaultMillis int) time.Duration {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return time.Duration(defaultMillis) * time.Millisecond
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return time.Duration(defaultMillis) * time.Millisecond
+	}
+	return time.Duration(n) * time.Millisecond
 }
 
 func (s *TaskService) processOne() error {

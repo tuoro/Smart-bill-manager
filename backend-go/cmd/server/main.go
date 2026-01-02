@@ -105,6 +105,7 @@ func main() {
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_source ON regression_samples(source_type, source_id, kind)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_regression_samples_kind_created_at ON regression_samples(kind, created_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_regression_samples_name ON regression_samples(name)")
+	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_kind_rawhash ON regression_samples(kind, raw_hash) WHERE raw_hash != ''")
 
 	// Enforce invoice<->payment 1:1 by making each side unique in link table.
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_invoice_id ON invoice_payment_links(invoice_id)")

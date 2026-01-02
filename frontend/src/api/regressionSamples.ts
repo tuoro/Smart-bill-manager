@@ -5,6 +5,7 @@ export type RegressionSample = {
   id: string
   kind: 'payment_screenshot' | 'invoice' | string
   name: string
+  origin?: 'ui' | 'repo' | string
   source_type: 'payment' | 'invoice' | string
   source_id: string
   created_by: string
@@ -31,5 +32,11 @@ export const regressionSamplesApi = {
       params: { kind: kind || undefined },
       responseType: 'blob',
     }),
-}
 
+  syncFromRepo: (mode?: 'repo_only' | 'overwrite') =>
+    api.post<ApiResponse<{ files: number; inserted: number; updated: number; skipped: number; errors: number; error_list?: string[] }>>(
+      '/admin/regression-samples/sync',
+      {},
+      { params: { mode: mode || 'repo_only' } }
+    ),
+}

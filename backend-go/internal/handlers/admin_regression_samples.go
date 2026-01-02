@@ -30,6 +30,7 @@ func (h *AdminRegressionSamplesHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/payments/:id", h.MarkPayment)
 	r.POST("/invoices/:id", h.MarkInvoice)
 	r.GET("", h.List)
+	r.POST("/sync", h.SyncFromRepo)
 	r.GET("/export", h.Export)
 	r.DELETE("/:id", h.Delete)
 	r.POST("/bulk-delete", h.BulkDelete)
@@ -156,4 +157,27 @@ func (h *AdminRegressionSamplesHandler) Export(c *gin.Context) {
 	c.Header("Content-Type", "application/zip")
 	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	c.Data(200, "application/zip", b)
+}
+
+func (h *AdminRegressionSamplesHandler) SyncFromRepo(c *gin.Context) {
+	mode := strings.TrimSpace(c.Query("mode"))
+	syncMode := services.RepoSyncModeRepoOnly
+	if mode != "" {
+		switch mode {
+		case string(services.RepoSyncModeRepoOnly):
+			syncMode = services.RepoSyncModeRepoOnly
+		case string(services.RepoSyncModeOverwrite):
+			syncMode = services.RepoSyncModeOverwrite
+		default:
+			utils.Error(c, 400, "mode 仅支持 repo_only/overwrite", nil)
+			return
+		}
+	}
+
+	res, err := h.svc.SyncFromRepoDir(syncMode)
+	if err != nil {
+		utils.Error(c, 400, "同步失败", err)
+		return
+	}
+	utils.SuccessData(c, res)
 }

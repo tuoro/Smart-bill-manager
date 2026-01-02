@@ -5,6 +5,19 @@
         <div class="header">
           <span>回归样本</span>
           <div class="toolbar">
+            <div class="autosync">
+              <span class="muted">自动同步</span>
+              <InputSwitch v-model="autoSyncEnabled" :disabled="loading" />
+              <Dropdown
+                v-model="autoSyncIntervalMs"
+                :options="autoSyncIntervalOptions"
+                optionLabel="label"
+                optionValue="value"
+                class="interval-dropdown"
+                :disabled="loading || !autoSyncEnabled"
+              />
+            </div>
+            <Button class="p-button-outlined" icon="pi pi-sync" label="同步" :disabled="loading" @click="syncFromRepo" />
             <Button class="p-button-outlined" icon="pi pi-download" label="导出 ZIP" :disabled="loading || total === 0" @click="exportZip" />
             <Button
               class="p-button-danger p-button-outlined"
@@ -73,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
@@ -82,6 +95,8 @@ import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
+import InputSwitch from 'primevue/inputswitch'
+import Dropdown from 'primevue/dropdown'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
@@ -99,6 +114,15 @@ const items = ref<RegressionSample[]>([])
 const total = ref(0)
 const selected = ref<RegressionSample[]>([])
 const batchDeleteMode = ref(false)
+
+const autoSyncEnabled = ref<boolean>(localStorage.getItem('sbm_regression_auto_sync_enabled') === '1')
+const autoSyncIntervalMs = ref<number>(Number(localStorage.getItem('sbm_regression_auto_sync_interval_ms') || 15 * 60_000))
+const autoSyncIntervalOptions = [
+  { label: '5 分钟', value: 5 * 60_000 },
+  { label: '15 分钟', value: 15 * 60_000 },
+  { label: '60 分钟', value: 60 * 60_000 },
+]
+let autoSyncTimer: number | null = null
 
 type KindValue = 'all' | 'payment_screenshot' | 'invoice'
 const kindFilter = ref<KindValue>('all')
@@ -198,6 +222,27 @@ const parseFilename = (disposition?: string) => {
   return m?.[1] || ''
 }
 
+const syncFromRepo = async () => {
+  if (!isAdmin.value) return
+  if (loading.value) return
+  loading.value = true
+  try {
+    const res = await regressionSamplesApi.syncFromRepo('repo_only')
+    if (res.data.success && res.data.data) {
+      const d = res.data.data
+      const summary = `扫描 ${d.files}，新增 ${d.inserted}，更新 ${d.updated}，跳过 ${d.skipped}，错误 ${d.errors}`
+      toast.add({ severity: d.errors > 0 ? 'warn' : 'success', summary: '同步完成', detail: summary, life: 3500 })
+      await reload()
+      return
+    }
+    toast.add({ severity: 'error', summary: res.data.message || '同步失败', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: e.response?.data?.message || '同步失败', life: 3000 })
+  } finally {
+    loading.value = false
+  }
+}
+
 const exportZip = async () => {
   if (!isAdmin.value) return
   loading.value = true
@@ -223,10 +268,38 @@ const exportZip = async () => {
 
 onMounted(() => {
   void load()
+  setupAutoSync()
 })
 
 watch(kindFilter, () => {
   void reload()
+})
+
+watch(autoSyncEnabled, (v) => {
+  localStorage.setItem('sbm_regression_auto_sync_enabled', v ? '1' : '0')
+  setupAutoSync()
+})
+
+watch(autoSyncIntervalMs, (v) => {
+  localStorage.setItem('sbm_regression_auto_sync_interval_ms', String(v || 0))
+  setupAutoSync()
+})
+
+const setupAutoSync = () => {
+  if (autoSyncTimer) {
+    window.clearInterval(autoSyncTimer)
+    autoSyncTimer = null
+  }
+  if (!isAdmin.value || !autoSyncEnabled.value) return
+  const ms = Number(autoSyncIntervalMs.value || 0)
+  if (!ms || ms < 60_000) return
+  autoSyncTimer = window.setInterval(() => {
+    void syncFromRepo()
+  }, ms)
+}
+
+onBeforeUnmount(() => {
+  if (autoSyncTimer) window.clearInterval(autoSyncTimer)
 })
 </script>
 
@@ -243,6 +316,21 @@ watch(kindFilter, () => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.autosync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.interval-dropdown {
+  min-width: 120px;
+}
+
+.muted {
+  color: var(--text-color-secondary, rgba(0, 0, 0, 0.55));
+  font-size: 12px;
 }
 
 .content {

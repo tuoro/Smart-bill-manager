@@ -3,10 +3,12 @@ package services
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -16,6 +18,8 @@ import (
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
+
+	"gorm.io/gorm"
 )
 
 var ErrSampleNotFound = errors.New("regression sample not found")
@@ -59,23 +63,30 @@ func normalizeSampleName(s string) string {
 	return s
 }
 
-func paymentTimeForSampleUTCToShanghai(transactionTime string) *string {
-	transactionTime = strings.TrimSpace(transactionTime)
-	if transactionTime == "" {
-		return nil
-	}
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return fmt.Sprintf("%x", sum[:])
+}
 
-	tt, err := time.Parse(time.RFC3339Nano, transactionTime)
-	if err != nil {
-		if t2, err2 := time.Parse(time.RFC3339, transactionTime); err2 == nil {
-			tt = t2
-		} else {
-			return nil
-		}
+func backfillRegressionSampleRawHashes(db *gorm.DB) {
+	if db == nil {
+		return
 	}
-	loc := loadLocationOrUTC("Asia/Shanghai")
-	v := tt.In(loc).Format("2006-01-02 15:04:05")
-	return &v
+	// Best-effort backfill for older rows created before raw_hash existed.
+	var rows []models.RegressionSample
+	if err := db.Where("raw_hash = '' OR raw_hash IS NULL").Limit(500).Find(&rows).Error; err != nil {
+		return
+	}
+	for _, r := range rows {
+		raw := strings.TrimSpace(r.RawText)
+		if raw == "" {
+			continue
+		}
+		h := sha256Hex(raw)
+		_ = db.Model(&models.RegressionSample{}).Where("id = ?", r.ID).Updates(map[string]any{
+			"raw_hash": h,
+		}).Error
+	}
 }
 
 func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, createdBy string, name string) (*models.RegressionSample, error) {
@@ -87,6 +98,7 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 	}
 
 	db := database.GetDB()
+	backfillRegressionSampleRawHashes(db)
 	var p models.Payment
 	res := db.Where("id = ?", paymentID).Limit(1).Find(&p)
 	if res.Error != nil {
@@ -111,17 +123,26 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 		return nil, fmt.Errorf("payment extracted_data has empty raw_text")
 	}
 
-	exp := regressionSampleExpectedPayment{
-		Amount:        nil,
-		Merchant:      p.Merchant,
-		PaymentMethod: p.PaymentMethod,
-		OrderNumber:   ed.OrderNumber,
+	ocrSvc := NewOCRService()
+	parsed, err := ocrSvc.ParsePaymentScreenshot(raw)
+	if err != nil {
+		return nil, fmt.Errorf("ParsePaymentScreenshot failed: %w", err)
 	}
-
-	// Store as positive money (parser may output negative; regression compares abs).
-	amt := math.Abs(p.Amount)
-	exp.Amount = &amt
-	exp.TransactionTime = paymentTimeForSampleUTCToShanghai(p.TransactionTime)
+	exp := regressionSampleExpectedPayment{
+		Amount:          parsed.Amount,
+		Merchant:        parsed.Merchant,
+		TransactionTime: parsed.TransactionTime,
+		PaymentMethod:   parsed.PaymentMethod,
+		OrderNumber:     parsed.OrderNumber,
+	}
+	// Normalize amount sign for storage.
+	if exp.Amount != nil {
+		v := *exp.Amount
+		if v < 0 {
+			v = -v
+		}
+		exp.Amount = &v
+	}
 
 	expB, _ := json.Marshal(exp)
 
@@ -137,10 +158,12 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 		ID:           utils.GenerateUUID(),
 		Kind:         "payment_screenshot",
 		Name:         name,
+		Origin:       "ui",
 		SourceType:   "payment",
 		SourceID:     paymentID,
 		CreatedBy:    createdBy,
 		RawText:      raw,
+		RawHash:      sha256Hex(raw),
 		ExpectedJSON: string(expB),
 	}
 
@@ -186,6 +209,7 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 	}
 
 	db := database.GetDB()
+	backfillRegressionSampleRawHashes(db)
 	var inv models.Invoice
 	res := db.Where("id = ?", invoiceID).Limit(1).Find(&inv)
 	if res.Error != nil {
@@ -212,13 +236,18 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 		return nil, fmt.Errorf("invoice has no raw_text")
 	}
 
+	ocrSvc := NewOCRService()
+	parsed, err := ocrSvc.ParseInvoiceData(raw)
+	if err != nil {
+		return nil, fmt.Errorf("ParseInvoiceData failed: %w", err)
+	}
 	exp := regressionSampleExpectedInvoice{
-		InvoiceNumber: inv.InvoiceNumber,
-		InvoiceDate:   inv.InvoiceDate,
-		Amount:        inv.Amount,
-		TaxAmount:     inv.TaxAmount,
-		SellerName:    inv.SellerName,
-		BuyerName:     inv.BuyerName,
+		InvoiceNumber: parsed.InvoiceNumber,
+		InvoiceDate:   parsed.InvoiceDate,
+		Amount:        parsed.Amount,
+		TaxAmount:     parsed.TaxAmount,
+		SellerName:    parsed.SellerName,
+		BuyerName:     parsed.BuyerName,
 	}
 	expB, _ := json.Marshal(exp)
 
@@ -234,10 +263,12 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 		ID:           utils.GenerateUUID(),
 		Kind:         "invoice",
 		Name:         name,
+		Origin:       "ui",
 		SourceType:   "invoice",
 		SourceID:     invoiceID,
 		CreatedBy:    createdBy,
 		RawText:      raw,
+		RawHash:      sha256Hex(raw),
 		ExpectedJSON: string(expB),
 	}
 
@@ -361,6 +392,7 @@ func (s *RegressionSampleService) BulkDelete(ids []string) (deleted int, err err
 
 func (s *RegressionSampleService) ExportZip(kind string) ([]byte, string, error) {
 	db := database.GetDB()
+	backfillRegressionSampleRawHashes(db)
 	q := db.Model(&models.RegressionSample{})
 	kind = strings.TrimSpace(kind)
 	if kind != "" {
@@ -431,4 +463,196 @@ func (s *RegressionSampleService) ExportZip(kind string) ([]byte, string, error)
 
 	_ = zw.Close()
 	return buf.Bytes(), zipName, nil
+}
+
+type RepoSyncMode string
+
+const (
+	RepoSyncModeRepoOnly  RepoSyncMode = "repo_only" // update only records with origin=repo; skip ui records
+	RepoSyncModeOverwrite RepoSyncMode = "overwrite" // overwrite any existing record with same (kind, raw_hash)
+)
+
+type RepoSyncResult struct {
+	Files     int      `json:"files"`
+	Inserted  int      `json:"inserted"`
+	Updated   int      `json:"updated"`
+	Skipped   int      `json:"skipped"`
+	Errors    int      `json:"errors"`
+	ErrorList []string `json:"error_list,omitempty"`
+}
+
+type repoSampleFile struct {
+	Kind     string          `json:"kind"`
+	Name     string          `json:"name"`
+	RawText  string          `json:"raw_text"`
+	Expected json.RawMessage `json:"expected"`
+}
+
+func candidateRepoSampleDirs() []string {
+	if v := strings.TrimSpace(os.Getenv("SBM_REGRESSION_SAMPLES_DIR")); v != "" {
+		return []string{v}
+	}
+	return []string{
+		filepath.Join("internal", "services", "testdata", "regression"),
+		filepath.Join("backend-go", "internal", "services", "testdata", "regression"),
+		filepath.Join("testdata", "regression"),
+	}
+}
+
+func resolveRepoSampleDir() (string, error) {
+	for _, p := range candidateRepoSampleDirs() {
+		if p == "" {
+			continue
+		}
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("no repo sample dir found (set SBM_REGRESSION_SAMPLES_DIR)")
+}
+
+func (s *RegressionSampleService) SyncFromRepoDir(mode RepoSyncMode) (*RepoSyncResult, error) {
+	if mode == "" {
+		mode = RepoSyncModeRepoOnly
+	}
+	if mode != RepoSyncModeRepoOnly && mode != RepoSyncModeOverwrite {
+		return nil, fmt.Errorf("invalid sync mode")
+	}
+
+	baseDir, err := resolveRepoSampleDir()
+	if err != nil {
+		return nil, err
+	}
+
+	db := database.GetDB()
+	backfillRegressionSampleRawHashes(db)
+	result := &RepoSyncResult{}
+
+	walkErr := filepath.WalkDir(baseDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			result.Errors++
+			if len(result.ErrorList) < 20 {
+				result.ErrorList = append(result.ErrorList, err.Error())
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(strings.ToLower(d.Name()), ".json") {
+			return nil
+		}
+		result.Files++
+
+		b, rerr := os.ReadFile(path)
+		if rerr != nil {
+			result.Errors++
+			if len(result.ErrorList) < 20 {
+				result.ErrorList = append(result.ErrorList, fmt.Sprintf("%s: %v", path, rerr))
+			}
+			return nil
+		}
+		var f repoSampleFile
+		if uerr := json.Unmarshal(b, &f); uerr != nil {
+			result.Errors++
+			if len(result.ErrorList) < 20 {
+				result.ErrorList = append(result.ErrorList, fmt.Sprintf("%s: %v", path, uerr))
+			}
+			return nil
+		}
+
+		kind := strings.TrimSpace(f.Kind)
+		raw := strings.TrimSpace(f.RawText)
+		if kind == "" || raw == "" {
+			result.Errors++
+			if len(result.ErrorList) < 20 {
+				result.ErrorList = append(result.ErrorList, fmt.Sprintf("%s: missing kind/raw_text", path))
+			}
+			return nil
+		}
+		if kind != "payment_screenshot" && kind != "invoice" {
+			// Ignore unknown kinds for now.
+			result.Skipped++
+			return nil
+		}
+
+		name := normalizeSampleName(f.Name)
+		if name == "" {
+			name = normalizeSampleName(strings.TrimSuffix(d.Name(), filepath.Ext(d.Name())))
+		}
+		if name == "" {
+			name = kind + "_" + sha256Hex(raw)[:8]
+		}
+
+		var expected any
+		if len(f.Expected) > 0 {
+			_ = json.Unmarshal(f.Expected, &expected)
+		}
+		expB, _ := json.Marshal(expected)
+
+		rawHash := sha256Hex(raw)
+
+		var existing models.RegressionSample
+		exRes := db.Where("kind = ? AND raw_hash = ?", kind, rawHash).Limit(1).Find(&existing)
+		if exRes.Error != nil {
+			result.Errors++
+			if len(result.ErrorList) < 20 {
+				result.ErrorList = append(result.ErrorList, fmt.Sprintf("%s: %v", path, exRes.Error))
+			}
+			return nil
+		}
+
+		if exRes.RowsAffected == 0 {
+			sample := &models.RegressionSample{
+				ID:           utils.GenerateUUID(),
+				Kind:         kind,
+				Name:         name,
+				Origin:       "repo",
+				SourceType:   "repo",
+				SourceID:     filepath.ToSlash(path),
+				CreatedBy:    "repo_sync",
+				RawText:      raw,
+				RawHash:      rawHash,
+				ExpectedJSON: string(expB),
+			}
+			if err := db.Create(sample).Error; err != nil {
+				result.Errors++
+				if len(result.ErrorList) < 20 {
+					result.ErrorList = append(result.ErrorList, fmt.Sprintf("%s: %v", path, err))
+				}
+				return nil
+			}
+			result.Inserted++
+			return nil
+		}
+
+		if mode == RepoSyncModeRepoOnly && strings.TrimSpace(existing.Origin) != "repo" {
+			result.Skipped++
+			return nil
+		}
+
+		update := map[string]any{
+			"name":          name,
+			"raw_text":      raw,
+			"expected_json": string(expB),
+			"raw_hash":      rawHash,
+			"source_type":   "repo",
+			"source_id":     filepath.ToSlash(path),
+			"origin":        "repo",
+			"updated_at":    time.Now(),
+		}
+		if err := db.Model(&models.RegressionSample{}).Where("id = ?", existing.ID).Updates(update).Error; err != nil {
+			result.Errors++
+			if len(result.ErrorList) < 20 {
+				result.ErrorList = append(result.ErrorList, fmt.Sprintf("%s: %v", path, err))
+			}
+			return nil
+		}
+		result.Updated++
+		return nil
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	return result, nil
 }

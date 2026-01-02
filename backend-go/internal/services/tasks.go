@@ -76,7 +76,7 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 	if err == nil {
 		return &existing, nil
 	}
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 

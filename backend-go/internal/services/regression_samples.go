@@ -124,25 +124,17 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 		return nil, fmt.Errorf("payment extracted_data has empty raw_text")
 	}
 
-	ocrSvc := NewOCRService()
-	parsed, err := ocrSvc.ParsePaymentScreenshot(raw)
-	if err != nil {
-		return nil, fmt.Errorf("ParsePaymentScreenshot failed: %w", err)
-	}
 	exp := regressionSampleExpectedPayment{
-		Amount:          parsed.Amount,
-		Merchant:        parsed.Merchant,
-		TransactionTime: parsed.TransactionTime,
-		PaymentMethod:   parsed.PaymentMethod,
-		OrderNumber:     parsed.OrderNumber,
+		Merchant:      p.Merchant,
+		PaymentMethod: p.PaymentMethod,
 	}
-	// Normalize amount sign for storage.
-	if exp.Amount != nil {
-		v := *exp.Amount
-		if v < 0 {
-			v = -v
-		}
+	if p.Amount > 0 {
+		v := p.Amount
 		exp.Amount = &v
+	}
+	if strings.TrimSpace(p.TransactionTime) != "" {
+		v := strings.TrimSpace(p.TransactionTime)
+		exp.TransactionTime = &v
 	}
 
 	expB, _ := json.Marshal(exp)
@@ -237,18 +229,13 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 		return nil, fmt.Errorf("invoice has no raw_text")
 	}
 
-	ocrSvc := NewOCRService()
-	parsed, err := ocrSvc.ParseInvoiceData(raw)
-	if err != nil {
-		return nil, fmt.Errorf("ParseInvoiceData failed: %w", err)
-	}
 	exp := regressionSampleExpectedInvoice{
-		InvoiceNumber: parsed.InvoiceNumber,
-		InvoiceDate:   parsed.InvoiceDate,
-		Amount:        parsed.Amount,
-		TaxAmount:     parsed.TaxAmount,
-		SellerName:    parsed.SellerName,
-		BuyerName:     parsed.BuyerName,
+		InvoiceNumber: inv.InvoiceNumber,
+		InvoiceDate:   inv.InvoiceDate,
+		Amount:        inv.Amount,
+		TaxAmount:     inv.TaxAmount,
+		SellerName:    inv.SellerName,
+		BuyerName:     inv.BuyerName,
 	}
 	expB, _ := json.Marshal(exp)
 

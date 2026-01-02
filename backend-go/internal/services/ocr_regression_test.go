@@ -2,11 +2,13 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type regressionSample struct {
@@ -127,7 +129,13 @@ func assertPaymentExpected(t *testing.T, exp paymentExpected, got *PaymentExtrac
 		if got.TransactionTime == nil {
 			t.Fatalf("expected transaction_time=%q, got nil", *exp.TransactionTime)
 		}
-		if strings.TrimSpace(*got.TransactionTime) != strings.TrimSpace(*exp.TransactionTime) {
+		expT, expErr := parseAnyPaymentTimeToUTC(*exp.TransactionTime)
+		gotT, gotErr := parseAnyPaymentTimeToUTC(*got.TransactionTime)
+		if expErr == nil && gotErr == nil {
+			if !expT.Equal(gotT) {
+				t.Fatalf("expected transaction_time(utc)=%s, got %s", expT.Format(time.RFC3339), gotT.Format(time.RFC3339))
+			}
+		} else if strings.TrimSpace(*got.TransactionTime) != strings.TrimSpace(*exp.TransactionTime) {
 			t.Fatalf("expected transaction_time=%q, got %q", *exp.TransactionTime, *got.TransactionTime)
 		}
 	}
@@ -179,7 +187,13 @@ func assertInvoiceExpected(t *testing.T, exp invoiceExpected, got *InvoiceExtrac
 		if got.InvoiceDate == nil {
 			t.Fatalf("expected invoice_date=%q, got nil", *exp.InvoiceDate)
 		}
-		if strings.TrimSpace(*got.InvoiceDate) != strings.TrimSpace(*exp.InvoiceDate) {
+		expD, expErr := normalizeAnyInvoiceDate(*exp.InvoiceDate)
+		gotD, gotErr := normalizeAnyInvoiceDate(*got.InvoiceDate)
+		if expErr == nil && gotErr == nil {
+			if expD != gotD {
+				t.Fatalf("expected invoice_date=%q, got %q", expD, gotD)
+			}
+		} else if strings.TrimSpace(*got.InvoiceDate) != strings.TrimSpace(*exp.InvoiceDate) {
 			t.Fatalf("expected invoice_date=%q, got %q", *exp.InvoiceDate, *got.InvoiceDate)
 		}
 	}
@@ -223,4 +237,69 @@ func assertInvoiceExpected(t *testing.T, exp invoiceExpected, got *InvoiceExtrac
 
 func approxEqMoney(a float64, b float64) bool {
 	return math.Abs(a-b) <= 0.01
+}
+
+func parseAnyPaymentTimeToUTC(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, fmt.Errorf("empty time")
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t.UTC().Truncate(time.Second), nil
+	}
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t.UTC().Truncate(time.Second), nil
+	}
+	loc := loadLocationOrUTC("Asia/Shanghai")
+	if t, err := parsePaymentTimeToUTC(s, loc); err == nil {
+		return t.UTC().Truncate(time.Second), nil
+	}
+	return time.Time{}, fmt.Errorf("unsupported time format: %q", s)
+}
+
+func normalizeAnyInvoiceDate(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", fmt.Errorf("empty date")
+	}
+	if len(s) == 10 && s[4] == '-' && s[7] == '-' {
+		return s, nil
+	}
+
+	parts := make([]string, 0, 3)
+	var cur strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			cur.WriteRune(r)
+			continue
+		}
+		if cur.Len() > 0 {
+			parts = append(parts, cur.String())
+			cur.Reset()
+		}
+	}
+	if cur.Len() > 0 {
+		parts = append(parts, cur.String())
+	}
+
+	// YYYYMMDD
+	if len(parts) == 1 && len(parts[0]) == 8 {
+		ds := parts[0]
+		return fmt.Sprintf("%s-%s-%s", ds[0:4], ds[4:6], ds[6:8]), nil
+	}
+
+	if len(parts) >= 3 && len(parts[0]) == 4 {
+		yyyy := parts[0]
+		mm := parts[1]
+		dd := parts[2]
+		if len(mm) == 1 {
+			mm = "0" + mm
+		}
+		if len(dd) == 1 {
+			dd = "0" + dd
+		}
+		return fmt.Sprintf("%s-%s-%s", yyyy, mm, dd), nil
+	}
+
+	return "", fmt.Errorf("unsupported date format: %q", s)
 }

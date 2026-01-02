@@ -19,7 +19,8 @@ func NewAdminRegressionSamplesHandler(svc *services.RegressionSampleService) *Ad
 }
 
 type markSampleInput struct {
-	Name string `json:"name"`
+	Name  string `json:"name"`
+	Force bool   `json:"force"`
 }
 
 type bulkDeleteInput struct {
@@ -53,8 +54,15 @@ func (h *AdminRegressionSamplesHandler) MarkPayment(c *gin.Context) {
 	_ = c.ShouldBindJSON(&input)
 
 	adminID := middleware.GetUserID(c)
-	sample, err := h.svc.CreateOrUpdateFromPayment(id, adminID, input.Name)
+	sample, issues, err := h.svc.CreateOrUpdateFromPayment(id, adminID, input.Name, input.Force)
 	if err != nil {
+		if qerr, ok := err.(*services.SampleQualityError); ok {
+			utils.ErrorData(c, 422, "\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u672a\u901a\u8fc7", gin.H{
+				"issues":    qerr.Issues,
+				"can_force": true,
+			}, err)
+			return
+		}
 		if err == services.ErrNotFound {
 			utils.Error(c, 404, "支付记录不存在", err)
 			return
@@ -62,7 +70,7 @@ func (h *AdminRegressionSamplesHandler) MarkPayment(c *gin.Context) {
 		utils.Error(c, 400, "标记回归样本失败", err)
 		return
 	}
-	utils.SuccessData(c, sample)
+	utils.SuccessData(c, gin.H{"sample": sample, "issues": issues})
 }
 
 func (h *AdminRegressionSamplesHandler) MarkInvoice(c *gin.Context) {
@@ -76,8 +84,15 @@ func (h *AdminRegressionSamplesHandler) MarkInvoice(c *gin.Context) {
 	_ = c.ShouldBindJSON(&input)
 
 	adminID := middleware.GetUserID(c)
-	sample, err := h.svc.CreateOrUpdateFromInvoice(id, adminID, input.Name)
+	sample, issues, err := h.svc.CreateOrUpdateFromInvoice(id, adminID, input.Name, input.Force)
 	if err != nil {
+		if qerr, ok := err.(*services.SampleQualityError); ok {
+			utils.ErrorData(c, 422, "\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u672a\u901a\u8fc7", gin.H{
+				"issues":    qerr.Issues,
+				"can_force": true,
+			}, err)
+			return
+		}
 		if err == services.ErrNotFound {
 			utils.Error(c, 404, "发票不存在", err)
 			return
@@ -85,7 +100,7 @@ func (h *AdminRegressionSamplesHandler) MarkInvoice(c *gin.Context) {
 		utils.Error(c, 400, "标记回归样本失败", err)
 		return
 	}
-	utils.SuccessData(c, sample)
+	utils.SuccessData(c, gin.H{"sample": sample, "issues": issues})
 }
 
 func (h *AdminRegressionSamplesHandler) List(c *gin.Context) {
@@ -190,4 +205,3 @@ func (h *AdminRegressionSamplesHandler) ExportSelected(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
 	c.Data(200, "application/zip", b)
 }
-

@@ -13,12 +13,29 @@ export type RegressionSample = {
   updated_at?: string
 }
 
-export const regressionSamplesApi = {
-  markPayment: (paymentId: string, name?: string) =>
-    api.post<ApiResponse<RegressionSample>>(`/admin/regression-samples/payments/${paymentId}`, { name: name || '' }),
+export type SampleQualityIssue = {
+  level: 'error' | 'warn' | string
+  code: string
+  message: string
+}
 
-  markInvoice: (invoiceId: string, name?: string) =>
-    api.post<ApiResponse<RegressionSample>>(`/admin/regression-samples/invoices/${invoiceId}`, { name: name || '' }),
+export type MarkRegressionSampleResult = {
+  sample: RegressionSample
+  issues?: SampleQualityIssue[]
+}
+
+export const regressionSamplesApi = {
+  markPayment: (paymentId: string, opts?: { name?: string; force?: boolean }) =>
+    api.post<ApiResponse<MarkRegressionSampleResult>>(`/admin/regression-samples/payments/${paymentId}`, {
+      name: opts?.name || '',
+      force: Boolean(opts?.force),
+    }),
+
+  markInvoice: (invoiceId: string, opts?: { name?: string; force?: boolean }) =>
+    api.post<ApiResponse<MarkRegressionSampleResult>>(`/admin/regression-samples/invoices/${invoiceId}`, {
+      name: opts?.name || '',
+      force: Boolean(opts?.force),
+    }),
 
   list: (params?: { kind?: string; origin?: string; search?: string; limit?: number; offset?: number }) =>
     api.get<ApiResponse<{ items: RegressionSample[]; total: number }>>('/admin/regression-samples', { params }),

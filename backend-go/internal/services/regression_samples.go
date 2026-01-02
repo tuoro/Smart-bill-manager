@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,27 @@ var ErrRepoSampleDirNotFound = errors.New("repo sample dir not found")
 type RegressionSampleService struct{}
 
 func NewRegressionSampleService() *RegressionSampleService { return &RegressionSampleService{} }
+
+type SampleQualityIssue struct {
+	Level   string `json:"level"`   // error | warn
+	Code    string `json:"code"`    // stable identifier
+	Message string `json:"message"` // human readable
+}
+
+type SampleQualityError struct {
+	Issues []SampleQualityIssue
+}
+
+func (e *SampleQualityError) Error() string { return "sample quality check failed" }
+
+func hasQualityErrors(issues []SampleQualityIssue) bool {
+	for _, it := range issues {
+		if strings.EqualFold(strings.TrimSpace(it.Level), "error") {
+			return true
+		}
+	}
+	return false
+}
 
 type regressionSampleExpectedPayment struct {
 	Amount          *float64 `json:"amount,omitempty"`
@@ -69,6 +91,115 @@ func sha256Hex(s string) string {
 	return fmt.Sprintf("%x", sum[:])
 }
 
+var (
+	piiPhoneCNRegex = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
+	piiIDCNRegex    = regexp.MustCompile(`\b\d{17}[\dXx]\b`)
+	piiEmailRegex   = regexp.MustCompile(`[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}`)
+
+	invoiceDatePrefixRegex = regexp.MustCompile(`(\d{4})\D+(\d{1,2})\D+(\d{1,2})`)
+)
+
+func normalizeInvoiceDatePrefix(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if len(s) >= 10 && s[4] == '-' && s[7] == '-' {
+		return s[:10]
+	}
+	if len(s) >= 10 && s[4] == '/' && s[7] == '/' {
+		return strings.ReplaceAll(s[:10], "/", "-")
+	}
+	if m := invoiceDatePrefixRegex.FindStringSubmatch(s); len(m) == 4 {
+		month, err1 := strconv.Atoi(m[2])
+		day, err2 := strconv.Atoi(m[3])
+		if err1 != nil || err2 != nil || month < 1 || month > 12 || day < 1 || day > 31 {
+			return ""
+		}
+		return fmt.Sprintf("%s-%02d-%02d", m[1], month, day)
+	}
+	return ""
+}
+
+func validateSampleRawText(raw string) []SampleQualityIssue {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []SampleQualityIssue{{Level: "error", Code: "raw_text_empty", Message: "raw_text 为空"}}
+	}
+
+	var issues []SampleQualityIssue
+	if len([]rune(raw)) < 20 {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "raw_text_too_short", Message: "raw_text 过短，可能不利于回归"})
+	}
+	if lines := len(strings.Split(raw, "\n")); lines < 2 {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "raw_text_too_few_lines", Message: "raw_text 行数太少，可能不利于回归"})
+	}
+
+	if piiPhoneCNRegex.MatchString(raw) {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "pii_phone", Message: "raw_text 疑似包含手机号"})
+	}
+	if piiIDCNRegex.MatchString(raw) {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "pii_id", Message: "raw_text 疑似包含身份证号"})
+	}
+	if piiEmailRegex.MatchString(raw) {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "pii_email", Message: "raw_text 疑似包含邮箱"})
+	}
+
+	return issues
+}
+
+func validatePaymentSampleQuality(p *models.Payment, raw string) []SampleQualityIssue {
+	var issues []SampleQualityIssue
+	issues = append(issues, validateSampleRawText(raw)...)
+
+	if p == nil {
+		return append(issues, SampleQualityIssue{Level: "error", Code: "payment_missing", Message: "支付记录不存在"})
+	}
+	if p.Amount <= 0 {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "amount_missing", Message: "支付金额为空或无效"})
+	}
+	if strings.TrimSpace(p.TransactionTime) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "transaction_time_missing", Message: "交易时间为空"})
+	} else if _, err := parseRFC3339ToUTC(p.TransactionTime); err != nil {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "transaction_time_invalid", Message: "交易时间格式不合法（需要 RFC3339）"})
+	}
+
+	if p.Merchant == nil || strings.TrimSpace(*p.Merchant) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "merchant_missing", Message: "商家为空（可选，但建议补全）"})
+	}
+	if p.PaymentMethod == nil || strings.TrimSpace(*p.PaymentMethod) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "payment_method_missing", Message: "支付方式为空（可选，但建议补全）"})
+	}
+
+	return issues
+}
+
+func validateInvoiceSampleQuality(inv *models.Invoice, raw string) []SampleQualityIssue {
+	var issues []SampleQualityIssue
+	issues = append(issues, validateSampleRawText(raw)...)
+
+	if inv == nil {
+		return append(issues, SampleQualityIssue{Level: "error", Code: "invoice_missing", Message: "发票不存在"})
+	}
+	if inv.InvoiceNumber == nil || strings.TrimSpace(*inv.InvoiceNumber) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "invoice_number_missing", Message: "发票号码为空"})
+	}
+	if inv.Amount == nil || *inv.Amount <= 0 {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "amount_missing", Message: "发票金额为空或无效"})
+	}
+	if inv.InvoiceDate == nil || strings.TrimSpace(*inv.InvoiceDate) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "invoice_date_missing", Message: "开票日期为空"})
+	} else if normalizeInvoiceDatePrefix(*inv.InvoiceDate) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "error", Code: "invoice_date_invalid", Message: "开票日期格式不合法（需要 YYYY-MM-DD 或可识别日期前缀）"})
+	}
+
+	if inv.SellerName == nil || strings.TrimSpace(*inv.SellerName) == "" {
+		issues = append(issues, SampleQualityIssue{Level: "warn", Code: "seller_name_missing", Message: "销售方名称为空（可选，但建议补全）"})
+	}
+
+	return issues
+}
+
 func backfillRegressionSampleRawHashes(db *gorm.DB) {
 	if db == nil {
 		return
@@ -90,12 +221,12 @@ func backfillRegressionSampleRawHashes(db *gorm.DB) {
 	}
 }
 
-func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, createdBy string, name string) (*models.RegressionSample, error) {
+func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, createdBy string, name string, force bool) (*models.RegressionSample, []SampleQualityIssue, error) {
 	paymentID = strings.TrimSpace(paymentID)
 	createdBy = strings.TrimSpace(createdBy)
 	name = normalizeSampleName(name)
 	if paymentID == "" || createdBy == "" {
-		return nil, fmt.Errorf("missing fields")
+		return nil, nil, fmt.Errorf("missing fields")
 	}
 
 	db := database.GetDB()
@@ -103,25 +234,30 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 	var p models.Payment
 	res := db.Where("id = ?", paymentID).Limit(1).Find(&p)
 	if res.Error != nil {
-		return nil, res.Error
+		return nil, nil, res.Error
 	}
 	if res.RowsAffected == 0 {
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
 	if p.IsDraft {
-		return nil, fmt.Errorf("cannot create regression sample from draft payment")
+		return nil, nil, fmt.Errorf("cannot create regression sample from draft payment")
 	}
 	if p.ExtractedData == nil || strings.TrimSpace(*p.ExtractedData) == "" {
-		return nil, fmt.Errorf("payment has no extracted_data")
+		return nil, nil, fmt.Errorf("payment has no extracted_data")
 	}
 
 	var ed PaymentExtractedData
 	if err := json.Unmarshal([]byte(*p.ExtractedData), &ed); err != nil {
-		return nil, fmt.Errorf("invalid payment extracted_data: %w", err)
+		return nil, nil, fmt.Errorf("invalid payment extracted_data: %w", err)
 	}
 	raw := strings.TrimSpace(ed.RawText)
 	if raw == "" {
-		return nil, fmt.Errorf("payment extracted_data has empty raw_text")
+		return nil, nil, fmt.Errorf("payment extracted_data has empty raw_text")
+	}
+
+	issues := validatePaymentSampleQuality(&p, raw)
+	if !force && hasQualityErrors(issues) {
+		return nil, issues, &SampleQualityError{Issues: issues}
 	}
 
 	exp := regressionSampleExpectedPayment{
@@ -166,39 +302,41 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 		Limit(1).
 		Find(&existing)
 	if existingRes.Error != nil {
-		return nil, existingRes.Error
+		return nil, nil, existingRes.Error
 	}
 	if existingRes.RowsAffected > 0 {
 		update := map[string]any{
 			"name":          sample.Name,
 			"raw_text":      sample.RawText,
+			"raw_hash":      sample.RawHash,
 			"expected_json": sample.ExpectedJSON,
 			"created_by":    sample.CreatedBy,
 			"updated_at":    time.Now(),
 		}
 		if err := db.Model(&models.RegressionSample{}).Where("id = ?", existing.ID).Updates(update).Error; err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out := existing
 		out.Name = sample.Name
 		out.RawText = sample.RawText
+		out.RawHash = sample.RawHash
 		out.ExpectedJSON = sample.ExpectedJSON
 		out.CreatedBy = sample.CreatedBy
-		return &out, nil
+		return &out, issues, nil
 	}
 
 	if err := db.Create(sample).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return sample, nil
+	return sample, issues, nil
 }
 
-func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, createdBy string, name string) (*models.RegressionSample, error) {
+func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, createdBy string, name string, force bool) (*models.RegressionSample, []SampleQualityIssue, error) {
 	invoiceID = strings.TrimSpace(invoiceID)
 	createdBy = strings.TrimSpace(createdBy)
 	name = normalizeSampleName(name)
 	if invoiceID == "" || createdBy == "" {
-		return nil, fmt.Errorf("missing fields")
+		return nil, nil, fmt.Errorf("missing fields")
 	}
 
 	db := database.GetDB()
@@ -206,13 +344,13 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 	var inv models.Invoice
 	res := db.Where("id = ?", invoiceID).Limit(1).Find(&inv)
 	if res.Error != nil {
-		return nil, res.Error
+		return nil, nil, res.Error
 	}
 	if res.RowsAffected == 0 {
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
 	if inv.IsDraft {
-		return nil, fmt.Errorf("cannot create regression sample from draft invoice")
+		return nil, nil, fmt.Errorf("cannot create regression sample from draft invoice")
 	}
 
 	raw := ""
@@ -226,7 +364,12 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 		}
 	}
 	if raw == "" {
-		return nil, fmt.Errorf("invoice has no raw_text")
+		return nil, nil, fmt.Errorf("invoice has no raw_text")
+	}
+
+	issues := validateInvoiceSampleQuality(&inv, raw)
+	if !force && hasQualityErrors(issues) {
+		return nil, issues, &SampleQualityError{Issues: issues}
 	}
 
 	exp := regressionSampleExpectedInvoice{
@@ -265,31 +408,33 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 		Limit(1).
 		Find(&existing)
 	if existingRes.Error != nil {
-		return nil, existingRes.Error
+		return nil, nil, existingRes.Error
 	}
 	if existingRes.RowsAffected > 0 {
 		update := map[string]any{
 			"name":          sample.Name,
 			"raw_text":      sample.RawText,
+			"raw_hash":      sample.RawHash,
 			"expected_json": sample.ExpectedJSON,
 			"created_by":    sample.CreatedBy,
 			"updated_at":    time.Now(),
 		}
 		if err := db.Model(&models.RegressionSample{}).Where("id = ?", existing.ID).Updates(update).Error; err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out := existing
 		out.Name = sample.Name
 		out.RawText = sample.RawText
+		out.RawHash = sample.RawHash
 		out.ExpectedJSON = sample.ExpectedJSON
 		out.CreatedBy = sample.CreatedBy
-		return &out, nil
+		return &out, issues, nil
 	}
 
 	if err := db.Create(sample).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return sample, nil
+	return sample, issues, nil
 }
 
 type ListRegressionSamplesParams struct {

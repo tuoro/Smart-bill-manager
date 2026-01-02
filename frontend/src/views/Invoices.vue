@@ -695,6 +695,30 @@ const confirmForceSave = (message: string) =>
     })
   })
 
+const summarizeSampleIssues = (issues: any[]) => {
+  const items = Array.isArray(issues) ? issues : []
+  const parts = items.slice(0, 6).map((it: any) => {
+    const level = String(it?.level || '').toLowerCase()
+    const label = level === 'error' ? '\u9519\u8bef' : '\u8b66\u544a'
+    return `${label}\uff1a${it?.message || it?.code || '\u672a\u77e5\u95ee\u9898'}`
+  })
+  const suffix = items.length > 6 ? '\u2026' : ''
+  return parts.join('\uff1b') + suffix
+}
+
+const confirmForceMarkRegressionSample = (issues: any[]) =>
+  new Promise<boolean>(resolve => {
+    confirm.require({
+      header: '\u6837\u672c\u8d28\u91cf\u63d0\u793a',
+      message: `\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u53d1\u73b0\uff1a${summarizeSampleIssues(issues)}\n\u4ecd\u7136\u8981\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c\u5417\uff1f`,
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '\u4ecd\u7136\u6807\u8bb0',
+      rejectLabel: '\u53d6\u6d88',
+      accept: () => resolve(true),
+      reject: () => resolve(false),
+    })
+  })
+
 const loading = ref(false)
 const invoices = ref<Invoice[]>([])
 const pageSize = ref(10)
@@ -1184,11 +1208,27 @@ const markInvoiceRegressionSample = async (id: string) => {
   try {
     const res = await regressionSamplesApi.markInvoice(id)
     if (res.data.success) {
-      toast.add({ severity: 'success', summary: '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c', life: 2000 })
+      const issues = (res.data as any)?.data?.issues as any[] | undefined
+      const hasWarn = Array.isArray(issues) && issues.some((it) => String(it?.level || '').toLowerCase() === 'warn')
+      toast.add({
+        severity: hasWarn ? 'warn' : 'success',
+        summary: hasWarn ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u6709\u8b66\u544a\uff09' : '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c',
+        life: 2500,
+      })
       return
     }
     toast.add({ severity: 'error', summary: res.data.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
   } catch (e: any) {
+    if (e?.response?.status === 422) {
+      const issues = e?.response?.data?.data?.issues as any[] | undefined
+      const ok = await confirmForceMarkRegressionSample(issues || [])
+      if (!ok) return
+      const res = await regressionSamplesApi.markInvoice(id, { force: true })
+      if (res.data.success) {
+        toast.add({ severity: 'success', summary: '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c', life: 2500 })
+        return
+      }
+    }
     toast.add({ severity: 'error', summary: e.response?.data?.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
   } finally {
     markingRegressionSample.value = false

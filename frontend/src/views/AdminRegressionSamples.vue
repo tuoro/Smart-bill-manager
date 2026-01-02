@@ -5,6 +5,10 @@
         <div class="header">
           <span>回归样本</span>
           <div class="toolbar">
+            <div class="toolbar-toggle">
+              <span class="muted">脱敏导出</span>
+              <InputSwitch v-model="exportRedact" />
+            </div>
             <Button
               class="p-button-outlined"
               :icon="selectMode ? 'pi pi-times' : 'pi pi-check-square'"
@@ -104,6 +108,7 @@ import Column from 'primevue/column'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
+import InputSwitch from 'primevue/inputswitch'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
@@ -136,6 +141,7 @@ const items = ref<RegressionSample[]>([])
 const total = ref(0)
 const selected = ref<RegressionSample[]>([])
 const selectMode = ref(false)
+const exportRedact = ref(true)
 const selectedLocalCount = computed(() => selected.value.filter((r) => (r.origin || 'ui') === 'ui').length)
 
 type KindValue = 'all' | 'payment_screenshot' | 'invoice'
@@ -252,7 +258,7 @@ const exportLocalSelectedZip = async () => {
   try {
     const kind = kindFilter.value === 'all' ? undefined : kindFilter.value
     const ids = selected.value.map((r) => r.id)
-    const res = await regressionSamplesApi.exportSelectedZip({ ids, kind, origin: 'ui' })
+    const res = await regressionSamplesApi.exportSelectedZip({ ids, kind, origin: 'ui', redact: exportRedact.value })
     const blob = new Blob([res.data], { type: 'application/zip' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -296,6 +302,12 @@ watch(originFilter, () => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.toolbar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .muted {

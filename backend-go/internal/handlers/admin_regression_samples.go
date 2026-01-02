@@ -31,6 +31,7 @@ type exportSamplesInput struct {
 	IDs    []string `json:"ids"`
 	Kind   string   `json:"kind"`
 	Origin string   `json:"origin"` // ui | repo
+	Redact bool     `json:"redact"`
 }
 
 func (h *AdminRegressionSamplesHandler) RegisterRoutes(r *gin.RouterGroup) {
@@ -173,9 +174,11 @@ func (h *AdminRegressionSamplesHandler) BulkDelete(c *gin.Context) {
 func (h *AdminRegressionSamplesHandler) Export(c *gin.Context) {
 	kind := strings.TrimSpace(c.Query("kind"))
 	origin := strings.TrimSpace(c.Query("origin"))
+	redact := strings.TrimSpace(c.Query("redact")) == "1"
 	b, filename, err := h.svc.ExportZip(services.ExportRegressionSamplesParams{
 		Kind:   kind,
 		Origin: origin,
+		Redact: redact,
 	})
 	if err != nil {
 		utils.Error(c, 400, "导出失败", err)
@@ -196,6 +199,7 @@ func (h *AdminRegressionSamplesHandler) ExportSelected(c *gin.Context) {
 		Kind:   strings.TrimSpace(input.Kind),
 		Origin: strings.TrimSpace(input.Origin),
 		IDs:    input.IDs,
+		Redact: input.Redact,
 	})
 	if err != nil {
 		utils.Error(c, 400, "导出失败", err)

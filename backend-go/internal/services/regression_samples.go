@@ -98,6 +98,7 @@ var (
 
 	invoiceDatePrefixRegex = regexp.MustCompile(`(\d{4})\D+(\d{1,2})\D+(\d{1,2})`)
 	sampleTokenRegex       = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	issuerNameLineRegex    = regexp.MustCompile(`^\s*(开票人|收款人|复核|经办人|出票人)\s*([:：])\s*(.+?)\s*$`)
 )
 
 func normalizeInvoiceDatePrefix(s string) string {
@@ -147,6 +148,95 @@ func validateSampleRawText(raw string) []SampleQualityIssue {
 	}
 
 	return issues
+}
+
+func redactSampleRawText(raw string) (string, []string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return raw, nil
+	}
+
+	rules := make([]string, 0, 4)
+	out := raw
+
+	// Email: keep first character of local-part.
+	if piiEmailRegex.MatchString(out) {
+		rules = append(rules, "email")
+		out = piiEmailRegex.ReplaceAllStringFunc(out, func(s string) string {
+			parts := strings.SplitN(s, "@", 2)
+			if len(parts) != 2 {
+				return "***"
+			}
+			local := parts[0]
+			domain := parts[1]
+			first := ""
+			if len(local) > 0 {
+				first = local[:1]
+			}
+			return first + "***@" + domain
+		})
+	}
+
+	// CN ID: keep first 3 + last 3 chars.
+	idRegex := regexp.MustCompile(`(^|[^0-9])(\d{17}[\dXx])([^0-9]|$)`)
+	if idRegex.MatchString(out) {
+		rules = append(rules, "cn_id")
+		out = idRegex.ReplaceAllStringFunc(out, func(m string) string {
+			sub := idRegex.FindStringSubmatch(m)
+			if len(sub) != 4 {
+				return m
+			}
+			prefix, id, suffix := sub[1], sub[2], sub[3]
+			if len(id) < 6 {
+				return prefix + "***" + suffix
+			}
+			return prefix + id[:3] + strings.Repeat("*", len(id)-6) + id[len(id)-3:] + suffix
+		})
+	}
+
+	// CN mobile: keep first 3 + last 2 digits.
+	phoneRegex := regexp.MustCompile(`(^|[^0-9])(1[3-9]\d{9})([^0-9]|$)`)
+	if phoneRegex.MatchString(out) {
+		rules = append(rules, "cn_mobile")
+		out = phoneRegex.ReplaceAllStringFunc(out, func(m string) string {
+			sub := phoneRegex.FindStringSubmatch(m)
+			if len(sub) != 4 {
+				return m
+			}
+			prefix, phone, suffix := sub[1], sub[2], sub[3]
+			if len(phone) != 11 {
+				return prefix + "***" + suffix
+			}
+			return prefix + phone[:3] + strings.Repeat("*", 6) + phone[9:] + suffix
+		})
+	}
+
+	// Common invoice roles (often personal names) - keep first rune.
+	lines := strings.Split(out, "\n")
+	issuerChanged := false
+	for i, line := range lines {
+		m := issuerNameLineRegex.FindStringSubmatch(line)
+		if len(m) != 4 {
+			continue
+		}
+		label, colon, value := m[1], m[2], strings.TrimSpace(m[3])
+		if value == "" {
+			continue
+		}
+		runes := []rune(value)
+		first := string(runes[0])
+		lines[i] = label + colon + " " + first + "***"
+		issuerChanged = true
+	}
+	if issuerChanged {
+		rules = append(rules, "issuer_name")
+		out = strings.Join(lines, "\n")
+	}
+
+	if len(rules) == 0 {
+		return raw, nil
+	}
+	return out, rules
 }
 
 func validatePaymentSampleQuality(p *models.Payment, raw string) []SampleQualityIssue {
@@ -584,6 +674,7 @@ type ExportRegressionSamplesParams struct {
 	Kind   string
 	Origin string   // ui | repo
 	IDs    []string // optional
+	Redact bool     // redact raw_text for export
 }
 
 func (s *RegressionSampleService) ExportZip(params ExportRegressionSamplesParams) ([]byte, string, error) {
@@ -653,6 +744,16 @@ func (s *RegressionSampleService) ExportZip(params ExportRegressionSamplesParams
 		}
 		seenPaths[path]++
 
+		rawText := r.RawText
+		redacted := false
+		redactionRules := []string(nil)
+		if params.Redact {
+			redactedText, rules := redactSampleRawText(rawText)
+			rawText = redactedText
+			redactionRules = rules
+			redacted = len(rules) > 0
+		}
+
 		var expected any
 		_ = json.Unmarshal([]byte(r.ExpectedJSON), &expected)
 		payload := map[string]any{
@@ -660,8 +761,12 @@ func (s *RegressionSampleService) ExportZip(params ExportRegressionSamplesParams
 			"raw_hash": strings.TrimSpace(r.RawHash),
 			"kind":     r.Kind,
 			"name":     r.Name,
-			"raw_text": r.RawText,
+			"raw_text": rawText,
 			"expected": expected,
+		}
+		if redacted {
+			payload["redacted"] = true
+			payload["redaction_rules"] = redactionRules
 		}
 
 		b, err := json.MarshalIndent(payload, "", "  ")
@@ -691,9 +796,11 @@ type RepoImportResult struct {
 }
 
 type repoSampleFile struct {
+	Schema   int             `json:"schema"`
 	Kind     string          `json:"kind"`
 	Name     string          `json:"name"`
 	RawText  string          `json:"raw_text"`
+	RawHash  string          `json:"raw_hash"`
 	Expected json.RawMessage `json:"expected"`
 }
 
@@ -793,7 +900,10 @@ func (s *RegressionSampleService) ImportRepoSamples() (*RepoImportResult, error)
 		}
 		expB, _ := json.Marshal(expected)
 
-		rawHash := sha256Hex(raw)
+		rawHash := strings.TrimSpace(f.RawHash)
+		if rawHash == "" {
+			rawHash = sha256Hex(raw)
+		}
 
 		var existing models.RegressionSample
 		exRes := db.Where("kind = ? AND raw_hash = ?", kind, rawHash).Limit(1).Find(&existing)

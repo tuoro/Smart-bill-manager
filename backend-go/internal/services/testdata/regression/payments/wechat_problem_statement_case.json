@@ -1,6 +1,8 @@
 {
+  "schema": 1,
   "kind": "payment_screenshot",
   "name": "wechat_problem_statement_case",
+  "raw_hash": "63b8b992c3b3d732ae35c0261ab0911e8fe1caaf6fb647582f5485635bffdbe3",
   "raw_text": "微信支付\n账单详情\n当前状态 支付成功\n支付时间 2025年10月23日 14:59:46\n商品 海烟烟行\n支付方式 招商银行信用卡(2506)\n交易单号 4200002966202510230090527049\n金额 -400.00",
   "expected": {
     "amount": 400,

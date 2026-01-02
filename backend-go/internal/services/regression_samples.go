@@ -97,6 +97,7 @@ var (
 	piiEmailRegex   = regexp.MustCompile(`[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}`)
 
 	invoiceDatePrefixRegex = regexp.MustCompile(`(\d{4})\D+(\d{1,2})\D+(\d{1,2})`)
+	sampleTokenRegex       = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 )
 
 func normalizeInvoiceDatePrefix(s string) string {
@@ -198,6 +199,57 @@ func validateInvoiceSampleQuality(inv *models.Invoice, raw string) []SampleQuali
 	}
 
 	return issues
+}
+
+func shortToken(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	s = sampleTokenRegex.ReplaceAllString(s, "")
+	if s == "" {
+		return ""
+	}
+	if max <= 0 {
+		max = 8
+	}
+	if len(s) > max {
+		s = s[:max]
+	}
+	return s
+}
+
+func exportSampleZipPath(base string, r models.RegressionSample) string {
+	dir := "misc"
+	switch r.Kind {
+	case "payment_screenshot":
+		dir = "payments"
+	case "invoice":
+		dir = "invoices"
+	}
+
+	date := "00000000"
+	if !r.CreatedAt.IsZero() {
+		date = r.CreatedAt.UTC().Format("20060102")
+	}
+
+	source := shortToken(r.SourceID, 8)
+	if source == "" {
+		source = shortToken(r.ID, 8)
+	}
+
+	h := strings.TrimSpace(r.RawHash)
+	if h == "" {
+		h = sha256Hex(strings.TrimSpace(r.RawText))
+	}
+	h = shortToken(h, 12)
+	if h == "" {
+		h = "nohash"
+	}
+
+	filename := fmt.Sprintf("%s_%s_%s", date, source, h)
+	path := filepath.ToSlash(filepath.Join(base, dir, filename+".json"))
+	return path
 }
 
 func backfillRegressionSampleRawHashes(db *gorm.DB) {
@@ -590,25 +642,22 @@ func (s *RegressionSampleService) ExportZip(params ExportRegressionSamplesParams
 	now := time.Now().UTC().Format("20060102_150405")
 	zipName := "regression_samples_" + now + ".zip"
 	base := filepath.Join("backend-go", "internal", "services", "testdata", "regression")
+	seenPaths := map[string]int{}
 
 	for _, r := range rows {
-		dir := "misc"
-		switch r.Kind {
-		case "payment_screenshot":
-			dir = "payments"
-		case "invoice":
-			dir = "invoices"
+		path := exportSampleZipPath(base, r)
+		if n := seenPaths[path]; n > 0 {
+			ext := filepath.Ext(path)
+			noExt := strings.TrimSuffix(path, ext)
+			path = fmt.Sprintf("%s_%d%s", noExt, n+1, ext)
 		}
-
-		filename := normalizeSampleName(r.Name)
-		if filename == "" {
-			filename = r.SourceType + "_" + r.SourceID
-		}
-		path := filepath.ToSlash(filepath.Join(base, dir, filename+".json"))
+		seenPaths[path]++
 
 		var expected any
 		_ = json.Unmarshal([]byte(r.ExpectedJSON), &expected)
 		payload := map[string]any{
+			"schema":   1,
+			"raw_hash": strings.TrimSpace(r.RawHash),
 			"kind":     r.Kind,
 			"name":     r.Name,
 			"raw_text": r.RawText,

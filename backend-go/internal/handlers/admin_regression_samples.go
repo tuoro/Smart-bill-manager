@@ -57,7 +57,7 @@ func (h *AdminRegressionSamplesHandler) MarkPayment(c *gin.Context) {
 	sample, issues, err := h.svc.CreateOrUpdateFromPayment(id, adminID, input.Name, input.Force)
 	if err != nil {
 		if qerr, ok := err.(*services.SampleQualityError); ok {
-			utils.ErrorData(c, 422, "\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u672a\u901a\u8fc7", gin.H{
+			utils.ErrorData(c, 422, "样本质量检查未通过", gin.H{
 				"issues":    qerr.Issues,
 				"can_force": true,
 			}, err)
@@ -87,7 +87,7 @@ func (h *AdminRegressionSamplesHandler) MarkInvoice(c *gin.Context) {
 	sample, issues, err := h.svc.CreateOrUpdateFromInvoice(id, adminID, input.Name, input.Force)
 	if err != nil {
 		if qerr, ok := err.(*services.SampleQualityError); ok {
-			utils.ErrorData(c, 422, "\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u672a\u901a\u8fc7", gin.H{
+			utils.ErrorData(c, 422, "样本质量检查未通过", gin.H{
 				"issues":    qerr.Issues,
 				"can_force": true,
 			}, err)

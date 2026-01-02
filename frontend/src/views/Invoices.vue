@@ -51,6 +51,19 @@
         <div class="header">
           <span>&#21457;&#31080;&#21015;&#34920;</span>
           <div class="toolbar">
+            <Button
+              class="p-button-outlined"
+              :icon="batchDeleteMode ? 'pi pi-times' : 'pi pi-check-square'"
+              :label="batchDeleteMode ? '取消选择' : '选择'"
+              @click="toggleBatchDeleteMode"
+            />
+            <Button
+              class="p-button-danger p-button-outlined"
+              icon="pi pi-trash"
+              label="删除"
+              :disabled="!batchDeleteMode || selectedInvoices.length === 0"
+              @click="onBulkDeleteClick"
+            />
             <DatePicker
               v-model="dateRange"
               selectionMode="range"
@@ -74,8 +87,11 @@
           responsiveLayout="scroll"
           sortField="created_at"
           :sortOrder="-1"
+          dataKey="id"
+          v-model:selection="selectedInvoices"
         >
-          <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '17%' }">
+          <Column v-if="batchDeleteMode" selectionMode="multiple" :style="{ width: '4%' }" />
+          <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '16%' }">
             <template #body="{ data: row }">
               <div class="filecell">
                 <i class="pi pi-file" />
@@ -83,7 +99,7 @@
               </div>
             </template>
           </Column>
-          <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '17%' }">
+          <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '16%' }">
             <template #body="{ data: row }">{{ row.invoice_number || '-' }}</template>
           </Column>
           <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" sortable :style="{ width: '10%' }">
@@ -92,7 +108,7 @@
           <Column :header="'\u91D1\u989D'" :style="{ width: '10%' }">
             <template #body="{ data: row }">{{ row.amount ? `\u00A5${row.amount.toFixed(2)}` : '-' }}</template>
           </Column>
-          <Column field="seller_name" :header="'\u9500\u552E\u65B9'" :style="{ width: '20%' }">
+          <Column field="seller_name" :header="'\u9500\u552E\u65B9'" :style="{ width: '18%' }">
             <template #body="{ data: row }">
               <span class="sbm-ellipsis" :title="row.seller_name || ''">{{ row.seller_name || '-' }}</span>
             </template>
@@ -721,6 +737,8 @@ const confirmForceMarkRegressionSample = (issues: any[]) =>
 
 const loading = ref(false)
 const invoices = ref<Invoice[]>([])
+const selectedInvoices = ref<Invoice[]>([])
+const batchDeleteMode = ref(false)
 const pageSize = ref(10)
 const dateRange = ref<Date[] | null>(null)
 
@@ -847,6 +865,43 @@ const loadStats = async () => {
 
 const handleDateChange = () => {
   // 这里使用前端过滤，不需要请求后端
+}
+
+const toggleBatchDeleteMode = () => {
+  batchDeleteMode.value = !batchDeleteMode.value
+  if (!batchDeleteMode.value) selectedInvoices.value = []
+}
+
+const onBulkDeleteClick = () => {
+  if (!batchDeleteMode.value) return
+  if (selectedInvoices.value.length === 0) return
+  const count = selectedInvoices.value.length
+  confirm.require({
+    message: `确定删除选中的 ${count} 张发票吗？`,
+    header: '删除确认',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: () => handleBulkDelete(),
+  })
+}
+
+const handleBulkDelete = async () => {
+  const ids = Array.from(new Set(selectedInvoices.value.map(x => x.id).filter(Boolean)))
+  if (ids.length === 0) return
+  const results = await Promise.allSettled(ids.map(id => invoiceApi.delete(id)))
+  const failed = results.filter(r => r.status === 'rejected').length
+  const succeeded = ids.length - failed
+  if (failed === 0) {
+    toast.add({ severity: 'success', summary: `已删除 ${succeeded} 张发票`, life: 2200 })
+  } else {
+    toast.add({ severity: 'warn', summary: `已删除 ${succeeded} 张，失败 ${failed} 张`, life: 3800 })
+  }
+  batchDeleteMode.value = false
+  selectedInvoices.value = []
+  await loadInvoices()
+  await loadStats()
 }
 
 const filteredInvoices = computed(() => {
@@ -1152,6 +1207,7 @@ const confirmDelete = (id: string) => {
 const handleDelete = async (id: string) => {
   try {
     await invoiceApi.delete(id)
+    selectedInvoices.value = selectedInvoices.value.filter(inv => inv.id !== id)
     toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
     notifications.add({ severity: 'info', title: '\u53D1\u7968\u5DF2\u5220\u9664', detail: id })
     await loadInvoices()

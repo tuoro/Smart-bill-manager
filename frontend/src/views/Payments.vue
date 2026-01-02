@@ -47,6 +47,19 @@
         <div class="header">
           <span>&#25903;&#20184;&#35760;&#24405;</span>
           <div class="toolbar">
+            <Button
+              class="p-button-outlined"
+              :icon="batchDeleteMode ? 'pi pi-times' : 'pi pi-check-square'"
+              :label="batchDeleteMode ? '取消选择' : '选择'"
+              @click="toggleBatchDeleteMode"
+            />
+            <Button
+              class="p-button-danger p-button-outlined"
+              icon="pi pi-trash"
+              label="删除"
+              :disabled="!batchDeleteMode || selectedPayments.length === 0"
+              @click="onBulkDeleteClick"
+            />
             <DatePicker
               v-model="dateRange"
               selectionMode="range"
@@ -69,18 +82,21 @@
           responsiveLayout="scroll"
           sortField="transaction_time"
           :sortOrder="-1"
+          dataKey="id"
+          v-model:selection="selectedPayments"
         >
+          <Column v-if="batchDeleteMode" selectionMode="multiple" :style="{ width: '4%' }" />
           <Column field="amount" :header="'\u91D1\u989D'" sortable :style="{ width: '10%' }">
             <template #body="{ data: row }">
               <span class="amount">{{ formatMoney(row.amount) }}</span>
             </template>
           </Column>
-          <Column :header="'\u5546\u5BB6'" :style="{ width: '22%' }">
+          <Column :header="'\u5546\u5BB6'" :style="{ width: '21%' }">
             <template #body="{ data: row }">
               <span class="sbm-ellipsis" :title="normalizeInlineText(row.merchant)">{{ normalizeInlineText(row.merchant) || '-' }}</span>
             </template>
           </Column>
-          <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '16%' }">
+          <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '15%' }">
             <template #body="{ data: row }">
               <Tag
                 v-if="row.payment_method"
@@ -92,12 +108,12 @@
               <span v-else>-</span>
             </template>
           </Column>
-          <Column :header="'\u5907\u6CE8'" :style="{ width: '22%' }">
+          <Column :header="'\u5907\u6CE8'" :style="{ width: '21%' }">
             <template #body="{ data: row }">
               <span class="sbm-ellipsis" :title="normalizeInlineText(row.description)">{{ normalizeInlineText(row.description) || '-' }}</span>
             </template>
           </Column>
-          <Column field="transaction_time" :header="'\u4EA4\u6613\u65F6\u95F4'" sortable :style="{ width: '16%' }">
+          <Column field="transaction_time" :header="'\u4EA4\u6613\u65F6\u95F4'" sortable :style="{ width: '15%' }">
             <template #body="{ data: row }">
               {{ formatDateTime(row.transaction_time) }}
             </template>
@@ -619,6 +635,8 @@ const confirmForceMarkRegressionSample = (issues: any[]) =>
 
 const loading = ref(false)
 const payments = ref<Payment[]>([])
+const selectedPayments = ref<Payment[]>([])
+const batchDeleteMode = ref(false)
 const pageSize = ref(10)
 const dateRange = ref<Date[] | null>(null)
 
@@ -842,6 +860,43 @@ const handleDateChange = () => {
   loadStats()
 }
 
+const toggleBatchDeleteMode = () => {
+  batchDeleteMode.value = !batchDeleteMode.value
+  if (!batchDeleteMode.value) selectedPayments.value = []
+}
+
+const onBulkDeleteClick = () => {
+  if (!batchDeleteMode.value) return
+  if (selectedPayments.value.length === 0) return
+  const count = selectedPayments.value.length
+  confirm.require({
+    message: `确定删除选中的 ${count} 条记录吗？`,
+    header: '删除确认',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: () => handleBulkDelete(),
+  })
+}
+
+const handleBulkDelete = async () => {
+  const ids = Array.from(new Set(selectedPayments.value.map(x => x.id).filter(Boolean)))
+  if (ids.length === 0) return
+  const results = await Promise.allSettled(ids.map(id => paymentApi.delete(id)))
+  const failed = results.filter(r => r.status === 'rejected').length
+  const succeeded = ids.length - failed
+  if (failed === 0) {
+    toast.add({ severity: 'success', summary: `已删除 ${succeeded} 条记录`, life: 2200 })
+  } else {
+    toast.add({ severity: 'warn', summary: `已删除 ${succeeded} 条，失败 ${failed} 条`, life: 3800 })
+  }
+  batchDeleteMode.value = false
+  selectedPayments.value = []
+  await loadPayments()
+  await loadStats()
+}
+
 const confirmDelete = (id: string) => {
   confirm.require({
     message: '\u786E\u5B9A\u5220\u9664\u8BE5\u6761\u8BB0\u5F55\u5417\uFF1F',
@@ -857,6 +912,7 @@ const confirmDelete = (id: string) => {
 const handleDelete = async (id: string) => {
   try {
     await paymentApi.delete(id)
+    selectedPayments.value = selectedPayments.value.filter(p => p.id !== id)
     toast.add({ severity: 'success', summary: '\u5220\u9664\u6210\u529F', life: 2000 })
     notifications.add({ severity: 'info', title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u5220\u9664', detail: id })
     await loadPayments()

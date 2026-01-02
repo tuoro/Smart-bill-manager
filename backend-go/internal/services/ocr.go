@@ -1779,11 +1779,14 @@ func (s *OCRService) ParsePaymentScreenshot(text string) (*PaymentExtractedData,
 		RawText: text,
 	}
 
-	// Preprocess: remove spaces between Chinese characters
-	// This normalizes OCR text like "支 付 时 间" to "支付时间"
+	// Preprocess for robust keyword matching/parsing:
+	// - normalize newlines (some OCR outputs use \r\n/\r)
+	// - remove invisible spaces that break keyword matching
+	// - remove spaces between Chinese characters (e.g. "支 付 时 间" -> "支付时间")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = paymentInvisibleSpaceReplacer.Replace(text)
 	text = removeChineseSpaces(text)
-
-	// Trim leading/trailing whitespace
 	text = strings.TrimSpace(text)
 
 	// Try to detect payment platform and extract accordingly

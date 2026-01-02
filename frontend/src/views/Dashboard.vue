@@ -513,8 +513,8 @@ onMounted(() => {
 .hero-chip {
   border-radius: 16px;
   padding: 14px 14px;
-  border: 1px solid color-mix(in srgb, var(--p-surface-200), transparent 20%);
-  background: color-mix(in srgb, var(--p-surface-0), transparent 10%);
+  border: 1px solid color-mix(in srgb, var(--p-content-border-color), transparent 20%);
+  background: color-mix(in srgb, var(--p-content-background), transparent 10%);
 }
 
 .chip-label {

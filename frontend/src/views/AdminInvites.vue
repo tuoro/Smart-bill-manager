@@ -6,16 +6,17 @@
           <span>邀请码管理</span>
           <div class="toolbar">
             <Button
-              class="p-button-danger p-button-outlined"
-              icon="pi pi-trash"
-              :label="batchDeleteMode ? `删除所选（${selectedInvites.length}）` : '删除所选'"
-              @click="onBulkDeleteClick"
+              class="p-button-outlined"
+              :icon="batchDeleteMode ? 'pi pi-times' : 'pi pi-check-square'"
+              :label="batchDeleteMode ? '取消选择' : '选择'"
+              @click="toggleBatchDeleteMode"
             />
             <Button
-              v-if="batchDeleteMode"
-              class="p-button-text"
-              label="取消"
-              @click="exitBatchDeleteMode"
+              class="p-button-danger p-button-outlined"
+              icon="pi pi-trash"
+              label="删除"
+              :disabled="!batchDeleteMode || selectedInvites.length === 0"
+              @click="onBulkDeleteClick"
             />
             <Dropdown
               v-model="expiresInDays"
@@ -261,18 +262,15 @@ const confirmDeleteSelected = () => {
   })
 }
 
-const exitBatchDeleteMode = () => {
-  batchDeleteMode.value = false
+const toggleBatchDeleteMode = () => {
+  if (!isAdmin.value) return
+  batchDeleteMode.value = !batchDeleteMode.value
   selectedInvites.value = []
 }
 
 const onBulkDeleteClick = () => {
   if (!isAdmin.value) return
-  if (!batchDeleteMode.value) {
-    batchDeleteMode.value = true
-    toast.add({ severity: 'info', summary: '请选择要删除的邀请码', life: 2000 })
-    return
-  }
+  if (!batchDeleteMode.value) return
   if (selectedInvites.value.length === 0) {
     toast.add({ severity: 'warn', summary: '请先选择要删除的邀请码', life: 2200 })
     return

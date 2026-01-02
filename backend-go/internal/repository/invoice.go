@@ -82,21 +82,26 @@ func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, err
 func (r *InvoiceRepository) FindUnlinked(limit int, offset int) ([]models.Invoice, int64, error) {
 	db := database.GetDB()
 
+	// Consider an invoice "linked" only if there is at least one valid link to an existing non-draft payment.
+	// This avoids legacy invoices.payment_id noise and prevents broken/stale link rows from hiding invoices.
 	base := db.
 		Model(&models.Invoice{}).
-		Select("invoices.*").
-		Joins("LEFT JOIN invoice_payment_links AS l ON l.invoice_id = invoices.id").
 		Where("invoices.is_draft = 0").
-		Where("l.invoice_id IS NULL").
-		Where("(invoices.payment_id IS NULL OR TRIM(invoices.payment_id) = '')")
+		Where(`
+			NOT EXISTS (
+				SELECT 1
+				FROM invoice_payment_links AS l
+				JOIN payments AS p ON p.id = l.payment_id AND p.is_draft = 0
+				WHERE l.invoice_id = invoices.id
+			)
+		`)
 
 	var total int64
-	if err := base.Distinct("invoices.id").Count(&total).Error; err != nil {
+	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	query := base.
-		Distinct("invoices.id").
 		Order("invoices.created_at DESC")
 	if limit > 0 {
 		query = query.Limit(limit)

@@ -327,7 +327,7 @@
           <DataTable class="match-table" :value="linkedInvoices" :loading="loadingLinkedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
             <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
               <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.invoice_number || '-'">{{ row.invoice_number || '-' }}</span>
+                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
               </template>
             </Column>
             <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
@@ -358,10 +358,10 @@
         </TabPanel>
 
         <TabPanel value="suggested">
-          <DataTable class="match-table" :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
+          <DataTable class="match-table" :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="260px" :scrollable="true" responsiveLayout="scroll">
             <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
               <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.invoice_number || '-'">{{ row.invoice_number || '-' }}</span>
+                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
               </template>
             </Column>
             <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
@@ -388,6 +388,51 @@
             <i class="pi pi-info-circle" />
             <span>&#26242;&#26080;&#25512;&#33616;</span>
           </div>
+
+          <div v-if="loadingUnlinkedInvoices || unlinkedInvoicesTotal > 0" class="match-subtitle">全部未关联发票</div>
+          <DataTable
+            v-if="loadingUnlinkedInvoices || unlinkedInvoicesTotal > 0"
+            class="match-table match-table-secondary"
+            :value="unlinkedInvoices"
+            :loading="loadingUnlinkedInvoices"
+            responsiveLayout="scroll"
+            :paginator="true"
+            :rows="unlinkedRows"
+            :first="unlinkedFirst"
+            :totalRecords="unlinkedInvoicesTotal"
+            :rowsPerPageOptions="[10, 20, 50]"
+            :lazy="true"
+            @page="onUnlinkedPage"
+          >
+            <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+              <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
+            </Column>
+            <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '320px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '150px' }">
+              <template #body="{ data: row }">
+                <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
+              </template>
+            </Column>
+            <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
+              <template #body="{ data: row }">
+                <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
+              </template>
+            </Column>
+          </DataTable>
+
+          <div v-else class="no-data no-data-secondary">
+            <i class="pi pi-info-circle" />
+            <span>暂无未关联发票</span>
+          </div>
         </TabPanel>
 
         <TabPanel value="unlinked">
@@ -406,7 +451,7 @@
           >
             <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
               <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.invoice_number || '-'">{{ row.invoice_number || '-' }}</span>
+                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
               </template>
             </Column>
             <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
@@ -1353,6 +1398,14 @@ const diffTagSeverity = computed(() => {
   return diffAbs < 0.01 ? 'success' : 'warn'
 })
 
+const invoicePrimaryLabel = (inv: Invoice | null | undefined) => {
+  if (!inv) return '-'
+  const no = (inv.invoice_number || '').trim()
+  if (no) return no
+  const name = (inv.original_name || inv.filename || '').trim()
+  return name || '-'
+}
+
 const refreshSuggestedInvoices = async (opts?: { showToast?: boolean }) => {
   if (!currentPaymentForInvoices.value) return
   loadingSuggestedInvoices.value = true
@@ -2081,6 +2134,21 @@ watch(
   gap: 8px;
   color: var(--color-text-tertiary);
   font-weight: 700;
+}
+
+.match-subtitle {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-weight: 800;
+  color: var(--p-text-color);
+}
+
+.match-table-secondary {
+  margin-top: 6px;
+}
+
+.no-data-secondary {
+  margin-top: 6px;
 }
 
 .kv {

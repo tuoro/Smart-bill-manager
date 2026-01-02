@@ -108,9 +108,13 @@ func main() {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_regression_samples_name ON regression_samples(name)")
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_kind_rawhash ON regression_samples(kind, raw_hash) WHERE raw_hash != ''")
 
-	// Enforce invoice<->payment 1:1 by making each side unique in link table.
+	// Link rule:
+	// - 1 invoice -> 0/1 payment (invoice_id unique)
+	// - 1 payment -> 0..N invoices (payment_id non-unique)
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_invoice_id ON invoice_payment_links(invoice_id)")
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_payment_id ON invoice_payment_links(payment_id)")
+	// Backward-compatible migration: older builds created a UNIQUE index on payment_id which enforced 1:1.
+	db.Exec("DROP INDEX IF EXISTS ux_invoice_payment_links_payment_id")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoice_payment_links_payment_id ON invoice_payment_links(payment_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(created_at)")
 
 	// Ensure uploads directory exists
@@ -245,7 +249,7 @@ func main() {
 		emailStatus, _ := emailService.GetMonitoringStatus()
 		recentEmails, _ := emailService.GetLogs("", 5)
 
-		// Recent payments with linked invoice status (1:1)
+		// Recent payments with linked invoice count
 		type recentPaymentRow struct {
 			models.Payment
 			InvoiceCount int `json:"invoiceCount" gorm:"column:invoice_count"`
@@ -253,9 +257,10 @@ func main() {
 		recentPayments := make([]recentPaymentRow, 0)
 		_ = db.
 			Table("payments AS p").
-			Select(`p.*, CASE WHEN l.invoice_id IS NULL THEN 0 ELSE 1 END AS invoice_count`).
+			Select(`p.*, COUNT(l.invoice_id) AS invoice_count`).
 			Joins("LEFT JOIN invoice_payment_links AS l ON l.payment_id = p.id").
 			Where("p.is_draft = 0").
+			Group("p.id").
 			Order("p.transaction_time_ts DESC, p.created_at DESC").
 			Limit(6).
 			Scan(&recentPayments).Error

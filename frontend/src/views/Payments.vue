@@ -120,7 +120,7 @@
           </Column>
           <Column :header="'\u5173\u8054\u53D1\u7968'" :style="{ width: '7%' }">
             <template #body="{ data: row }">
-              <Button size="small" class="p-button-text" :label="`\u67E5\u770B (${row.invoiceCount || 0})`" @click="viewLinkedInvoices(row)" />
+              <Button size="small" class="p-button-text" :label="invoiceCountLabel(row.invoiceCount)" @click="viewLinkedInvoices(row)" />
             </template>
           </Column>
           <Column :header="'\u64CD\u4F5C'" :style="{ width: '7%' }">
@@ -296,6 +296,24 @@
           :loading="loadingSuggestedInvoices"
           @click="handleRecommendInvoices"
         />
+      </div>
+
+      <div v-if="currentPaymentForInvoices" class="match-summary">
+        <div class="match-summary-item">
+          <div class="match-summary-label">已关联发票合计</div>
+          <div class="match-summary-value">{{ formatMoney(linkedInvoiceAmount.sum) }}</div>
+          <small v-if="linkedInvoiceAmount.unknown > 0" class="muted">另有 {{ linkedInvoiceAmount.unknown }} 张未识别金额</small>
+        </div>
+        <div class="match-summary-item">
+          <div class="match-summary-label">支付金额</div>
+          <div class="match-summary-value">{{ formatMoney(Number(currentPaymentForInvoices.amount || 0)) }}</div>
+        </div>
+        <div class="match-summary-item">
+          <div class="match-summary-label">差额</div>
+          <div class="match-summary-value">
+            <Tag :severity="diffTagSeverity" :value="diffTagLabel" />
+          </div>
+        </div>
       </div>
 
       <Tabs v-model:value="invoiceMatchTab">
@@ -855,6 +873,12 @@ const normalizePaymentMethodText = (value?: string | null) => {
   return s.replace(/[（）]/g, (m) => (m === '（' ? '(' : ')')).trim()
 }
 
+const invoiceCountLabel = (cnt?: number | null) => {
+  const n = typeof cnt === 'number' ? cnt : 0
+  if (n > 1) return `多发票 (${n})`
+  return `查看 (${n})`
+}
+
 const handleDateChange = () => {
   loadPayments()
   loadStats()
@@ -1196,6 +1220,36 @@ const viewLinkedInvoices = async (payment: Payment) => {
   }
   await refreshSuggestedInvoices({ showToast: false })
 }
+
+const linkedInvoiceAmount = computed(() => {
+  let sum = 0
+  let unknown = 0
+  for (const inv of linkedInvoices.value) {
+    if (typeof inv.amount === 'number') {
+      sum += Number(inv.amount || 0)
+    } else {
+      unknown += 1
+    }
+  }
+  return { sum, unknown }
+})
+
+const diffTagLabel = computed(() => {
+  if (!currentPaymentForInvoices.value) return '-'
+  if (linkedInvoiceAmount.value.unknown > 0) return '差额未知'
+  const pay = Number(currentPaymentForInvoices.value.amount || 0)
+  const diff = linkedInvoiceAmount.value.sum - pay
+  const sign = diff > 0 ? '+' : ''
+  return `${sign}${diff.toFixed(2)}`
+})
+
+const diffTagSeverity = computed(() => {
+  if (!currentPaymentForInvoices.value) return 'secondary'
+  if (linkedInvoiceAmount.value.unknown > 0) return 'secondary'
+  const pay = Number(currentPaymentForInvoices.value.amount || 0)
+  const diffAbs = Math.abs(linkedInvoiceAmount.value.sum - pay)
+  return diffAbs < 0.01 ? 'success' : 'warn'
+})
 
 const refreshSuggestedInvoices = async (opts?: { showToast?: boolean }) => {
   if (!currentPaymentForInvoices.value) return
@@ -1869,6 +1923,39 @@ watch(
 .match-title {
   font-weight: 800;
   color: var(--p-text-color);
+}
+
+.match-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
+  border-radius: 10px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.match-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.match-summary-label {
+  font-size: 12px;
+  color: var(--text-color-secondary, var(--p-text-muted-color));
+}
+
+.match-summary-value {
+  font-weight: 700;
+  color: var(--p-text-color);
+}
+
+.muted {
+  color: var(--text-color-secondary, var(--p-text-muted-color));
 }
 
 .match-table :deep(.p-datatable-thead > tr > th),

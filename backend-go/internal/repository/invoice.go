@@ -166,15 +166,8 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 
 // LinkPayment creates a link between an invoice and a payment
 func (r *InvoiceRepository) LinkPayment(invoiceID, paymentID string) error {
-	// Enforce invoice<->payment 1:1 at application level (DB also has unique indexes).
+	// Enforce invoice -> 0/1 payment (DB has a unique index on invoice_id).
 	var cnt int64
-	if err := database.GetDB().Table("invoice_payment_links").Where("payment_id = ?", paymentID).Count(&cnt).Error; err != nil {
-		return err
-	}
-	if cnt > 0 {
-		return fmt.Errorf("payment already linked to an invoice")
-	}
-	cnt = 0
 	if err := database.GetDB().Table("invoice_payment_links").Where("invoice_id = ?", invoiceID).Count(&cnt).Error; err != nil {
 		return err
 	}

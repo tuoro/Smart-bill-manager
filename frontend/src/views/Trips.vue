@@ -45,13 +45,6 @@
                 <div class="trip-list-toolbar">
                   <small class="muted">共 {{ tripListTotal }} 个行程</small>
                 </div>
-                <Paginator
-                  :first="tripListFirst"
-                  :rows="tripListRows"
-                  :totalRecords="tripListTotal"
-                  :rowsPerPageOptions="[5, 10, 20, 50]"
-                  @page="onTripListPage"
-                />
 
                 <Accordion
                   :multiple="true"

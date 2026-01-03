@@ -39,24 +39,6 @@
         >
 
         <div v-else class="content">
-          <div v-if="lastCode" class="last-code">
-            <div class="last-code-title">
-              最新邀请码（只显示一次，请及时保存）
-            </div>
-            <div class="last-code-row">
-              <span class="last-code-value">{{ lastCode }}</span>
-              <Button
-                class="p-button-outlined"
-                icon="pi pi-copy"
-                label="复制"
-                @click="copyLastCode"
-              />
-            </div>
-            <small v-if="lastExpiresHint" class="muted">{{
-              lastExpiresHint
-            }}</small>
-          </div>
-
           <div class="list-toolbar">
             <SelectButton
               v-model="usedFilter"
@@ -126,6 +108,39 @@
         </div>
       </template>
     </Card>
+
+    <Dialog
+      v-model:visible="lastCodeDialogVisible"
+      modal
+      :draggable="false"
+      :style="{ width: '720px', maxWidth: '94vw' }"
+      header="最新邀请码"
+    >
+      <div class="last-code">
+        <div class="last-code-title">最新邀请码（只显示一次，请及时保存）</div>
+        <div class="last-code-row">
+          <span class="last-code-value">{{ lastCode }}</span>
+          <Button
+            class="p-button-outlined"
+            icon="pi pi-copy"
+            label="复制"
+            @click="copyLastCode"
+          />
+        </div>
+        <small v-if="lastExpiresHint" class="muted">{{
+          lastExpiresHint
+        }}</small>
+      </div>
+
+      <template #footer>
+        <Button
+          class="p-button-outlined"
+          severity="secondary"
+          label="关闭"
+          @click="lastCodeDialogVisible = false"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -135,6 +150,7 @@ import Card from "primevue/card";
 import Button from "primevue/button";
 import DataTable from "primevue/datatable";
 import Column from "primevue/column";
+import Dialog from "primevue/dialog";
 import Dropdown from "primevue/dropdown";
 import SelectButton from "primevue/selectbutton";
 import Tag from "primevue/tag";
@@ -192,6 +208,7 @@ const expiresOptions = [
 
 const lastCode = ref("");
 const lastExpiresHint = ref("");
+const lastCodeDialogVisible = ref(false);
 
 const formatDateTime = (v?: string | null) => {
   if (!v) return "-";
@@ -235,6 +252,7 @@ const createInvite = async () => {
       lastExpiresHint.value = exp
         ? `有效期至：${formatDateTime(exp)}`
         : "有效期：永不过期";
+      lastCodeDialogVisible.value = true;
       toast.add({ severity: "success", summary: "邀请码已生成", life: 2000 });
       await loadInvites();
       return;

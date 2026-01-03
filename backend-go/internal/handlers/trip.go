@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -142,6 +143,10 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 
 	out, err := h.tripService.DeleteCascade(id)
 	if err != nil {
+		if errors.Is(err, services.ErrTripBadDebtLocked) {
+			utils.Error(c, 400, "行程包含坏账记录，已锁定，无法删除", err)
+			return
+		}
 		utils.Error(c, 500, "删除行程失败", err)
 		return
 	}

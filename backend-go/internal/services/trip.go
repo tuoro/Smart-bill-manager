@@ -500,6 +500,11 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 		if err := tx.Where("id = ?", tripID).First(&trip).Error; err != nil {
 			return err
 		}
+		if locked, err := isTripBadDebtLockedTx(tx, tripID); err != nil {
+			return err
+		} else if locked {
+			return ErrTripBadDebtLocked
+		}
 		rangeStartTs = trip.StartTimeTs
 		rangeEndTs = trip.EndTimeTs
 

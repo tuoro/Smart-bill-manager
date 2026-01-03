@@ -1,11 +1,62 @@
 package services
 
 import (
+	"errors"
 	"strings"
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
+
+	"gorm.io/gorm"
 )
+
+var ErrTripBadDebtLocked = errors.New("trip is bad debt locked")
+
+func isTripBadDebtLockedTx(tx *gorm.DB, tripID string) (bool, error) {
+	tripID = strings.TrimSpace(tripID)
+	if tripID == "" {
+		return false, nil
+	}
+	if tx == nil {
+		return false, errors.New("tx is required")
+	}
+
+	var paymentBadDebt int64
+	if err := tx.Model(&models.Payment{}).
+		Where("trip_id = ? AND bad_debt = ? AND is_draft = 0", tripID, true).
+		Count(&paymentBadDebt).Error; err != nil {
+		return false, err
+	}
+	if paymentBadDebt > 0 {
+		return true, nil
+	}
+
+	var invoiceBadDebtViaLinks int64
+	if err := tx.
+		Table("invoices").
+		Joins("JOIN invoice_payment_links ON invoice_payment_links.invoice_id = invoices.id").
+		Joins("JOIN payments ON payments.id = invoice_payment_links.payment_id").
+		Where("payments.trip_id = ? AND invoices.bad_debt = ? AND payments.is_draft = 0 AND invoices.is_draft = 0", tripID, true).
+		Distinct("invoices.id").
+		Count(&invoiceBadDebtViaLinks).Error; err != nil {
+		return false, err
+	}
+	if invoiceBadDebtViaLinks > 0 {
+		return true, nil
+	}
+
+	var invoiceBadDebtViaLegacy int64
+	if err := tx.
+		Table("invoices").
+		Joins("JOIN payments ON payments.id = invoices.payment_id").
+		Where("payments.trip_id = ? AND invoices.bad_debt = ? AND payments.is_draft = 0 AND invoices.is_draft = 0", tripID, true).
+		Distinct("invoices.id").
+		Count(&invoiceBadDebtViaLegacy).Error; err != nil {
+		return false, err
+	}
+
+	return invoiceBadDebtViaLegacy > 0, nil
+}
 
 func recalcTripBadDebtLocked(tripID string) error {
 	tripID = strings.TrimSpace(tripID)

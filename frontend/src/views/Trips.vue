@@ -142,6 +142,12 @@
                           label="删除行程"
                           icon="pi pi-trash"
                           class="p-button-text p-button-danger"
+                          :disabled="trip.bad_debt_locked"
+                          :title="
+                            trip.bad_debt_locked
+                              ? '行程包含坏账记录，无法删除'
+                              : ''
+                          "
                           :loading="deletingTripId === trip.id"
                           @click="confirmDeleteTrip(trip)"
                         />
@@ -1338,6 +1344,19 @@ const reloadAll = async () => {
 };
 
 const confirmDeleteTrip = async (trip: Trip) => {
+  if (trip.bad_debt_locked) {
+    toast.add({
+      severity: "warn",
+      summary: "行程包含坏账记录，无法删除",
+      life: 2500,
+    });
+    notifications.add({
+      severity: "warn",
+      title: "无法删除行程",
+      detail: `${trip.name}：包含坏账记录`,
+    });
+    return;
+  }
   deletingTripId.value = trip.id;
   try {
     const res = await tripsApi.cascadePreview(trip.id);

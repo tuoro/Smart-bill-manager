@@ -23,7 +23,7 @@
         <Tabs v-model:value="activeTab">
           <TabList>
             <Tab value="trips">按行程</Tab>
-            <Tab value="pending">待处理</Tab>
+            <Tab value="pending">待分配</Tab>
             <Tab value="calendar">日历</Tab>
           </TabList>
 
@@ -32,7 +32,7 @@
               <div v-if="trips.length === 0" class="empty">
                 <div class="empty-title">暂无行程</div>
                 <div class="empty-sub">
-                  创建一个行程后，系统会自动归属该时间段的支付记录；如遇行程重叠会进入“待处理”。
+                  创建一个行程后，系统会自动归属该时间段的支付记录；如遇行程重叠会进入“待分配”。
                 </div>
                 <Button
                   label="新增行程"
@@ -286,7 +286,6 @@
             <TabPanel value="pending">
               <div class="pending-panel">
                 <div class="pending-header">
-                  <div class="pending-title">待处理（待分配）</div>
                   <Button
                     label="刷新"
                     icon="pi pi-refresh"
@@ -296,9 +295,9 @@
                 </div>
 
                 <div v-if="pendingPayments.length === 0" class="empty">
-                  <div class="empty-title">暂无待处理</div>
+                  <div class="empty-title">暂无待分配</div>
                   <div class="empty-sub">
-                    当支付时间同时命中多个行程时，会出现在这里等待你选择归属。
+                    当支付时间同时命中多个行程，或你手动将支付记录从行程中移除时，会出现在这里等待你选择归属。
                   </div>
                 </div>
 
@@ -1146,7 +1145,7 @@ const handleSaveTrip = async () => {
       if (changes?.auto_unassigned) {
         notifications.add({
           severity: "warn",
-          title: "行程重叠已打回待处理",
+          title: "行程重叠已打回待分配",
           detail: `自动打回 ${changes.auto_unassigned} 条；自动归属 ${changes.auto_assigned || 0} 条`,
         });
       } else if (changes?.auto_assigned) {
@@ -1168,7 +1167,7 @@ const handleSaveTrip = async () => {
       if (changes?.auto_unassigned) {
         notifications.add({
           severity: "warn",
-          title: "行程重叠已打回待处理",
+          title: "行程重叠已打回待分配",
           detail: `自动打回 ${changes.auto_unassigned} 条；自动归属 ${changes.auto_assigned || 0} 条`,
         });
       } else if (changes?.auto_assigned) {
@@ -1239,7 +1238,7 @@ const assignPending = async (paymentId: string) => {
     toast.add({ severity: "success", summary: "已归属", life: 2000 });
     notifications.add({
       severity: "info",
-      title: "待处理支付已归属",
+      title: "待分配支付已归属",
       detail: `${paymentId} → ${tripNameById.value[tripId] || tripId}`,
     });
     await reloadAll();
@@ -1446,7 +1445,7 @@ const unassignPayment = (paymentId: string) => {
         });
         toast.add({
           severity: "success",
-          summary: "已移出行程，已进入待处理",
+          summary: "已移出行程，已进入待分配",
           life: 2200,
         });
         notifications.add({
@@ -1982,14 +1981,9 @@ onMounted(async () => {
 .pending-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.pending-title {
-  font-weight: 900;
-  color: var(--p-text-color);
 }
 
 .pending-dropdown {

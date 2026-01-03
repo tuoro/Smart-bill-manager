@@ -1810,7 +1810,7 @@ onMounted(async () => {
   gap: 10px;
 }
 
-.trip-accordion :deep(.p-accordion-toggle-icon) {
+.trip-accordion :deep(.p-accordionheader-toggle-icon) {
   display: none;
 }
 

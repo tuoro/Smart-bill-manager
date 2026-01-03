@@ -780,59 +780,87 @@ const chooseScreenshotFile = () => {
   screenshotInput.value?.click()
 }
 
-const setScreenshotFile = (file?: File) => {
+const setScreenshotFile = async (file?: File) => {
   screenshotError.value = ''
   if (screenshotInput.value) screenshotInput.value.value = ''
 
-  if (!file) {
-    selectedScreenshotFile.value = null
-    selectedScreenshotName.value = ''
-    return
-  }
+  // User canceled the file picker / no new file selected: keep current state.
+  if (!file) return
 
   const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
   if (!validTypes.includes(file.type)) {
     screenshotError.value = '\u53EA\u652F\u6301 JPG\u3001JPEG\u3001PNG \u683C\u5F0F\u7684\u56FE\u7247'
-    selectedScreenshotFile.value = null
-    selectedScreenshotName.value = ''
     return
   }
 
   const maxSize = 10 * 1024 * 1024
   if (file.size > maxSize) {
     screenshotError.value = '\u6587\u4EF6\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 10MB'
-    selectedScreenshotFile.value = null
-    selectedScreenshotName.value = ''
     return
   }
 
+  // Replacing an existing uploaded/recognized draft should clean it up first,
+  // otherwise re-uploading the same file will be considered a hash duplicate.
+  await cleanupCurrentScreenshotUpload()
+  resetScreenshotUploadStateKeepModalOpen()
+
   selectedScreenshotFile.value = file
   selectedScreenshotName.value = file.name
-  ocrResult.value = null
+}
+
+const resetScreenshotUploadStateKeepModalOpen = () => {
+  screenshotUploadAttempt.value++
+  uploadingScreenshot.value = false
+  savingOcrResult.value = false
   uploadedPaymentId.value = null
   uploadedScreenshotPath.value = null
-}
-
-const onScreenshotDrop = (event: DragEvent) => {
-  const file = event.dataTransfer?.files?.[0]
-  setScreenshotFile(file)
-}
-
-const onScreenshotInputChange = (event: Event) => {
-  const input = event.target as HTMLInputElement | null
-  const file = input?.files?.[0]
-  setScreenshotFile(file)
-  if (input) input.value = ''
-}
-
-const clearSelectedScreenshot = () => {
+  ocrTaskId.value = null
   selectedScreenshotFile.value = null
   selectedScreenshotName.value = ''
   screenshotError.value = ''
   ocrResult.value = null
-  uploadedPaymentId.value = null
-  uploadedScreenshotPath.value = null
+  uploadDedup.value = null
+  ocrForm.amount = 0
+  ocrForm.merchant = ''
+  ocrForm.payment_method = ''
+  ocrForm.description = ''
+  ocrForm.transaction_time = null
   if (screenshotInput.value) screenshotInput.value.value = ''
+}
+
+const cleanupCurrentScreenshotUpload = async () => {
+  const taskId = ocrTaskId.value
+  const paymentId = uploadedPaymentId.value
+  const screenshotPath = uploadedScreenshotPath.value
+
+  // Stop any in-flight waitForTask loop.
+  screenshotUploadAttempt.value++
+  uploadingScreenshot.value = false
+
+  if (taskId) tasksApi.cancel(taskId).catch(() => undefined)
+  if (paymentId) {
+    await paymentApi.delete(paymentId).catch((error) => console.error('Failed to delete payment record:', error))
+  } else if (screenshotPath) {
+    await paymentApi.cancelUploadScreenshot(screenshotPath).catch((error) => console.error('Failed to delete screenshot file:', error))
+  }
+  clearPendingPaymentDraft()
+}
+
+const onScreenshotDrop = async (event: DragEvent) => {
+  const file = event.dataTransfer?.files?.[0]
+  await setScreenshotFile(file)
+}
+
+const onScreenshotInputChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  await setScreenshotFile(file)
+  if (input) input.value = ''
+}
+
+const clearSelectedScreenshot = async () => {
+  await cleanupCurrentScreenshotUpload()
+  resetScreenshotUploadStateKeepModalOpen()
 }
 
 const ocrForm = reactive({

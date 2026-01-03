@@ -764,7 +764,15 @@ const chooseInvoiceFiles = () => {
   invoiceInput.value?.click()
 }
 
-const removeSelectedFile = (idx: number) => {
+const removeSelectedFile = async (idx: number) => {
+  // If OCR/upload already happened, removing a file must also discard created draft invoices,
+  // otherwise re-uploading the same file will be treated as a hash duplicate.
+  if (uploadedInvoiceIds.value.length > 0 || uploadedInvoiceId.value) {
+    await discardUploadedInvoices()
+    resetUploadDraftState()
+    return
+  }
+
   selectedFiles.value = selectedFiles.value.filter((_, i) => i !== idx)
   if (selectedFiles.value.length === 0) {
     if (invoiceInput.value) invoiceInput.value.value = ''
@@ -932,9 +940,15 @@ const handleCancelUpload = () => {
   uploadModalVisible.value = false
 }
 
-const onInvoiceInputChange = (event: Event) => {
+const onInvoiceInputChange = async (event: Event) => {
   const input = event.target as HTMLInputElement | null
   const files = input?.files ? Array.from(input.files) : []
+
+  // If user selects new files after an upload/parse, discard the previous draft(s) first.
+  if (uploadedInvoiceIds.value.length > 0 || uploadedInvoiceId.value) {
+    await discardUploadedInvoices()
+    resetUploadDraftState()
+  }
   addInvoiceFiles(files, { replace: true })
   if (input) input.value = ''
 }
@@ -965,9 +979,15 @@ const addInvoiceFiles = (files: File[], opts?: { replace?: boolean }) => {
   selectedFiles.value = merged
 }
 
-const onInvoiceDrop = (event: DragEvent) => {
+const onInvoiceDrop = async (event: DragEvent) => {
   const list = event.dataTransfer?.files
   if (!list || list.length === 0) return
+
+  // If user drags new files after an upload/parse, discard the previous draft(s) first.
+  if (uploadedInvoiceIds.value.length > 0 || uploadedInvoiceId.value) {
+    await discardUploadedInvoices()
+    resetUploadDraftState()
+  }
   addInvoiceFiles(Array.from(list))
 }
 

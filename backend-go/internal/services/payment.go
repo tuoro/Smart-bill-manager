@@ -58,6 +58,17 @@ func (s *PaymentService) CreateDraftFromScreenshotUpload(screenshotPath string, 
 	return p, nil
 }
 
+func (s *PaymentService) DeleteDraftByScreenshotPath(screenshotPath string) error {
+	screenshotPath = strings.TrimSpace(screenshotPath)
+	if screenshotPath == "" {
+		return nil
+	}
+	return database.GetDB().
+		Where("is_draft = ? AND screenshot_path = ?", true, screenshotPath).
+		Delete(&models.Payment{}).
+		Error
+}
+
 type paymentOCRTaskResult struct {
 	Payment        *models.Payment       `json:"payment"`
 	Extracted      *PaymentExtractedData `json:"extracted"`

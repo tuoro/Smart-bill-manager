@@ -364,8 +364,8 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 	}
 
 	utils.Success(c, 201, "截图上传成功，正在识别", gin.H{
-		"taskId":         task.ID,
-		"payment":        payment,
+		"taskId":          task.ID,
+		"payment":         payment,
 		"screenshot_path": relPath,
 	})
 }
@@ -388,6 +388,12 @@ func (h *PaymentHandler) CancelUploadScreenshot(c *gin.Context) {
 	if rmErr := os.Remove(absPath); rmErr != nil && !os.IsNotExist(rmErr) {
 		utils.Error(c, 500, "删除截图文件失败", rmErr)
 		return
+	}
+
+	// Best-effort: remove any leftover draft row that references this screenshot.
+	// This helps when the frontend loses the draft payment id but still wants to discard the upload.
+	if h.paymentService != nil {
+		_ = h.paymentService.DeleteDraftByScreenshotPath(strings.TrimSpace(input.ScreenshotPath))
 	}
 
 	utils.Success(c, 200, "已取消上传", nil)

@@ -41,226 +41,253 @@
                 />
               </div>
 
-              <Accordion
-                v-else
-                :multiple="true"
-                class="trip-accordion"
-                @tab-open="handleTripOpen"
-              >
-                <AccordionTab v-for="trip in trips" :key="trip.id">
-                  <template #header>
-                    <div class="trip-header">
-                      <div class="trip-title">
-                        <div class="trip-name sbm-ellipsis" :title="trip.name">
-                          {{ trip.name }}
-                        </div>
-                        <div
-                          class="trip-range sbm-ellipsis"
-                          :title="`${formatDateTime(trip.start_time)} ~ ${formatDateTime(trip.end_time)}`"
-                        >
-                          {{ formatDateTime(trip.start_time) }} ~
-                          {{ formatDateTime(trip.end_time) }}
-                        </div>
-                      </div>
-                      <div class="trip-badges">
-                        <Tag
-                          v-if="trip.bad_debt_locked"
-                          value="坏账锁定"
-                          class="sbm-lock-tag"
-                        />
-                        <Tag
-                          :value="
-                            trip.reimburse_status === 'reimbursed'
-                              ? '已报销'
-                              : '未报销'
-                          "
-                          :severity="
-                            trip.reimburse_status === 'reimbursed'
-                              ? 'success'
-                              : 'secondary'
-                          "
-                        />
-                        <Tag
-                          :value="
-                            formatMoney(summaries[trip.id]?.total_amount || 0)
-                          "
-                          severity="success"
-                        />
-                        <Tag
-                          :value="`支付 ${summaries[trip.id]?.payment_count || 0}`"
-                          severity="info"
-                        />
-                        <Tag
-                          :value="`发票 ${summaries[trip.id]?.linked_invoices || 0}`"
-                          severity="secondary"
-                        />
-                        <Tag
-                          v-if="
-                            (summaries[trip.id]?.unlinked_payments || 0) > 0
-                          "
-                          :value="`未关联 ${summaries[trip.id]?.unlinked_payments || 0}`"
-                          severity="warning"
-                        />
-                      </div>
-                    </div>
-                  </template>
+              <div v-else class="trip-list">
+                <div class="trip-list-toolbar">
+                  <small class="muted">共 {{ tripListTotal }} 个行程</small>
+                </div>
+                <Paginator
+                  :first="tripListFirst"
+                  :rows="tripListRows"
+                  :totalRecords="tripListTotal"
+                  :rowsPerPageOptions="[5, 10, 20, 50]"
+                  @page="onTripListPage"
+                />
 
-                  <div class="trip-actions">
-                    <div class="trip-actions-left">
-                      <Button
-                        label="编辑行程"
-                        icon="pi pi-pencil"
-                        class="p-button-text"
-                        @click="openTripModal(trip)"
-                      />
-                      <Button
-                        label="删除行程"
-                        icon="pi pi-trash"
-                        class="p-button-text p-button-danger"
-                        :loading="deletingTripId === trip.id"
-                        @click="confirmDeleteTrip(trip)"
-                      />
-                      <small class="trip-actions-hint muted"
-                        >删除行程会删除“归属到该行程”的支付记录，并按规则删除/解绑关联发票</small
-                      >
-                    </div>
-                  </div>
-
-                  <div class="sbm-dt-hscroll">
-                    <DataTable
-                      :value="tripPayments[trip.id] || []"
-                      :loading="loadingPaymentsTripId === trip.id"
-                      responsiveLayout="scroll"
-                      :paginator="true"
-                      :rows="10"
-                      :rowsPerPageOptions="[10, 20, 50]"
-                      sortField="transaction_time"
-                      :sortOrder="-1"
-                      class="trip-table"
-                      :pt="tableScrollPt"
-                      :tableStyle="tripTableStyle"
-                    >
-                      <Column
-                        field="amount"
-                        header="金额"
-                        :style="{ width: '120px' }"
-                        sortable
-                      >
-                        <template #body="{ data: row }">
-                          <span class="amount">{{
-                            formatMoney(row.amount)
-                          }}</span>
-                        </template>
-                      </Column>
-                      <Column header="商家">
-                        <template #body="{ data: row }">
-                          <span
-                            class="sbm-ellipsis"
-                            :title="row.merchant || '-'"
-                            >{{ row.merchant || "-" }}</span
+                <Accordion
+                  :multiple="true"
+                  class="trip-accordion"
+                  @tab-open="handleTripOpen"
+                >
+                  <AccordionTab v-for="trip in pagedTrips" :key="trip.id">
+                    <template #header>
+                      <div class="trip-header">
+                        <div class="trip-title">
+                          <div
+                            class="trip-name sbm-ellipsis"
+                            :title="trip.name"
                           >
-                        </template>
-                      </Column>
-                      <Column header="支付方式" :style="{ width: '180px' }">
-                        <template #body="{ data: row }">
-                          <span
-                            class="sbm-ellipsis"
-                            :title="row.payment_method || '-'"
-                            >{{ row.payment_method || "-" }}</span
-                          >
-                        </template>
-                      </Column>
-                      <Column
-                        field="transaction_time"
-                        header="支付时间"
-                        :style="{ width: '180px' }"
-                        sortable
-                      >
-                        <template #body="{ data: row }">
-                          {{ formatDateTime(row.transaction_time) }}
-                        </template>
-                      </Column>
-                      <Column header="坏账" :style="{ width: '84px' }">
-                        <template #body="{ data: row }">
-                          <Button
-                            size="small"
-                            class="p-button-text"
-                            :severity="row.bad_debt ? 'danger' : 'secondary'"
-                            :icon="
-                              row.bad_debt ? 'pi pi-lock' : 'pi pi-lock-open'
-                            "
-                            :title="row.bad_debt ? '已标记坏账' : '标记为坏账'"
-                            aria-label="坏账"
-                            @click="togglePaymentBadDebt(trip, row)"
-                          />
-                        </template>
-                      </Column>
-                      <Column header="关联发票">
-                        <template #body="{ data: row }">
-                          <div class="invoice-chips">
-                            <button
-                              v-for="inv in row.invoices || []"
-                              :key="inv.id"
-                              type="button"
-                              class="invoice-chip-btn"
-                              :title="
-                                inv.bad_debt ? '点击取消坏账' : '点击标记坏账'
-                              "
-                              @click="toggleInvoiceBadDebt(trip, inv)"
-                            >
-                              <Tag
-                                class="invoice-chip"
-                                :class="{
-                                  'invoice-chip--baddebt': inv.bad_debt,
-                                }"
-                                :severity="
-                                  inv.bad_debt ? 'danger' : 'secondary'
-                                "
-                                :value="
-                                  inv.invoice_number ||
-                                  inv.seller_name ||
-                                  inv.id
-                                "
-                                :title="
-                                  inv.invoice_number ||
-                                  inv.seller_name ||
-                                  inv.id
-                                "
-                              />
-                            </button>
-                            <span
-                              v-if="!row.invoices || row.invoices.length === 0"
-                              class="muted"
-                              >-</span
-                            >
+                            {{ trip.name }}
                           </div>
-                        </template>
-                      </Column>
-                      <Column header="操作" :style="{ width: '220px' }">
-                        <template #body="{ data: row }">
-                          <div class="row-actions">
-                            <Button
-                              size="small"
-                              class="p-button-outlined"
-                              severity="secondary"
-                              icon="pi pi-times"
-                              label="移出行程"
-                              @click="unassignPayment(row.id)"
-                            />
+                          <div
+                            class="trip-range sbm-ellipsis"
+                            :title="`${formatDateTime(trip.start_time)} ~ ${formatDateTime(trip.end_time)}`"
+                          >
+                            {{ formatDateTime(trip.start_time) }} ~
+                            {{ formatDateTime(trip.end_time) }}
+                          </div>
+                        </div>
+                        <div class="trip-badges">
+                          <Tag
+                            v-if="trip.bad_debt_locked"
+                            value="坏账锁定"
+                            class="sbm-lock-tag"
+                          />
+                          <Tag
+                            :value="
+                              trip.reimburse_status === 'reimbursed'
+                                ? '已报销'
+                                : '未报销'
+                            "
+                            :severity="
+                              trip.reimburse_status === 'reimbursed'
+                                ? 'success'
+                                : 'secondary'
+                            "
+                          />
+                          <Tag
+                            :value="
+                              formatMoney(summaries[trip.id]?.total_amount || 0)
+                            "
+                            severity="success"
+                          />
+                          <Tag
+                            :value="`支付 ${summaries[trip.id]?.payment_count || 0}`"
+                            severity="info"
+                          />
+                          <Tag
+                            :value="`发票 ${summaries[trip.id]?.linked_invoices || 0}`"
+                            severity="secondary"
+                          />
+                          <Tag
+                            v-if="
+                              (summaries[trip.id]?.unlinked_payments || 0) > 0
+                            "
+                            :value="`未关联 ${summaries[trip.id]?.unlinked_payments || 0}`"
+                            severity="warning"
+                          />
+                        </div>
+                      </div>
+                    </template>
+
+                    <div class="trip-actions">
+                      <div class="trip-actions-left">
+                        <Button
+                          label="编辑行程"
+                          icon="pi pi-pencil"
+                          class="p-button-text"
+                          @click="openTripModal(trip)"
+                        />
+                        <Button
+                          label="删除行程"
+                          icon="pi pi-trash"
+                          class="p-button-text p-button-danger"
+                          :loading="deletingTripId === trip.id"
+                          @click="confirmDeleteTrip(trip)"
+                        />
+                        <small class="trip-actions-hint muted"
+                          >删除行程会删除“归属到该行程”的支付记录，并按规则删除/解绑关联发票</small
+                        >
+                      </div>
+                    </div>
+
+                    <div class="sbm-dt-hscroll">
+                      <DataTable
+                        :value="tripPayments[trip.id] || []"
+                        :loading="loadingPaymentsTripId === trip.id"
+                        responsiveLayout="scroll"
+                        :paginator="true"
+                        :rows="10"
+                        :rowsPerPageOptions="[10, 20, 50]"
+                        sortField="transaction_time"
+                        :sortOrder="-1"
+                        class="trip-table"
+                        :pt="tableScrollPt"
+                        :tableStyle="tripTableStyle"
+                      >
+                        <Column
+                          field="amount"
+                          header="金额"
+                          :style="{ width: '120px' }"
+                          sortable
+                        >
+                          <template #body="{ data: row }">
+                            <span class="amount">{{
+                              formatMoney(row.amount)
+                            }}</span>
+                          </template>
+                        </Column>
+                        <Column header="商家">
+                          <template #body="{ data: row }">
+                            <span
+                              class="sbm-ellipsis"
+                              :title="row.merchant || '-'"
+                              >{{ row.merchant || "-" }}</span
+                            >
+                          </template>
+                        </Column>
+                        <Column header="支付方式" :style="{ width: '180px' }">
+                          <template #body="{ data: row }">
+                            <span
+                              class="sbm-ellipsis"
+                              :title="row.payment_method || '-'"
+                              >{{ row.payment_method || "-" }}</span
+                            >
+                          </template>
+                        </Column>
+                        <Column
+                          field="transaction_time"
+                          header="支付时间"
+                          :style="{ width: '180px' }"
+                          sortable
+                        >
+                          <template #body="{ data: row }">
+                            {{ formatDateTime(row.transaction_time) }}
+                          </template>
+                        </Column>
+                        <Column header="坏账" :style="{ width: '84px' }">
+                          <template #body="{ data: row }">
                             <Button
                               size="small"
                               class="p-button-text"
-                              icon="pi pi-external-link"
-                              label="移动到..."
-                              @click="openMovePayment(row.id, trip.id)"
+                              :severity="row.bad_debt ? 'danger' : 'secondary'"
+                              :icon="
+                                row.bad_debt ? 'pi pi-lock' : 'pi pi-lock-open'
+                              "
+                              :title="
+                                row.bad_debt ? '已标记坏账' : '标记为坏账'
+                              "
+                              aria-label="坏账"
+                              @click="togglePaymentBadDebt(trip, row)"
                             />
-                          </div>
-                        </template>
-                      </Column>
-                    </DataTable>
-                  </div>
-                </AccordionTab>
-              </Accordion>
+                          </template>
+                        </Column>
+                        <Column header="关联发票">
+                          <template #body="{ data: row }">
+                            <div class="invoice-chips">
+                              <button
+                                v-for="inv in row.invoices || []"
+                                :key="inv.id"
+                                type="button"
+                                class="invoice-chip-btn"
+                                :title="
+                                  inv.bad_debt ? '点击取消坏账' : '点击标记坏账'
+                                "
+                                @click="toggleInvoiceBadDebt(trip, inv)"
+                              >
+                                <Tag
+                                  class="invoice-chip"
+                                  :class="{
+                                    'invoice-chip--baddebt': inv.bad_debt,
+                                  }"
+                                  :severity="
+                                    inv.bad_debt ? 'danger' : 'secondary'
+                                  "
+                                  :value="
+                                    inv.invoice_number ||
+                                    inv.seller_name ||
+                                    inv.id
+                                  "
+                                  :title="
+                                    inv.invoice_number ||
+                                    inv.seller_name ||
+                                    inv.id
+                                  "
+                                />
+                              </button>
+                              <span
+                                v-if="
+                                  !row.invoices || row.invoices.length === 0
+                                "
+                                class="muted"
+                                >-</span
+                              >
+                            </div>
+                          </template>
+                        </Column>
+                        <Column header="操作" :style="{ width: '220px' }">
+                          <template #body="{ data: row }">
+                            <div class="row-actions">
+                              <Button
+                                size="small"
+                                class="p-button-outlined"
+                                severity="secondary"
+                                icon="pi pi-times"
+                                label="移出行程"
+                                @click="unassignPayment(row.id)"
+                              />
+                              <Button
+                                size="small"
+                                class="p-button-text"
+                                icon="pi pi-external-link"
+                                label="移动到..."
+                                @click="openMovePayment(row.id, trip.id)"
+                              />
+                            </div>
+                          </template>
+                        </Column>
+                      </DataTable>
+                    </div>
+                  </AccordionTab>
+                </Accordion>
+
+                <Paginator
+                  :first="tripListFirst"
+                  :rows="tripListRows"
+                  :totalRecords="tripListTotal"
+                  :rowsPerPageOptions="[5, 10, 20, 50]"
+                  @page="onTripListPage"
+                />
+              </div>
             </TabPanel>
 
             <TabPanel value="pending">
@@ -665,6 +692,7 @@ import DataTable from "primevue/datatable";
 import DatePicker from "primevue/datepicker";
 import Dialog from "primevue/dialog";
 import Dropdown from "primevue/dropdown";
+import Paginator from "primevue/paginator";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
 import Tab from "primevue/tab";
@@ -864,6 +892,30 @@ const onPickerHide = (pickerRef: { value: any } | any) => {
 };
 
 const trips = ref<Trip[]>([]);
+const tripListFirst = ref(0);
+const tripListRows = ref(10);
+const tripListTotal = computed(() => trips.value.length);
+const pagedTrips = computed(() =>
+  trips.value.slice(
+    tripListFirst.value,
+    tripListFirst.value + tripListRows.value,
+  ),
+);
+const onTripListPage = (e: { first: number; rows: number }) => {
+  tripListFirst.value = e.first;
+  tripListRows.value = e.rows;
+};
+
+watch(
+  () => trips.value.length,
+  (n) => {
+    if (n <= 0) {
+      tripListFirst.value = 0;
+      return;
+    }
+    if (tripListFirst.value >= n) tripListFirst.value = 0;
+  },
+);
 const summaries = reactive<Record<string, TripSummary>>({});
 const tripPayments = reactive<Record<string, TripPaymentWithInvoices[]>>({});
 
@@ -1241,7 +1293,7 @@ const blockPending = (paymentId: string) => {
 };
 
 const handleTripOpen = (e: { index: number }) => {
-  const trip = trips.value[e.index];
+  const trip = pagedTrips.value[e.index];
   if (!trip) return;
   if (tripPayments[trip.id]) return;
   loadTripPayments(trip.id);
@@ -1724,6 +1776,20 @@ onMounted(async () => {
 
 .trip-accordion :deep(.p-accordion-header-link) {
   gap: 10px;
+}
+
+.trip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trip-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .trip-accordion :deep(.p-accordioncontent),

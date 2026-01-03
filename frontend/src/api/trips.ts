@@ -29,7 +29,13 @@ export const tripsApi = {
 
   cascadePreview: (id: string) => api.get<ApiResponse<TripCascadePreview>>(`/trips/${id}/cascade-preview`),
 
-  deleteCascade: (id: string) => api.delete<ApiResponse<TripCascadePreview>>(`/trips/${id}`),
+  deleteCascade: (
+    id: string,
+    opts?: { deletePayments?: boolean },
+  ) =>
+    api.delete<ApiResponse<TripCascadePreview>>(`/trips/${id}`, {
+      params: opts,
+    }),
 
   pendingPayments: () => api.get<ApiResponse<PendingPayment[]>>('/trips/pending-payments'),
 

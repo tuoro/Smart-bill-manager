@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"smart-bill-manager/internal/services"
@@ -35,7 +36,7 @@ func (h *TripHandler) RegisterRoutes(r *gin.RouterGroup) {
 func (h *TripHandler) GetSummaries(c *gin.Context) {
 	out, err := h.tripService.GetAllSummaries()
 	if err != nil {
-		utils.Error(c, 500, "Failed to get trip summaries", err)
+		utils.Error(c, 500, "获取行程汇总失败", err)
 		return
 	}
 	utils.SuccessData(c, out)
@@ -120,8 +121,24 @@ func (h *TripHandler) CascadePreview(c *gin.Context) {
 	utils.SuccessData(c, out)
 }
 
+func parseBoolQuery(c *gin.Context, keys []string, def bool) (bool, error) {
+	for _, k := range keys {
+		v := strings.TrimSpace(c.Query(k))
+		if v == "" {
+			continue
+		}
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return def, err
+		}
+		return b, nil
+	}
+	return def, nil
+}
+
 func (h *TripHandler) DeleteCascade(c *gin.Context) {
 	id := c.Param("id")
+
 	dryRun := c.Query("dryRun")
 	if dryRun == "1" || dryRun == "true" {
 		out, _, _, err := h.tripService.GetCascadePreview(id)
@@ -141,7 +158,15 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 		}
 	}
 
-	out, err := h.tripService.DeleteCascade(id)
+	deletePayments, err := parseBoolQuery(c, []string{"deletePayments", "delete_payments"}, true)
+	if err != nil {
+		utils.Error(c, 400, "deletePayments 参数错误", err)
+		return
+	}
+
+	out, err := h.tripService.DeleteWithOptions(id, services.DeleteTripOptions{
+		DeletePayments: deletePayments,
+	})
 	if err != nil {
 		if errors.Is(err, services.ErrTripBadDebtLocked) {
 			utils.Error(c, 400, "行程包含坏账记录，已锁定，无法删除", err)
@@ -156,7 +181,7 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 func (h *TripHandler) GetPendingPayments(c *gin.Context) {
 	out, err := h.tripService.GetPendingPayments()
 	if err != nil {
-		utils.Error(c, 500, "获取待处理支付失败", err)
+		utils.Error(c, 500, "获取待分配支付失败", err)
 		return
 	}
 	utils.SuccessData(c, out)

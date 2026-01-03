@@ -694,6 +694,58 @@
         />
       </div>
     </Dialog>
+
+    <Dialog
+      v-model:visible="deleteTripModalVisible"
+      modal
+      header="删除行程"
+      :style="{ width: '560px', maxWidth: '92vw' }"
+    >
+      <div v-if="deleteTripTarget && deleteTripPreview">
+        <div class="muted" style="margin-bottom: 12px">
+          {{ deleteTripTarget.name }}：关联支付 {{ deleteTripPreview.payments }} 条，关联发票
+          {{ deleteTripPreview.invoices }} 张（其中将变成未关联的发票 {{ deleteTripPreview.unlinked_only }} 张）。
+        </div>
+
+        <div class="field-checkbox" style="margin-bottom: 10px">
+          <Checkbox
+            v-model="deleteTripOptions.deletePayments"
+            inputId="delete_trip_payments"
+            binary
+          />
+          <label for="delete_trip_payments">同时删除支付记录 + 可删除的发票</label>
+        </div>
+
+        <small class="muted" v-if="!deleteTripOptions.deletePayments">
+          默认：只删除行程，保留支付/发票（支付会进入“待分配”）。
+        </small>
+        <small class="muted" v-else>
+          将删除该行程下的支付记录（{{ deleteTripPreview.payments }} 条），并删除因此变成未关联的发票（{{
+            deleteTripPreview.unlinked_only
+          }} 张）。已与其它支付关联的发票不会被删除。
+        </small>
+      </div>
+
+      <div class="footer">
+        <Button
+          type="button"
+          class="p-button-outlined"
+          severity="secondary"
+          label="取消"
+          :disabled="deletingTripId === deleteTripTarget?.id"
+          @click="closeDeleteTripDialog"
+        />
+        <Button
+          type="button"
+          severity="danger"
+          label="删除"
+          icon="pi pi-trash"
+          :loading="deletingTripId === deleteTripTarget?.id"
+          :disabled="!deleteTripTarget || !deleteTripPreview"
+          @click="submitDeleteTrip"
+        />
+      </div>
+    </Dialog>
   </div>
 </template>
 
@@ -711,6 +763,7 @@ import Dropdown from "primevue/dropdown";
 import Paginator from "primevue/paginator";
 import InputText from "primevue/inputtext";
 import Textarea from "primevue/textarea";
+import Checkbox from "primevue/checkbox";
 import Tab from "primevue/tab";
 import TabList from "primevue/tablist";
 import TabPanel from "primevue/tabpanel";
@@ -947,6 +1000,12 @@ const tripPayments = reactive<Record<string, TripPaymentWithInvoices[]>>({});
 
 const loadingPaymentsTripId = ref<string | null>(null);
 const deletingTripId = ref<string | null>(null);
+const deleteTripModalVisible = ref(false);
+const deleteTripTarget = ref<Trip | null>(null);
+const deleteTripPreview = ref<TripCascadePreview | null>(null);
+const deleteTripOptions = reactive({
+  deletePayments: false,
+});
 
 const pendingPayments = ref<PendingPayment[]>([]);
 const pendingSelection = reactive<Record<string, string | null>>({});
@@ -1343,6 +1402,61 @@ const reloadAll = async () => {
   await refreshCalendarMonth();
 };
 
+const closeDeleteTripDialog = () => {
+  deleteTripModalVisible.value = false;
+  deleteTripTarget.value = null;
+  deleteTripPreview.value = null;
+  deleteTripOptions.deletePayments = false;
+};
+
+const submitDeleteTrip = async () => {
+  const trip = deleteTripTarget.value;
+  const preview = deleteTripPreview.value;
+  if (!trip || !preview) return;
+
+  deletingTripId.value = trip.id;
+  try {
+    await tripsApi.deleteCascade(trip.id, {
+      deletePayments: deleteTripOptions.deletePayments,
+    });
+
+    if (deleteTripOptions.deletePayments) {
+      toast.add({ severity: "success", summary: "行程已删除", life: 2200 });
+      notifications.add({
+        severity: "warn",
+        title: "行程已删除",
+        detail: `${trip.name}：删除支付 ${preview.payments} 条；删除发票 ${preview.unlinked_only} 张`,
+      });
+    } else {
+      toast.add({
+        severity: "success",
+        summary: "行程已删除（支付已转入待分配）",
+        life: 2400,
+      });
+      notifications.add({
+        severity: "info",
+        title: "行程已删除",
+        detail: `${trip.name}：保留支付 ${preview.payments} 条（已转入待分配）`,
+      });
+    }
+
+    delete tripPayments[trip.id];
+    delete summaries[trip.id];
+    closeDeleteTripDialog();
+    await reloadAll();
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || "删除失败";
+    toast.add({ severity: "error", summary: msg, life: 3500 });
+    notifications.add({
+      severity: "error",
+      title: "行程删除失败",
+      detail: `${trip.name}：${msg}`,
+    });
+  } finally {
+    deletingTripId.value = null;
+  }
+};
+
 const confirmDeleteTrip = async (trip: Trip) => {
   if (trip.bad_debt_locked) {
     toast.add({
@@ -1364,39 +1478,10 @@ const confirmDeleteTrip = async (trip: Trip) => {
     deletingTripId.value = null;
     if (!preview) return;
 
-    confirm.require({
-      header: "删除行程确认",
-      message: `将删除 ${preview.payments} 条支付记录，并删除/解绑关联发票（将被删除的发票：${preview.unlinked_only} 张）。此操作不可恢复，继续吗？`,
-      icon: "pi pi-exclamation-triangle",
-      acceptLabel: "删除",
-      rejectLabel: "取消",
-      acceptClass: "p-button-danger",
-      accept: async () => {
-        deletingTripId.value = trip.id;
-        try {
-          await tripsApi.deleteCascade(trip.id);
-          toast.add({ severity: "success", summary: "行程已删除", life: 2200 });
-          notifications.add({
-            severity: "warn",
-            title: "行程已删除",
-            detail: `${trip.name}：删除支付 ${preview.payments} 条；删除发票 ${preview.unlinked_only} 张`,
-          });
-          delete tripPayments[trip.id];
-          delete summaries[trip.id];
-          await reloadAll();
-        } catch (e: any) {
-          const msg = e?.response?.data?.message || "删除失败";
-          toast.add({ severity: "error", summary: msg, life: 3500 });
-          notifications.add({
-            severity: "error",
-            title: "行程删除失败",
-            detail: `${trip.name}：${msg}`,
-          });
-        } finally {
-          deletingTripId.value = null;
-        }
-      },
-    });
+    deleteTripTarget.value = trip;
+    deleteTripPreview.value = preview;
+    deleteTripOptions.deletePayments = false;
+    deleteTripModalVisible.value = true;
   } catch (error: any) {
     deletingTripId.value = null;
     const msg = error?.response?.data?.message || "获取删除预览失败";

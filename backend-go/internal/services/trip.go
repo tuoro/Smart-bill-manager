@@ -416,6 +416,10 @@ type CascadePreview struct {
 	UnlinkedOnly int    `json:"unlinked_only"`
 }
 
+type DeleteTripOptions struct {
+	DeletePayments bool
+}
+
 func (s *TripService) GetCascadePreview(tripID string) (*CascadePreview, []string, []string, error) {
 	db := database.GetDB()
 
@@ -482,10 +486,20 @@ func (s *TripService) GetCascadePreview(tripID string) (*CascadePreview, []strin
 }
 
 func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
+	return s.DeleteWithOptions(tripID, DeleteTripOptions{
+		DeletePayments: true,
+	})
+}
+
+func (s *TripService) DeleteWithOptions(tripID string, opts DeleteTripOptions) (*CascadePreview, error) {
 	// Build preview and file delete lists first.
 	preview, screenshotPaths, invoicePaths, err := s.GetCascadePreview(tripID)
 	if err != nil {
 		return nil, err
+	}
+	if !opts.DeletePayments {
+		screenshotPaths = nil
+		invoicePaths = nil
 	}
 
 	db := database.GetDB()
@@ -508,77 +522,78 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 		rangeStartTs = trip.StartTimeTs
 		rangeEndTs = trip.EndTimeTs
 
-		// Collect payment IDs.
-		var paymentIDs []string
-		if err := tx.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Pluck("id", &paymentIDs).Error; err != nil {
-			return err
-		}
-
-		if len(paymentIDs) > 0 {
-			// Invoices linked to these payments.
-			var invoiceIDs []string
-			if err := tx.Table("invoice_payment_links").
-				Distinct("invoice_id").
-				Where("payment_id IN ?", paymentIDs).
-				Pluck("invoice_id", &invoiceIDs).Error; err != nil {
+		if opts.DeletePayments {
+			// Collect payment IDs.
+			var paymentIDs []string
+			if err := tx.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Pluck("id", &paymentIDs).Error; err != nil {
 				return err
 			}
 
-			toDelete := make(map[string]struct{})
-			for _, invID := range invoiceIDs {
-				var count int64
+			if len(paymentIDs) > 0 {
+				// Invoices linked to these payments.
+				var invoiceIDs []string
 				if err := tx.Table("invoice_payment_links").
-					Where("invoice_id = ? AND payment_id NOT IN ?", invID, paymentIDs).
-					Count(&count).Error; err != nil {
+					Distinct("invoice_id").
+					Where("payment_id IN ?", paymentIDs).
+					Pluck("invoice_id", &invoiceIDs).Error; err != nil {
 					return err
 				}
-				if count == 0 {
-					toDelete[invID] = struct{}{}
-				}
-			}
 
-			// Unlink kept invoices from payments being deleted.
-			if len(invoiceIDs) > 0 {
-				keep := make([]string, 0)
+				toDelete := make(map[string]struct{})
 				for _, invID := range invoiceIDs {
-					if _, ok := toDelete[invID]; !ok {
-						keep = append(keep, invID)
+					var count int64
+					if err := tx.Table("invoice_payment_links").
+						Where("invoice_id = ? AND payment_id NOT IN ?", invID, paymentIDs).
+						Count(&count).Error; err != nil {
+						return err
+					}
+					if count == 0 {
+						toDelete[invID] = struct{}{}
 					}
 				}
-				if len(keep) > 0 {
+
+				if len(invoiceIDs) > 0 {
+					// Unlink invoices from payments being deleted.
 					if err := tx.
 						Table("invoice_payment_links").
-						Where("invoice_id IN ? AND payment_id IN ?", keep, paymentIDs).
+						Where("invoice_id IN ? AND payment_id IN ?", invoiceIDs, paymentIDs).
 						Delete(&models.InvoicePaymentLink{}).Error; err != nil {
 						return err
 					}
 					// Clear legacy payment_id pointers if they reference deleted payments.
 					if err := tx.Model(&models.Invoice{}).
-						Where("id IN ? AND payment_id IN ?", keep, paymentIDs).
+						Where("id IN ? AND payment_id IN ?", invoiceIDs, paymentIDs).
 						Update("payment_id", nil).Error; err != nil {
 						return err
 					}
 				}
-			}
 
-			// Delete invoices that become unlinked.
-			if len(toDelete) > 0 {
-				toDeleteIDs := make([]string, 0, len(toDelete))
-				for id := range toDelete {
-					toDeleteIDs = append(toDeleteIDs, id)
+				// Optionally delete invoices that become unlinked.
+				if len(toDelete) > 0 {
+					toDeleteIDs := make([]string, 0, len(toDelete))
+					for id := range toDelete {
+						toDeleteIDs = append(toDeleteIDs, id)
+					}
+					if err := tx.Where("id IN ?", toDeleteIDs).Delete(&models.Invoice{}).Error; err != nil {
+						return err
+					}
 				}
-				if err := tx.Table("invoice_payment_links").
-					Where("invoice_id IN ?", toDeleteIDs).
-					Delete(&models.InvoicePaymentLink{}).Error; err != nil {
+
+				// Delete payments.
+				if err := tx.Where("id IN ?", paymentIDs).Delete(&models.Payment{}).Error; err != nil {
 					return err
 				}
-				if err := tx.Where("id IN ?", toDeleteIDs).Delete(&models.Invoice{}).Error; err != nil {
-					return err
-				}
 			}
-
-			// Delete payments.
-			if err := tx.Where("id IN ?", paymentIDs).Delete(&models.Payment{}).Error; err != nil {
+		} else {
+			// Keep payments: move them into a reviewable unassigned state (so UI routes them to "pending").
+			if err := tx.Model(&models.Payment{}).
+				Where("trip_id = ?", tripID).
+				Where("is_draft = 0").
+				Updates(map[string]interface{}{
+					"trip_id":                nil,
+					"trip_assignment_source": assignSrcManual,
+					"trip_assignment_state":  assignStateNoMatch,
+				}).Error; err != nil {
 				return err
 			}
 		}
@@ -588,12 +603,14 @@ func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
 			return err
 		}
 
-		// Trip removal may resolve overlaps; re-evaluate auto assignments in this range.
-		if rangeEndTs > rangeStartTs {
-			if _, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, rangeStartTs, rangeEndTs); err != nil {
-				return err
-			} else {
-				affectedTripIDs = tripIDs
+		if opts.DeletePayments {
+			// Trip removal may resolve overlaps; re-evaluate auto assignments in this range.
+			if rangeEndTs > rangeStartTs {
+				if _, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, rangeStartTs, rangeEndTs); err != nil {
+					return err
+				} else {
+					affectedTripIDs = tripIDs
+				}
 			}
 		}
 		return nil

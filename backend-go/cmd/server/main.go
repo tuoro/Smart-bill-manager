@@ -214,7 +214,9 @@ func main() {
 
 	// Logs routes
 	logsHandler := handlers.NewLogsHandler()
-	logsHandler.RegisterRoutes(protectedGroup.Group("/logs"))
+	logsGroup := protectedGroup.Group("/logs")
+	logsGroup.Use(middleware.RequireAdmin())
+	logsHandler.RegisterRoutes(logsGroup)
 
 	// Tasks routes
 	taskHandler := handlers.NewTaskHandler(taskService)

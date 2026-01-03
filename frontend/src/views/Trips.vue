@@ -151,9 +151,6 @@
                           :loading="deletingTripId === trip.id"
                           @click="confirmDeleteTrip(trip)"
                         />
-                        <small class="trip-actions-hint muted"
-                          >删除行程会删除“归属到该行程”的支付记录，并按规则删除/解绑关联发票</small
-                        >
                       </div>
                     </div>
 
@@ -704,7 +701,7 @@
       <div v-if="deleteTripTarget && deleteTripPreview">
         <div class="muted" style="margin-bottom: 12px">
           {{ deleteTripTarget.name }}：关联支付 {{ deleteTripPreview.payments }} 条，关联发票
-          {{ deleteTripPreview.invoices }} 张（其中将变成未关联的发票 {{ deleteTripPreview.unlinked_only }} 张）。
+          {{ deleteTripPreview.invoices }} 张。
         </div>
 
         <div class="field-checkbox" style="margin-bottom: 10px">
@@ -720,9 +717,9 @@
           默认：只删除行程，保留支付/发票（支付会进入“待分配”）。
         </small>
         <small class="muted" v-else>
-          将删除该行程下的支付记录（{{ deleteTripPreview.payments }} 条），并删除因此变成未关联的发票（{{
+          将删除该行程下的支付记录（{{ deleteTripPreview.payments }} 条），并删除可删除的发票（{{
             deleteTripPreview.unlinked_only
-          }} 张）。已与其它支付关联的发票不会被删除。
+          }} 张，仅删除不再与其它支付关联的发票）。
         </small>
       </div>
 

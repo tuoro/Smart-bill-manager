@@ -277,7 +277,7 @@
                     <template #content>
                       <div class="sbm-dt-hscroll">
                         <DataTable
-                          :value="calendarSelectedPayments"
+                          :value="calendarDisplayPayments"
                           responsiveLayout="scroll"
                           class="calendar-table"
                           :pt="tableScrollPt"
@@ -296,7 +296,7 @@
                         <Column field="transaction_time" header="时间" :style="{ width: '180px' }">
                           <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
                         </Column>
-                        <Column header="行程" :style="{ width: '180px' }">
+                        <Column v-if="!calendarTripFilter" header="行程" :style="{ width: '180px' }">
                           <template #body="{ data: row }">
                             <Tag
                               v-if="row.trip_id && tripNameById[row.trip_id]"
@@ -1263,38 +1263,25 @@ const calendarSelectedPayments = computed(() => {
 })
 
 const calendarRightTitle = computed(() => {
-  const base = dayjs(calendarSelectedDate.value).format('YYYY-MM-DD')
-  const trip = calendarTripFilter.value ? tripNameById.value[calendarTripFilter.value] : ''
-  return trip ? `${base} · ${trip}` : base
+  const trip = calendarActiveTrip.value
+  const range = calendarTripRange.value
+  if (trip && range) {
+    return `${trip.name} · ${range.start.format('YYYY-MM-DD')} ~ ${range.end.format('YYYY-MM-DD')}`
+  }
+  return dayjs(calendarSelectedDate.value).format('YYYY-MM-DD')
 })
 
-const pickBestDateFromPayments = (items: Payment[] | undefined | null) => {
-  if (!items || items.length === 0) return null
-
-  // Earliest payment date is more intuitive as an entry point for multi-month trips.
-  let best: Payment | null = null
-  let bestTs = Number.POSITIVE_INFINITY
-  for (const p of items) {
-    const t = p?.transaction_time ? dayjs(p.transaction_time) : null
-    if (!t || !t.isValid()) continue
-    const ts = t.valueOf()
-    if (ts < bestTs) {
-      best = p
-      bestTs = ts
-    }
-  }
-
-  if (!best?.transaction_time) return null
-  const bestDate = dayjs(best.transaction_time)
-  return bestDate.isValid() ? bestDate.toDate() : null
-}
+const calendarDisplayPayments = computed(() => {
+  const tripId = calendarTripFilter.value
+  if (!tripId) return calendarSelectedPayments.value
+  const list = tripPayments[tripId] || []
+  return [...list].sort((a, b) => (a.transaction_time < b.transaction_time ? 1 : -1))
+})
 
 watch(
   () => calendarTripFilter.value,
   async (tripId) => {
-    // On trip switch, do a single jump so the user immediately sees that trip's content.
-    // - If we have payments for the trip, jump to the latest payment date.
-    // - Otherwise, fall back to the trip start date.
+    // On trip switch, jump the calendar to the trip start date so the user sees the trip range immediately.
     if (tripId) {
       if (!tripPayments[tripId]) {
         try {
@@ -1304,14 +1291,11 @@ watch(
         }
       }
 
-      const loaded = (tripPayments[tripId] as TripPaymentWithInvoices[] | undefined) || []
-      const bestFromTrip = pickBestDateFromPayments(loaded as unknown as Payment[])
-
       const trip = trips.value.find((t) => t.id === tripId)
       const fallbackStart = trip?.start_time ? dayjs(trip.start_time) : null
       const fallbackDate = fallbackStart && fallbackStart.isValid() ? fallbackStart.toDate() : null
 
-      const target = bestFromTrip || fallbackDate
+      const target = fallbackDate
       if (target) {
         const t = dayjs(target)
         calendarSelectedDate.value = target

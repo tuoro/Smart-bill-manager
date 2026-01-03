@@ -1264,10 +1264,7 @@ const calendarSelectedPayments = computed(() => {
 
 const calendarRightTitle = computed(() => {
   const trip = calendarActiveTrip.value
-  const range = calendarTripRange.value
-  if (trip && range) {
-    return `${trip.name} · ${range.start.format('YYYY-MM-DD')} ~ ${range.end.format('YYYY-MM-DD')}`
-  }
+  if (trip) return trip.name
   return dayjs(calendarSelectedDate.value).format('YYYY-MM-DD')
 })
 
@@ -1624,9 +1621,13 @@ onMounted(async () => {
 }
 
 .date-cell {
-  display: grid;
-  gap: 2px;
-  justify-items: center;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  border-radius: 999px;
 }
 
 .date-day {
@@ -1636,27 +1637,33 @@ onMounted(async () => {
 }
 
 .date-cell.is-today {
-  border-radius: 10px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color), transparent 30%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color), transparent 35%);
 }
 
 .date-cell.is-in-trip {
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--p-primary-color), transparent 90%);
+  background: color-mix(in srgb, var(--p-primary-color), transparent 88%);
+  color: var(--p-primary-color);
 }
 
 .date-cell.is-trip-start,
 .date-cell.is-trip-end {
-  background: color-mix(in srgb, var(--p-primary-color), transparent 82%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color), transparent 35%);
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color, #ffffff);
+  box-shadow: none;
 }
 
 .date-cell.is-outside-trip {
   opacity: 0.45;
 }
 
+:global(.p-datepicker-day.p-datepicker-day-selected .date-cell) {
+  background: var(--p-primary-color) !important;
+  color: var(--p-primary-contrast-color, #ffffff) !important;
+  box-shadow: none !important;
+}
+
 :global(.p-datepicker-day.p-datepicker-day-selected .date-cell .date-day) {
-  color: var(--p-surface-0, #ffffff) !important;
+  color: var(--p-primary-contrast-color, #ffffff) !important;
 }
 
 .dp-footer {

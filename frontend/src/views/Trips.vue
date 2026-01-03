@@ -283,7 +283,7 @@
                           responsiveLayout="scroll"
                           class="calendar-table"
                           :pt="tableScrollPt"
-                          :tableStyle="tripTableStyle"
+                          :tableStyle="calendarTableStyle"
                         >
                         <Column field="amount" header="金额" :style="{ width: '120px' }">
                           <template #body="{ data: row }">
@@ -479,6 +479,11 @@ const tableScrollPt = {
 
 const tripTableStyle = {
   minWidth: '960px',
+} as const
+
+const calendarTableStyle = {
+  width: '100%',
+  minWidth: '0',
 } as const
 
 const toast = useToast()
@@ -1501,6 +1506,23 @@ onMounted(async () => {
   max-width: 220px;
 }
 
+.calendar-left :deep(.p-dropdown),
+.calendar-left :deep(.p-datepicker) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.calendar-left :deep(.p-datepicker-calendar),
+.calendar-left :deep(.p-datepicker-calendar table) {
+  width: 100%;
+}
+
+.calendar-right :deep(.p-card),
+.calendar-right :deep(.p-datatable) {
+  width: 100%;
+  max-width: 100%;
+}
+
 .calendar-right .panel-title {
   display: flex;
   align-items: center;
@@ -1585,6 +1607,16 @@ onMounted(async () => {
 @media (max-width: 980px) {
   .calendar-layout {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .calendar-dropdown {
+    max-width: none;
+    flex: 1 1 260px;
   }
 }
 </style>

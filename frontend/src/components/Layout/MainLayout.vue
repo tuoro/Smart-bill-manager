@@ -145,12 +145,12 @@ const navItems: NavItem[] = [
   { path: '/invoices', label: '发票管理', icon: 'pi pi-file' },
   { path: '/trips', label: '行程日历', icon: 'pi pi-calendar' },
   { path: '/email', label: '邮箱监控', icon: 'pi pi-inbox' },
-  { path: '/logs', label: '日志', icon: 'pi pi-book' },
 ]
 
 const navItemsWithAdmin = computed(() => {
   const items = [...navItems]
   if (authStore.user?.role === 'admin') {
+    items.push({ path: '/logs', label: '日志', icon: 'pi pi-book' })
     items.push({ path: '/admin/invites', label: '\u9080\u8bf7\u7801\u7ba1\u7406', icon: 'pi pi-ticket' })
     items.push({ path: '/admin/regression-samples', label: '回归样本', icon: 'pi pi-verified' })
   }

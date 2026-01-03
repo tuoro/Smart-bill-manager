@@ -61,7 +61,7 @@ const routes: RouteRecordRaw[] = [
         path: 'logs',
         name: 'Logs',
         component: () => import('@/views/Logs.vue'),
-        meta: { title: '\u65E5\u5FD7' },
+        meta: { title: '\u65E5\u5FD7', requiresAdmin: true },
       },
       {
         path: 'admin/invites',

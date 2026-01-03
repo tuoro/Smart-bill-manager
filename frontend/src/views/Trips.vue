@@ -433,7 +433,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import Accordion from 'primevue/accordion'
 import AccordionTab from 'primevue/accordiontab'
 import Button from 'primevue/button'
@@ -1241,6 +1241,66 @@ const calendarRightTitle = computed(() => {
   const trip = calendarTripFilter.value ? tripNameById.value[calendarTripFilter.value] : ''
   return trip ? `${base} · ${trip}` : base
 })
+
+const pickBestDateFromPayments = (items: Payment[] | undefined | null) => {
+  if (!items || items.length === 0) return null
+
+  let best: Payment | null = null
+  let bestTs = Number.NEGATIVE_INFINITY
+  for (const p of items) {
+    const t = p?.transaction_time ? dayjs(p.transaction_time) : null
+    if (!t || !t.isValid()) continue
+    const ts = t.valueOf()
+    if (ts > bestTs) {
+      best = p
+      bestTs = ts
+    }
+  }
+
+  if (!best?.transaction_time) return null
+  const bestDate = dayjs(best.transaction_time)
+  return bestDate.isValid() ? bestDate.toDate() : null
+}
+
+watch(
+  () => calendarTripFilter.value,
+  async (tripId) => {
+    // On trip switch, do a single jump so the user immediately sees that trip's content.
+    // - If we have payments for the trip, jump to the latest payment date.
+    // - Otherwise, fall back to the trip start date.
+    if (tripId) {
+      if (!tripPayments[tripId]) {
+        try {
+          await loadTripPayments(tripId)
+        } catch {
+          // ignore
+        }
+      }
+
+      const loaded = (tripPayments[tripId] as TripPaymentWithInvoices[] | undefined) || []
+      const bestFromTrip = pickBestDateFromPayments(loaded as unknown as Payment[])
+
+      const trip = trips.value.find((t) => t.id === tripId)
+      const fallbackStart = trip?.start_time ? dayjs(trip.start_time) : null
+      const fallbackDate = fallbackStart && fallbackStart.isValid() ? fallbackStart.toDate() : null
+
+      const target = bestFromTrip || fallbackDate
+      if (target) {
+        const t = dayjs(target)
+        calendarSelectedDate.value = target
+        calendarMonth.value = { year: t.year(), month: t.month() }
+      }
+    }
+
+    await refreshCalendarMonth()
+    await nextTick()
+
+    if (tripId) {
+      const bestInMonth = pickBestDateFromPayments(calendarFilteredPayments.value)
+      if (bestInMonth) calendarSelectedDate.value = bestInMonth
+    }
+  },
+)
 
 onMounted(async () => {
   await reloadAll()

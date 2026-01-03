@@ -8,19 +8,27 @@ import (
 )
 
 type AuthHandler struct {
-	authService *services.AuthService
+	authService     *services.AuthService
+	sessionService  *services.SessionService
+	apiTokenService *services.APITokenService
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService *services.AuthService, sessionService *services.SessionService, apiTokenService *services.APITokenService) *AuthHandler {
+	return &AuthHandler{
+		authService:     authService,
+		sessionService:  sessionService,
+		apiTokenService: apiTokenService,
+	}
 }
 
 func (h *AuthHandler) RegisterRoutes(r *gin.RouterGroup) {
+	authMW := middleware.AuthMiddleware(h.authService, h.sessionService, h.apiTokenService)
 	r.POST("/register", h.Register)
 	r.POST("/login", h.Login)
-	r.GET("/me", middleware.AuthMiddleware(h.authService), h.GetMe)
-	r.GET("/verify", middleware.AuthMiddleware(h.authService), h.Verify)
-	r.POST("/change-password", middleware.AuthMiddleware(h.authService), h.ChangePassword)
+	r.POST("/logout", authMW, h.Logout)
+	r.GET("/me", authMW, h.GetMe)
+	r.GET("/verify", authMW, h.Verify)
+	r.POST("/change-password", authMW, h.ChangePassword)
 	r.GET("/setup-required", h.SetupRequired)
 	r.POST("/setup", h.SetupAdmin)
 	r.POST("/invite/register", h.InviteRegister)
@@ -44,36 +52,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	utils.Error(c, 403, "系统已关闭公开注册，请使用邀请码注册", nil)
-	return
-
-	var input RegisterInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.Error(c, 400, "用户名和密码不能为空", err)
-		return
-	}
-
-	if len(input.Username) < 3 || len(input.Username) > 50 {
-		utils.Error(c, 400, "用户名长度应为3-50个字符", nil)
-		return
-	}
-
-	if len(input.Password) < 6 {
-		utils.Error(c, 400, "密码长度至少6个字符", nil)
-		return
-	}
-
-	result, err := h.authService.Register(input.Username, input.Password, input.Email)
-	if err != nil {
-		utils.Error(c, 500, "注册失败，请稍后重试", err)
-		return
-	}
-
-	if !result.Success {
-		utils.Error(c, 400, result.Message, nil)
-		return
-	}
-
-	c.JSON(201, result)
 }
 
 type InviteRegisterInput struct {
@@ -101,10 +79,9 @@ func (h *AuthHandler) InviteRegister(c *gin.Context) {
 	}
 
 	if len(input.Username) < 3 || len(input.Username) > 50 {
-		utils.Error(c, 400, "用户名长度应为 3-50 个字符", nil)
+		utils.Error(c, 400, "用户名长度应为 3-50", nil)
 		return
 	}
-
 	if len(input.Password) < 6 {
 		utils.Error(c, 400, "密码长度至少 6 个字符", nil)
 		return
@@ -112,14 +89,19 @@ func (h *AuthHandler) InviteRegister(c *gin.Context) {
 
 	result, err := h.authService.RegisterWithInvite(input.InviteCode, input.Username, input.Password, input.Email)
 	if err != nil {
-		utils.Error(c, 500, "注册失败，请稍后重试", err)
+		utils.Error(c, 500, "注册失败，请稍后再试", err)
 		return
 	}
 	if !result.Success {
 		utils.Error(c, 400, result.Message, nil)
 		return
 	}
-
+	if result.User != nil {
+		if _, err := h.sessionService.Issue(c, result.User.ID); err != nil {
+			utils.Error(c, 500, "注册失败", err)
+			return
+		}
+	}
 	c.JSON(201, result)
 }
 
@@ -137,16 +119,25 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	result, err := h.authService.Login(input.Username, input.Password)
 	if err != nil {
-		utils.Error(c, 500, "登录失败，请稍后重试", err)
+		utils.Error(c, 500, "登录失败，请稍后再试", err)
 		return
 	}
-
 	if !result.Success {
 		utils.Error(c, 401, result.Message, nil)
 		return
 	}
-
+	if result.User != nil {
+		if _, err := h.sessionService.Issue(c, result.User.ID); err != nil {
+			utils.Error(c, 500, "登录失败", err)
+			return
+		}
+	}
 	c.JSON(200, result)
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	_ = h.sessionService.RevokeCurrent(c)
+	utils.Success(c, 200, "已退出登录", nil)
 }
 
 func (h *AuthHandler) GetMe(c *gin.Context) {
@@ -161,7 +152,6 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 		utils.Error(c, 404, "用户不存在", err)
 		return
 	}
-
 	utils.SuccessData(c, user)
 }
 
@@ -172,7 +162,7 @@ func (h *AuthHandler) Verify(c *gin.Context) {
 
 	c.JSON(200, gin.H{
 		"success": true,
-		"message": "Token有效",
+		"message": "OK",
 		"user": gin.H{
 			"userId":   userID,
 			"username": username,
@@ -198,23 +188,24 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		utils.Error(c, 400, "原密码和新密码不能为空", err)
 		return
 	}
-
 	if len(input.NewPassword) < 6 {
-		utils.Error(c, 400, "新密码长度至少6个字符", nil)
+		utils.Error(c, 400, "新密码长度至少 6 个字符", nil)
 		return
 	}
 
 	result, err := h.authService.UpdatePassword(userID, input.OldPassword, input.NewPassword)
 	if err != nil {
-		utils.Error(c, 500, "修改密码失败，请稍后重试", err)
+		utils.Error(c, 500, "修改密码失败，请稍后再试", err)
 		return
 	}
-
 	if !result.Success {
 		utils.Error(c, 400, result.Message, nil)
 		return
 	}
 
+	// Revoke all sessions for this user and issue a fresh one.
+	_ = h.sessionService.RevokeAllForUser(userID)
+	_, _ = h.sessionService.Issue(c, userID)
 	c.JSON(200, result)
 }
 
@@ -224,7 +215,6 @@ func (h *AuthHandler) SetupRequired(c *gin.Context) {
 		utils.Error(c, 500, "检查用户失败", err)
 		return
 	}
-
 	utils.SuccessData(c, gin.H{"setupRequired": !hasUsers})
 }
 
@@ -253,14 +243,19 @@ func (h *AuthHandler) SetupAdmin(c *gin.Context) {
 
 	result, err := h.authService.CreateInitialAdmin(input.Username, input.Password, input.Email)
 	if err != nil {
-		utils.Error(c, 500, "初始化失败，请稍后重试", err)
+		utils.Error(c, 500, "初始化失败，请稍后再试", err)
 		return
 	}
-
 	if !result.Success {
 		utils.Error(c, 400, result.Message, nil)
 		return
 	}
-
+	if result.User != nil {
+		if _, err := h.sessionService.Issue(c, result.User.ID); err != nil {
+			utils.Error(c, 500, "初始化失败", err)
+			return
+		}
+	}
 	c.JSON(201, result)
 }
+

@@ -5,7 +5,8 @@
 ## ✨ 功能特性
 
 ### 🔐 用户认证
-- JWT令牌认证
+- Session（HttpOnly Cookie，服务端 Session）
+- 可选：PASETO v4.local API Token（用于非浏览器/第三方调用，`Authorization: Bearer <token>`）
 - 安全的密码加密存储
 - 首次启动通过 Setup 页面完成初始化
 - API请求频率限制
@@ -67,7 +68,8 @@
 ### 后端
 - Go 1.24 (Gin Web框架)
 - SQLite (GORM ORM)
-- JWT认证 (golang-jwt/jwt)
+- Session（HttpOnly Cookie，服务端 Session）
+- PASETO v4.local（API Token，可撤销）
 - golang.org/x/crypto/bcrypt (密码加密)
 - emersion/go-imap (邮箱IMAP协议)
 - **🆕 RapidOCR v3**（OCR识别引擎，Python + ONNXRuntime）✨
@@ -126,8 +128,9 @@ services:
     ports:
       - "80:80"
     environment:
-      - JWT_SECRET=your-secure-secret-key-here  # 可选：设置JWT密钥
       - ADMIN_PASSWORD=your-admin-password      # 可选：设置管理员密码
+      # 可选：固定 PASETO v4.local key（用于 API Token）；不配置则容器重启后 Token 失效
+      # - PASETO_V4_LOCAL_KEY=your-base64-or-hex-key
     volumes:
       - app-data:/app/backend/data
       - app-uploads:/app/backend/uploads

@@ -4,20 +4,6 @@ import type { ApiResponse, User } from '@/types'
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 export const FILE_BASE_URL = import.meta.env.VITE_FILE_URL || ''
 
-// Get stored token
-const getToken = (): string | null => {
-  return localStorage.getItem('token')
-}
-
-// Set stored token
-export const setToken = (token: string | null) => {
-  if (token) {
-    localStorage.setItem('token', token)
-  } else {
-    localStorage.removeItem('token')
-  }
-}
-
 // Get stored user
 export const getStoredUser = (): User | null => {
   const userStr = localStorage.getItem('user')
@@ -42,7 +28,6 @@ export const setStoredUser = (user: User | null) => {
 
 // Clear auth data
 export const clearAuth = () => {
-  localStorage.removeItem('token')
   localStorage.removeItem('user')
 }
 
@@ -55,18 +40,10 @@ export const setAuthErrorHandler = (handler: () => void) => {
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-})
-
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = getToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
 })
 
 // Handle 401 responses
@@ -87,13 +64,15 @@ api.interceptors.response.use(
 // Auth APIs
 export const authApi = {
   login: (username: string, password: string) =>
-    api.post<{ success: boolean; message: string; user?: User; token?: string }>('/auth/login', { username, password }),
+    api.post<{ success: boolean; message: string; user?: User }>('/auth/login', { username, password }),
+
+  logout: () => api.post<ApiResponse<void>>('/auth/logout'),
   
   register: (username: string, password: string, email?: string) =>
-    api.post<{ success: boolean; message: string; user?: User; token?: string }>('/auth/register', { username, password, email }),
+    api.post<{ success: boolean; message: string; user?: User }>('/auth/register', { username, password, email }),
 
   inviteRegister: (inviteCode: string, username: string, password: string, email?: string) =>
-    api.post<{ success: boolean; message: string; user?: User; token?: string }>('/auth/invite/register', { inviteCode, username, password, email }),
+    api.post<{ success: boolean; message: string; user?: User }>('/auth/invite/register', { inviteCode, username, password, email }),
   
   verify: () =>
     api.get<ApiResponse<{ userId: string; username: string; role: string }>>('/auth/verify'),
@@ -108,7 +87,7 @@ export const authApi = {
     api.get<ApiResponse<{ setupRequired: boolean }>>('/auth/setup-required'),
 
   setup: (username: string, password: string, email?: string) =>
-    api.post<{ success: boolean; message: string; user?: User; token?: string }>('/auth/setup', { username, password, email }),
+    api.post<{ success: boolean; message: string; user?: User }>('/auth/setup', { username, password, email }),
 
   adminCreateInvite: (expiresInDays?: number) =>
     api.post<ApiResponse<{ code: string; code_hint: string; expiresAt?: string | null }>>('/admin/invites', { expiresInDays }),
@@ -130,6 +109,29 @@ export const authApi = {
     >('/admin/invites', { params: { limit } }),
 
   adminDeleteInvite: (id: string) => api.delete<ApiResponse<{ deleted: boolean }>>(`/admin/invites/${id}`),
+
+  adminCreateApiToken: (name?: string, expiresInDays?: number) =>
+    api.post<ApiResponse<{ token: string; token_hint: string; id: string; expires_at?: string | null }>>('/admin/api-tokens', {
+      name,
+      expiresInDays,
+    }),
+
+  adminListApiTokens: (limit = 50) =>
+    api.get<
+      ApiResponse<
+        Array<{
+          id: string
+          name: string
+          token_hint: string
+          expires_at?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          created_at: string
+        }>
+      >
+    >('/admin/api-tokens', { params: { limit } }),
+
+  adminRevokeApiToken: (id: string) => api.post<ApiResponse<{ revoked: boolean }>>(`/admin/api-tokens/${id}/revoke`),
 }
 
 export default api

@@ -1,34 +1,45 @@
 package config
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"log"
 	"os"
 	"strconv"
 )
 
 type Config struct {
-	Port          string
-	JWTSecret     string
-	JWTExpiresIn  string
-	AdminPassword string
-	NodeEnv       string
-	DataDir       string
-	UploadsDir    string
+	Port               string
+	SessionCookieName  string
+	SessionExpiresIn   string
+	CookieSameSite     string
+	CookieSecure       *bool
+	PasetoV4LocalKey   string
+	CORSAllowedOrigins string
+	AdminPassword      string
+	NodeEnv            string
+	DataDir            string
+	UploadsDir         string
 }
 
 var AppConfig *Config
 
 func Load() *Config {
+	nodeEnv := getEnv("NODE_ENV", "development")
+	corsDefault := ""
+	if nodeEnv != "production" {
+		// Dev default: allow Vite dev server to call the API with cookies.
+		corsDefault = "http://localhost:5173,http://127.0.0.1:5173"
+	}
 	config := &Config{
-		Port:          getEnv("PORT", "3001"),
-		JWTSecret:     getJWTSecret(),
-		JWTExpiresIn:  getEnv("JWT_EXPIRES_IN", "168h"), // 7 days
-		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
-		NodeEnv:       getEnv("NODE_ENV", "development"),
-		DataDir:       getEnv("DATA_DIR", "./data"),
-		UploadsDir:    getEnv("UPLOADS_DIR", "./uploads"),
+		Port:               getEnv("PORT", "3001"),
+		SessionCookieName:  getEnv("SESSION_COOKIE_NAME", "sbm_session"),
+		SessionExpiresIn:   getEnv("SESSION_EXPIRES_IN", "168h"), // 7 days
+		CookieSameSite:     getEnv("COOKIE_SAMESITE", "Lax"),     // Lax|Strict|None
+		CookieSecure:       getEnvBoolPtr("COOKIE_SECURE"),       // default: production=true, otherwise false
+		PasetoV4LocalKey:   getEnv("PASETO_V4_LOCAL_KEY", ""),
+		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", corsDefault),
+		AdminPassword:      os.Getenv("ADMIN_PASSWORD"),
+		NodeEnv:            nodeEnv,
+		DataDir:            getEnv("DATA_DIR", "./data"),
+		UploadsDir:         getEnv("UPLOADS_DIR", "./uploads"),
 	}
 	AppConfig = config
 	return config
@@ -50,21 +61,14 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func getJWTSecret() string {
-	secret := os.Getenv("JWT_SECRET")
-	if secret != "" {
-		return secret
+func getEnvBoolPtr(key string) *bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return nil
 	}
-
-	// In production, warn about missing JWT_SECRET
-	if os.Getenv("NODE_ENV") == "production" {
-		log.Println("⚠️ WARNING: JWT_SECRET not set in production. Using generated secret (will change on restart).")
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return nil
 	}
-
-	// Generate a random secret
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		log.Fatal("Failed to generate JWT secret:", err)
-	}
-	return hex.EncodeToString(bytes)
+	return &b
 }

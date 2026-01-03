@@ -8,31 +8,48 @@ import (
 	"smart-bill-manager/internal/utils"
 )
 
-// AuthMiddleware creates JWT authentication middleware
-func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
+// AuthMiddleware authenticates either:
+// - browser sessions via HttpOnly cookie (server-side sessions)
+// - non-browser clients via Authorization: Bearer <PASETO>
+func AuthMiddleware(authService *services.AuthService, sessionService *services.SessionService, apiTokenService *services.APITokenService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
+		var userID string
 
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			utils.Error(c, 401, "未授权，请先登录", nil)
-			c.Abort()
-			return
+		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+			id, err := apiTokenService.VerifyBearer(token)
+			if err != nil {
+				utils.Error(c, 401, "未授权，请先登录", nil)
+				c.Abort()
+				return
+			}
+			userID = id
+		} else {
+			id, err := sessionService.GetUserIDFromCookie(c)
+			if err != nil {
+				utils.Error(c, 401, "未授权，请先登录", nil)
+				c.Abort()
+				return
+			}
+			userID = id
 		}
 
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := authService.VerifyToken(token)
-
+		user, err := authService.GetUserByID(userID)
 		if err != nil {
 			utils.Error(c, 401, "登录已过期，请重新登录", nil)
 			c.Abort()
 			return
 		}
+		if user.IsActive != 1 {
+			utils.Error(c, 401, "账号已禁用", nil)
+			c.Abort()
+			return
+		}
 
-		// Set user info in context
-		c.Set("userId", claims.UserID)
-		c.Set("username", claims.Username)
-		c.Set("role", claims.Role)
-
+		c.Set("userId", user.ID)
+		c.Set("username", user.Username)
+		c.Set("role", user.Role)
 		c.Next()
 	}
 }

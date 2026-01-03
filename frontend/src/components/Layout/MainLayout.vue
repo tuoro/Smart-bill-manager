@@ -152,6 +152,7 @@ const navItemsWithAdmin = computed(() => {
   if (authStore.user?.role === 'admin') {
     items.push({ path: '/logs', label: '日志', icon: 'pi pi-book' })
     items.push({ path: '/admin/invites', label: '\u9080\u8bf7\u7801\u7ba1\u7406', icon: 'pi pi-ticket' })
+    items.push({ path: '/admin/api-tokens', label: 'API Token', icon: 'pi pi-key' })
     items.push({ path: '/admin/regression-samples', label: '回归样本', icon: 'pi pi-verified' })
   }
   return items

@@ -24,7 +24,6 @@ type AuthResult struct {
 	Success bool                 `json:"success"`
 	Message string               `json:"message"`
 	User    *models.UserResponse `json:"user,omitempty"`
-	Token   string               `json:"token,omitempty"`
 }
 
 // Register creates a new user
@@ -59,18 +58,11 @@ func (s *AuthService) Register(username, password string, email *string) (*AuthR
 		return nil, err
 	}
 
-	// Generate token
-	token, err := utils.GenerateToken(id, username, "user")
-	if err != nil {
-		return nil, err
-	}
-
 	userResponse := user.ToResponse()
 	return &AuthResult{
 		Success: true,
 		Message: "注册成功",
 		User:    &userResponse,
-		Token:   token,
 	}, nil
 }
 
@@ -86,24 +78,12 @@ func (s *AuthService) Login(username, password string) (*AuthResult, error) {
 		return &AuthResult{Success: false, Message: "用户名或密码错误"}, nil
 	}
 
-	// Generate token
-	token, err := utils.GenerateToken(user.ID, user.Username, user.Role)
-	if err != nil {
-		return nil, err
-	}
-
 	userResponse := user.ToResponse()
 	return &AuthResult{
 		Success: true,
 		Message: "登录成功",
 		User:    &userResponse,
-		Token:   token,
 	}, nil
-}
-
-// VerifyToken verifies a JWT token
-func (s *AuthService) VerifyToken(tokenString string) (*utils.Claims, error) {
-	return utils.VerifyToken(tokenString)
 }
 
 // GetUserByID gets a user by ID
@@ -203,13 +183,6 @@ func (s *AuthService) CreateInitialAdmin(username, password string, email *strin
 		// Update the role in the result
 		if result.User != nil {
 			result.User.Role = "admin"
-		}
-
-		// Re-issue token with admin role (Register() always issues a "user" token).
-		if result.User != nil {
-			if token, err := utils.GenerateToken(result.User.ID, result.User.Username, "admin"); err == nil {
-				result.Token = token
-			}
 		}
 	}
 

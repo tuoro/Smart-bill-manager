@@ -8,8 +8,8 @@ services:
     ports:
       - "80:80"
     environment:
-      # Optional: Set a secure JWT secret (recommended for production)
-      # - JWT_SECRET=your-secure-random-secret-key
+      # Optional: Provision a fixed PASETO v4.local key for API Tokens (otherwise tokens reset on restart)
+      # - PASETO_V4_LOCAL_KEY=your-base64-or-hex-key
       # Optional: Set admin password (otherwise a random password is generated)
       # - ADMIN_PASSWORD=your-admin-password
       # OCR engine selection:

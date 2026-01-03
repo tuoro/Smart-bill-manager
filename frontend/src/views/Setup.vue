@@ -133,8 +133,8 @@ const handleSetup = async () => {
   try {
     const response = await authApi.setup(form.username, form.password, form.email || undefined)
     if (response.data.success) {
-      if (response.data.token && response.data.user) {
-        authStore.setSession(response.data.user, response.data.token)
+      if (response.data.user) {
+        authStore.setSession(response.data.user)
       } else {
         toast.add({ severity: 'error', summary: '\u521B\u5EFA\u6210\u529F\uFF0C\u4F46\u8FD4\u56DE\u6570\u636E\u4E0D\u5B8C\u6574\uFF0C\u8BF7\u5237\u65B0\u540E\u91CD\u8BD5', life: 3500 })
         return

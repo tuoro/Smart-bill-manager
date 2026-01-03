@@ -70,6 +70,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '邀请码管理', requiresAdmin: true },
       },
       {
+        path: 'admin/api-tokens',
+        name: 'AdminApiTokens',
+        component: () => import('@/views/AdminApiTokens.vue'),
+        meta: { title: 'API Token', requiresAdmin: true },
+      },
+      {
         path: 'admin/regression-samples',
         name: 'AdminRegressionSamples',
         component: () => import('@/views/AdminRegressionSamples.vue'),
@@ -125,9 +131,8 @@ router.beforeEach(async (to, _from, next) => {
     // If setup status is unknown and there is no local session, prefer /setup over /login.
     // This avoids "first open goes to login" on fresh installs when the setup check fails.
     if (setupResponse === null) {
-      const hasLocalToken = !!localStorage.getItem('token')
       const hasLocalUser = !!localStorage.getItem('user')
-      if (!hasLocalToken && !hasLocalUser) {
+      if (!hasLocalUser) {
         next('/setup')
         return
       }

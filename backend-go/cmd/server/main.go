@@ -35,6 +35,8 @@ func main() {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Invite{},
+		&models.Session{},
+		&models.APIToken{},
 		&models.Task{},
 		&models.RegressionSample{},
 		&models.Payment{},
@@ -129,6 +131,8 @@ func main() {
 
 	// Initialize services
 	authService := services.NewAuthService()
+	sessionService := services.NewSessionService()
+	apiTokenService := services.NewAPITokenService()
 	paymentService := services.NewPaymentService(uploadsDir)
 	invoiceService := services.NewInvoiceService(uploadsDir)
 	emailService := services.NewEmailService(uploadsDir, invoiceService)
@@ -170,8 +174,11 @@ func main() {
 	// Middleware
 	r.Use(middleware.CORSMiddleware())
 
-	// Serve uploaded files
-	r.Static("/uploads", uploadsDir)
+	// Serve uploaded files (protected)
+	uploadsHandler := handlers.NewUploadsHandler(uploadsDir)
+	uploadsGroup := r.Group("/uploads")
+	uploadsGroup.Use(middleware.AuthMiddleware(authService, sessionService, apiTokenService))
+	uploadsHandler.RegisterRoutes(uploadsGroup)
 
 	// API routes
 	api := r.Group("/api")
@@ -187,13 +194,13 @@ func main() {
 	// Auth routes (public) with rate limiting
 	authGroup := api.Group("/auth")
 	authGroup.Use(middleware.AuthRateLimitMiddleware())
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, sessionService, apiTokenService)
 	authHandler.RegisterRoutes(authGroup)
 
 	// Protected routes with rate limiting
 	protectedGroup := api.Group("")
 	protectedGroup.Use(middleware.APIRateLimitMiddleware())
-	protectedGroup.Use(middleware.AuthMiddleware(authService))
+	protectedGroup.Use(middleware.AuthMiddleware(authService, sessionService, apiTokenService))
 
 	// Payment routes
 	paymentHandler := handlers.NewPaymentHandler(paymentService, taskService)
@@ -227,6 +234,8 @@ func main() {
 	adminGroup.Use(middleware.RequireAdmin())
 	adminInvitesHandler := handlers.NewAdminInvitesHandler(authService)
 	adminInvitesHandler.RegisterRoutes(adminGroup.Group("/invites"))
+	adminTokensHandler := handlers.NewAdminAPITokensHandler(apiTokenService)
+	adminTokensHandler.RegisterRoutes(adminGroup.Group("/api-tokens"))
 	adminRegressionHandler := handlers.NewAdminRegressionSamplesHandler(services.NewRegressionSampleService())
 	adminRegressionHandler.RegisterRoutes(adminGroup.Group("/regression-samples"))
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { authApi, clearAuth, getStoredUser, setStoredUser, setToken } from '@/api/auth'
+import { authApi, clearAuth, getStoredUser, setStoredUser } from '@/api/auth'
 import type { User } from '@/types'
 
 // Cache TTL for setup-required check (5 minutes)
@@ -13,8 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!user.value)
 
-  function setSession(nextUser: User, token: string) {
-    setToken(token)
+  function setSession(nextUser: User) {
     setStoredUser(nextUser)
     user.value = nextUser
     // After a successful login/setup, setup is definitely not required anymore.
@@ -30,8 +29,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const res = await authApi.login(username, password)
-      if (res.data.success && res.data.token && res.data.user) {
-        setSession(res.data.user, res.data.token)
+      if (res.data.success && res.data.user) {
+        setSession(res.data.user)
         return { success: true, message: '登录成功' }
       }
       return { success: false, message: res.data.message || '登录失败' }
@@ -48,13 +47,14 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function verifyToken(): Promise<boolean> {
-    const storedUser = getStoredUser()
-    if (!storedUser) return false
-
     try {
-      await authApi.verify()
-      user.value = storedUser
-      return true
+      const res = await authApi.getCurrentUser()
+      if (res.data.success && res.data.data) {
+        setSession(res.data.data)
+        return true
+      }
+      clearSession()
+      return false
     } catch {
       clearSession()
       return false
@@ -62,6 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    authApi.logout().catch(() => {})
     clearSession()
   }
 
@@ -97,4 +98,3 @@ export const useAuthStore = defineStore('auth', () => {
     checkSetupRequired,
   }
 })
-

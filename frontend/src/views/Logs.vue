@@ -161,12 +161,6 @@ const startStream = async () => {
     return
   }
 
-  const token = localStorage.getItem('token')
-  if (!token) {
-    toast.add({ severity: 'error', summary: '\u672A\u767B\u5F55\uFF0C\u65E0\u6CD5\u67E5\u770B\u65E5\u5FD7', life: 3000 })
-    return
-  }
-
   connecting.value = true
   abortController = new AbortController()
 
@@ -174,7 +168,7 @@ const startStream = async () => {
     const url = `${API_BASE_URL}/logs/stream?sources=${encodeURIComponent(selectedSources.value.join(','))}`
     const res = await fetch(url, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
       signal: abortController.signal,
     })
 

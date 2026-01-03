@@ -233,16 +233,10 @@ func (s *AuthService) RegisterWithInvite(inviteCode, username, password string, 
 		}
 	}
 
-	// Generate token for the new user.
-	token, err := utils.GenerateToken(createdUser.ID, createdUser.Username, createdUser.Role)
-	if err != nil {
-		return nil, err
-	}
 	userResp := createdUser.ToResponse()
 	return &AuthResult{
 		Success: true,
 		Message: "注册成功",
 		User:    &userResp,
-		Token:   token,
 	}, nil
 }

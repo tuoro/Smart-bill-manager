@@ -55,10 +55,12 @@ import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import Button from 'primevue/button'
 import { useToast } from 'primevue/usetoast'
-import { authApi, setStoredUser, setToken } from '@/api'
+import { authApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const toast = useToast()
+const authStore = useAuthStore()
 
 const loading = ref(false)
 const form = reactive({
@@ -118,8 +120,7 @@ const handleRegister = async () => {
   try {
     const res = await authApi.inviteRegister(form.inviteCode, form.username, form.password, form.email || undefined)
     if (res.data.success) {
-      if (res.data.token) setToken(res.data.token)
-      if (res.data.user) setStoredUser(res.data.user)
+      if (res.data.user) authStore.setSession(res.data.user)
       toast.add({ severity: 'success', summary: '注册成功', life: 2200 })
       setTimeout(() => router.push('/dashboard'), 300)
       return

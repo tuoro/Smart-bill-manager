@@ -254,15 +254,14 @@
                     v-model="calendarSelectedDate"
                     inline
                     :manualInput="false"
+                    :minDate="calendarMinDate"
+                    :maxDate="calendarMaxDate"
                     @month-change="handleCalendarMonthChange"
                     @year-change="handleCalendarMonthChange"
                   >
                     <template #date="{ date }">
-                      <div class="date-cell" :class="{ 'is-today': date.today }">
+                      <div class="date-cell" :class="calendarDateCellClass(date)">
                         <div class="date-day">{{ date.day }}</div>
-                        <div v-if="getCalendarDayTotal(date) !== 0" class="date-total">
-                          {{ formatMoneyCompact(getCalendarDayTotal(date)) }}
-                        </div>
                       </div>
                     </template>
                   </DatePicker>
@@ -273,7 +272,6 @@
                     <template #title>
                       <div class="panel-title">
                         <span>{{ calendarRightTitle }}</span>
-                        <Tag v-if="calendarSelectedTotal !== 0" :value="formatMoney(calendarSelectedTotal)" severity="success" />
                       </div>
                     </template>
                     <template #content>
@@ -709,12 +707,6 @@ const tripNameById = computed<Record<string, string>>(() => {
 
 const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 const formatMoney = (amount: number) => `¥${Number(amount || 0).toFixed(2)}`
-const formatMoneyCompact = (amount: number) => {
-  const v = Number(amount || 0)
-  if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(1)}w`
-  if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}k`
-  return `${v.toFixed(0)}`
-}
 
 const validateTripForm = () => {
   tripErrors.name = ''
@@ -1152,6 +1144,31 @@ const calendarMonthPayments = ref<Payment[]>([])
 const calendarTripFilter = ref<string | null>(null)
 const calendarMonthBase = ref<'zero' | 'one' | null>(null)
 
+const calendarActiveTrip = computed(() => {
+  const id = calendarTripFilter.value
+  if (!id) return null
+  return trips.value.find((t) => t.id === id) || null
+})
+
+const calendarTripRange = computed(() => {
+  const trip = calendarActiveTrip.value
+  if (!trip) return null
+  const start = dayjs(trip.start_time).startOf('day')
+  const end = dayjs(trip.end_time).endOf('day')
+  if (!start.isValid() || !end.isValid()) return null
+  return { start, end }
+})
+
+const calendarMinDate = computed(() => {
+  const r = calendarTripRange.value
+  return r ? r.start.toDate() : undefined
+})
+
+const calendarMaxDate = computed(() => {
+  const r = calendarTripRange.value
+  return r ? r.end.toDate() : undefined
+})
+
 const calendarTripOptions = computed(() => [
   { label: '全部支付', value: null },
   ...trips.value.map((t) => ({ label: t.name, value: t.id })),
@@ -1209,21 +1226,32 @@ const calendarFilteredPayments = computed(() => {
   return calendarMonthPayments.value.filter((p) => p.trip_id === calendarTripFilter.value)
 })
 
-const dailyTotals = computed<Record<string, number>>(() => {
-  const totals: Record<string, number> = {}
-  for (const p of calendarFilteredPayments.value) {
-    const key = p.transaction_time ? dayjs(p.transaction_time).format('YYYY-MM-DD') : ''
-    if (!key) continue
-    totals[key] = (totals[key] || 0) + Number(p.amount || 0)
-  }
-  return totals
-})
-
-const getCalendarDayTotal = (slotDate: any) => {
-  // slotDate: {day, month, year, today, selectable}
+const calendarSlotToDay = (slotDate: any) => {
   const monthIndex = normalizePrimeMonthIndex(slotDate.month)
-  const key = dayjs().year(slotDate.year).month(monthIndex).date(slotDate.day).format('YYYY-MM-DD')
-  return dailyTotals.value[key] || 0
+  return dayjs().year(slotDate.year).month(monthIndex).date(slotDate.day)
+}
+
+const calendarDateCellClass = (slotDate: any) => {
+  const trip = calendarActiveTrip.value
+  const range = calendarTripRange.value
+  const d = calendarSlotToDay(slotDate)
+
+  const inRange =
+    !!(trip &&
+      range &&
+      d.isValid() &&
+      d.valueOf() >= range.start.startOf('day').valueOf() &&
+      d.valueOf() <= range.end.endOf('day').valueOf())
+  const isStart = !!(trip && range && inRange && d.format('YYYY-MM-DD') === range.start.format('YYYY-MM-DD'))
+  const isEnd = !!(trip && range && inRange && d.format('YYYY-MM-DD') === range.end.format('YYYY-MM-DD'))
+
+  return {
+    'is-today': !!slotDate?.today,
+    'is-in-trip': inRange,
+    'is-trip-start': isStart,
+    'is-trip-end': isEnd,
+    'is-outside-trip': !!trip && !inRange,
+  }
 }
 
 const calendarSelectedKey = computed(() => dayjs(calendarSelectedDate.value).format('YYYY-MM-DD'))
@@ -1234,8 +1262,6 @@ const calendarSelectedPayments = computed(() => {
     .sort((a, b) => (a.transaction_time < b.transaction_time ? 1 : -1))
 })
 
-const calendarSelectedTotal = computed(() => dailyTotals.value[calendarSelectedKey.value] || 0)
-
 const calendarRightTitle = computed(() => {
   const base = dayjs(calendarSelectedDate.value).format('YYYY-MM-DD')
   const trip = calendarTripFilter.value ? tripNameById.value[calendarTripFilter.value] : ''
@@ -1245,13 +1271,14 @@ const calendarRightTitle = computed(() => {
 const pickBestDateFromPayments = (items: Payment[] | undefined | null) => {
   if (!items || items.length === 0) return null
 
+  // Earliest payment date is more intuitive as an entry point for multi-month trips.
   let best: Payment | null = null
-  let bestTs = Number.NEGATIVE_INFINITY
+  let bestTs = Number.POSITIVE_INFINITY
   for (const p of items) {
     const t = p?.transaction_time ? dayjs(p.transaction_time) : null
     if (!t || !t.isValid()) continue
     const ts = t.valueOf()
-    if (ts > bestTs) {
+    if (ts < bestTs) {
       best = p
       bestTs = ts
     }
@@ -1293,12 +1320,6 @@ watch(
     }
 
     await refreshCalendarMonth()
-    await nextTick()
-
-    if (tripId) {
-      const bestInMonth = pickBestDateFromPayments(calendarFilteredPayments.value)
-      if (bestInMonth) calendarSelectedDate.value = bestInMonth
-    }
   },
 )
 
@@ -1635,10 +1656,19 @@ onMounted(async () => {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color), transparent 30%);
 }
 
-.date-total {
-  font-size: 10px;
-  color: var(--p-text-muted-color);
-  line-height: 1;
+.date-cell.is-in-trip {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--p-primary-color), transparent 90%);
+}
+
+.date-cell.is-trip-start,
+.date-cell.is-trip-end {
+  background: color-mix(in srgb, var(--p-primary-color), transparent 82%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color), transparent 35%);
+}
+
+.date-cell.is-outside-trip {
+  opacity: 0.45;
 }
 
 :global(.p-datepicker-day.p-datepicker-day-selected .date-cell .date-day) {

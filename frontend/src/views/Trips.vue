@@ -1486,11 +1486,18 @@ onMounted(async () => {
   grid-template-columns: 360px 1fr;
   gap: 14px;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .calendar-left {
   border-radius: 16px;
   padding: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .calendar-toolbar {
@@ -1506,8 +1513,25 @@ onMounted(async () => {
   max-width: 220px;
 }
 
+.calendar-right {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .calendar-left :deep(.p-dropdown),
 .calendar-left :deep(.p-datepicker) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.calendar-left :deep(.p-datepicker) {
+  display: block;
+}
+
+.calendar-left :deep(.p-datepicker-panel),
+.calendar-left :deep(.p-datepicker-group-container),
+.calendar-left :deep(.p-datepicker-calendar-container) {
   width: 100%;
   max-width: 100%;
 }
@@ -1515,6 +1539,10 @@ onMounted(async () => {
 .calendar-left :deep(.p-datepicker-calendar),
 .calendar-left :deep(.p-datepicker-calendar table) {
   width: 100%;
+}
+
+.calendar-left :deep(.p-datepicker-calendar table) {
+  table-layout: fixed;
 }
 
 .calendar-right :deep(.p-card),

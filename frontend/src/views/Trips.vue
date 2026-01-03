@@ -50,6 +50,7 @@
                   :multiple="true"
                   class="trip-accordion"
                   @tab-open="handleTripOpen"
+                  @tab-close="handleTripClose"
                 >
                   <AccordionTab v-for="trip in pagedTrips" :key="trip.id">
                     <template #header>
@@ -69,45 +70,62 @@
                             {{ formatDateTime(trip.end_time) }}
                           </div>
                         </div>
-                        <div class="trip-badges">
-                          <Tag
-                            v-if="trip.bad_debt_locked"
-                            value="坏账锁定"
-                            class="sbm-lock-tag"
-                          />
-                          <Tag
-                            :value="
-                              trip.reimburse_status === 'reimbursed'
-                                ? '已报销'
-                                : '未报销'
-                            "
-                            :severity="
-                              trip.reimburse_status === 'reimbursed'
-                                ? 'success'
-                                : 'secondary'
-                            "
-                          />
-                          <Tag
-                            :value="
-                              formatMoney(summaries[trip.id]?.total_amount || 0)
-                            "
-                            severity="success"
-                          />
-                          <Tag
-                            :value="`支付 ${summaries[trip.id]?.payment_count || 0}`"
-                            severity="info"
-                          />
-                          <Tag
-                            :value="`发票 ${summaries[trip.id]?.linked_invoices || 0}`"
-                            severity="secondary"
-                          />
-                          <Tag
-                            v-if="
-                              (summaries[trip.id]?.unlinked_payments || 0) > 0
-                            "
-                            :value="`未关联 ${summaries[trip.id]?.unlinked_payments || 0}`"
-                            severity="warning"
-                          />
+                        <div class="trip-right">
+                          <div class="trip-badges">
+                            <Tag
+                              v-if="trip.bad_debt_locked"
+                              value="坏账锁定"
+                              class="sbm-lock-tag"
+                            />
+                            <Tag
+                              :value="
+                                trip.reimburse_status === 'reimbursed'
+                                  ? '已报销'
+                                  : '未报销'
+                              "
+                              :severity="
+                                trip.reimburse_status === 'reimbursed'
+                                  ? 'success'
+                                  : 'secondary'
+                              "
+                            />
+                            <Tag
+                              :value="
+                                formatMoney(
+                                  summaries[trip.id]?.total_amount || 0,
+                                )
+                              "
+                              severity="success"
+                            />
+                            <Tag
+                              :value="`支付 ${summaries[trip.id]?.payment_count || 0}`"
+                              severity="info"
+                            />
+                            <Tag
+                              :value="`发票 ${summaries[trip.id]?.linked_invoices || 0}`"
+                              severity="secondary"
+                            />
+                            <Tag
+                              v-if="
+                                (summaries[trip.id]?.unlinked_payments || 0) > 0
+                              "
+                              :value="`未关联 ${summaries[trip.id]?.unlinked_payments || 0}`"
+                              severity="warning"
+                            />
+                          </div>
+                          <div class="trip-toggle">
+                            <span class="trip-toggle-text">{{
+                              openTripIds.has(trip.id) ? "收起" : "展开"
+                            }}</span>
+                            <i
+                              class="pi"
+                              :class="
+                                openTripIds.has(trip.id)
+                                  ? 'pi-chevron-up'
+                                  : 'pi-chevron-down'
+                              "
+                            />
+                          </div>
                         </div>
                       </div>
                     </template>
@@ -898,6 +916,8 @@ const onTripListPage = (e: { first: number; rows: number }) => {
   tripListRows.value = e.rows;
 };
 
+const openTripIds = reactive(new Set<string>());
+
 watch(
   () => trips.value.length,
   (n) => {
@@ -906,6 +926,14 @@ watch(
       return;
     }
     if (tripListFirst.value >= n) tripListFirst.value = 0;
+  },
+);
+
+watch(
+  () => [tripListFirst.value, tripListRows.value],
+  () => {
+    // Accordion state resets when paging trips; keep the toggle label in sync.
+    openTripIds.clear();
   },
 );
 const summaries = reactive<Record<string, TripSummary>>({});
@@ -1287,8 +1315,15 @@ const blockPending = (paymentId: string) => {
 const handleTripOpen = (e: { index: number }) => {
   const trip = pagedTrips.value[e.index];
   if (!trip) return;
+  openTripIds.add(trip.id);
   if (tripPayments[trip.id]) return;
   loadTripPayments(trip.id);
+};
+
+const handleTripClose = (e: { index: number }) => {
+  const trip = pagedTrips.value[e.index];
+  if (!trip) return;
+  openTripIds.delete(trip.id);
 };
 
 const reloadAll = async () => {
@@ -1775,6 +1810,10 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.trip-accordion :deep(.p-accordion-toggle-icon) {
+  display: none;
+}
+
 .trip-list {
   display: flex;
   flex-direction: column;
@@ -1810,6 +1849,13 @@ onMounted(async () => {
   min-width: 0;
 }
 
+.trip-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .trip-title {
   display: flex;
   flex-direction: column;
@@ -1820,6 +1866,21 @@ onMounted(async () => {
 .trip-name {
   font-weight: 900;
   color: var(--p-text-color);
+}
+
+.trip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid
+    color-mix(in srgb, var(--p-text-muted-color), transparent 70%);
+  color: var(--p-text-muted-color);
+  background: color-mix(in srgb, var(--p-surface-0), transparent 0%);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .trip-range {

@@ -69,6 +69,35 @@ func (s *PaymentService) DeleteDraftByScreenshotPath(screenshotPath string) erro
 		Error
 }
 
+func (s *PaymentService) UpdateDraftScreenshotPath(paymentID string, screenshotPath string, fileSHA256 *string) (*models.Payment, error) {
+	paymentID = strings.TrimSpace(paymentID)
+	screenshotPath = strings.TrimSpace(screenshotPath)
+	if paymentID == "" {
+		return nil, fmt.Errorf("missing payment id")
+	}
+	if screenshotPath == "" {
+		return nil, fmt.Errorf("missing screenshot path")
+	}
+
+	update := map[string]any{
+		"screenshot_path": screenshotPath,
+	}
+	if fileSHA256 != nil {
+		h := strings.TrimSpace(*fileSHA256)
+		if h != "" {
+			update["file_sha256"] = h
+		}
+	}
+
+	if err := database.GetDB().
+		Model(&models.Payment{}).
+		Where("id = ? AND is_draft = 1", paymentID).
+		Updates(update).Error; err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(paymentID)
+}
+
 type paymentOCRTaskResult struct {
 	Payment        *models.Payment       `json:"payment"`
 	Extracted      *PaymentExtractedData `json:"extracted"`

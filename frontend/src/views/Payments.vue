@@ -139,12 +139,53 @@
       v-model:visible="uploadScreenshotModalVisible"
       modal
       :header="'\u4E0A\u4F20\u652F\u4ED8\u622A\u56FE'"
-      :style="{ width: '1060px', maxWidth: '96vw' }"
+      :style="{ width: ocrResult ? '1060px' : '880px', maxWidth: '96vw' }"
       :closable="!uploadingScreenshot && !savingOcrResult"
       @hide="cancelScreenshotUpload"
     >
       <div class="upload-screenshot-body">
-        <div class="upload-screenshot-layout">
+        <div v-if="!ocrResult">
+          <div
+            class="upload-box sbm-dropzone"
+            @click="triggerScreenshotChoose"
+            @dragenter.prevent
+            @dragover.prevent
+            @drop.prevent="onScreenshotDrop"
+          >
+            <div class="sbm-dropzone-hero">
+              <i class="pi pi-cloud-upload" />
+              <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
+              <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
+            </div>
+
+            <input
+              ref="screenshotInput"
+              class="sbm-file-input-hidden"
+              type="file"
+              accept="image/png,image/jpeg"
+              @change="onScreenshotInputChange"
+            />
+
+            <div v-if="selectedScreenshotName" class="file-row" @click.stop>
+              <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
+              <Button
+                class="file-row-remove p-button-text"
+                severity="secondary"
+                icon="pi pi-times"
+                aria-label="Remove"
+                @click="clearSelectedScreenshot"
+              />
+            </div>
+            <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
+          </div>
+
+          <Message severity="info" :closable="false" style="margin-top: 12px">
+            &#35831;&#36873;&#25321;&#25130;&#22270;&#65292;&#28857;&#20987;&#8220;&#35782;&#21035;&#8221;&#29983;&#25104;&#24405;&#20837;&#24314;&#35758;&#12290;
+          </Message>
+        </div>
+
+        <div v-else class="upload-screenshot-layout">
           <div class="upload-screenshot-left">
             <div
               class="upload-box sbm-dropzone"
@@ -190,11 +231,7 @@
           </div>
 
           <div class="upload-screenshot-right">
-            <Message v-if="!ocrResult" severity="info" :closable="false">
-              &#35831;&#36873;&#25321;&#25130;&#22270;&#65292;&#28857;&#20987;&#8220;&#35782;&#21035;&#8221;&#29983;&#25104;&#24405;&#20837;&#24314;&#35758;&#12290;
-            </Message>
-
-            <form v-else class="p-fluid" @submit.prevent="handleSaveOcrResult">
+            <form class="p-fluid" @submit.prevent="handleSaveOcrResult">
               <Message v-if="uploadDedup?.kind === 'suspected_duplicate'" severity="warn" :closable="false">
                 检测到疑似重复支付记录（金额 + 时间接近）。如果确认需要保留，可点击保存后选择“仍然保存”。
               </Message>

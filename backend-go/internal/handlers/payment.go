@@ -214,6 +214,52 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 		utils.Error(c, 500, "重复检查失败", err)
 		return
 	} else if existing != nil {
+		// If the duplicate is only a draft, reuse it instead of hard-failing (common after container restarts).
+		if existing.IsDraft {
+			relPath := "uploads/" + filename
+			userID := middleware.GetUserID(c)
+			if userID == "" {
+				_ = os.Remove(filePath)
+				utils.Error(c, 401, "未授权，请先登录", nil)
+				return
+			}
+
+			usedPath := relPath
+			if existing.ScreenshotPath != nil && strings.TrimSpace(*existing.ScreenshotPath) != "" {
+				existingPath := strings.TrimSpace(*existing.ScreenshotPath)
+				if abs, err := resolveUploadsFilePath(uploadsDir, existingPath); err == nil {
+					if st, err := os.Stat(abs); err == nil && !st.IsDir() {
+						usedPath = existingPath
+						_ = os.Remove(filePath)
+					}
+				}
+			}
+
+			if usedPath == relPath {
+				updated, uerr := h.paymentService.UpdateDraftScreenshotPath(existing.ID, relPath, &fileSHA)
+				if uerr != nil {
+					_ = os.Remove(filePath)
+					utils.Error(c, 500, "更新草稿失败", uerr)
+					return
+				}
+				existing = updated
+			}
+
+			task, err := h.taskService.CreateTask(services.TaskTypePaymentOCR, userID, existing.ID, &fileSHA)
+			if err != nil {
+				utils.Error(c, 500, "创建识别任务失败", err)
+				return
+			}
+
+			utils.Success(c, 201, "截图上传成功，正在识别…", gin.H{
+				"taskId":          task.ID,
+				"payment":         existing,
+				"screenshot_path": usedPath,
+				"reused_draft":    true,
+			})
+			return
+		}
+
 		_ = os.Remove(filePath)
 		utils.ErrorData(c, 409, "文件内容重复，已存在记录", gin.H{
 			"kind":              "hash_duplicate",
@@ -332,6 +378,52 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 		utils.Error(c, 500, "重复检查失败", err)
 		return
 	} else if existing != nil {
+		// If the duplicate is only a draft, reuse it instead of hard-failing (common after container restarts).
+		if existing.IsDraft {
+			relPath := "uploads/" + filename
+			userID := middleware.GetUserID(c)
+			if userID == "" {
+				_ = os.Remove(filePath)
+				utils.Error(c, 401, "未授权，请先登录", nil)
+				return
+			}
+
+			usedPath := relPath
+			if existing.ScreenshotPath != nil && strings.TrimSpace(*existing.ScreenshotPath) != "" {
+				existingPath := strings.TrimSpace(*existing.ScreenshotPath)
+				if abs, err := resolveUploadsFilePath(uploadsDir, existingPath); err == nil {
+					if st, err := os.Stat(abs); err == nil && !st.IsDir() {
+						usedPath = existingPath
+						_ = os.Remove(filePath)
+					}
+				}
+			}
+
+			if usedPath == relPath {
+				updated, uerr := h.paymentService.UpdateDraftScreenshotPath(existing.ID, relPath, &fileSHA)
+				if uerr != nil {
+					_ = os.Remove(filePath)
+					utils.Error(c, 500, "更新草稿失败", uerr)
+					return
+				}
+				existing = updated
+			}
+
+			task, err := h.taskService.CreateTask(services.TaskTypePaymentOCR, userID, existing.ID, &fileSHA)
+			if err != nil {
+				utils.Error(c, 500, "创建识别任务失败", err)
+				return
+			}
+
+			utils.Success(c, 201, "截图上传成功，正在识别…", gin.H{
+				"taskId":          task.ID,
+				"payment":         existing,
+				"screenshot_path": usedPath,
+				"reused_draft":    true,
+			})
+			return
+		}
+
 		_ = os.Remove(filePath)
 		utils.ErrorData(c, 409, "文件内容重复，已存在记录", gin.H{
 			"kind":              "hash_duplicate",

@@ -187,6 +187,7 @@ const startStream = async () => {
     }
 
     connected.value = true
+    connecting.value = false
     const reader = res.body.getReader()
     const decoder = new TextDecoder('utf-8')
     let buffer = ''

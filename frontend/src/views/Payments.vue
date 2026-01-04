@@ -498,7 +498,7 @@
       v-model:visible="paymentDetailVisible"
       modal
       :header="'\u652F\u4ED8\u8BB0\u5F55\u8BE6\u60C5'"
-      :style="{ width: '740px', maxWidth: '94vw' }"
+      :style="{ width: detailPayment?.screenshot_path ? '1060px' : '740px', maxWidth: '94vw' }"
       :breakpoints="{ '960px': '94vw', '640px': '96vw' }"
       :contentStyle="{ padding: '14px 16px' }"
       :closable="!paymentDetailEditing && !savingPaymentDetail"
@@ -541,95 +541,105 @@
           </div>
         </div>
 
-        <div class="grid sbm-grid-tight">
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">&#37329;&#39069;</div>
-              <div class="v" :class="{ amount: !paymentDetailEditing }">
-                <InputNumber
-                  v-if="paymentDetailEditing"
-                  v-model="paymentDetailForm.amount"
-                  :minFractionDigits="2"
-                  :maxFractionDigits="2"
-                  :min="0"
-                  :useGrouping="false"
-                />
-                <template v-else>{{ formatMoney(detailPayment.amount || 0) }}</template>
-              </div>
+        <div class="payment-detail-layout">
+          <div class="payment-detail-left">
+            <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
+            <div v-if="detailPayment.screenshot_path" class="screenshot-wrap">
+              <Image
+                class="screenshot"
+                :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`"
+                preview
+                :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+              />
             </div>
+            <Message v-else severity="secondary" :closable="false">&#26242;&#26080;&#25903;&#20184;&#25130;&#22270;</Message>
           </div>
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">&#21830;&#23478;</div>
-              <div class="v" :title="normalizeInlineText(detailPayment.merchant)">
-                <InputText v-if="paymentDetailEditing" v-model.trim="paymentDetailForm.merchant" />
-                <template v-else>{{ normalizeInlineText(detailPayment.merchant) || '-' }}</template>
-              </div>
-            </div>
-          </div>
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">&#25903;&#20184;&#26041;&#24335;</div>
-              <div class="v">
-                <InputText v-if="paymentDetailEditing" v-model.trim="paymentDetailForm.payment_method" />
-                <template v-else>
-                  <Tag
-                    v-if="detailPayment.payment_method"
-                    class="sbm-tag-ellipsis"
-                    severity="success"
-                    :value="normalizePaymentMethodText(detailPayment.payment_method)"
-                    :title="normalizePaymentMethodText(detailPayment.payment_method)"
-                  />
-                  <span v-else>-</span>
-                </template>
-              </div>
-            </div>
-          </div>
-          <div class="col-12">
-            <div class="kv">
-              <div class="k">&#20132;&#26131;&#26102;&#38388;</div>
-              <div class="v">
-                <template v-if="paymentDetailEditing">
-                  <InputText
-                    :modelValue="formatDateTimeDraft(paymentDetailForm.transaction_time)"
-                    readonly
-                    :placeholder="'请选择交易时间'"
-                    @click="togglePaymentTimePanel"
-                  />
-                  <OverlayPanel ref="paymentTimePanel" :dismissable="true" :showCloseIcon="false" class="payment-time-panel" @show="onPaymentTimePanelShow" @hide="onPaymentTimePanelHide">
-                    <DatePicker v-model="paymentDetailTimeDraft" inline showTime :manualInput="false" />
-                    <div class="payment-time-panel-footer">
-                      <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="cancelPaymentTimePanel" />
-                      <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmPaymentTimePanel" />
-                    </div>
-                  </OverlayPanel>
-                </template>
-                <template v-else>{{ formatDateTime(detailPayment.transaction_time) }}</template>
-              </div>
-            </div>
-          </div>
-          <div class="col-12">
-            <div class="kv">
-              <div class="k">&#22791;&#27880;</div>
-              <div class="v">
-                <Textarea v-if="paymentDetailEditing" v-model="paymentDetailForm.description" autoResize rows="3" />
-                <template v-else>{{ detailPayment.description || '-' }}</template>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <Divider />
-
-        <div v-if="detailPayment.screenshot_path" class="section">
-          <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
-          <div class="screenshot-wrap">
-            <Image
-              class="screenshot"
-              :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`"
-              preview
-              :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
-            />
+          <div class="payment-detail-right">
+            <div class="grid sbm-grid-tight">
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">&#37329;&#39069;</div>
+                  <div class="v" :class="{ amount: !paymentDetailEditing }">
+                    <InputNumber
+                      v-if="paymentDetailEditing"
+                      v-model="paymentDetailForm.amount"
+                      :minFractionDigits="2"
+                      :maxFractionDigits="2"
+                      :min="0"
+                      :useGrouping="false"
+                    />
+                    <template v-else>{{ formatMoney(detailPayment.amount || 0) }}</template>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">&#21830;&#23478;</div>
+                  <div class="v" :title="normalizeInlineText(detailPayment.merchant)">
+                    <InputText v-if="paymentDetailEditing" v-model.trim="paymentDetailForm.merchant" />
+                    <template v-else>{{ normalizeInlineText(detailPayment.merchant) || '-' }}</template>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">&#25903;&#20184;&#26041;&#24335;</div>
+                  <div class="v">
+                    <InputText v-if="paymentDetailEditing" v-model.trim="paymentDetailForm.payment_method" />
+                    <template v-else>
+                      <Tag
+                        v-if="detailPayment.payment_method"
+                        class="sbm-tag-ellipsis"
+                        severity="success"
+                        :value="normalizePaymentMethodText(detailPayment.payment_method)"
+                        :title="normalizePaymentMethodText(detailPayment.payment_method)"
+                      />
+                      <span v-else>-</span>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">&#20132;&#26131;&#26102;&#38388;</div>
+                  <div class="v">
+                    <template v-if="paymentDetailEditing">
+                      <InputText
+                        :modelValue="formatDateTimeDraft(paymentDetailForm.transaction_time)"
+                        readonly
+                        :placeholder="'请选择交易时间'"
+                        @click="togglePaymentTimePanel"
+                      />
+                      <OverlayPanel
+                        ref="paymentTimePanel"
+                        :dismissable="true"
+                        :showCloseIcon="false"
+                        class="payment-time-panel"
+                        @show="onPaymentTimePanelShow"
+                        @hide="onPaymentTimePanelHide"
+                      >
+                        <DatePicker v-model="paymentDetailTimeDraft" inline showTime :manualInput="false" />
+                        <div class="payment-time-panel-footer">
+                          <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="cancelPaymentTimePanel" />
+                          <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmPaymentTimePanel" />
+                        </div>
+                      </OverlayPanel>
+                    </template>
+                    <template v-else>{{ formatDateTime(detailPayment.transaction_time) }}</template>
+                  </div>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="kv">
+                  <div class="k">&#22791;&#27880;</div>
+                  <div class="v">
+                    <Textarea v-if="paymentDetailEditing" v-model="paymentDetailForm.description" autoResize rows="3" />
+                    <template v-else>{{ detailPayment.description || '-' }}</template>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -668,7 +678,6 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
-import Divider from 'primevue/divider'
 import Image from 'primevue/image'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
@@ -2336,6 +2345,28 @@ watch(
   margin-bottom: 6px;
 }
 
+.payment-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 38%) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.payment-detail-left,
+.payment-detail-right {
+  min-width: 0;
+}
+
+.payment-detail-left .section-title {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .payment-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .screenshot-wrap {
   width: 100%;
   max-width: 100%;
@@ -2347,7 +2378,7 @@ watch(
   max-width: 100%;
   width: 100%;
   height: auto;
-  max-height: 320px;
+  max-height: 60vh;
   object-fit: contain;
   border-radius: var(--radius-md);
 }

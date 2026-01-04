@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "time/tzdata"
@@ -77,6 +78,34 @@ func main() {
 		  AND TRIM(end_time) != ''
 		  AND strftime('%s', end_time) IS NOT NULL
 	`)
+
+	// Multi-user backfill: older DBs may not have owner_user_id populated.
+	// Assign all legacy rows to the first created user (typically the initial admin).
+	var firstUser models.User
+	if err := db.Select("id").Order("created_at ASC").First(&firstUser).Error; err == nil {
+		defaultOwnerID := strings.TrimSpace(firstUser.ID)
+		if defaultOwnerID != "" {
+			db.Exec(`UPDATE payments SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
+			db.Exec(`UPDATE trips SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
+			db.Exec(`UPDATE invoices SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
+			db.Exec(`UPDATE email_configs SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
+			// Prefer deriving logs from their config; fallback to default owner.
+			db.Exec(`
+				UPDATE email_logs
+				SET owner_user_id = COALESCE(
+					(SELECT owner_user_id FROM email_configs WHERE email_configs.id = email_logs.email_config_id),
+					?
+				)
+				WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''
+			`, defaultOwnerID)
+			// Tasks: default to created_by; fallback to default owner.
+			db.Exec(`
+				UPDATE tasks
+				SET owner_user_id = COALESCE(NULLIF(TRIM(created_by), ''), ?)
+				WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''
+			`, defaultOwnerID)
+		}
+	}
 
 	// Create additional indexes
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
@@ -171,7 +200,7 @@ func main() {
 	r.Use(middleware.CORSMiddleware())
 
 	// Serve uploaded files
-	r.Static("/uploads", uploadsDir)
+	// Do not expose uploads statically; files are served via authenticated endpoints.
 
 	// API routes
 	api := r.Group("/api")
@@ -194,6 +223,7 @@ func main() {
 	protectedGroup := api.Group("")
 	protectedGroup.Use(middleware.APIRateLimitMiddleware())
 	protectedGroup.Use(middleware.AuthMiddleware(authService))
+	protectedGroup.Use(middleware.ActAsConfirmMiddleware())
 
 	// Payment routes
 	paymentHandler := handlers.NewPaymentHandler(paymentService, taskService)
@@ -227,6 +257,8 @@ func main() {
 	adminGroup.Use(middleware.RequireAdmin())
 	adminInvitesHandler := handlers.NewAdminInvitesHandler(authService)
 	adminInvitesHandler.RegisterRoutes(adminGroup.Group("/invites"))
+	adminUsersHandler := handlers.NewAdminUsersHandler(authService)
+	adminUsersHandler.RegisterRoutes(adminGroup.Group("/users"))
 	adminRegressionHandler := handlers.NewAdminRegressionSamplesHandler(services.NewRegressionSampleService())
 	adminRegressionHandler.RegisterRoutes(adminGroup.Group("/regression-samples"))
 
@@ -244,12 +276,13 @@ func main() {
 		lastMomentOfMonth := firstDayNextMonth.Add(-time.Millisecond)
 
 		paymentStats, _ := paymentService.GetStats(
+			middleware.GetEffectiveUserID(c),
 			firstDayOfMonth.Format(time.RFC3339Nano),
 			lastMomentOfMonth.Format(time.RFC3339Nano),
 		)
-		invoiceStats, _ := invoiceService.GetStats()
-		emailStatus, _ := emailService.GetMonitoringStatus()
-		recentEmails, _ := emailService.GetLogs("", 5)
+		invoiceStats, _ := invoiceService.GetStats(middleware.GetEffectiveUserID(c))
+		emailStatus, _ := emailService.GetMonitoringStatus(middleware.GetEffectiveUserID(c))
+		recentEmails, _ := emailService.GetLogs(middleware.GetEffectiveUserID(c), "", 5)
 
 		// Recent payments with linked invoice count
 		type recentPaymentRow struct {
@@ -262,6 +295,7 @@ func main() {
 			Select(`p.*, COUNT(l.invoice_id) AS invoice_count`).
 			Joins("LEFT JOIN invoice_payment_links AS l ON l.payment_id = p.id").
 			Where("p.is_draft = 0").
+			Where("p.owner_user_id = ?", middleware.GetEffectiveUserID(c)).
 			Group("p.id").
 			Order("p.transaction_time_ts DESC, p.created_at DESC").
 			Limit(6).

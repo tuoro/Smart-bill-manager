@@ -39,7 +39,7 @@ type CreateTripInput struct {
 	Note            *string `json:"note"`
 }
 
-func (s *TripService) Create(input CreateTripInput) (*models.Trip, *AssignmentChangeSummary, error) {
+func (s *TripService) Create(ownerUserID string, input CreateTripInput) (*models.Trip, *AssignmentChangeSummary, error) {
 	if strings.TrimSpace(input.Name) == "" {
 		return nil, nil, fmt.Errorf("name is required")
 	}
@@ -74,6 +74,7 @@ func (s *TripService) Create(input CreateTripInput) (*models.Trip, *AssignmentCh
 
 	trip := &models.Trip{
 		ID:              utils.GenerateUUID(),
+		OwnerUserID:     strings.TrimSpace(ownerUserID),
 		Name:            strings.TrimSpace(input.Name),
 		StartTime:       st.Format(time.RFC3339),
 		EndTime:         et.Format(time.RFC3339),
@@ -91,7 +92,7 @@ func (s *TripService) Create(input CreateTripInput) (*models.Trip, *AssignmentCh
 		if err := tx.Create(trip).Error; err != nil {
 			return err
 		}
-		c, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, trip.StartTimeTs, trip.EndTimeTs)
+		c, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, strings.TrimSpace(ownerUserID), trip.StartTimeTs, trip.EndTimeTs)
 		if err != nil {
 			return err
 		}
@@ -106,12 +107,12 @@ func (s *TripService) Create(input CreateTripInput) (*models.Trip, *AssignmentCh
 	return trip, changes, nil
 }
 
-func (s *TripService) GetAll() ([]models.Trip, error) {
-	return s.repo.FindAll()
+func (s *TripService) GetAll(ownerUserID string) ([]models.Trip, error) {
+	return s.repo.FindAll(strings.TrimSpace(ownerUserID))
 }
 
-func (s *TripService) GetByID(id string) (*models.Trip, error) {
-	return s.repo.FindByID(id)
+func (s *TripService) GetByID(ownerUserID string, id string) (*models.Trip, error) {
+	return s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
 }
 
 type UpdateTripInput struct {
@@ -124,14 +125,14 @@ type UpdateTripInput struct {
 	Note            *string `json:"note"`
 }
 
-func (s *TripService) Update(id string, input UpdateTripInput) (*AssignmentChangeSummary, error) {
+func (s *TripService) Update(ownerUserID string, id string, input UpdateTripInput) (*AssignmentChangeSummary, error) {
 	db := database.GetDB()
 	var changes *AssignmentChangeSummary
 
 	var affectedTripIDs []string
 	err := db.Transaction(func(tx *gorm.DB) error {
 		var existing models.Trip
-		if err := tx.Model(&models.Trip{}).Where("id = ?", id).First(&existing).Error; err != nil {
+		if err := tx.Model(&models.Trip{}).Where("id = ? AND owner_user_id = ?", id, strings.TrimSpace(ownerUserID)).First(&existing).Error; err != nil {
 			return err
 		}
 		oldStartTs := existing.StartTimeTs
@@ -202,9 +203,9 @@ func (s *TripService) Update(id string, input UpdateTripInput) (*AssignmentChang
 		}
 
 		if len(data) > 0 {
-			if err := tx.Model(&models.Trip{}).Where("id = ?", id).Updates(data).Error; err != nil {
-				return err
-			}
+		if err := tx.Model(&models.Trip{}).Where("id = ? AND owner_user_id = ?", id, strings.TrimSpace(ownerUserID)).Updates(data).Error; err != nil {
+			return err
+		}
 		}
 
 		unionStart := oldStartTs
@@ -216,7 +217,7 @@ func (s *TripService) Update(id string, input UpdateTripInput) (*AssignmentChang
 			unionEnd = newEndTs
 		}
 
-		c, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, unionStart, unionEnd)
+		c, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, strings.TrimSpace(ownerUserID), unionStart, unionEnd)
 		if err != nil {
 			return err
 		}
@@ -240,11 +241,16 @@ type TripSummary struct {
 	UnlinkedPays   int     `json:"unlinked_payments"`
 }
 
-func (s *TripService) GetSummary(tripID string) (*TripSummary, error) {
+func (s *TripService) GetSummary(ownerUserID string, tripID string) (*TripSummary, error) {
 	db := database.GetDB()
+	ownerUserID = strings.TrimSpace(ownerUserID)
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).
+		Where("owner_user_id = ?", ownerUserID).
+		Where("trip_id = ?", tripID).
+		Where("is_draft = 0").
+		Find(&payments).Error; err != nil {
 		return nil, err
 	}
 
@@ -298,8 +304,9 @@ func (s *TripService) GetSummary(tripID string) (*TripSummary, error) {
 	return out, nil
 }
 
-func (s *TripService) GetAllSummaries() ([]TripSummary, error) {
+func (s *TripService) GetAllSummaries(ownerUserID string) ([]TripSummary, error) {
 	db := database.GetDB()
+	ownerUserID = strings.TrimSpace(ownerUserID)
 
 	var out []TripSummary
 	err := db.
@@ -311,8 +318,9 @@ func (s *TripService) GetAllSummaries() ([]TripSummary, error) {
 			COUNT(DISTINCT l.invoice_id) AS linked_invoices,
 			COALESCE(SUM(CASE WHEN p.id IS NULL THEN 0 WHEN l.invoice_id IS NULL THEN 1 ELSE 0 END), 0) AS unlinked_pays
 		`).
-		Joins("LEFT JOIN payments AS p ON p.trip_id = t.id").
+		Joins("LEFT JOIN payments AS p ON p.trip_id = t.id AND p.owner_user_id = t.owner_user_id").
 		Joins("LEFT JOIN invoice_payment_links AS l ON l.payment_id = p.id").
+		Where("t.owner_user_id = ?", ownerUserID).
 		Group("t.id").
 		Order("t.start_time_ts DESC").
 		Scan(&out).Error
@@ -333,11 +341,17 @@ type TripPaymentWithInvoices struct {
 	Invoices []TripPaymentInvoice `json:"invoices"`
 }
 
-func (s *TripService) GetPayments(tripID string, includeInvoices bool) ([]TripPaymentWithInvoices, error) {
+func (s *TripService) GetPayments(ownerUserID string, tripID string, includeInvoices bool) ([]TripPaymentWithInvoices, error) {
 	db := database.GetDB()
+	ownerUserID = strings.TrimSpace(ownerUserID)
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Order("transaction_time_ts DESC").Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).
+		Where("owner_user_id = ?", ownerUserID).
+		Where("trip_id = ?", tripID).
+		Where("is_draft = 0").
+		Order("transaction_time_ts DESC").
+		Find(&payments).Error; err != nil {
 		return nil, err
 	}
 	if len(payments) == 0 {
@@ -382,7 +396,11 @@ func (s *TripService) GetPayments(tripID string, includeInvoices bool) ([]TripPa
 	}
 
 	var invoices []models.Invoice
-	if err := db.Model(&models.Invoice{}).Where("id IN ?", invoiceIDs).Where("is_draft = 0").Find(&invoices).Error; err != nil {
+	if err := db.Model(&models.Invoice{}).
+		Where("owner_user_id = ?", ownerUserID).
+		Where("id IN ?", invoiceIDs).
+		Where("is_draft = 0").
+		Find(&invoices).Error; err != nil {
 		return nil, err
 	}
 	invByID := make(map[string]models.Invoice, len(invoices))
@@ -420,11 +438,16 @@ type DeleteTripOptions struct {
 	DeletePayments bool
 }
 
-func (s *TripService) GetCascadePreview(tripID string) (*CascadePreview, []string, []string, error) {
+func (s *TripService) GetCascadePreview(ownerUserID string, tripID string) (*CascadePreview, []string, []string, error) {
 	db := database.GetDB()
+	ownerUserID = strings.TrimSpace(ownerUserID)
 
 	var payments []models.Payment
-	if err := db.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Find(&payments).Error; err != nil {
+	if err := db.Model(&models.Payment{}).
+		Where("owner_user_id = ?", ownerUserID).
+		Where("trip_id = ?", tripID).
+		Where("is_draft = 0").
+		Find(&payments).Error; err != nil {
 		return nil, nil, nil, err
 	}
 	paymentIDs := make([]string, 0, len(payments))
@@ -473,7 +496,10 @@ func (s *TripService) GetCascadePreview(tripID string) (*CascadePreview, []strin
 			FilePath string
 		}
 		var rows []invRow
-		if err := db.Model(&models.Invoice{}).Select("file_path").Where("id IN ?", toDelete).Scan(&rows).Error; err != nil {
+		if err := db.Model(&models.Invoice{}).Select("file_path").
+			Where("owner_user_id = ?", ownerUserID).
+			Where("id IN ?", toDelete).
+			Scan(&rows).Error; err != nil {
 			return nil, nil, nil, err
 		}
 		for _, r := range rows {
@@ -485,15 +511,16 @@ func (s *TripService) GetCascadePreview(tripID string) (*CascadePreview, []strin
 	return preview, screenshotPaths, invoicePaths, nil
 }
 
-func (s *TripService) DeleteCascade(tripID string) (*CascadePreview, error) {
-	return s.DeleteWithOptions(tripID, DeleteTripOptions{
+func (s *TripService) DeleteCascade(ownerUserID string, tripID string) (*CascadePreview, error) {
+	return s.DeleteWithOptions(ownerUserID, tripID, DeleteTripOptions{
 		DeletePayments: true,
 	})
 }
 
-func (s *TripService) DeleteWithOptions(tripID string, opts DeleteTripOptions) (*CascadePreview, error) {
+func (s *TripService) DeleteWithOptions(ownerUserID string, tripID string, opts DeleteTripOptions) (*CascadePreview, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	// Build preview and file delete lists first.
-	preview, screenshotPaths, invoicePaths, err := s.GetCascadePreview(tripID)
+	preview, screenshotPaths, invoicePaths, err := s.GetCascadePreview(ownerUserID, tripID)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +538,7 @@ func (s *TripService) DeleteWithOptions(tripID string, opts DeleteTripOptions) (
 	err = db.Transaction(func(tx *gorm.DB) error {
 		// Ensure trip exists.
 		var trip models.Trip
-		if err := tx.Where("id = ?", tripID).First(&trip).Error; err != nil {
+		if err := tx.Where("id = ? AND owner_user_id = ?", tripID, ownerUserID).First(&trip).Error; err != nil {
 			return err
 		}
 		if locked, err := isTripBadDebtLockedTx(tx, tripID); err != nil {
@@ -525,7 +552,11 @@ func (s *TripService) DeleteWithOptions(tripID string, opts DeleteTripOptions) (
 		if opts.DeletePayments {
 			// Collect payment IDs.
 			var paymentIDs []string
-			if err := tx.Model(&models.Payment{}).Where("trip_id = ?", tripID).Where("is_draft = 0").Pluck("id", &paymentIDs).Error; err != nil {
+			if err := tx.Model(&models.Payment{}).
+				Where("owner_user_id = ?", ownerUserID).
+				Where("trip_id = ?", tripID).
+				Where("is_draft = 0").
+				Pluck("id", &paymentIDs).Error; err != nil {
 				return err
 			}
 
@@ -574,19 +605,20 @@ func (s *TripService) DeleteWithOptions(tripID string, opts DeleteTripOptions) (
 					for id := range toDelete {
 						toDeleteIDs = append(toDeleteIDs, id)
 					}
-					if err := tx.Where("id IN ?", toDeleteIDs).Delete(&models.Invoice{}).Error; err != nil {
+					if err := tx.Where("owner_user_id = ? AND id IN ?", ownerUserID, toDeleteIDs).Delete(&models.Invoice{}).Error; err != nil {
 						return err
 					}
 				}
 
 				// Delete payments.
-				if err := tx.Where("id IN ?", paymentIDs).Delete(&models.Payment{}).Error; err != nil {
+				if err := tx.Where("owner_user_id = ? AND id IN ?", ownerUserID, paymentIDs).Delete(&models.Payment{}).Error; err != nil {
 					return err
 				}
 			}
 		} else {
 			// Keep payments: move them into a reviewable unassigned state (so UI routes them to "pending").
 			if err := tx.Model(&models.Payment{}).
+				Where("owner_user_id = ?", ownerUserID).
 				Where("trip_id = ?", tripID).
 				Where("is_draft = 0").
 				Updates(map[string]interface{}{
@@ -599,14 +631,14 @@ func (s *TripService) DeleteWithOptions(tripID string, opts DeleteTripOptions) (
 		}
 
 		// Delete trip itself.
-		if err := tx.Where("id = ?", tripID).Delete(&models.Trip{}).Error; err != nil {
+		if err := tx.Where("id = ? AND owner_user_id = ?", tripID, ownerUserID).Delete(&models.Trip{}).Error; err != nil {
 			return err
 		}
 
 		if opts.DeletePayments {
 			// Trip removal may resolve overlaps; re-evaluate auto assignments in this range.
 			if rangeEndTs > rangeStartTs {
-				if _, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, rangeStartTs, rangeEndTs); err != nil {
+				if _, tripIDs, err := recomputeAutoAssignmentsForRangeTx(tx, strings.TrimSpace(ownerUserID), rangeStartTs, rangeEndTs); err != nil {
 					return err
 				} else {
 					affectedTripIDs = tripIDs

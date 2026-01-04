@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"smart-bill-manager/internal/middleware"
 	"smart-bill-manager/internal/services"
 	"smart-bill-manager/internal/utils"
@@ -24,7 +26,7 @@ func (h *EmailHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.DELETE("/configs/:id", h.DeleteConfig)
 	r.POST("/test", h.TestConnection)
 	r.GET("/logs", h.GetLogs)
-	r.POST("/logs/:id/parse", middleware.RequireAdmin(), h.ParseLog)
+	r.POST("/logs/:id/parse", h.ParseLog)
 	r.POST("/monitor/start/:id", h.StartMonitoring)
 	r.POST("/monitor/stop/:id", h.StopMonitoring)
 	r.GET("/monitor/status", h.GetMonitoringStatus)
@@ -33,7 +35,7 @@ func (h *EmailHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 func (h *EmailHandler) GetAllConfigs(c *gin.Context) {
-	configs, err := h.emailService.GetAllConfigs()
+	configs, err := h.emailService.GetAllConfigs(middleware.GetEffectiveUserID(c))
 	if err != nil {
 		utils.Error(c, 500, "获取邮箱配置失败", err)
 		return
@@ -56,7 +58,7 @@ func (h *EmailHandler) CreateConfig(c *gin.Context) {
 		return
 	}
 
-	config, err := h.emailService.CreateConfig(input)
+	config, err := h.emailService.CreateConfig(middleware.GetEffectiveUserID(c), input)
 	if err != nil {
 		utils.Error(c, 500, "创建邮箱配置失败", err)
 		return
@@ -73,7 +75,7 @@ func (h *EmailHandler) UpdateConfig(c *gin.Context) {
 		return
 	}
 
-	if err := h.emailService.UpdateConfig(id, data); err != nil {
+	if err := h.emailService.UpdateConfig(middleware.GetEffectiveUserID(c), id, data); err != nil {
 		utils.Error(c, 404, "邮箱配置不存在或更新失败", err)
 		return
 	}
@@ -83,7 +85,7 @@ func (h *EmailHandler) UpdateConfig(c *gin.Context) {
 
 func (h *EmailHandler) DeleteConfig(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.emailService.DeleteConfig(id); err != nil {
+	if err := h.emailService.DeleteConfig(middleware.GetEffectiveUserID(c), id); err != nil {
 		utils.Error(c, 404, "邮箱配置不存在", nil)
 		return
 	}
@@ -126,7 +128,7 @@ func (h *EmailHandler) GetLogs(c *gin.Context) {
 		}
 	}
 
-	logs, err := h.emailService.GetLogs(configID, limit)
+	logs, err := h.emailService.GetLogs(middleware.GetEffectiveUserID(c), configID, limit)
 	if err != nil {
 		utils.Error(c, 500, "获取邮件日志失败", err)
 		return
@@ -137,8 +139,13 @@ func (h *EmailHandler) GetLogs(c *gin.Context) {
 
 func (h *EmailHandler) ParseLog(c *gin.Context) {
 	id := c.Param("id")
-	invoice, err := h.emailService.ParseEmailLog(id)
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	invoice, err := h.emailService.ParseEmailLog(ownerUserID, id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.Error(c, 404, "邮件日志不存在", nil)
+			return
+		}
 		utils.Error(c, 500, "解析邮件发票失败", err)
 		return
 	}
@@ -147,7 +154,7 @@ func (h *EmailHandler) ParseLog(c *gin.Context) {
 
 func (h *EmailHandler) StartMonitoring(c *gin.Context) {
 	id := c.Param("id")
-	started := h.emailService.StartMonitoring(id)
+	started := h.emailService.StartMonitoring(middleware.GetEffectiveUserID(c), id)
 	if !started {
 		utils.Error(c, 400, "无法启动监控，请检查配置", nil)
 		return
@@ -158,6 +165,10 @@ func (h *EmailHandler) StartMonitoring(c *gin.Context) {
 
 func (h *EmailHandler) StopMonitoring(c *gin.Context) {
 	id := c.Param("id")
+	if _, err := h.emailService.GetConfigByID(middleware.GetEffectiveUserID(c), id); err != nil {
+		utils.Error(c, 404, "email config not found", nil)
+		return
+	}
 	stopped := h.emailService.StopMonitoring(id)
 	if stopped {
 		utils.Success(c, 200, "邮箱监控已停止", nil)
@@ -167,7 +178,7 @@ func (h *EmailHandler) StopMonitoring(c *gin.Context) {
 }
 
 func (h *EmailHandler) GetMonitoringStatus(c *gin.Context) {
-	statuses, err := h.emailService.GetMonitoringStatus()
+	statuses, err := h.emailService.GetMonitoringStatus(middleware.GetEffectiveUserID(c))
 	if err != nil {
 		utils.Error(c, 500, "获取监控状态失败", err)
 		return
@@ -178,7 +189,7 @@ func (h *EmailHandler) GetMonitoringStatus(c *gin.Context) {
 
 func (h *EmailHandler) ManualCheck(c *gin.Context) {
 	id := c.Param("id")
-	success, message, newEmails := h.emailService.ManualCheck(id)
+	success, message, newEmails := h.emailService.ManualCheck(middleware.GetEffectiveUserID(c), id)
 
 	c.JSON(200, gin.H{
 		"success": success,

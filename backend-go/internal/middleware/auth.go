@@ -8,6 +8,11 @@ import (
 	"smart-bill-manager/internal/utils"
 )
 
+const (
+	HeaderActAsUser      = "X-Act-As-User"
+	HeaderActAsConfirmed = "X-Act-As-Confirmed"
+)
+
 // AuthMiddleware creates JWT authentication middleware
 func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -28,10 +33,30 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// Set user info in context
+		// Set user info in context (actor)
 		c.Set("userId", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
+
+		actorUserID := claims.UserID
+		effectiveUserID := actorUserID
+
+		// Admin can optionally act as another user.
+		if claims.Role == "admin" {
+			actAs := strings.TrimSpace(c.GetHeader(HeaderActAsUser))
+			if actAs != "" && actAs != actorUserID {
+				if _, err := authService.GetUserByID(actAs); err != nil {
+					utils.Error(c, 400, "代操作用户不存在", nil)
+					c.Abort()
+					return
+				}
+				effectiveUserID = actAs
+			}
+		}
+
+		c.Set("actorUserId", actorUserID)
+		c.Set("effectiveUserId", effectiveUserID)
+		c.Set("isActingAs", effectiveUserID != actorUserID)
 
 		c.Next()
 	}
@@ -43,6 +68,33 @@ func GetUserID(c *gin.Context) string {
 		return id.(string)
 	}
 	return ""
+}
+
+func GetActorUserID(c *gin.Context) string {
+	if id, exists := c.Get("actorUserId"); exists {
+		if s, ok := id.(string); ok {
+			return s
+		}
+	}
+	return GetUserID(c)
+}
+
+func GetEffectiveUserID(c *gin.Context) string {
+	if id, exists := c.Get("effectiveUserId"); exists {
+		if s, ok := id.(string); ok && strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return GetUserID(c)
+}
+
+func IsActingAs(c *gin.Context) bool {
+	if v, ok := c.Get("isActingAs"); ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return GetActorUserID(c) != GetEffectiveUserID(c)
 }
 
 // GetUsername gets username from context

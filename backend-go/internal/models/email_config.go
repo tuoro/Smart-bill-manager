@@ -7,6 +7,7 @@ import (
 // EmailConfig represents email configuration for IMAP
 type EmailConfig struct {
 	ID        string    `json:"id" gorm:"primaryKey"`
+	OwnerUserID string  `json:"owner_user_id" gorm:"not null;default:'';index"`
 	Email     string    `json:"email" gorm:"not null"`
 	IMAPHost  string    `json:"imap_host" gorm:"not null"`
 	IMAPPort  int       `json:"imap_port" gorm:"default:993"`
@@ -48,6 +49,7 @@ func (e *EmailConfig) ToResponse() EmailConfigResponse {
 // EmailLog represents email log
 type EmailLog struct {
 	ID              string    `json:"id" gorm:"primaryKey"`
+	OwnerUserID     string    `json:"owner_user_id" gorm:"not null;default:'';index"`
 	EmailConfigID   string    `json:"email_config_id" gorm:"not null;index"`
 	Mailbox         string    `json:"mailbox" gorm:"not null;default:INBOX"`
 	MessageUID      uint32    `json:"message_uid" gorm:"not null;default:0;index"`

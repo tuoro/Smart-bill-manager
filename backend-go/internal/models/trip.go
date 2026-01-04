@@ -6,6 +6,7 @@ import "time"
 // Note: start_time/end_time are stored as RFC3339 strings to match payments.transaction_time.
 type Trip struct {
 	ID              string    `json:"id" gorm:"primaryKey"`
+	OwnerUserID     string    `json:"owner_user_id" gorm:"not null;default:'';index"`
 	Name            string    `json:"name" gorm:"not null"`
 	StartTime       string    `json:"start_time" gorm:"not null;index"`
 	EndTime         string    `json:"end_time" gorm:"not null;index"`

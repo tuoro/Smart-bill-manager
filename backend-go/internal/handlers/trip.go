@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"smart-bill-manager/internal/middleware"
 	"smart-bill-manager/internal/services"
 	"smart-bill-manager/internal/utils"
 )
@@ -34,7 +35,7 @@ func (h *TripHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 func (h *TripHandler) GetSummaries(c *gin.Context) {
-	out, err := h.tripService.GetAllSummaries()
+	out, err := h.tripService.GetAllSummaries(middleware.GetEffectiveUserID(c))
 	if err != nil {
 		utils.Error(c, 500, "获取行程汇总失败", err)
 		return
@@ -43,7 +44,7 @@ func (h *TripHandler) GetSummaries(c *gin.Context) {
 }
 
 func (h *TripHandler) GetAll(c *gin.Context) {
-	trips, err := h.tripService.GetAll()
+	trips, err := h.tripService.GetAll(middleware.GetEffectiveUserID(c))
 	if err != nil {
 		utils.Error(c, 500, "获取行程失败", err)
 		return
@@ -57,7 +58,7 @@ func (h *TripHandler) Create(c *gin.Context) {
 		utils.Error(c, 400, "参数错误", err)
 		return
 	}
-	trip, changes, err := h.tripService.Create(input)
+	trip, changes, err := h.tripService.Create(middleware.GetEffectiveUserID(c), input)
 	if err != nil {
 		utils.Error(c, 400, "创建行程失败", err)
 		return
@@ -67,7 +68,7 @@ func (h *TripHandler) Create(c *gin.Context) {
 
 func (h *TripHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
-	trip, err := h.tripService.GetByID(id)
+	trip, err := h.tripService.GetByID(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "行程不存在", err)
 		return
@@ -82,7 +83,7 @@ func (h *TripHandler) Update(c *gin.Context) {
 		utils.Error(c, 400, "参数错误", err)
 		return
 	}
-	changes, err := h.tripService.Update(id, input)
+	changes, err := h.tripService.Update(middleware.GetEffectiveUserID(c), id, input)
 	if err != nil {
 		utils.Error(c, 400, "更新行程失败", err)
 		return
@@ -92,7 +93,7 @@ func (h *TripHandler) Update(c *gin.Context) {
 
 func (h *TripHandler) GetSummary(c *gin.Context) {
 	id := c.Param("id")
-	summary, err := h.tripService.GetSummary(id)
+	summary, err := h.tripService.GetSummary(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 500, "获取统计失败", err)
 		return
@@ -103,7 +104,7 @@ func (h *TripHandler) GetSummary(c *gin.Context) {
 func (h *TripHandler) GetPayments(c *gin.Context) {
 	id := c.Param("id")
 	includeInvoices := c.Query("includeInvoices") == "1" || c.Query("includeInvoices") == "true"
-	payments, err := h.tripService.GetPayments(id, includeInvoices)
+	payments, err := h.tripService.GetPayments(middleware.GetEffectiveUserID(c), id, includeInvoices)
 	if err != nil {
 		utils.Error(c, 500, "获取支付记录失败", err)
 		return
@@ -113,7 +114,7 @@ func (h *TripHandler) GetPayments(c *gin.Context) {
 
 func (h *TripHandler) CascadePreview(c *gin.Context) {
 	id := c.Param("id")
-	out, _, _, err := h.tripService.GetCascadePreview(id)
+	out, _, _, err := h.tripService.GetCascadePreview(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 500, "获取预览失败", err)
 		return
@@ -141,7 +142,7 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 
 	dryRun := c.Query("dryRun")
 	if dryRun == "1" || dryRun == "true" {
-		out, _, _, err := h.tripService.GetCascadePreview(id)
+		out, _, _, err := h.tripService.GetCascadePreview(middleware.GetEffectiveUserID(c), id)
 		if err != nil {
 			utils.Error(c, 500, "获取预览失败", err)
 			return
@@ -164,7 +165,7 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 		return
 	}
 
-	out, err := h.tripService.DeleteWithOptions(id, services.DeleteTripOptions{
+	out, err := h.tripService.DeleteWithOptions(middleware.GetEffectiveUserID(c), id, services.DeleteTripOptions{
 		DeletePayments: deletePayments,
 	})
 	if err != nil {
@@ -179,7 +180,7 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 }
 
 func (h *TripHandler) GetPendingPayments(c *gin.Context) {
-	out, err := h.tripService.GetPendingPayments()
+	out, err := h.tripService.GetPendingPayments(middleware.GetEffectiveUserID(c))
 	if err != nil {
 		utils.Error(c, 500, "获取待分配支付失败", err)
 		return
@@ -197,7 +198,7 @@ func (h *TripHandler) AssignPendingPayment(c *gin.Context) {
 		return
 	}
 
-	if err := h.tripService.AssignPendingPayment(paymentID, input.TripID); err != nil {
+	if err := h.tripService.AssignPendingPayment(middleware.GetEffectiveUserID(c), paymentID, input.TripID); err != nil {
 		utils.Error(c, 400, "归属失败", err)
 		return
 	}
@@ -206,7 +207,7 @@ func (h *TripHandler) AssignPendingPayment(c *gin.Context) {
 
 func (h *TripHandler) BlockPendingPayment(c *gin.Context) {
 	paymentID := c.Param("paymentId")
-	if err := h.tripService.BlockPendingPayment(paymentID); err != nil {
+	if err := h.tripService.BlockPendingPayment(middleware.GetEffectiveUserID(c), paymentID); err != nil {
 		utils.Error(c, 400, "操作失败", err)
 		return
 	}

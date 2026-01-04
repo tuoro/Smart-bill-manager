@@ -34,12 +34,13 @@ func NewPaymentService(uploadsDir string) *PaymentService {
 	}
 }
 
-func (s *PaymentService) CreateDraftFromScreenshotUpload(screenshotPath string, fileSHA256 *string) (*models.Payment, error) {
+func (s *PaymentService) CreateDraftFromScreenshotUpload(ownerUserID string, screenshotPath string, fileSHA256 *string) (*models.Payment, error) {
 	now := time.Now().UTC()
 	utcTimeStr := now.Format(time.RFC3339)
 
 	p := &models.Payment{
 		ID:                utils.GenerateUUID(),
+		OwnerUserID:       strings.TrimSpace(ownerUserID),
 		IsDraft:           true,
 		Amount:            0.0,
 		TransactionTime:   utcTimeStr,
@@ -58,18 +59,18 @@ func (s *PaymentService) CreateDraftFromScreenshotUpload(screenshotPath string, 
 	return p, nil
 }
 
-func (s *PaymentService) DeleteDraftByScreenshotPath(screenshotPath string) error {
+func (s *PaymentService) DeleteDraftByScreenshotPath(ownerUserID string, screenshotPath string) error {
 	screenshotPath = strings.TrimSpace(screenshotPath)
 	if screenshotPath == "" {
 		return nil
 	}
 	return database.GetDB().
-		Where("is_draft = ? AND screenshot_path = ?", true, screenshotPath).
+		Where("owner_user_id = ? AND is_draft = ? AND screenshot_path = ?", strings.TrimSpace(ownerUserID), true, screenshotPath).
 		Delete(&models.Payment{}).
 		Error
 }
 
-func (s *PaymentService) UpdateDraftScreenshotPath(paymentID string, screenshotPath string, fileSHA256 *string) (*models.Payment, error) {
+func (s *PaymentService) UpdateDraftScreenshotPath(ownerUserID string, paymentID string, screenshotPath string, fileSHA256 *string) (*models.Payment, error) {
 	paymentID = strings.TrimSpace(paymentID)
 	screenshotPath = strings.TrimSpace(screenshotPath)
 	if paymentID == "" {
@@ -91,11 +92,11 @@ func (s *PaymentService) UpdateDraftScreenshotPath(paymentID string, screenshotP
 
 	if err := database.GetDB().
 		Model(&models.Payment{}).
-		Where("id = ? AND is_draft = 1", paymentID).
+		Where("id = ? AND owner_user_id = ? AND is_draft = 1", paymentID, strings.TrimSpace(ownerUserID)).
 		Updates(update).Error; err != nil {
 		return nil, err
 	}
-	return s.repo.FindByID(paymentID)
+	return s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), paymentID)
 }
 
 type paymentOCRTaskResult struct {
@@ -183,7 +184,7 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 
 	// If we have a meaningful amount+time, compute suspected duplicates for UI.
 	if updated != nil && updated.Amount > 0 && updated.TransactionTimeTs > 0 {
-		if cands, derr := FindPaymentCandidatesByAmountTime(updated.Amount, updated.TransactionTimeTs, updated.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
+		if cands, derr := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(updated.OwnerUserID), updated.Amount, updated.TransactionTimeTs, updated.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
 			updated.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			updated.DedupRefID = &ref
@@ -223,7 +224,7 @@ type CreatePaymentInput struct {
 	ExtractedData   *string `json:"extracted_data"`
 }
 
-func (s *PaymentService) Create(input CreatePaymentInput) (*models.Payment, error) {
+func (s *PaymentService) Create(ownerUserID string, input CreatePaymentInput) (*models.Payment, error) {
 	t, err := parseRFC3339ToUTC(input.TransactionTime)
 	if err != nil {
 		return nil, fmt.Errorf("transaction_time must be RFC3339: %w", err)
@@ -246,6 +247,7 @@ func (s *PaymentService) Create(input CreatePaymentInput) (*models.Payment, erro
 
 	payment := &models.Payment{
 		ID:                utils.GenerateUUID(),
+		OwnerUserID:       strings.TrimSpace(ownerUserID),
 		Amount:            input.Amount,
 		Merchant:          input.Merchant,
 		Category:          input.Category,
@@ -265,7 +267,7 @@ func (s *PaymentService) Create(input CreatePaymentInput) (*models.Payment, erro
 		if err := tx.Create(payment).Error; err != nil {
 			return err
 		}
-		return autoAssignPaymentTx(tx, payment)
+		return autoAssignPaymentTx(tx, strings.TrimSpace(ownerUserID), payment)
 	}); err != nil {
 		return nil, err
 	}
@@ -284,7 +286,7 @@ type PaymentFilterInput struct {
 	IncludeDraft bool `form:"includeDraft"`
 }
 
-func (s *PaymentService) GetAll(filter PaymentFilterInput) ([]models.Payment, error) {
+func (s *PaymentService) GetAll(ownerUserID string, filter PaymentFilterInput) ([]models.Payment, error) {
 	startTs := int64(0)
 	endTs := int64(0)
 	if strings.TrimSpace(filter.StartDate) != "" {
@@ -303,6 +305,7 @@ func (s *PaymentService) GetAll(filter PaymentFilterInput) ([]models.Payment, er
 	}
 
 	return s.repo.FindAll(repository.PaymentFilter{
+		OwnerUserID:  strings.TrimSpace(ownerUserID),
 		Limit:        filter.Limit,
 		Offset:       filter.Offset,
 		StartDate:    filter.StartDate,
@@ -319,8 +322,8 @@ type PaymentListItem struct {
 	InvoiceCount int `json:"invoiceCount"`
 }
 
-func (s *PaymentService) GetAllWithInvoiceCounts(filter PaymentFilterInput) ([]PaymentListItem, error) {
-	payments, err := s.GetAll(filter)
+func (s *PaymentService) GetAllWithInvoiceCounts(ownerUserID string, filter PaymentFilterInput) ([]PaymentListItem, error) {
+	payments, err := s.GetAll(strings.TrimSpace(ownerUserID), filter)
 	if err != nil {
 		return nil, err
 	}
@@ -360,8 +363,8 @@ func (s *PaymentService) GetAllWithInvoiceCounts(filter PaymentFilterInput) ([]P
 	return out, nil
 }
 
-func (s *PaymentService) GetByID(id string) (*models.Payment, error) {
-	return s.repo.FindByID(id)
+func (s *PaymentService) GetByID(ownerUserID string, id string) (*models.Payment, error) {
+	return s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
 }
 
 type UpdatePaymentInput struct {
@@ -378,7 +381,7 @@ type UpdatePaymentInput struct {
 	ForceDuplicateSave *bool    `json:"force_duplicate_save"`
 }
 
-func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
+func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePaymentInput) error {
 	needsRecalc := input.TripID != nil || input.TripAssignSrc != nil || input.BadDebt != nil
 	timeChanged := input.TransactionTime != nil
 	confirming := input.Confirm != nil && *input.Confirm
@@ -386,7 +389,7 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 
 	var before *models.Payment
 	if needsRecalc || timeChanged || confirming || moveScreenshot {
-		p, err := s.repo.FindByID(id)
+		p, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
 		if err != nil {
 			return err
 		}
@@ -404,7 +407,7 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 			hash = strings.TrimSpace(*before.FileSHA256)
 		}
 		if hash != "" {
-			if existing, err := FindPaymentByFileSHA256(hash, id); err != nil {
+			if existing, err := FindPaymentByFileSHA256ForOwner(strings.TrimSpace(ownerUserID), hash, id); err != nil {
 				return err
 			} else if existing != nil {
 				return &DuplicateError{
@@ -428,7 +431,7 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 			}
 		}
 
-		cands, err := FindPaymentCandidatesByAmountTime(nextAmount, nextTs, id, 5*time.Minute, 5)
+		cands, err := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(ownerUserID), nextAmount, nextTs, id, 5*time.Minute, 5)
 		if err != nil {
 			return err
 		}
@@ -536,7 +539,7 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 			}
 		}
 
-		cands, err := FindPaymentCandidatesByAmountTime(nextAmount, nextTs, id, 5*time.Minute, 5)
+		cands, err := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(ownerUserID), nextAmount, nextTs, id, 5*time.Minute, 5)
 		if err == nil && len(cands) > 0 {
 			if force {
 				data["dedup_status"] = DedupStatusForced
@@ -558,19 +561,19 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 
 	// No file move/rename on confirm. The draft flag alone controls visibility/lifecycle.
 
-	if err := s.repo.Update(id, data); err != nil {
+	if err := s.repo.UpdateForOwner(strings.TrimSpace(ownerUserID), id, data); err != nil {
 		return err
 	}
 
-	after, _ := s.repo.FindByID(id)
+	after, _ := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
 
 	// If transaction time changed (common during OCR confirm), recompute auto trip assignment.
 	if (timeChanged || confirming) && after != nil && strings.TrimSpace(after.TripAssignSrc) == assignSrcAuto {
 		db := database.GetDB()
 		_ = db.Transaction(func(tx *gorm.DB) error {
-			return autoAssignPaymentTx(tx, after)
+			return autoAssignPaymentTx(tx, strings.TrimSpace(ownerUserID), after)
 		})
-		after, _ = s.repo.FindByID(id)
+		after, _ = s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
 	}
 
 	if !needsRecalc && !(timeChanged || confirming) {
@@ -587,8 +590,8 @@ func (s *PaymentService) Update(id string, input UpdatePaymentInput) error {
 	return recalcTripBadDebtLockedForTripIDs(affected)
 }
 
-func (s *PaymentService) Delete(id string) error {
-	payment, err := s.repo.FindByID(id)
+func (s *PaymentService) Delete(ownerUserID string, id string) error {
+	payment, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
 	if err != nil {
 		return err
 	}
@@ -601,7 +604,7 @@ func (s *PaymentService) Delete(id string) error {
 	db := database.GetDB()
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		_ = tx.Where("payment_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
-		return tx.Where("id = ?", id).Delete(&models.Payment{}).Error
+		return tx.Where("id = ? AND owner_user_id = ?", id, strings.TrimSpace(ownerUserID)).Delete(&models.Payment{}).Error
 	}); err != nil {
 		return err
 	}
@@ -612,7 +615,7 @@ func (s *PaymentService) Delete(id string) error {
 	return recalcTripBadDebtLocked(tripID)
 }
 
-func (s *PaymentService) GetStats(startDate, endDate string) (*models.PaymentStats, error) {
+func (s *PaymentService) GetStats(ownerUserID string, startDate, endDate string) (*models.PaymentStats, error) {
 	startTs := int64(0)
 	endTs := int64(0)
 	if strings.TrimSpace(startDate) != "" {
@@ -629,7 +632,7 @@ func (s *PaymentService) GetStats(startDate, endDate string) (*models.PaymentSta
 			return nil, fmt.Errorf("invalid endDate: %w", err)
 		}
 	}
-	return s.repo.GetStatsByTs(startTs, endTs)
+	return s.repo.GetStatsByTs(strings.TrimSpace(ownerUserID), startTs, endTs)
 }
 
 // CreateFromScreenshot creates a payment from a screenshot with OCR
@@ -640,7 +643,7 @@ type CreateFromScreenshotInput struct {
 
 // CreateFromScreenshot creates a payment from a screenshot with OCR.
 // If OCR cannot extract a valid transaction time, this returns an error (policy A).
-func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (*models.Payment, *PaymentExtractedData, error) {
+func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFromScreenshotInput) (*models.Payment, *PaymentExtractedData, error) {
 
 	// Perform OCR on the screenshot with specialized payment screenshot recognition
 	text, err := s.ocrService.RecognizePaymentScreenshot(input.ScreenshotPath)
@@ -688,6 +691,7 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 	// Create draft payment record with extracted data (confirmed on user save).
 	payment := &models.Payment{
 		ID:                utils.GenerateUUID(),
+		OwnerUserID:       strings.TrimSpace(ownerUserID),
 		IsDraft:           true,
 		Amount:            0.0, // Default to 0.0, will be updated if amount is extracted
 		Merchant:          extracted.Merchant,
@@ -720,7 +724,7 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 
 	// Mark suspected duplicates for UI (amount+time) if we have a meaningful timestamp.
 	if payment.Amount > 0 && payment.TransactionTimeTs > 0 {
-		if cands, err := FindPaymentCandidatesByAmountTime(payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); err == nil && len(cands) > 0 {
+		if cands, err := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(payment.OwnerUserID), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); err == nil && len(cands) > 0 {
 			payment.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			payment.DedupRefID = &ref
@@ -738,8 +742,8 @@ func (s *PaymentService) CreateFromScreenshot(input CreateFromScreenshotInput) (
 }
 
 // GetLinkedInvoices returns all invoices linked to a payment
-func (s *PaymentService) GetLinkedInvoices(paymentID string) ([]models.Invoice, error) {
-	return s.repo.GetLinkedInvoices(paymentID)
+func (s *PaymentService) GetLinkedInvoices(ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	return s.repo.GetLinkedInvoices(strings.TrimSpace(ownerUserID), paymentID)
 }
 
 type scoredInvoiceCandidate struct {
@@ -790,8 +794,8 @@ func pickSuggestedInvoices(payment *models.Payment, scoredAll []scoredInvoiceCan
 }
 
 // SuggestInvoices suggests invoices that might match this payment using amount/seller/date signals.
-func (s *PaymentService) SuggestInvoices(paymentID string, limit int, debug bool) ([]models.Invoice, error) {
-	payment, err := s.repo.FindByID(paymentID)
+func (s *PaymentService) SuggestInvoices(ownerUserID string, paymentID string, limit int, debug bool) ([]models.Invoice, error) {
+	payment, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), paymentID)
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +810,7 @@ func (s *PaymentService) SuggestInvoices(paymentID string, limit int, debug bool
 		)
 	}
 
-	linked, _ := s.repo.GetLinkedInvoices(paymentID)
+	linked, _ := s.repo.GetLinkedInvoices(strings.TrimSpace(ownerUserID), paymentID)
 	linkedIDs := make(map[string]struct{}, len(linked))
 	for _, inv := range linked {
 		linkedIDs[inv.ID] = struct{}{}
@@ -836,7 +840,7 @@ func (s *PaymentService) SuggestInvoices(paymentID string, limit int, debug bool
 		}
 
 		// If amount is missing (0), we can fallback to recent unlinked invoices so merchant/date signals still work.
-		if recent, _, err := s.invoiceRepo.FindUnlinked(maxCandidates, 0); err == nil {
+		if recent, _, err := s.invoiceRepo.FindUnlinked(strings.TrimSpace(payment.OwnerUserID), maxCandidates, 0); err == nil {
 			candidates = recent
 			if debug {
 				log.Printf("[MATCH] payment=%s repo candidates=0 (amount=0), fallback to recent unlinked invoices=%d", paymentID, len(recent))

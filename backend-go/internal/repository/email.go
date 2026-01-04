@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
 
@@ -27,14 +29,39 @@ func (r *EmailRepository) FindConfigByID(id string) (*models.EmailConfig, error)
 	return &config, nil
 }
 
-func (r *EmailRepository) FindAllConfigs() ([]models.EmailConfig, error) {
+func (r *EmailRepository) FindConfigByIDForOwner(ownerUserID string, id string) (*models.EmailConfig, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	if ownerUserID == "" || id == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var config models.EmailConfig
+	err := database.GetDB().Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&config).Error
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (r *EmailRepository) FindAllConfigs(ownerUserID string) ([]models.EmailConfig, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	var configs []models.EmailConfig
-	err := database.GetDB().Find(&configs).Error
+	err := database.GetDB().Where("owner_user_id = ?", ownerUserID).Order("created_at DESC").Find(&configs).Error
 	return configs, err
 }
 
 func (r *EmailRepository) UpdateConfig(id string, data map[string]interface{}) error {
 	result := database.GetDB().Model(&models.EmailConfig{}).Where("id = ?", id).Updates(data)
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
+}
+
+func (r *EmailRepository) UpdateConfigForOwner(ownerUserID string, id string, data map[string]interface{}) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	result := database.GetDB().Model(&models.EmailConfig{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -49,13 +76,30 @@ func (r *EmailRepository) DeleteConfig(id string) error {
 	return result.Error
 }
 
+func (r *EmailRepository) DeleteConfigForOwner(ownerUserID string, id string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	result := database.GetDB().Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.EmailConfig{})
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
+}
+
 func (r *EmailRepository) UpdateLastCheck(id, lastCheck string) error {
 	return database.GetDB().Model(&models.EmailConfig{}).Where("id = ?", id).Update("last_check", lastCheck).Error
 }
 
-func (r *EmailRepository) GetConfigIDs() ([]string, error) {
+func (r *EmailRepository) UpdateLastCheckForOwner(ownerUserID string, id, lastCheck string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	return database.GetDB().Model(&models.EmailConfig{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Update("last_check", lastCheck).Error
+}
+
+func (r *EmailRepository) GetConfigIDs(ownerUserID string) ([]string, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	var ids []string
-	err := database.GetDB().Model(&models.EmailConfig{}).Pluck("id", &ids).Error
+	err := database.GetDB().Model(&models.EmailConfig{}).Where("owner_user_id = ?", ownerUserID).Pluck("id", &ids).Error
 	return ids, err
 }
 
@@ -64,13 +108,14 @@ func (r *EmailRepository) CreateLog(log *models.EmailLog) error {
 	return database.GetDB().Create(log).Error
 }
 
-func (r *EmailRepository) FindLogs(configID string, limit int) ([]models.EmailLog, error) {
+func (r *EmailRepository) FindLogs(ownerUserID string, configID string, limit int) ([]models.EmailLog, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	var logs []models.EmailLog
 
-	query := database.GetDB().Model(&models.EmailLog{}).Order("created_at DESC")
+	query := database.GetDB().Model(&models.EmailLog{}).Where("owner_user_id = ?", ownerUserID).Order("created_at DESC")
 
 	if configID != "" {
-		query = query.Where("email_config_id = ?", configID)
+		query = query.Where("email_config_id = ?", strings.TrimSpace(configID))
 	}
 
 	if limit > 0 {

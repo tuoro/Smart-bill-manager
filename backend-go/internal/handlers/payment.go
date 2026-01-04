@@ -40,6 +40,7 @@ func (h *PaymentHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("", h.GetAll)
 	r.GET("/stats", h.GetStats)
 	r.GET("/:id", h.GetByID)
+	r.GET("/:id/screenshot", h.GetScreenshot)
 	r.GET("/:id/invoices", h.GetLinkedInvoices)
 	r.GET("/:id/suggest-invoices", h.SuggestInvoices)
 	r.POST("", h.Create)
@@ -58,7 +59,8 @@ func (h *PaymentHandler) GetAll(c *gin.Context) {
 		return
 	}
 
-	payments, err := h.paymentService.GetAllWithInvoiceCounts(filter)
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	payments, err := h.paymentService.GetAllWithInvoiceCounts(ownerUserID, filter)
 	if err != nil {
 		utils.Error(c, 500, "获取支付记录失败", err)
 		return
@@ -71,7 +73,8 @@ func (h *PaymentHandler) GetStats(c *gin.Context) {
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
-	stats, err := h.paymentService.GetStats(startDate, endDate)
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	stats, err := h.paymentService.GetStats(ownerUserID, startDate, endDate)
 	if err != nil {
 		utils.Error(c, 500, "获取统计数据失败", err)
 		return
@@ -82,7 +85,8 @@ func (h *PaymentHandler) GetStats(c *gin.Context) {
 
 func (h *PaymentHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
-	payment, err := h.paymentService.GetByID(id)
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	payment, err := h.paymentService.GetByID(ownerUserID, id)
 	if err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return
@@ -98,7 +102,8 @@ func (h *PaymentHandler) Create(c *gin.Context) {
 		return
 	}
 
-	payment, err := h.paymentService.Create(input)
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	payment, err := h.paymentService.Create(ownerUserID, input)
 	if err != nil {
 		utils.Error(c, 500, "创建支付记录失败", err)
 		return
@@ -115,7 +120,8 @@ func (h *PaymentHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if err := h.paymentService.Update(id, input); err != nil {
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	if err := h.paymentService.Update(ownerUserID, id, input); err != nil {
 		if de, ok := services.AsDuplicateError(err); ok {
 			utils.ErrorData(c, 409, "检测到重复，请确认是否仍要保存", de, err)
 			return
@@ -130,7 +136,7 @@ func (h *PaymentHandler) Update(c *gin.Context) {
 func (h *PaymentHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
-	payment, err := h.paymentService.GetByID(id)
+	payment, err := h.paymentService.GetByID(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return
@@ -146,7 +152,8 @@ func (h *PaymentHandler) Delete(c *gin.Context) {
 		}
 	}
 
-	if err := h.paymentService.Delete(id); err != nil {
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	if err := h.paymentService.Delete(ownerUserID, id); err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return
 	}
@@ -179,13 +186,18 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 		wd, _ := os.Getwd()
 		uploadsDir = filepath.Join(wd, uploadsDir)
 	}
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	targetDir := uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		utils.Error(c, 500, "创建上传目录失败", err)
 		return
 	}
 
 	filename := utils.GenerateUUID() + ext
-	filePath := filepath.Join(uploadsDir, filename)
+	filePath := filepath.Join(targetDir, filename)
 
 	src, err := file.Open()
 	if err != nil {
@@ -209,14 +221,14 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindPaymentByFileSHA256(fileSHA, ""); err != nil {
+	if existing, err := services.FindPaymentByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
 	} else if existing != nil {
 		// If the duplicate is only a draft, reuse it instead of hard-failing (common after container restarts).
 		if existing.IsDraft {
-			relPath := "uploads/" + filename
+			relPath := "uploads/" + ownerUserID + "/" + filename
 			userID := middleware.GetUserID(c)
 			if userID == "" {
 				_ = os.Remove(filePath)
@@ -236,7 +248,7 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 			}
 
 			if usedPath == relPath {
-				updated, uerr := h.paymentService.UpdateDraftScreenshotPath(existing.ID, relPath, &fileSHA)
+				updated, uerr := h.paymentService.UpdateDraftScreenshotPath(middleware.GetEffectiveUserID(c), existing.ID, relPath, &fileSHA)
 				if uerr != nil {
 					_ = os.Remove(filePath)
 					utils.Error(c, 500, "更新草稿失败", uerr)
@@ -245,7 +257,7 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 				existing = updated
 			}
 
-			task, err := h.taskService.CreateTask(services.TaskTypePaymentOCR, userID, existing.ID, &fileSHA)
+			task, err := h.taskService.CreateTaskForOwner(services.TaskTypePaymentOCR, ownerUserID, userID, existing.ID, &fileSHA)
 			if err != nil {
 				utils.Error(c, 500, "创建识别任务失败", err)
 				return
@@ -270,16 +282,16 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 		return
 	}
 
-	relPath := "uploads/" + filename
+	relPath := "uploads/" + ownerUserID + "/" + filename
 
-	payment, extracted, ocrErr := h.paymentService.CreateFromScreenshot(services.CreateFromScreenshotInput{
+	payment, extracted, ocrErr := h.paymentService.CreateFromScreenshot(middleware.GetEffectiveUserID(c), services.CreateFromScreenshotInput{
 		ScreenshotPath: relPath,
 		FileSHA256:     &fileSHA,
 	})
 
 	dedup := interface{}(nil)
 	if payment != nil && payment.DedupStatus == services.DedupStatusSuspected {
-		if cands, derr := services.FindPaymentCandidatesByAmountTime(payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
+		if cands, derr := services.FindPaymentCandidatesByAmountTimeForOwner(middleware.GetEffectiveUserID(c), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
 			dedup = gin.H{
 				"kind":       "suspected_duplicate",
 				"reason":     "amount_time",
@@ -343,13 +355,18 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 		wd, _ := os.Getwd()
 		uploadsDir = filepath.Join(wd, uploadsDir)
 	}
-	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	targetDir := uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		utils.Error(c, 500, "创建上传目录失败", err)
 		return
 	}
 
 	filename := utils.GenerateUUID() + ext
-	filePath := filepath.Join(uploadsDir, filename)
+	filePath := filepath.Join(targetDir, filename)
 
 	src, err := file.Open()
 	if err != nil {
@@ -373,14 +390,14 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindPaymentByFileSHA256(fileSHA, ""); err != nil {
+	if existing, err := services.FindPaymentByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
 	} else if existing != nil {
 		// If the duplicate is only a draft, reuse it instead of hard-failing (common after container restarts).
 		if existing.IsDraft {
-			relPath := "uploads/" + filename
+			relPath := "uploads/" + ownerUserID + "/" + filename
 			userID := middleware.GetUserID(c)
 			if userID == "" {
 				_ = os.Remove(filePath)
@@ -400,7 +417,7 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 			}
 
 			if usedPath == relPath {
-				updated, uerr := h.paymentService.UpdateDraftScreenshotPath(existing.ID, relPath, &fileSHA)
+				updated, uerr := h.paymentService.UpdateDraftScreenshotPath(middleware.GetEffectiveUserID(c), existing.ID, relPath, &fileSHA)
 				if uerr != nil {
 					_ = os.Remove(filePath)
 					utils.Error(c, 500, "更新草稿失败", uerr)
@@ -409,7 +426,7 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 				existing = updated
 			}
 
-			task, err := h.taskService.CreateTask(services.TaskTypePaymentOCR, userID, existing.ID, &fileSHA)
+			task, err := h.taskService.CreateTaskForOwner(services.TaskTypePaymentOCR, ownerUserID, userID, existing.ID, &fileSHA)
 			if err != nil {
 				utils.Error(c, 500, "创建识别任务失败", err)
 				return
@@ -434,7 +451,7 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 		return
 	}
 
-	relPath := "uploads/" + filename
+	relPath := "uploads/" + ownerUserID + "/" + filename
 	userID := middleware.GetUserID(c)
 	if userID == "" {
 		_ = os.Remove(filePath)
@@ -442,14 +459,14 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 		return
 	}
 
-	payment, err := h.paymentService.CreateDraftFromScreenshotUpload(relPath, &fileSHA)
+	payment, err := h.paymentService.CreateDraftFromScreenshotUpload(middleware.GetEffectiveUserID(c), relPath, &fileSHA)
 	if err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "创建草稿失败", err)
 		return
 	}
 
-	task, err := h.taskService.CreateTask(services.TaskTypePaymentOCR, userID, payment.ID, &fileSHA)
+	task, err := h.taskService.CreateTaskForOwner(services.TaskTypePaymentOCR, ownerUserID, userID, payment.ID, &fileSHA)
 	if err != nil {
 		utils.Error(c, 500, "创建识别任务失败", err)
 		return
@@ -471,6 +488,20 @@ func (h *PaymentHandler) CancelUploadScreenshot(c *gin.Context) {
 		return
 	}
 
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	if ownerUserID == "" {
+		utils.Error(c, 401, "未授权，请先登录", nil)
+		return
+	}
+
+	normalizedRel := strings.TrimSpace(input.ScreenshotPath)
+	normalizedRel = strings.ReplaceAll(normalizedRel, "\\", "/")
+	if !strings.HasPrefix(normalizedRel, "uploads/"+ownerUserID+"/") {
+		// Do not allow deleting other users' files by passing an arbitrary path.
+		utils.Error(c, 404, "截图不存在", nil)
+		return
+	}
+
 	absPath, err := resolveUploadsFilePath(h.uploadsDir, input.ScreenshotPath)
 	if err != nil {
 		utils.Error(c, 400, "截图路径错误", err)
@@ -485,7 +516,7 @@ func (h *PaymentHandler) CancelUploadScreenshot(c *gin.Context) {
 	// Best-effort: remove any leftover draft row that references this screenshot.
 	// This helps when the frontend loses the draft payment id but still wants to discard the upload.
 	if h.paymentService != nil {
-		_ = h.paymentService.DeleteDraftByScreenshotPath(strings.TrimSpace(input.ScreenshotPath))
+		_ = h.paymentService.DeleteDraftByScreenshotPath(middleware.GetEffectiveUserID(c), strings.TrimSpace(input.ScreenshotPath))
 	}
 
 	utils.Success(c, 200, "已取消上传", nil)
@@ -493,7 +524,7 @@ func (h *PaymentHandler) CancelUploadScreenshot(c *gin.Context) {
 
 func (h *PaymentHandler) GetLinkedInvoices(c *gin.Context) {
 	id := c.Param("id")
-	invoices, err := h.paymentService.GetLinkedInvoices(id)
+	invoices, err := h.paymentService.GetLinkedInvoices(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 500, "获取关联发票失败", err)
 		return
@@ -514,7 +545,7 @@ func (h *PaymentHandler) SuggestInvoices(c *gin.Context) {
 
 	log.Printf("[MATCH] suggest-invoices payment_id=%s limit=%d debug=%t", id, limit, debug)
 
-	invoices, err := h.paymentService.SuggestInvoices(id, limit, debug)
+	invoices, err := h.paymentService.SuggestInvoices(middleware.GetEffectiveUserID(c), id, limit, debug)
 	if err != nil {
 		utils.Error(c, 500, "获取建议发票失败", err)
 		return
@@ -524,10 +555,50 @@ func (h *PaymentHandler) SuggestInvoices(c *gin.Context) {
 	utils.SuccessData(c, invoices)
 }
 
+func (h *PaymentHandler) GetScreenshot(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		utils.Error(c, 400, "missing id", nil)
+		return
+	}
+
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	payment, err := h.paymentService.GetByID(ownerUserID, id)
+	if err != nil || payment == nil {
+		utils.Error(c, 404, "payment not found", nil)
+		return
+	}
+	if payment.ScreenshotPath == nil || strings.TrimSpace(*payment.ScreenshotPath) == "" {
+		utils.Error(c, 404, "screenshot not found", nil)
+		return
+	}
+
+	absPath, err := resolveUploadsFilePath(h.uploadsDir, strings.TrimSpace(*payment.ScreenshotPath))
+	if err != nil {
+		utils.Error(c, 400, "invalid screenshot path", err)
+		return
+	}
+	if _, err := os.Stat(absPath); err != nil {
+		utils.Error(c, 404, "screenshot not found", nil)
+		return
+	}
+
+	switch strings.ToLower(filepath.Ext(absPath)) {
+	case ".png":
+		c.Header("Content-Type", "image/png")
+	case ".jpg", ".jpeg":
+		c.Header("Content-Type", "image/jpeg")
+	default:
+		c.Header("Content-Type", "application/octet-stream")
+	}
+	c.Header("Content-Disposition", "inline")
+	c.File(absPath)
+}
+
 func (h *PaymentHandler) ReparseScreenshot(c *gin.Context) {
 	id := c.Param("id")
 
-	payment, err := h.paymentService.GetByID(id)
+	payment, err := h.paymentService.GetByID(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return

@@ -21,7 +21,11 @@ type PendingPayment struct {
 	Candidates []PendingCandidateTrip `json:"candidates"`
 }
 
-func (s *TripService) GetPendingPayments() ([]PendingPayment, error) {
+func (s *TripService) GetPendingPayments(ownerUserID string) ([]PendingPayment, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("missing owner_user_id")
+	}
 	db := database.GetDB()
 
 	type row struct {
@@ -70,8 +74,9 @@ func (s *TripService) GetPendingPayments() ([]PendingPayment, error) {
 			t.end_time AS candidate_end_time,
 			t.timezone AS candidate_timezone
 		`).
-		Joins("JOIN trips AS t ON t.start_time_ts <= p.transaction_time_ts AND t.end_time_ts > p.transaction_time_ts").
+		Joins("JOIN trips AS t ON t.owner_user_id = p.owner_user_id AND t.start_time_ts <= p.transaction_time_ts AND t.end_time_ts > p.transaction_time_ts").
 		Where("p.is_draft = 0").
+		Where("p.owner_user_id = ?", ownerUserID).
 		Where(
 			`
 			p.trip_id IS NULL AND (
@@ -132,14 +137,19 @@ func (s *TripService) GetPendingPayments() ([]PendingPayment, error) {
 	return out, nil
 }
 
-func (s *TripService) AssignPendingPayment(paymentID, tripID string) error {
+func (s *TripService) AssignPendingPayment(ownerUserID string, paymentID, tripID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	paymentID = strings.TrimSpace(paymentID)
 	tripID = strings.TrimSpace(tripID)
-	if paymentID == "" || tripID == "" {
-		return fmt.Errorf("payment_id and trip_id are required")
+	if ownerUserID == "" || paymentID == "" || tripID == "" {
+		return fmt.Errorf("owner_user_id, payment_id and trip_id are required")
 	}
 	db := database.GetDB()
-	if err := db.Model(&models.Payment{}).Where("id = ?", paymentID).Updates(map[string]interface{}{
+	var t models.Trip
+	if err := db.Select("id").Where("id = ? AND owner_user_id = ?", tripID, ownerUserID).First(&t).Error; err != nil {
+		return fmt.Errorf("trip not found")
+	}
+	if err := db.Model(&models.Payment{}).Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).Updates(map[string]interface{}{
 		"trip_id":                tripID,
 		"trip_assignment_source": assignSrcManual,
 		"trip_assignment_state":  assignStateAssigned,
@@ -149,13 +159,14 @@ func (s *TripService) AssignPendingPayment(paymentID, tripID string) error {
 	return recalcTripBadDebtLocked(tripID)
 }
 
-func (s *TripService) BlockPendingPayment(paymentID string) error {
+func (s *TripService) BlockPendingPayment(ownerUserID string, paymentID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	paymentID = strings.TrimSpace(paymentID)
-	if paymentID == "" {
-		return fmt.Errorf("payment_id is required")
+	if ownerUserID == "" || paymentID == "" {
+		return fmt.Errorf("owner_user_id and payment_id are required")
 	}
 	db := database.GetDB()
-	return db.Model(&models.Payment{}).Where("id = ?", paymentID).Updates(map[string]interface{}{
+	return db.Model(&models.Payment{}).Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).Updates(map[string]interface{}{
 		"trip_id":                nil,
 		"trip_assignment_source": assignSrcBlocked,
 		"trip_assignment_state":  assignStateBlocked,

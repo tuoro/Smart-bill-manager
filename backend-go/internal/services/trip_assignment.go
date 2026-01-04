@@ -25,12 +25,16 @@ type paymentMatchRow struct {
 	OnlyTripID  *string `gorm:"column:only_trip_id"`
 }
 
-func autoAssignPaymentTx(tx *gorm.DB, payment *models.Payment) error {
+func autoAssignPaymentTx(tx *gorm.DB, ownerUserID string, payment *models.Payment) error {
 	if tx == nil {
 		return fmt.Errorf("tx is required")
 	}
 	if payment == nil {
 		return fmt.Errorf("payment is required")
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return fmt.Errorf("owner_user_id is required")
 	}
 
 	src := strings.TrimSpace(payment.TripAssignSrc)
@@ -39,7 +43,7 @@ func autoAssignPaymentTx(tx *gorm.DB, payment *models.Payment) error {
 	}
 	if src == assignSrcBlocked {
 		return tx.Model(&models.Payment{}).
-			Where("id = ?", payment.ID).
+			Where("id = ? AND owner_user_id = ?", payment.ID, ownerUserID).
 			Updates(map[string]interface{}{
 				"trip_id":                nil,
 				"trip_assignment_source": assignSrcBlocked,
@@ -53,7 +57,7 @@ func autoAssignPaymentTx(tx *gorm.DB, payment *models.Payment) error {
 			state = assignStateAssigned
 		}
 		return tx.Model(&models.Payment{}).
-			Where("id = ?", payment.ID).
+			Where("id = ? AND owner_user_id = ?", payment.ID, ownerUserID).
 			Updates(map[string]interface{}{
 				"trip_assignment_source": assignSrcManual,
 				"trip_assignment_state":  state,
@@ -63,6 +67,7 @@ func autoAssignPaymentTx(tx *gorm.DB, payment *models.Payment) error {
 	// Auto assignment.
 	var trips []models.Trip
 	if err := tx.Model(&models.Trip{}).
+		Where("owner_user_id = ?", ownerUserID).
 		Where("start_time_ts <= ? AND end_time_ts > ?", payment.TransactionTimeTs, payment.TransactionTimeTs).
 		Order("start_time_ts DESC").
 		Find(&trips).Error; err != nil {
@@ -81,16 +86,20 @@ func autoAssignPaymentTx(tx *gorm.DB, payment *models.Payment) error {
 		updates["trip_assignment_state"] = assignStateOverlap
 	}
 
-	if err := tx.Model(&models.Payment{}).Where("id = ?", payment.ID).Updates(updates).Error; err != nil {
+	if err := tx.Model(&models.Payment{}).Where("id = ? AND owner_user_id = ?", payment.ID, ownerUserID).Updates(updates).Error; err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func recomputeAutoAssignmentsForRangeTx(tx *gorm.DB, startTs, endTs int64) (*AssignmentChangeSummary, []string, error) {
+func recomputeAutoAssignmentsForRangeTx(tx *gorm.DB, ownerUserID string, startTs, endTs int64) (*AssignmentChangeSummary, []string, error) {
 	if tx == nil {
 		return nil, nil, fmt.Errorf("tx is required")
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, nil, fmt.Errorf("owner_user_id is required")
 	}
 	if endTs < startTs {
 		return nil, nil, fmt.Errorf("invalid range")
@@ -110,8 +119,8 @@ func recomputeAutoAssignmentsForRangeTx(tx *gorm.DB, startTs, endTs int64) (*Ass
 			COUNT(t.id) AS cnt,
 			MIN(t.id) AS only_trip_id
 		`).
-		Joins("LEFT JOIN trips AS t ON t.start_time_ts <= p.transaction_time_ts AND t.end_time_ts > p.transaction_time_ts").
-		Where("p.trip_assignment_source = ? AND p.transaction_time_ts >= ? AND p.transaction_time_ts < ?", assignSrcAuto, startTs, endTs).
+		Joins("LEFT JOIN trips AS t ON t.owner_user_id = p.owner_user_id AND t.start_time_ts <= p.transaction_time_ts AND t.end_time_ts > p.transaction_time_ts").
+		Where("p.owner_user_id = ? AND p.trip_assignment_source = ? AND p.transaction_time_ts >= ? AND p.transaction_time_ts < ?", ownerUserID, assignSrcAuto, startTs, endTs).
 		Group("p.id, p.trip_id, p.bad_debt").
 		Scan(&rows).Error; err != nil {
 		return nil, nil, err
@@ -170,8 +179,8 @@ func recomputeAutoAssignmentsForRangeTx(tx *gorm.DB, startTs, endTs int64) (*Ass
 	var manualOverlap int64
 	if err := tx.
 		Table("payments AS p").
-		Joins("JOIN trips AS t ON t.start_time_ts <= p.transaction_time_ts AND t.end_time_ts > p.transaction_time_ts").
-		Where("p.trip_assignment_source IN ? AND p.transaction_time_ts >= ? AND p.transaction_time_ts < ?", []string{assignSrcManual, assignSrcBlocked}, startTs, endTs).
+		Joins("JOIN trips AS t ON t.owner_user_id = p.owner_user_id AND t.start_time_ts <= p.transaction_time_ts AND t.end_time_ts > p.transaction_time_ts").
+		Where("p.owner_user_id = ? AND p.trip_assignment_source IN ? AND p.transaction_time_ts >= ? AND p.transaction_time_ts < ?", ownerUserID, []string{assignSrcManual, assignSrcBlocked}, startTs, endTs).
 		Group("p.id").
 		Having("COUNT(t.id) > 1").
 		Count(&manualOverlap).Error; err != nil {

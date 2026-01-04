@@ -3,7 +3,7 @@ import type { Payment, Invoice, ApiResponse, DedupHint } from '@/types'
 
 type UploadScreenshotResult = {
   payment: Payment | null
-  extracted: any
+  extracted: unknown
   screenshot_path: string
   ocr_error?: string
   dedup?: DedupHint | null
@@ -57,7 +57,7 @@ export const paymentApi = {
   
   // Reparse screenshot with OCR
   reparseScreenshot: (id: string) => 
-    api.post<ApiResponse<any>>(`/payments/${id}/reparse`),
+    api.post<ApiResponse<unknown>>(`/payments/${id}/reparse`),
   
   // Get invoices linked to a payment
   getPaymentInvoices: (paymentId: string) =>
@@ -71,4 +71,7 @@ export const paymentApi = {
         debug: params?.debug ? 1 : undefined,
       },
     }),
+
+  getScreenshotBlob: (paymentId: string) =>
+    api.get(`/payments/${paymentId}/screenshot`, { responseType: 'blob' }),
 }

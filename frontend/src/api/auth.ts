@@ -4,9 +4,30 @@ import type { ApiResponse, User } from '@/types'
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 export const FILE_BASE_URL = import.meta.env.VITE_FILE_URL || ''
 
+const ACT_AS_USER_ID_KEY = 'sbm_act_as_user_id'
+const ACT_AS_USERNAME_KEY = 'sbm_act_as_username'
+const ACT_AS_EVENT = 'sbm-act-as-change'
+
 // Get stored token
 const getToken = (): string | null => {
   return localStorage.getItem('token')
+}
+
+export const getActAsUserId = (): string | null => localStorage.getItem(ACT_AS_USER_ID_KEY)
+export const getActAsUsername = (): string | null => localStorage.getItem(ACT_AS_USERNAME_KEY)
+
+export const setActAsUser = (userId: string, username?: string) => {
+  const trimmed = String(userId || '').trim()
+  if (!trimmed) return
+  localStorage.setItem(ACT_AS_USER_ID_KEY, trimmed)
+  localStorage.setItem(ACT_AS_USERNAME_KEY, String(username || '').trim())
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACT_AS_EVENT))
+}
+
+export const clearActAs = () => {
+  localStorage.removeItem(ACT_AS_USER_ID_KEY)
+  localStorage.removeItem(ACT_AS_USERNAME_KEY)
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(ACT_AS_EVENT))
 }
 
 // Set stored token
@@ -44,6 +65,7 @@ export const setStoredUser = (user: User | null) => {
 export const clearAuth = () => {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
+  clearActAs()
 }
 
 // Auth error handler callback - to be set by router
@@ -51,6 +73,20 @@ let authErrorHandler: (() => void) | null = null
 
 export const setAuthErrorHandler = (handler: () => void) => {
   authErrorHandler = handler
+}
+
+export type ActAsConfirmInfo = {
+  code?: string
+  actor_user_id?: string
+  target_user_id?: string
+  method?: string
+  path?: string
+}
+
+let actAsConfirmHandler: ((info: ActAsConfirmInfo) => Promise<boolean>) | null = null
+
+export const setActAsConfirmHandler = (handler: ((info: ActAsConfirmInfo) => Promise<boolean>) | null) => {
+  actAsConfirmHandler = handler
 }
 
 const api = axios.create({
@@ -66,13 +102,29 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  const actAsUserId = getActAsUserId()
+  if (actAsUserId) {
+    config.headers['X-Act-As-User'] = actAsUserId
+  }
   return config
 })
 
 // Handle 401 responses
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    if (error.response?.status === 400 && error.response?.data?.data?.code === 'ACT_AS_CONFIRM_REQUIRED') {
+      const originalConfig = error.config
+      const alreadyConfirmed = originalConfig?.headers?.['X-Act-As-Confirmed']
+      if (!alreadyConfirmed && actAsConfirmHandler && originalConfig) {
+        const ok = await actAsConfirmHandler(error.response.data.data)
+        if (ok) {
+          originalConfig.headers = originalConfig.headers || {}
+          originalConfig.headers['X-Act-As-Confirmed'] = '1'
+          return api.request(originalConfig)
+        }
+      }
+    }
     if (error.response?.status === 401) {
       clearAuth()
       // Use callback instead of direct window manipulation

@@ -89,4 +89,7 @@ export const invoiceApi = {
   // Unlink a payment from an invoice
   unlinkPayment: (invoiceId: string, paymentId: string) =>
     api.delete<ApiResponse<void>>(`/invoices/${invoiceId}/unlink-payment?payment_id=${paymentId}`),
+
+  getFileBlob: (invoiceId: string) =>
+    api.get(`/invoices/${invoiceId}/file`, { responseType: 'blob' }),
 }

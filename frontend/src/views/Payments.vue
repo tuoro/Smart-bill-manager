@@ -544,10 +544,10 @@
         <div class="payment-detail-layout">
           <div class="payment-detail-left">
             <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
-            <div v-if="detailPayment.screenshot_path" class="screenshot-wrap">
+            <div v-if="detailPayment.screenshot_path && detailScreenshotSrc" class="screenshot-wrap">
               <Image
                 class="screenshot"
-                :src="`${FILE_BASE_URL}/${detailPayment.screenshot_path}`"
+                :src="detailScreenshotSrc"
                 preview
                 :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
               />
@@ -692,7 +692,7 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { invoiceApi, paymentApi, tasksApi, FILE_BASE_URL, regressionSamplesApi } from '@/api'
+import { invoiceApi, paymentApi, tasksApi, regressionSamplesApi } from '@/api'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import type { Invoice, Payment, DedupHint } from '@/types'
@@ -784,15 +784,28 @@ const ocrResult = ref<OcrExtractedData | null>(null)
 const uploadDedup = ref<DedupHint | null>(null)
 const uploadedPaymentId = ref<string | null>(null)
 const uploadedScreenshotPath = ref<string | null>(null)
+const uploadedScreenshotBlobUrl = ref<string | null>(null)
 const ocrTaskId = ref<string | null>(null)
 const screenshotInput = ref<HTMLInputElement | null>(null)
 const screenshotUploadAttempt = ref(0)
 const selectedScreenshotPreviewUrl = ref<string | null>(null)
 
-const screenshotPreviewSrc = computed(() => {
-  if (uploadedScreenshotPath.value) return `${FILE_BASE_URL}/${uploadedScreenshotPath.value}`
-  return selectedScreenshotPreviewUrl.value
-})
+const screenshotPreviewSrc = computed(() => uploadedScreenshotBlobUrl.value || selectedScreenshotPreviewUrl.value)
+
+const loadUploadedScreenshotBlob = async () => {
+  if (typeof window === 'undefined') return
+  if (uploadedScreenshotBlobUrl.value) {
+    URL.revokeObjectURL(uploadedScreenshotBlobUrl.value)
+    uploadedScreenshotBlobUrl.value = null
+  }
+  if (!uploadedPaymentId.value) return
+  try {
+    const res = await paymentApi.getScreenshotBlob(uploadedPaymentId.value)
+    uploadedScreenshotBlobUrl.value = URL.createObjectURL(res.data as Blob)
+  } catch (err) {
+    console.warn('Load uploaded screenshot blob failed:', err)
+  }
+}
 
 watch(
   selectedScreenshotFile,
@@ -816,6 +829,10 @@ watch(uploadedScreenshotPath, (path) => {
     URL.revokeObjectURL(selectedScreenshotPreviewUrl.value)
     selectedScreenshotPreviewUrl.value = null
   }
+})
+
+watch(uploadedPaymentId, () => {
+  void loadUploadedScreenshotBlob()
 })
 
 const PENDING_PAYMENT_DRAFT_KEY = 'sbm_pending_payment_upload_draft'
@@ -983,6 +1000,8 @@ const invoiceMatchTab = ref<'linked' | 'suggested'>('linked')
 // Detail dialog
 const paymentDetailVisible = ref(false)
 const detailPayment = ref<Payment | null>(null)
+const detailScreenshotBlobUrl = ref<string | null>(null)
+const detailScreenshotSrc = computed(() => detailScreenshotBlobUrl.value || '')
 const reparsingOcr = ref(false)
 const paymentDetailEditing = ref(false)
 const savingPaymentDetail = ref(false)
@@ -997,6 +1016,25 @@ const paymentDetailForm = reactive({
   description: '',
   transaction_time: null as Date | null,
 })
+
+watch(
+  () => detailPayment.value?.id,
+  async (id) => {
+    if (typeof window === 'undefined') return
+    if (detailScreenshotBlobUrl.value) {
+      URL.revokeObjectURL(detailScreenshotBlobUrl.value)
+      detailScreenshotBlobUrl.value = null
+    }
+    if (!id) return
+    if (!detailPayment.value?.screenshot_path) return
+    try {
+      const res = await paymentApi.getScreenshotBlob(id)
+      detailScreenshotBlobUrl.value = URL.createObjectURL(res.data as Blob)
+    } catch (err) {
+      console.warn('Load payment screenshot failed:', err)
+    }
+  },
+)
 
 const validateOcrForm = () => {
   ocrErrors.amount = ''

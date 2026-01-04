@@ -32,16 +32,10 @@ func (h *TaskHandler) Get(c *gin.Context) {
 		return
 	}
 
-	t, err := h.taskService.GetTask(id)
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	t, err := h.taskService.GetTaskForOwner(ownerUserID, id)
 	if err != nil {
 		utils.Error(c, http.StatusNotFound, "任务不存在", err)
-		return
-	}
-
-	userID := middleware.GetUserID(c)
-	role := middleware.GetUserRole(c)
-	if role != "admin" && strings.TrimSpace(t.CreatedBy) != userID {
-		utils.Error(c, http.StatusForbidden, "无权限访问该任务", nil)
 		return
 	}
 
@@ -69,16 +63,15 @@ func (h *TaskHandler) Cancel(c *gin.Context) {
 		utils.Error(c, http.StatusBadRequest, "缺少任务 id", nil)
 		return
 	}
-	userID := middleware.GetUserID(c)
-	if userID == "" {
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	if ownerUserID == "" {
 		utils.Error(c, http.StatusUnauthorized, "未登录", nil)
 		return
 	}
 
-	if err := h.taskService.CancelTask(id, userID); err != nil {
+	if err := h.taskService.CancelTask(id, ownerUserID); err != nil {
 		utils.Error(c, http.StatusBadRequest, "取消任务失败", err)
 		return
 	}
 	utils.SuccessData(c, gin.H{"canceled": true})
 }
-

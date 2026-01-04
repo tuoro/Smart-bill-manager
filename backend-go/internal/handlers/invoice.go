@@ -58,6 +58,7 @@ func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/unlinked", h.GetUnlinked)
 	r.GET("/stats", h.GetStats)
 	r.GET("/:id", h.GetByID)
+	r.GET("/:id/file", h.GetFile)
 	r.GET("/:id/download", h.Download)
 	r.GET("/:id/linked-payments", h.GetLinkedPayments)
 	r.GET("/:id/suggest-payments", h.SuggestPayments)
@@ -80,7 +81,7 @@ func (h *InvoiceHandler) GetAll(c *gin.Context) {
 		return
 	}
 
-	invoices, err := h.invoiceService.GetAll(filter)
+	invoices, err := h.invoiceService.GetAll(middleware.GetEffectiveUserID(c), filter)
 	if err != nil {
 		utils.Error(c, 500, "获取发票列表失败", err)
 		return
@@ -103,7 +104,7 @@ func (h *InvoiceHandler) GetUnlinked(c *gin.Context) {
 		}
 	}
 
-	items, total, err := h.invoiceService.GetUnlinked(limit, offset)
+	items, total, err := h.invoiceService.GetUnlinked(middleware.GetEffectiveUserID(c), limit, offset)
 	if err != nil {
 		utils.Error(c, 500, "获取未关联发票失败", err)
 		return
@@ -116,7 +117,7 @@ func (h *InvoiceHandler) GetUnlinked(c *gin.Context) {
 }
 
 func (h *InvoiceHandler) GetStats(c *gin.Context) {
-	stats, err := h.invoiceService.GetStats()
+	stats, err := h.invoiceService.GetStats(middleware.GetEffectiveUserID(c))
 	if err != nil {
 		utils.Error(c, 500, "获取统计数据失败", err)
 		return
@@ -127,7 +128,7 @@ func (h *InvoiceHandler) GetStats(c *gin.Context) {
 
 func (h *InvoiceHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
-	invoice, err := h.invoiceService.GetByID(id)
+	invoice, err := h.invoiceService.GetByID(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "发票不存在", nil)
 		return
@@ -136,9 +137,37 @@ func (h *InvoiceHandler) GetByID(c *gin.Context) {
 	utils.SuccessData(c, invoice)
 }
 
+func (h *InvoiceHandler) GetFile(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		utils.Error(c, 400, "missing id", nil)
+		return
+	}
+
+	invoice, err := h.invoiceService.GetByID(middleware.GetEffectiveUserID(c), id)
+	if err != nil || invoice == nil {
+		utils.Error(c, 404, "invoice not found", nil)
+		return
+	}
+
+	absPath, err := resolveUploadsFilePath(h.uploadsDir, invoice.FilePath)
+	if err != nil {
+		utils.Error(c, 400, "invalid file path", err)
+		return
+	}
+	if _, err := os.Stat(absPath); err != nil {
+		utils.Error(c, 404, "file not found", nil)
+		return
+	}
+
+	c.Header("Content-Disposition", "inline")
+	c.Header("Content-Type", contentTypeFromInvoiceFilename(invoice.Filename))
+	c.File(absPath)
+}
+
 func (h *InvoiceHandler) Download(c *gin.Context) {
 	id := c.Param("id")
-	invoice, err := h.invoiceService.GetByID(id)
+	invoice, err := h.invoiceService.GetByID(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "发票不存在", nil)
 		return
@@ -161,7 +190,7 @@ func (h *InvoiceHandler) Download(c *gin.Context) {
 
 func (h *InvoiceHandler) GetByPaymentID(c *gin.Context) {
 	paymentID := c.Param("paymentId")
-	invoices, err := h.invoiceService.GetByPaymentID(paymentID)
+	invoices, err := h.invoiceService.GetByPaymentID(middleware.GetEffectiveUserID(c), paymentID)
 	if err != nil {
 		utils.Error(c, 500, "获取发票失败", err)
 		return
@@ -188,13 +217,18 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	if err := os.MkdirAll(h.uploadsDir, 0755); err != nil {
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	targetDir := h.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(h.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		utils.Error(c, 500, "创建上传目录失败", err)
 		return
 	}
 
 	filename := utils.GenerateUUID() + ext
-	filePath := filepath.Join(h.uploadsDir, filename)
+	filePath := filepath.Join(targetDir, filename)
 
 	src, err := file.Open()
 	if err != nil {
@@ -218,7 +252,7 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindInvoiceByFileSHA256(fileSHA, ""); err != nil {
+	if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
@@ -238,11 +272,11 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 		paymentID = &pid
 	}
 
-	invoice, err := h.invoiceService.Create(services.CreateInvoiceInput{
+	invoice, err := h.invoiceService.Create(middleware.GetEffectiveUserID(c), services.CreateInvoiceInput{
 		PaymentID:    paymentID,
 		Filename:     filename,
 		OriginalName: file.Filename,
-		FilePath:     "uploads/" + filename,
+		FilePath:     "uploads/" + ownerUserID + "/" + filename,
 		FileSize:     file.Size,
 		FileSHA256:   &fileSHA,
 		Source:       "upload",
@@ -258,7 +292,7 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 	if invoice != nil && invoice.DedupStatus == services.DedupStatusSuspected && invoice.InvoiceNumber != nil {
 		no := strings.TrimSpace(*invoice.InvoiceNumber)
 		if no != "" {
-			if cands, derr := services.FindInvoiceCandidatesByInvoiceNumber(no, invoice.ID, 5); derr == nil && len(cands) > 0 {
+			if cands, derr := services.FindInvoiceCandidatesByInvoiceNumberForOwner(middleware.GetEffectiveUserID(c), no, invoice.ID, 5); derr == nil && len(cands) > 0 {
 				dedup = gin.H{
 					"kind":       "suspected_duplicate",
 					"reason":     "invoice_number",
@@ -291,13 +325,18 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 		return
 	}
 
-	if err := os.MkdirAll(h.uploadsDir, 0755); err != nil {
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	targetDir := h.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(h.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		utils.Error(c, 500, "创建上传目录失败", err)
 		return
 	}
 
 	filename := utils.GenerateUUID() + ext
-	filePath := filepath.Join(h.uploadsDir, filename)
+	filePath := filepath.Join(targetDir, filename)
 
 	src, err := file.Open()
 	if err != nil {
@@ -321,14 +360,14 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindInvoiceByFileSHA256(fileSHA, ""); err != nil {
+	if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
 	} else if existing != nil {
 		// If the duplicate is only a draft, reuse it instead of hard-failing (common after container restarts).
 		if existing.IsDraft {
-			relPath := "uploads/" + filename
+			relPath := "uploads/" + ownerUserID + "/" + filename
 			usedPath := relPath
 
 			// Prefer keeping the existing file if it's still present; otherwise update the draft to point to the new upload.
@@ -343,7 +382,7 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 			}
 
 			if usedPath == relPath {
-				updated, uerr := h.invoiceService.UpdateDraftFileMeta(existing.ID, filename, file.Filename, relPath, file.Size, &fileSHA)
+				updated, uerr := h.invoiceService.UpdateDraftFileMeta(middleware.GetEffectiveUserID(c), existing.ID, filename, file.Filename, relPath, file.Size, &fileSHA)
 				if uerr != nil {
 					_ = os.Remove(filePath)
 					utils.Error(c, 500, "更新草稿失败", uerr)
@@ -359,7 +398,7 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 				return
 			}
 
-			task, err := h.taskService.CreateTask(services.TaskTypeInvoiceOCR, userID, existing.ID, &fileSHA)
+			task, err := h.taskService.CreateTaskForOwner(services.TaskTypeInvoiceOCR, ownerUserID, userID, existing.ID, &fileSHA)
 			if err != nil {
 				utils.Error(c, 500, "创建识别任务失败", err)
 				return
@@ -396,11 +435,11 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceService.CreateDraftFromUpload(services.CreateInvoiceInput{
+	invoice, err := h.invoiceService.CreateDraftFromUpload(middleware.GetEffectiveUserID(c), services.CreateInvoiceInput{
 		PaymentID:    paymentID,
 		Filename:     filename,
 		OriginalName: file.Filename,
-		FilePath:     "uploads/" + filename,
+		FilePath:     "uploads/" + ownerUserID + "/" + filename,
 		FileSize:     file.Size,
 		FileSHA256:   &fileSHA,
 		Source:       "upload",
@@ -412,7 +451,7 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 		return
 	}
 
-	task, err := h.taskService.CreateTask(services.TaskTypeInvoiceOCR, userID, invoice.ID, &fileSHA)
+	task, err := h.taskService.CreateTaskForOwner(services.TaskTypeInvoiceOCR, ownerUserID, userID, invoice.ID, &fileSHA)
 	if err != nil {
 		utils.Error(c, 500, "创建识别任务失败", err)
 		return
@@ -441,7 +480,12 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 		return
 	}
 
-	if err := os.MkdirAll(h.uploadsDir, 0755); err != nil {
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	targetDir := h.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(h.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		utils.Error(c, 500, "创建上传目录失败", err)
 		return
 	}
@@ -464,7 +508,7 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 		}
 
 		filename := utils.GenerateUUID() + ext
-		filePath := filepath.Join(h.uploadsDir, filename)
+		filePath := filepath.Join(targetDir, filename)
 
 		src, err := file.Open()
 		if err != nil {
@@ -486,7 +530,7 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 			}
 			fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-			if existing, err := services.FindInvoiceByFileSHA256(fileSHA, ""); err != nil {
+			if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 				_ = os.Remove(filePath)
 				return
 			} else if existing != nil {
@@ -495,11 +539,11 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 				return
 			}
 
-			invoice, err := h.invoiceService.Create(services.CreateInvoiceInput{
+			invoice, err := h.invoiceService.Create(middleware.GetEffectiveUserID(c), services.CreateInvoiceInput{
 				PaymentID:    paymentID,
 				Filename:     filename,
 				OriginalName: file.Filename,
-				FilePath:     "uploads/" + filename,
+				FilePath:     "uploads/" + ownerUserID + "/" + filename,
 				FileSize:     file.Size,
 				FileSHA256:   &fileSHA,
 				Source:       "upload",
@@ -538,7 +582,12 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 		return
 	}
 
-	if err := os.MkdirAll(h.uploadsDir, 0755); err != nil {
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	targetDir := h.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(h.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		utils.Error(c, 500, "创建上传目录失败", err)
 		return
 	}
@@ -567,7 +616,7 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 		}
 
 		filename := utils.GenerateUUID() + ext
-		filePath := filepath.Join(h.uploadsDir, filename)
+		filePath := filepath.Join(targetDir, filename)
 
 		src, err := file.Open()
 		if err != nil {
@@ -591,13 +640,13 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 		}
 		fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-		if existing, err := services.FindInvoiceByFileSHA256(fileSHA, ""); err != nil {
+		if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 			_ = os.Remove(filePath)
 			continue
 		} else if existing != nil {
 			// If the duplicate is only a draft, reuse it (common after container restarts); otherwise skip.
 			if existing.IsDraft {
-				relPath := "uploads/" + filename
+				relPath := "uploads/" + ownerUserID + "/" + filename
 				usedPath := relPath
 
 				if strings.TrimSpace(existing.FilePath) != "" {
@@ -611,7 +660,7 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 				}
 
 				if usedPath == relPath {
-					updated, uerr := h.invoiceService.UpdateDraftFileMeta(existing.ID, filename, file.Filename, relPath, file.Size, &fileSHA)
+					updated, uerr := h.invoiceService.UpdateDraftFileMeta(middleware.GetEffectiveUserID(c), existing.ID, filename, file.Filename, relPath, file.Size, &fileSHA)
 					if uerr != nil {
 						_ = os.Remove(filePath)
 						continue
@@ -619,7 +668,7 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 					existing = updated
 				}
 
-				task, err := h.taskService.CreateTask(services.TaskTypeInvoiceOCR, userID, existing.ID, &fileSHA)
+				task, err := h.taskService.CreateTaskForOwner(services.TaskTypeInvoiceOCR, ownerUserID, userID, existing.ID, &fileSHA)
 				if err != nil {
 					continue
 				}
@@ -638,11 +687,11 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 			continue
 		}
 
-		invoice, err := h.invoiceService.CreateDraftFromUpload(services.CreateInvoiceInput{
+		invoice, err := h.invoiceService.CreateDraftFromUpload(middleware.GetEffectiveUserID(c), services.CreateInvoiceInput{
 			PaymentID:    paymentID,
 			Filename:     filename,
 			OriginalName: file.Filename,
-			FilePath:     "uploads/" + filename,
+			FilePath:     "uploads/" + ownerUserID + "/" + filename,
 			FileSize:     file.Size,
 			FileSHA256:   &fileSHA,
 			Source:       "upload",
@@ -653,7 +702,7 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 			continue
 		}
 
-		task, err := h.taskService.CreateTask(services.TaskTypeInvoiceOCR, userID, invoice.ID, &fileSHA)
+		task, err := h.taskService.CreateTaskForOwner(services.TaskTypeInvoiceOCR, ownerUserID, userID, invoice.ID, &fileSHA)
 		if err != nil {
 			continue
 		}
@@ -684,7 +733,7 @@ func (h *InvoiceHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if err := h.invoiceService.Update(id, input); err != nil {
+	if err := h.invoiceService.Update(middleware.GetEffectiveUserID(c), id, input); err != nil {
 		if de, ok := services.AsDuplicateError(err); ok {
 			utils.ErrorData(c, 409, "检测到重复，请确认是否仍要保存", de, err)
 			return
@@ -698,7 +747,7 @@ func (h *InvoiceHandler) Update(c *gin.Context) {
 
 func (h *InvoiceHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
-	if err := h.invoiceService.Delete(id); err != nil {
+	if err := h.invoiceService.Delete(middleware.GetEffectiveUserID(c), id); err != nil {
 		utils.Error(c, 404, "发票不存在", nil)
 		return
 	}
@@ -718,7 +767,7 @@ func (h *InvoiceHandler) LinkPayment(c *gin.Context) {
 		return
 	}
 
-	if err := h.invoiceService.LinkPayment(id, input.PaymentID); err != nil {
+	if err := h.invoiceService.LinkPayment(middleware.GetEffectiveUserID(c), id, input.PaymentID); err != nil {
 		utils.Error(c, 500, "关联支付记录失败", err)
 		return
 	}
@@ -735,7 +784,7 @@ func (h *InvoiceHandler) UnlinkPayment(c *gin.Context) {
 		return
 	}
 
-	if err := h.invoiceService.UnlinkPayment(id, paymentID); err != nil {
+	if err := h.invoiceService.UnlinkPayment(middleware.GetEffectiveUserID(c), id, paymentID); err != nil {
 		utils.Error(c, 500, "取消关联失败", err)
 		return
 	}
@@ -746,7 +795,7 @@ func (h *InvoiceHandler) UnlinkPayment(c *gin.Context) {
 func (h *InvoiceHandler) GetLinkedPayments(c *gin.Context) {
 	id := c.Param("id")
 
-	payments, err := h.invoiceService.GetLinkedPayments(id)
+	payments, err := h.invoiceService.GetLinkedPayments(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 500, "获取关联支付记录失败", err)
 		return
@@ -767,7 +816,7 @@ func (h *InvoiceHandler) SuggestPayments(c *gin.Context) {
 
 	log.Printf("[MATCH] suggest-payments invoice_id=%s limit=%d debug=%t", id, limit, debug)
 
-	payments, err := h.invoiceService.SuggestPayments(id, limit, debug)
+	payments, err := h.invoiceService.SuggestPayments(middleware.GetEffectiveUserID(c), id, limit, debug)
 	if err != nil {
 		utils.Error(c, 500, "获取建议支付记录失败", err)
 		return
@@ -780,7 +829,7 @@ func (h *InvoiceHandler) SuggestPayments(c *gin.Context) {
 func (h *InvoiceHandler) Parse(c *gin.Context) {
 	id := c.Param("id")
 
-	invoice, err := h.invoiceService.Reparse(id)
+	invoice, err := h.invoiceService.Reparse(middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 500, "解析发票失败", err)
 		return

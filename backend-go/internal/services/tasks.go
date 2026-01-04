@@ -54,14 +54,29 @@ func (s *TaskService) wake() {
 	}
 }
 
-func (s *TaskService) CreateTask(taskType string, createdBy string, targetID string, fileSHA256 *string) (*models.Task, error) {
+func (s *TaskService) CreateTaskForOwner(taskType string, ownerUserID string, createdBy string, targetID string, fileSHA256 *string) (*models.Task, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	createdBy = strings.TrimSpace(createdBy)
+	if ownerUserID == "" {
+		return nil, errors.New("missing owner_user_id")
+	}
+	if createdBy == "" {
+		return nil, errors.New("missing created_by")
+	}
+	// Keep backward-compatible behavior for call sites that used CreateTask(createdBy,...).
+	// This delegates to the new signature without breaking semantics.
+	return s.createTaskInternal(taskType, ownerUserID, createdBy, targetID, fileSHA256)
+}
+
+func (s *TaskService) createTaskInternal(taskType string, ownerUserID string, createdBy string, targetID string, fileSHA256 *string) (*models.Task, error) {
 	if s.db == nil {
 		return nil, errors.New("db not initialized")
 	}
 	taskType = strings.TrimSpace(taskType)
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	createdBy = strings.TrimSpace(createdBy)
 	targetID = strings.TrimSpace(targetID)
-	if taskType == "" || createdBy == "" || targetID == "" {
+	if taskType == "" || ownerUserID == "" || createdBy == "" || targetID == "" {
 		return nil, errors.New("missing fields")
 	}
 	if fileSHA256 != nil {
@@ -75,9 +90,9 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 
 	var existing models.Task
 	q := s.db.
-		Where("type = ? AND created_by = ? AND target_id = ? AND status IN ?",
+		Where("type = ? AND owner_user_id = ? AND target_id = ? AND status IN ?",
 			taskType,
-			createdBy,
+			ownerUserID,
 			targetID,
 			[]string{TaskStatusQueued, TaskStatusProcessing},
 		)
@@ -96,12 +111,13 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 	}
 
 	t := &models.Task{
-		ID:         utils.GenerateUUID(),
-		Type:       taskType,
-		Status:     TaskStatusQueued,
-		CreatedBy:  createdBy,
-		TargetID:   targetID,
-		FileSHA256: fileSHA256,
+		ID:          utils.GenerateUUID(),
+		OwnerUserID: ownerUserID,
+		Type:        taskType,
+		Status:      TaskStatusQueued,
+		CreatedBy:   createdBy,
+		TargetID:    targetID,
+		FileSHA256:  fileSHA256,
 	}
 	if err := s.db.Create(t).Error; err != nil {
 		return nil, err
@@ -110,36 +126,41 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 	return t, nil
 }
 
-func (s *TaskService) GetTask(id string) (*models.Task, error) {
+func (s *TaskService) CreateTask(taskType string, createdBy string, targetID string, fileSHA256 *string) (*models.Task, error) {
+	return s.createTaskInternal(taskType, createdBy, createdBy, targetID, fileSHA256)
+}
+
+func (s *TaskService) GetTaskForOwner(ownerUserID string, id string) (*models.Task, error) {
 	if s.db == nil {
 		return nil, errors.New("db not initialized")
 	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	id = strings.TrimSpace(id)
-	if id == "" {
+	if ownerUserID == "" || id == "" {
 		return nil, gorm.ErrRecordNotFound
 	}
 	var t models.Task
-	if err := s.db.Where("id = ?", id).First(&t).Error; err != nil {
+	if err := s.db.Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&t).Error; err != nil {
 		return nil, err
 	}
 	return &t, nil
 }
 
-func (s *TaskService) CancelTask(id string, requester string) error {
+func (s *TaskService) CancelTask(id string, ownerUserID string) error {
 	if s.db == nil {
 		return errors.New("db not initialized")
 	}
 	id = strings.TrimSpace(id)
-	requester = strings.TrimSpace(requester)
-	if id == "" || requester == "" {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if id == "" || ownerUserID == "" {
 		return errors.New("invalid input")
 	}
 
 	res := s.db.Model(&models.Task{}).
 		Where(
-			"id = ? AND created_by = ? AND status IN ?",
+			"id = ? AND owner_user_id = ? AND status IN ?",
 			id,
-			requester,
+			ownerUserID,
 			[]string{TaskStatusQueued, TaskStatusProcessing},
 		).
 		Updates(map[string]any{
@@ -152,13 +173,13 @@ func (s *TaskService) CancelTask(id string, requester string) error {
 	}
 	if res.RowsAffected == 0 {
 		var t models.Task
-		if err := s.db.Select("status", "created_by").Where("id = ?", id).First(&t).Error; err != nil {
+		if err := s.db.Select("status", "owner_user_id").Where("id = ?", id).First(&t).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("task not found")
 			}
 			return err
 		}
-		if strings.TrimSpace(t.CreatedBy) == requester && t.Status == TaskStatusCanceled {
+		if strings.TrimSpace(t.OwnerUserID) == ownerUserID && t.Status == TaskStatusCanceled {
 			return nil
 		}
 		return errors.New("task not cancelable")

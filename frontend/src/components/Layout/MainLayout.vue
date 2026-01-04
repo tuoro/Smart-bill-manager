@@ -88,6 +88,12 @@
             />
             <NotificationCenter />
 
+            <div v-if="authStore.user?.role === 'admin' && actAsUserId" class="act-as-banner">
+              <i class="pi pi-user-edit" />
+              <span class="act-as-text">代操作：{{ actAsUsername || actAsUserId }}</span>
+              <Button class="act-as-exit" severity="danger" text rounded icon="pi pi-times" aria-label="退出代操作" @click="stopActAs" />
+            </div>
+
             <Button
               v-if="isMobile"
               class="mobile-menu-btn"
@@ -126,15 +132,19 @@ import Avatar from 'primevue/avatar'
 import Drawer from 'primevue/drawer'
 import Menu from 'primevue/menu'
 import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import ChangePassword from '@/components/ChangePassword.vue'
 import NotificationCenter from '@/components/NotificationCenter.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/stores/theme'
+import { clearActAs, getActAsUserId, getActAsUsername, setActAsConfirmHandler } from '@/api'
+import type { ActAsConfirmInfo } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
+const confirm = useConfirm()
 const theme = useTheme()
 
 type NavItem = { path: string; label: string; icon: string }
@@ -150,6 +160,7 @@ const navItems: NavItem[] = [
 const navItemsWithAdmin = computed(() => {
   const items = [...navItems]
   if (authStore.user?.role === 'admin') {
+    items.push({ path: '/admin/users', label: '用户', icon: 'pi pi-users' })
     items.push({ path: '/logs', label: '日志', icon: 'pi pi-book' })
     items.push({ path: '/admin/invites', label: '\u9080\u8bf7\u7801\u7ba1\u7406', icon: 'pi pi-ticket' })
     items.push({ path: '/admin/regression-samples', label: '回归样本', icon: 'pi pi-verified' })
@@ -163,6 +174,8 @@ const showChangePasswordDialog = ref(false)
 const userMenu = ref<InstanceType<typeof Menu> | null>(null)
 const mobileNavVisible = ref(false)
 const isMobile = ref(false)
+const actAsUserId = ref<string | null>(null)
+const actAsUsername = ref<string | null>(null)
 
 const currentRoute = computed(() => route.path)
 
@@ -186,12 +199,44 @@ onMounted(() => {
   updateLayoutMode()
   if (typeof window === 'undefined') return
   window.addEventListener('resize', updateLayoutMode, { passive: true })
+  actAsUserId.value = getActAsUserId()
+  actAsUsername.value = getActAsUsername()
+  window.addEventListener('sbm-act-as-change', refreshActAs, { passive: true })
+  setActAsConfirmHandler(async (info: ActAsConfirmInfo) => {
+    return new Promise<boolean>((resolve) => {
+      const method = String(info?.method || '').toUpperCase()
+      const path = String(info?.path || '')
+      const target = actAsUsername.value || actAsUserId.value || String(info?.target_user_id || '')
+      confirm.require({
+        header: '代操作确认',
+        message: `将以「${target}」身份执行：${method} ${path}。是否继续？`,
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: '继续',
+        rejectLabel: '取消',
+        accept: () => resolve(true),
+        reject: () => resolve(false),
+      })
+    })
+  })
 })
 
 onBeforeUnmount(() => {
   if (typeof window === 'undefined') return
-  window.removeEventListener('resize', updateLayoutMode as any)
+  window.removeEventListener('resize', updateLayoutMode)
+  window.removeEventListener('sbm-act-as-change', refreshActAs)
+  setActAsConfirmHandler(null)
 })
+
+function refreshActAs() {
+  actAsUserId.value = getActAsUserId()
+  actAsUsername.value = getActAsUsername()
+}
+
+function stopActAs() {
+  clearActAs()
+  refreshActAs()
+  toast.add({ severity: 'success', summary: '已退出代操作', life: 2000 })
+}
 
 const pageTitle = computed(() => {
   const metaTitle = route.meta?.title
@@ -589,5 +634,24 @@ const go = (path: string) => {
 
 .p-drawer.mobile-drawer .mobile-nav .nav-item i {
   font-size: 19px;
+}
+
+.act-as-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--p-surface-100);
+  border: 1px solid var(--p-surface-200);
+  color: var(--p-text-color);
+  font-size: 12px;
+  max-width: 260px;
+}
+
+.act-as-banner .act-as-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

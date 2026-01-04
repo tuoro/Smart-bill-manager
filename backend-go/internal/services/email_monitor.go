@@ -171,7 +171,11 @@ type CreateEmailConfigInput struct {
 	IsActive int    `json:"is_active"`
 }
 
-func (s *EmailService) CreateConfig(input CreateEmailConfigInput) (*models.EmailConfig, error) {
+func (s *EmailService) CreateConfig(ownerUserID string, input CreateEmailConfigInput) (*models.EmailConfig, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("missing owner_user_id")
+	}
 	port := input.IMAPPort
 	if port == 0 {
 		port = 993
@@ -183,12 +187,13 @@ func (s *EmailService) CreateConfig(input CreateEmailConfigInput) (*models.Email
 	}
 
 	config := &models.EmailConfig{
-		ID:       utils.GenerateUUID(),
-		Email:    input.Email,
-		IMAPHost: input.IMAPHost,
-		IMAPPort: port,
-		Password: input.Password,
-		IsActive: isActive,
+		ID:          utils.GenerateUUID(),
+		OwnerUserID: ownerUserID,
+		Email:       input.Email,
+		IMAPHost:    input.IMAPHost,
+		IMAPPort:    port,
+		Password:    input.Password,
+		IsActive:    isActive,
 	}
 
 	if err := s.repo.CreateConfig(config); err != nil {
@@ -198,8 +203,8 @@ func (s *EmailService) CreateConfig(input CreateEmailConfigInput) (*models.Email
 	return config, nil
 }
 
-func (s *EmailService) GetAllConfigs() ([]models.EmailConfigResponse, error) {
-	configs, err := s.repo.FindAllConfigs()
+func (s *EmailService) GetAllConfigs(ownerUserID string) ([]models.EmailConfigResponse, error) {
+	configs, err := s.repo.FindAllConfigs(ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,30 +216,38 @@ func (s *EmailService) GetAllConfigs() ([]models.EmailConfigResponse, error) {
 	return responses, nil
 }
 
-func (s *EmailService) GetConfigByID(id string) (*models.EmailConfig, error) {
-	return s.repo.FindConfigByID(id)
+func (s *EmailService) GetConfigByID(ownerUserID string, id string) (*models.EmailConfig, error) {
+	return s.repo.FindConfigByIDForOwner(ownerUserID, id)
 }
 
-func (s *EmailService) UpdateConfig(id string, data map[string]interface{}) error {
+func (s *EmailService) UpdateConfig(ownerUserID string, id string, data map[string]interface{}) error {
 	// Don't update password if it's masked
 	if pwd, ok := data["password"]; ok {
 		if pwd == "********" {
 			delete(data, "password")
 		}
 	}
-	return s.repo.UpdateConfig(id, data)
+	return s.repo.UpdateConfigForOwner(ownerUserID, id, data)
 }
 
-func (s *EmailService) DeleteConfig(id string) error {
+func (s *EmailService) DeleteConfig(ownerUserID string, id string) error {
+	if _, err := s.repo.FindConfigByIDForOwner(ownerUserID, id); err != nil {
+		return err
+	}
 	s.StopMonitoring(id)
-	return s.repo.DeleteConfig(id)
+	return s.repo.DeleteConfigForOwner(ownerUserID, id)
 }
 
-func (s *EmailService) GetLogs(configID string, limit int) ([]models.EmailLog, error) {
+func (s *EmailService) GetLogs(ownerUserID string, configID string, limit int) ([]models.EmailLog, error) {
 	if limit == 0 {
 		limit = 50
 	}
-	return s.repo.FindLogs(configID, limit)
+	if strings.TrimSpace(configID) != "" {
+		if _, err := s.repo.FindConfigByIDForOwner(ownerUserID, configID); err != nil {
+			return []models.EmailLog{}, nil
+		}
+	}
+	return s.repo.FindLogs(ownerUserID, configID, limit)
 }
 
 // TestConnection tests IMAP connection
@@ -259,8 +272,8 @@ func (s *EmailService) TestConnection(email, imapHost string, imapPort int, pass
 }
 
 // StartMonitoring starts email monitoring for a config
-func (s *EmailService) StartMonitoring(configID string) bool {
-	config, err := s.repo.FindConfigByID(configID)
+func (s *EmailService) StartMonitoring(ownerUserID string, configID string) bool {
+	config, err := s.repo.FindConfigByIDForOwner(ownerUserID, configID)
 	if err != nil || config.IsActive == 0 {
 		return false
 	}
@@ -289,12 +302,12 @@ func (s *EmailService) StartMonitoring(configID string) bool {
 	log.Printf("[Email Monitor] Connected to %s", config.Email)
 
 	// Start monitoring in goroutine
-	go s.monitorInbox(configID, c)
+	go s.monitorInbox(configID, strings.TrimSpace(config.OwnerUserID), c)
 
 	return true
 }
 
-func (s *EmailService) monitorInbox(configID string, c *client.Client) {
+func (s *EmailService) monitorInbox(configID string, ownerUserID string, c *client.Client) {
 	// Select INBOX
 	mbox, err := c.Select("INBOX", false)
 	if err != nil {
@@ -306,7 +319,7 @@ func (s *EmailService) monitorInbox(configID string, c *client.Client) {
 	log.Printf("[Email Monitor] Inbox opened. %d total messages", mbox.Messages)
 
 	// Fetch unread emails initially
-	s.fetchUnreadEmails(configID, c)
+	s.fetchUnreadEmails(ownerUserID, configID, c)
 
 	// Set up IDLE for real-time notifications
 	updates := make(chan client.Update)
@@ -322,7 +335,7 @@ func (s *EmailService) monitorInbox(configID string, c *client.Client) {
 				switch update.(type) {
 				case *client.MailboxUpdate:
 					log.Println("[Email Monitor] New mail received!")
-					s.fetchUnreadEmails(configID, c)
+					s.fetchUnreadEmails(ownerUserID, configID, c)
 				}
 			case <-stop:
 				return
@@ -346,7 +359,7 @@ func (s *EmailService) monitorInbox(configID string, c *client.Client) {
 	s.mu.Unlock()
 }
 
-func (s *EmailService) fetchUnreadEmails(configID string, c *client.Client) {
+func (s *EmailService) fetchUnreadEmails(ownerUserID string, configID string, c *client.Client) {
 	// Search for unseen messages
 	criteria := imap.NewSearchCriteria()
 	criteria.WithoutFlags = []string{imap.SeenFlag}
@@ -381,7 +394,7 @@ func (s *EmailService) fetchUnreadEmails(configID string, c *client.Client) {
 	}()
 
 	for msg := range messages {
-		s.processMessage(configID, msg, textSection)
+		s.processMessage(ownerUserID, configID, msg, textSection)
 
 		// Mark as seen
 		seenSet := new(imap.SeqSet)
@@ -395,10 +408,10 @@ func (s *EmailService) fetchUnreadEmails(configID string, c *client.Client) {
 
 	// Update last check time
 	now := time.Now().Format(time.RFC3339)
-	s.repo.UpdateLastCheck(configID, now)
+	_ = s.repo.UpdateLastCheckForOwner(ownerUserID, configID, now)
 }
 
-func (s *EmailService) processMessage(configID string, msg *imap.Message, section *imap.BodySectionName) {
+func (s *EmailService) processMessage(ownerUserID string, configID string, msg *imap.Message, section *imap.BodySectionName) {
 	if msg == nil {
 		return
 	}
@@ -433,6 +446,7 @@ func (s *EmailService) processMessage(configID string, msg *imap.Message, sectio
 
 		emailLog := &models.EmailLog{
 			ID:              utils.GenerateUUID(),
+			OwnerUserID:     strings.TrimSpace(ownerUserID),
 			EmailConfigID:   configID,
 			Mailbox:         "INBOX",
 			MessageUID:      msg.Uid,
@@ -513,7 +527,9 @@ func (s *EmailService) processMessage(configID string, msg *imap.Message, sectio
 	}
 	emailLog := &models.EmailLog{
 		ID:              utils.GenerateUUID(),
+		OwnerUserID:     strings.TrimSpace(ownerUserID),
 		EmailConfigID:   configID,
+		Mailbox:         "INBOX",
 		Subject:         &subject,
 		FromAddress:     &from,
 		ReceivedDate:    &dateStr,
@@ -569,8 +585,8 @@ func (s *EmailService) StopMonitoring(configID string) bool {
 }
 
 // GetMonitoringStatus returns status of all configs
-func (s *EmailService) GetMonitoringStatus() ([]models.MonitorStatus, error) {
-	ids, err := s.repo.GetConfigIDs()
+func (s *EmailService) GetMonitoringStatus(ownerUserID string) ([]models.MonitorStatus, error) {
+	ids, err := s.repo.GetConfigIDs(ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -594,8 +610,8 @@ func (s *EmailService) GetMonitoringStatus() ([]models.MonitorStatus, error) {
 }
 
 // ManualCheck performs a manual email check
-func (s *EmailService) ManualCheck(configID string) (bool, string, int) {
-	config, err := s.repo.FindConfigByID(configID)
+func (s *EmailService) ManualCheck(ownerUserID string, configID string) (bool, string, int) {
+	config, err := s.repo.FindConfigByIDForOwner(ownerUserID, configID)
 	if err != nil {
 		return false, "配置不存在", 0
 	}
@@ -648,7 +664,7 @@ func (s *EmailService) ManualCheck(configID string) (bool, string, int) {
 
 	count := 0
 	for msg := range messages {
-		s.processMessage(configID, msg, textSection)
+		s.processMessage(ownerUserID, configID, msg, textSection)
 
 		// Mark as seen
 		seenSet := new(imap.SeqSet)
@@ -661,7 +677,7 @@ func (s *EmailService) ManualCheck(configID string) (bool, string, int) {
 
 	// Update last check time
 	now := time.Now().Format(time.RFC3339)
-	s.repo.UpdateLastCheck(configID, now)
+	_ = s.repo.UpdateLastCheckForOwner(ownerUserID, configID, now)
 
 	return true, fmt.Sprintf("成功处理 %d 封邮件", count), count
 }

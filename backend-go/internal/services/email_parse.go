@@ -27,6 +27,8 @@ import (
 	"golang.org/x/net/html/charset"
 
 	"smart-bill-manager/internal/models"
+
+	"gorm.io/gorm"
 )
 
 const (
@@ -35,7 +37,12 @@ const (
 	emailParseMaxTextBytes = 512 * 1024
 )
 
-func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
+func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.Invoice, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("missing owner_user_id")
+	}
+
 	logID = strings.TrimSpace(logID)
 	if logID == "" {
 		return nil, fmt.Errorf("missing log id")
@@ -46,8 +53,13 @@ func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
 		return nil, err
 	}
 
+	if strings.TrimSpace(logRow.OwnerUserID) != ownerUserID {
+		// Avoid leaking other users' log ids.
+		return nil, gorm.ErrRecordNotFound
+	}
+
 	if logRow.ParsedInvoiceID != nil && strings.TrimSpace(*logRow.ParsedInvoiceID) != "" {
-		return s.invoiceService.GetByID(strings.TrimSpace(*logRow.ParsedInvoiceID))
+		return s.invoiceService.GetByID(strings.TrimSpace(logRow.OwnerUserID), strings.TrimSpace(*logRow.ParsedInvoiceID))
 	}
 
 	if logRow.MessageUID <= 0 {
@@ -70,6 +82,13 @@ func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
 			"parse_error": "email config not found",
 		})
 		return nil, err
+	}
+	if strings.TrimSpace(cfg.OwnerUserID) != ownerUserID {
+		_ = s.repo.UpdateLog(logID, map[string]interface{}{
+			"status":      "error",
+			"parse_error": "email config owner mismatch",
+		})
+		return nil, fmt.Errorf("email config owner mismatch")
 	}
 
 	addr := fmt.Sprintf("%s:%d", cfg.IMAPHost, cfg.IMAPPort)
@@ -234,7 +253,7 @@ func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
 		pdfFilename = "invoice.pdf"
 	}
 
-	savedFilename, relPath, size, sha, err := s.savePDFToUploads(pdfFilename, pdfBytes)
+	savedFilename, relPath, size, sha, err := s.savePDFToUploads(strings.TrimSpace(logRow.OwnerUserID), pdfFilename, pdfBytes)
 	if err != nil {
 		_ = s.repo.UpdateLog(logID, map[string]interface{}{
 			"status":      "error",
@@ -249,7 +268,7 @@ func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
 		xmlBytes, err := downloadURLWithLimit(*xmlURL, emailParseMaxXMLBytes)
 		if err == nil {
 			if extracted, err2 := parseInvoiceXMLToExtracted(xmlBytes); err2 == nil {
-				inv, err = s.invoiceService.CreateFromExtracted(CreateInvoiceInput{
+				inv, err = s.invoiceService.CreateFromExtracted(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
 					Filename:     savedFilename,
 					OriginalName: pdfFilename,
 					FilePath:     relPath,
@@ -277,7 +296,7 @@ func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
 	}
 
 	// Fallback: parse PDF (OCR/PDF extract) if XML is unavailable or failed.
-	inv, err = s.invoiceService.Create(CreateInvoiceInput{
+	inv, err = s.invoiceService.Create(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
 		Filename:     savedFilename,
 		OriginalName: pdfFilename,
 		FilePath:     relPath,
@@ -314,7 +333,8 @@ func (s *EmailService) ParseEmailLog(logID string) (*models.Invoice, error) {
 	return inv, nil
 }
 
-func (s *EmailService) savePDFToUploads(originalName string, content []byte) (filename string, relPath string, size int64, shaHex *string, err error) {
+func (s *EmailService) savePDFToUploads(ownerUserID string, originalName string, content []byte) (filename string, relPath string, size int64, shaHex *string, err error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	name := strings.TrimSpace(originalName)
 	if name == "" {
 		name = "invoice.pdf"
@@ -324,10 +344,14 @@ func (s *EmailService) savePDFToUploads(originalName string, content []byte) (fi
 	}
 	filename = fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeFilename(name))
 
-	if err := os.MkdirAll(s.uploadsDir, 0755); err != nil {
+	targetDir := s.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(s.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return "", "", 0, nil, err
 	}
-	abs := filepath.Join(s.uploadsDir, filename)
+	abs := filepath.Join(targetDir, filename)
 	if err := os.WriteFile(abs, content, 0644); err != nil {
 		return "", "", 0, nil, err
 	}
@@ -335,7 +359,11 @@ func (s *EmailService) savePDFToUploads(originalName string, content []byte) (fi
 	sum := sha256.Sum256(content)
 	sha := hex.EncodeToString(sum[:])
 	size = int64(len(content))
-	relPath = "uploads/" + filename
+	if ownerUserID != "" {
+		relPath = "uploads/" + ownerUserID + "/" + filename
+	} else {
+		relPath = "uploads/" + filename
+	}
 	shaHex = &sha
 	return filename, relPath, size, shaHex, nil
 }

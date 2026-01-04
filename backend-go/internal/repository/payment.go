@@ -27,6 +27,7 @@ func (r *PaymentRepository) FindByID(id string) (*models.Payment, error) {
 }
 
 type PaymentFilter struct {
+	OwnerUserID string
 	Limit     int
 	Offset    int
 	StartDate string
@@ -43,6 +44,9 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 	var payments []models.Payment
 
 	query := database.GetDB().Model(&models.Payment{})
+	if filter.OwnerUserID != "" {
+		query = query.Where("owner_user_id = ?", filter.OwnerUserID)
+	}
 	if !filter.IncludeDraft {
 		query = query.Where("is_draft = 0")
 	}
@@ -70,6 +74,19 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 	return payments, err
 }
 
+func (r *PaymentRepository) FindByIDForOwner(ownerUserID string, id string) (*models.Payment, error) {
+	var payment models.Payment
+	q := database.GetDB().Where("id = ?", id)
+	if ownerUserID != "" {
+		q = q.Where("owner_user_id = ?", ownerUserID)
+	}
+	err := q.First(&payment).Error
+	if err != nil {
+		return nil, err
+	}
+	return &payment, nil
+}
+
 func (r *PaymentRepository) Update(id string, data map[string]interface{}) error {
 	result := database.GetDB().Model(&models.Payment{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
@@ -78,8 +95,32 @@ func (r *PaymentRepository) Update(id string, data map[string]interface{}) error
 	return result.Error
 }
 
+func (r *PaymentRepository) UpdateForOwner(ownerUserID string, id string, data map[string]interface{}) error {
+	q := database.GetDB().Model(&models.Payment{}).Where("id = ?", id)
+	if ownerUserID != "" {
+		q = q.Where("owner_user_id = ?", ownerUserID)
+	}
+	result := q.Updates(data)
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
+}
+
 func (r *PaymentRepository) Delete(id string) error {
 	result := database.GetDB().Where("id = ?", id).Delete(&models.Payment{})
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
+}
+
+func (r *PaymentRepository) DeleteForOwner(ownerUserID string, id string) error {
+	q := database.GetDB().Where("id = ?", id)
+	if ownerUserID != "" {
+		q = q.Where("owner_user_id = ?", ownerUserID)
+	}
+	result := q.Delete(&models.Payment{})
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -135,9 +176,12 @@ func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.Payment
 
 // GetStatsByTs uses SQL aggregation to compute stats efficiently.
 // startTs/endTs are UTC unix milliseconds; 0 means unbounded.
-func (r *PaymentRepository) GetStatsByTs(startTs, endTs int64) (*models.PaymentStats, error) {
+func (r *PaymentRepository) GetStatsByTs(ownerUserID string, startTs, endTs int64) (*models.PaymentStats, error) {
 	applyFilter := func(q *gorm.DB) *gorm.DB {
 		q = q.Where("is_draft = 0")
+		if ownerUserID != "" {
+			q = q.Where("owner_user_id = ?", ownerUserID)
+		}
 		if startTs > 0 {
 			q = q.Where("transaction_time_ts >= ?", startTs)
 		}
@@ -213,12 +257,15 @@ func (r *PaymentRepository) GetStatsByTs(startTs, endTs int64) (*models.PaymentS
 }
 
 // GetLinkedInvoices returns all invoices linked to a payment
-func (r *PaymentRepository) GetLinkedInvoices(paymentID string) ([]models.Invoice, error) {
+func (r *PaymentRepository) GetLinkedInvoices(ownerUserID string, paymentID string) ([]models.Invoice, error) {
 	var invoices []models.Invoice
-	err := database.GetDB().
+	q := database.GetDB().
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.invoice_id = invoices.id").
 		Where("invoice_payment_links.payment_id = ?", paymentID).
-		Where("invoices.is_draft = 0").
-		Find(&invoices).Error
+		Where("invoices.is_draft = 0")
+	if ownerUserID != "" {
+		q = q.Where("invoices.owner_user_id = ?", ownerUserID)
+	}
+	err := q.Find(&invoices).Error
 	return invoices, err
 }

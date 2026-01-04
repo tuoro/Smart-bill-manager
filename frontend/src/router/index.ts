@@ -70,6 +70,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '邀请码管理', requiresAdmin: true },
       },
       {
+        path: 'admin/users',
+        name: 'AdminUsers',
+        component: () => import('@/views/AdminUsers.vue'),
+        meta: { title: '用户', requiresAdmin: true },
+      },
+      {
         path: 'admin/regression-samples',
         name: 'AdminRegressionSamples',
         component: () => import('@/views/AdminRegressionSamples.vue'),

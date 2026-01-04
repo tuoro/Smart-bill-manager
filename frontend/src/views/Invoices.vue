@@ -189,18 +189,18 @@
             <div class="invoice-file-preview">
               <div class="raw-title">发票预览</div>
               <div class="invoice-file-box">
-                <template v-if="uploadedInvoice?.file_path">
+                <template v-if="uploadedInvoice?.file_path && uploadedInvoiceFileSrc">
                   <Image
                     v-if="isInvoiceImageFile(uploadedInvoice.file_path)"
                     class="invoice-image"
-                    :src="invoiceFileUrl(uploadedInvoice.file_path)"
+                    :src="uploadedInvoiceFileSrc"
                     preview
                     :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
                   />
                   <iframe
                     v-else-if="isInvoicePdfFile(uploadedInvoice.file_path)"
                     class="invoice-pdf"
-                    :src="invoicePreviewUrl(uploadedInvoice.file_path)"
+                    :src="uploadedInvoiceFileSrc"
                     loading="lazy"
                     title="Invoice PDF Preview"
                   />
@@ -369,18 +369,18 @@
             <div class="invoice-file-preview">
               <div class="raw-title">发票原件</div>
               <div class="invoice-file-box">
-                <template v-if="previewInvoice.file_path">
+                <template v-if="previewInvoice.file_path && previewInvoiceFileSrc">
                   <Image
                     v-if="isInvoiceImageFile(previewInvoice.file_path)"
                     class="invoice-image"
-                    :src="invoiceFileUrl(previewInvoice.file_path)"
+                    :src="previewInvoiceFileSrc"
                     preview
                     :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
                   />
                   <iframe
                     v-else-if="isInvoicePdfFile(previewInvoice.file_path)"
                     class="invoice-pdf"
-                    :src="invoicePreviewUrl(previewInvoice.file_path)"
+                    :src="previewInvoiceFileSrc"
                     loading="lazy"
                     title="Invoice PDF Preview"
                   />
@@ -643,7 +643,7 @@ import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { invoiceApi, tasksApi, FILE_BASE_URL, regressionSamplesApi } from '@/api'
+import { invoiceApi, tasksApi, regressionSamplesApi } from '@/api'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import type { Invoice, Payment, DedupHint } from '@/types'
@@ -706,19 +706,19 @@ const confidenceClass = (c?: number) => {
 
 const isInvoiceImageFile = (p?: string) => /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(p || ''))
 const isInvoicePdfFile = (p?: string) => /\.pdf$/i.test(String(p || ''))
-const invoiceFileUrl = (p?: string) => {
-  const path = String(p || '').trim()
-  if (!path) return ''
-  return `${FILE_BASE_URL}/${path}`
-}
-const invoicePreviewUrl = (p?: string) => {
-  const url = invoiceFileUrl(p)
-  if (!url) return ''
-  if (!isInvoicePdfFile(p)) return url
+const uploadedInvoiceFileSrc = ref<string>('')
+const previewInvoiceFileSrc = ref<string>('')
 
-  // Best-effort: hide built-in PDF viewer chrome where supported.
-  const flags = 'toolbar=0&navpanes=0&scrollbar=0'
-  return url.includes('#') ? `${url}&${flags}` : `${url}#${flags}`
+const revokeObjectUrl = (url: string) => {
+  if (typeof window === 'undefined') return
+  const u = String(url || '')
+  if (u) URL.revokeObjectURL(u)
+}
+
+const loadInvoiceFileBlobUrl = async (invoiceId: string) => {
+  if (typeof window === 'undefined') return ''
+  const res = await invoiceApi.getFileBlob(invoiceId)
+  return URL.createObjectURL(res.data as Blob)
 }
 
 const toast = useToast()
@@ -781,6 +781,20 @@ const invoiceInput = ref<HTMLInputElement | null>(null)
 const uploadedInvoiceIds = ref<string[]>([])
 const uploadedInvoiceId = ref<string | null>(null)
 const uploadedInvoice = ref<Invoice | null>(null)
+
+watch(
+  () => uploadedInvoice.value?.id,
+  async (id) => {
+    revokeObjectUrl(uploadedInvoiceFileSrc.value)
+    uploadedInvoiceFileSrc.value = ''
+    if (!id) return
+    try {
+      uploadedInvoiceFileSrc.value = await loadInvoiceFileBlobUrl(id)
+    } catch (err) {
+      console.warn('Load uploaded invoice file failed:', err)
+    }
+  },
+)
 const uploadOcrResult = ref<InvoiceExtractedData | null>(null)
 const uploadDedup = ref<DedupHint | null>(null)
 const uploadConfirmed = ref(false)
@@ -859,6 +873,20 @@ const removeSelectedFile = async (idx: number) => {
 
 const previewVisible = ref(false)
 const previewInvoice = ref<Invoice | null>(null)
+
+watch(
+  () => previewInvoice.value?.id,
+  async (id) => {
+    revokeObjectUrl(previewInvoiceFileSrc.value)
+    previewInvoiceFileSrc.value = ''
+    if (!id) return
+    try {
+      previewInvoiceFileSrc.value = await loadInvoiceFileBlobUrl(id)
+    } catch (err) {
+      console.warn('Load preview invoice file failed:', err)
+    }
+  },
+)
 const parseStatusPending = ref(false)
 const invoiceDetailEditing = ref(false)
 const savingInvoiceDetail = ref(false)
@@ -1275,8 +1303,17 @@ const openPreview = (invoice: Invoice) => {
   loadLinkedPayments(invoice.id)
 }
 
-const downloadFile = (invoice: Invoice) => {
-  window.open(`${FILE_BASE_URL}/${invoice.file_path}`, '_blank')
+const downloadFile = async (invoice: Invoice) => {
+  if (typeof window === 'undefined') return
+  if (!invoice?.id) return
+  try {
+    const res = await invoiceApi.getFileBlob(invoice.id)
+    const url = URL.createObjectURL(res.data as Blob)
+    window.open(url, '_blank')
+    window.setTimeout(() => revokeObjectUrl(url), 60_000)
+  } catch (err) {
+    console.warn('Download invoice file failed:', err)
+  }
 }
 
 const enterInvoiceEditMode = () => {

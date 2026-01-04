@@ -133,3 +133,21 @@ func getTripIDForPayment(paymentID string) (string, error) {
 	}
 	return strings.TrimSpace(*payment.TripID), nil
 }
+
+func getTripIDForPaymentForOwner(ownerUserID string, paymentID string) (string, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	paymentID = strings.TrimSpace(paymentID)
+	if ownerUserID == "" || paymentID == "" {
+		return "", nil
+	}
+
+	db := database.GetDB()
+	var payment models.Payment
+	if err := db.Select("trip_id").Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).First(&payment).Error; err != nil {
+		return "", err
+	}
+	if payment.TripID == nil || strings.TrimSpace(*payment.TripID) == "" {
+		return "", nil
+	}
+	return strings.TrimSpace(*payment.TripID), nil
+}

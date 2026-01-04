@@ -7,6 +7,7 @@ import (
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
 	"strconv"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -52,7 +53,22 @@ func (r *InvoiceRepository) FindByID(id string) (*models.Invoice, error) {
 	return &invoice, nil
 }
 
+func (r *InvoiceRepository) FindByIDForOwner(ownerUserID string, id string) (*models.Invoice, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	if ownerUserID == "" || id == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var invoice models.Invoice
+	err := database.GetDB().Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&invoice).Error
+	if err != nil {
+		return nil, err
+	}
+	return &invoice, nil
+}
+
 type InvoiceFilter struct {
+	OwnerUserID string
 	Limit  int
 	Offset int
 	// IncludeDraft controls whether draft records are included.
@@ -64,6 +80,9 @@ func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, err
 	var invoices []models.Invoice
 
 	query := database.GetDB().Model(&models.Invoice{}).Order("created_at DESC")
+	if strings.TrimSpace(filter.OwnerUserID) != "" {
+		query = query.Where("owner_user_id = ?", strings.TrimSpace(filter.OwnerUserID))
+	}
 	if !filter.IncludeDraft {
 		query = query.Where("is_draft = 0")
 	}
@@ -79,19 +98,24 @@ func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, err
 	return invoices, err
 }
 
-func (r *InvoiceRepository) FindUnlinked(limit int, offset int) ([]models.Invoice, int64, error) {
+func (r *InvoiceRepository) FindUnlinked(ownerUserID string, limit int, offset int) ([]models.Invoice, int64, error) {
 	db := database.GetDB()
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, 0, fmt.Errorf("missing owner_user_id")
+	}
 
 	// Consider an invoice "linked" only if there is at least one valid link to an existing non-draft payment.
 	// This avoids legacy invoices.payment_id noise and prevents broken/stale link rows from hiding invoices.
 	base := db.
 		Model(&models.Invoice{}).
 		Where("invoices.is_draft = 0").
+		Where("invoices.owner_user_id = ?", ownerUserID).
 		Where(`
 			NOT EXISTS (
 				SELECT 1
 				FROM invoice_payment_links AS l
-				JOIN payments AS p ON p.id = l.payment_id AND p.is_draft = 0
+				JOIN payments AS p ON p.id = l.payment_id AND p.is_draft = 0 AND p.owner_user_id = invoices.owner_user_id
 				WHERE l.invoice_id = invoices.id
 			)
 		`)
@@ -117,14 +141,40 @@ func (r *InvoiceRepository) FindUnlinked(limit int, offset int) ([]models.Invoic
 	return invoices, total, nil
 }
 
-func (r *InvoiceRepository) FindByPaymentID(paymentID string) ([]models.Invoice, error) {
+func (r *InvoiceRepository) FindByPaymentID(ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	paymentID = strings.TrimSpace(paymentID)
+	if ownerUserID == "" || paymentID == "" {
+		return []models.Invoice{}, nil
+	}
 	var invoices []models.Invoice
-	err := database.GetDB().Where("payment_id = ?", paymentID).Where("is_draft = 0").Find(&invoices).Error
+	err := database.GetDB().
+		Model(&models.Invoice{}).
+		Where("owner_user_id = ? AND is_draft = 0", ownerUserID).
+		Where(`
+			id IN (SELECT invoice_id FROM invoice_payment_links WHERE payment_id = ?)
+			OR payment_id = ?
+		`, paymentID, paymentID).
+		Order("created_at DESC").
+		Find(&invoices).Error
 	return invoices, err
 }
 
 func (r *InvoiceRepository) Update(id string, data map[string]interface{}) error {
 	result := database.GetDB().Model(&models.Invoice{}).Where("id = ?", id).Updates(data)
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
+}
+
+func (r *InvoiceRepository) UpdateForOwner(ownerUserID string, id string, data map[string]interface{}) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	if ownerUserID == "" || id == "" {
+		return gorm.ErrRecordNotFound
+	}
+	result := database.GetDB().Model(&models.Invoice{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -139,7 +189,24 @@ func (r *InvoiceRepository) Delete(id string) error {
 	return result.Error
 }
 
-func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
+func (r *InvoiceRepository) DeleteForOwner(ownerUserID string, id string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	if ownerUserID == "" || id == "" {
+		return gorm.ErrRecordNotFound
+	}
+	result := database.GetDB().Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.Invoice{})
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
+}
+
+func (r *InvoiceRepository) GetStats(ownerUserID string) (*models.InvoiceStats, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("missing owner_user_id")
+	}
 	stats := &models.InvoiceStats{
 		BySource: make(map[string]int),
 		ByMonth:  make(map[string]float64),
@@ -152,7 +219,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var totals totalsRow
 	if err := database.GetDB().
 		Table("invoices").
-		Where("is_draft = 0").
+		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
 		Select("COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_amount").
 		Scan(&totals).Error; err != nil {
 		return nil, err
@@ -168,7 +235,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var srcRows []srcRow
 	if err := database.GetDB().
 		Table("invoices").
-		Where("is_draft = 0").
+		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
 		Select(`CASE WHEN source IS NULL OR TRIM(source) = '' THEN 'unknown' ELSE source END AS src, COUNT(*) AS cnt`).
 		Group("src").
 		Scan(&srcRows).Error; err != nil {
@@ -186,7 +253,7 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 	var monthRows []monthRow
 	if err := database.GetDB().
 		Table("invoices").
-		Where("is_draft = 0").
+		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
 		Where("invoice_date IS NOT NULL AND LENGTH(invoice_date) >= 7 AND amount IS NOT NULL").
 		Select(`SUBSTR(invoice_date, 1, 7) AS m, COALESCE(SUM(amount), 0) AS total`).
 		Group("m").
@@ -203,7 +270,24 @@ func (r *InvoiceRepository) GetStats() (*models.InvoiceStats, error) {
 }
 
 // LinkPayment creates a link between an invoice and a payment
-func (r *InvoiceRepository) LinkPayment(invoiceID, paymentID string) error {
+func (r *InvoiceRepository) LinkPayment(ownerUserID string, invoiceID, paymentID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	paymentID = strings.TrimSpace(paymentID)
+	if ownerUserID == "" || invoiceID == "" || paymentID == "" {
+		return fmt.Errorf("missing fields")
+	}
+
+	// Verify ownership for both sides.
+	var inv models.Invoice
+	if err := database.GetDB().Select("id").Where("id = ? AND owner_user_id = ?", invoiceID, ownerUserID).First(&inv).Error; err != nil {
+		return fmt.Errorf("invoice not found")
+	}
+	var pay models.Payment
+	if err := database.GetDB().Select("id").Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).First(&pay).Error; err != nil {
+		return fmt.Errorf("payment not found")
+	}
+
 	// Enforce invoice -> 0/1 payment (DB has a unique index on invoice_id).
 	var cnt int64
 	if err := database.GetDB().Table("invoice_payment_links").Where("invoice_id = ?", invoiceID).Count(&cnt).Error; err != nil {
@@ -221,18 +305,42 @@ func (r *InvoiceRepository) LinkPayment(invoiceID, paymentID string) error {
 }
 
 // UnlinkPayment removes the link between an invoice and a payment
-func (r *InvoiceRepository) UnlinkPayment(invoiceID, paymentID string) error {
+func (r *InvoiceRepository) UnlinkPayment(ownerUserID string, invoiceID, paymentID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	paymentID = strings.TrimSpace(paymentID)
+	if ownerUserID == "" || invoiceID == "" || paymentID == "" {
+		return nil
+	}
+	// Ownership check: if either side isn't owned by this user, behave like "not found".
+	var inv models.Invoice
+	if err := database.GetDB().Select("id").Where("id = ? AND owner_user_id = ?", invoiceID, ownerUserID).First(&inv).Error; err != nil {
+		return gorm.ErrRecordNotFound
+	}
+	var pay models.Payment
+	if err := database.GetDB().Select("id").Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).First(&pay).Error; err != nil {
+		return gorm.ErrRecordNotFound
+	}
 	return database.GetDB().Where("invoice_id = ? AND payment_id = ?", invoiceID, paymentID).
 		Delete(&models.InvoicePaymentLink{}).Error
 }
 
 // GetLinkedPayments returns all payments linked to an invoice
-func (r *InvoiceRepository) GetLinkedPayments(invoiceID string) ([]models.Payment, error) {
+func (r *InvoiceRepository) GetLinkedPayments(ownerUserID string, invoiceID string) ([]models.Payment, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	if ownerUserID == "" || invoiceID == "" {
+		return []models.Payment{}, nil
+	}
 	var payments []models.Payment
 	err := database.GetDB().
+		Table("payments").
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.payment_id = payments.id").
+		Joins("INNER JOIN invoices ON invoices.id = invoice_payment_links.invoice_id").
 		Where("invoice_payment_links.invoice_id = ?", invoiceID).
 		Where("payments.is_draft = 0").
+		Where("payments.owner_user_id = ?", ownerUserID).
+		Where("invoices.owner_user_id = ?", ownerUserID).
 		Find(&payments).Error
 	return payments, err
 }
@@ -245,6 +353,10 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 	baseNoAmount := database.GetDB().Model(&models.Payment{})
 	base = base.Where("is_draft = 0")
 	baseNoAmount = baseNoAmount.Where("is_draft = 0")
+	if invoice != nil && strings.TrimSpace(invoice.OwnerUserID) != "" {
+		base = base.Where("owner_user_id = ?", strings.TrimSpace(invoice.OwnerUserID))
+		baseNoAmount = baseNoAmount.Where("owner_user_id = ?", strings.TrimSpace(invoice.OwnerUserID))
+	}
 
 	// If invoice has amount, filter by similar amounts (within 10% range)
 	if invoice.Amount != nil {
@@ -332,12 +444,15 @@ func (r *InvoiceRepository) SuggestInvoices(payment *models.Payment, limit int) 
 			NOT EXISTS (
 				SELECT 1
 				FROM invoice_payment_links AS l
-				JOIN payments AS p ON p.id = l.payment_id AND p.is_draft = 0
+				JOIN payments AS p ON p.id = l.payment_id AND p.is_draft = 0 AND p.owner_user_id = invoices.owner_user_id
 				WHERE l.invoice_id = invoices.id
 			)
 		`)
 	absAmount := 0.0
 	hasAmount := false
+	if payment != nil && strings.TrimSpace(payment.OwnerUserID) != "" {
+		query = query.Where("owner_user_id = ?", strings.TrimSpace(payment.OwnerUserID))
+	}
 
 	if payment != nil && payment.Amount != 0 {
 		absAmount = math.Abs(payment.Amount)

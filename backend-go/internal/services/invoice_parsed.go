@@ -14,7 +14,11 @@ import (
 
 // CreateFromExtracted creates an invoice without running OCR/PDF parsing.
 // Intended for structured sources (e.g. invoice XML from email).
-func (s *InvoiceService) CreateFromExtracted(input CreateInvoiceInput, extracted InvoiceExtractedData) (*models.Invoice, error) {
+func (s *InvoiceService) CreateFromExtracted(ownerUserID string, input CreateInvoiceInput, extracted InvoiceExtractedData) (*models.Invoice, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("missing owner_user_id")
+	}
 	id := utils.GenerateUUID()
 
 	if input.PaymentID != nil {
@@ -46,6 +50,7 @@ func (s *InvoiceService) CreateFromExtracted(input CreateInvoiceInput, extracted
 
 	inv := &models.Invoice{
 		ID:            id,
+		OwnerUserID:   ownerUserID,
 		IsDraft:       false,
 		PaymentID:     input.PaymentID,
 		Filename:      input.Filename,
@@ -75,6 +80,10 @@ func (s *InvoiceService) CreateFromExtracted(input CreateInvoiceInput, extracted
 		if input.PaymentID != nil {
 			pid := strings.TrimSpace(*input.PaymentID)
 			if pid != "" {
+				var pay models.Payment
+				if err := tx.Select("id").Where("id = ? AND owner_user_id = ? AND is_draft = 0", pid, ownerUserID).First(&pay).Error; err != nil {
+					return fmt.Errorf("payment not found")
+				}
 				if err := tx.Table("invoice_payment_links").Create(&models.InvoicePaymentLink{
 					InvoiceID: inv.ID,
 					PaymentID: pid,
@@ -106,4 +115,3 @@ func (s *InvoiceService) CreateFromExtracted(input CreateInvoiceInput, extracted
 
 	return inv, nil
 }
-

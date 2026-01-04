@@ -184,6 +184,26 @@
           检测到疑似重复发票（发票号码重复）。如果确认需要保留，可点击保存后选择“仍然保存”。
         </Message>
 
+        <div v-if="uploadedInvoice?.file_path" class="invoice-file-preview">
+          <div class="raw-title">发票预览</div>
+          <div class="invoice-file-box">
+            <Image
+              v-if="isInvoiceImageFile(uploadedInvoice.file_path)"
+              class="invoice-image"
+              :src="invoiceFileUrl(uploadedInvoice.file_path)"
+              preview
+              :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+            />
+            <iframe
+              v-else-if="isInvoicePdfFile(uploadedInvoice.file_path)"
+              class="invoice-pdf"
+              :src="invoiceFileUrl(uploadedInvoice.file_path)"
+              title="Invoice PDF Preview"
+            />
+            <Message v-else severity="secondary" :closable="false">该文件暂不支持预览，请点击“查看原文件”。</Message>
+          </div>
+        </div>
+
         <form v-if="uploadedInvoiceId" class="p-fluid ocr-form" @submit.prevent="handleSaveUploadedInvoice">
           <div class="grid">
             <div class="col-12 md:col-6 field">
@@ -331,6 +351,26 @@
               :disabled="invoiceDetailEditing || savingInvoiceDetail"
               @click="handleReparse(previewInvoice.id)"
             />
+          </div>
+        </div>
+
+        <div v-if="previewInvoice.file_path" class="invoice-file-preview">
+          <div class="raw-title">发票原件</div>
+          <div class="invoice-file-box">
+            <Image
+              v-if="isInvoiceImageFile(previewInvoice.file_path)"
+              class="invoice-image"
+              :src="invoiceFileUrl(previewInvoice.file_path)"
+              preview
+              :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+            />
+            <iframe
+              v-else-if="isInvoicePdfFile(previewInvoice.file_path)"
+              class="invoice-pdf"
+              :src="invoiceFileUrl(previewInvoice.file_path)"
+              title="Invoice PDF Preview"
+            />
+            <Message v-else severity="secondary" :closable="false">该文件暂不支持预览，请点击“查看原文件”。</Message>
           </div>
         </div>
 
@@ -578,6 +618,7 @@ import Divider from 'primevue/divider'
 import DatePicker from 'primevue/datepicker'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
+import Image from 'primevue/image'
 import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
@@ -641,6 +682,14 @@ const confidenceClass = (c?: number) => {
   if (label === '低') return 'ocr-hint-low'
   if (label === '中') return 'ocr-hint-mid'
   return ''
+}
+
+const isInvoiceImageFile = (p?: string) => /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(p || ''))
+const isInvoicePdfFile = (p?: string) => /\.pdf$/i.test(String(p || ''))
+const invoiceFileUrl = (p?: string) => {
+  const path = String(p || '').trim()
+  if (!path) return ''
+  return `${FILE_BASE_URL}/${path}`
 }
 
 const toast = useToast()
@@ -1874,6 +1923,36 @@ onMounted(() => {
   font-weight: 900;
   color: var(--color-text-primary);
   margin-bottom: 8px;
+}
+
+.invoice-file-preview {
+  margin-top: 10px;
+}
+
+.invoice-file-box {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  padding: 10px;
+}
+
+.invoice-image :deep(img) {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.invoice-pdf {
+  display: block;
+  width: 100%;
+  height: 60vh;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--p-content-background, #fff);
 }
 
 .raw-text {

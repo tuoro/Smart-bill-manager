@@ -41,9 +41,9 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import axios from 'axios'
 import Button from 'primevue/button'
 import Message from 'primevue/message'
-import api from '@/api/auth'
 import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from 'pdfjs-dist'
 
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
@@ -105,6 +105,15 @@ const openInNewTab = () => {
   window.open(u, '_blank')
 }
 
+const resolveRequestUrl = (u: string) => {
+  // Ensure axios treats it as an absolute URL (so it won't prefix /api baseURL from our auth client).
+  try {
+    return new URL(u, window.location.origin).toString()
+  } catch {
+    return u
+  }
+}
+
 const loadPdf = async () => {
   const u = src.value
   await cleanupPdf()
@@ -118,7 +127,11 @@ const loadPdf = async () => {
   error.value = null
   const seq = ++renderSeq
   try {
-    const res = await api.get<ArrayBuffer>(u, { responseType: 'arraybuffer' })
+    const token = localStorage.getItem('token')
+    const res = await axios.get<ArrayBuffer>(resolveRequestUrl(u), {
+      responseType: 'arraybuffer',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    })
     if (seq !== renderSeq) return
     const bytes = new Uint8Array(res.data)
     const task = getDocument({ data: bytes })

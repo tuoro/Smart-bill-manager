@@ -321,7 +321,7 @@
       v-model:visible="previewVisible"
       modal
       :header="'\u53D1\u7968\u8BE6\u60C5'"
-      :style="{ width: '860px', maxWidth: '94vw' }"
+      :style="{ width: previewInvoice?.file_path ? '1060px' : '860px', maxWidth: '94vw' }"
       :breakpoints="{ '960px': '94vw', '640px': '96vw' }"
       :contentStyle="{ padding: '14px 16px' }"
       :closable="!invoiceDetailEditing && !savingInvoiceDetail"
@@ -364,28 +364,35 @@
           </div>
         </div>
 
-        <div v-if="previewInvoice.file_path" class="invoice-file-preview">
-          <div class="raw-title">发票原件</div>
-          <div class="invoice-file-box">
-            <Image
-              v-if="isInvoiceImageFile(previewInvoice.file_path)"
-              class="invoice-image"
-              :src="invoiceFileUrl(previewInvoice.file_path)"
-              preview
-              :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
-            />
-            <iframe
-              v-else-if="isInvoicePdfFile(previewInvoice.file_path)"
-              class="invoice-pdf"
-              :src="invoicePreviewUrl(previewInvoice.file_path)"
-              loading="lazy"
-              title="Invoice PDF Preview"
-            />
-            <Message v-else severity="secondary" :closable="false">该文件暂不支持预览，请点击“查看原文件”。</Message>
+        <div class="invoice-detail-layout">
+          <div class="invoice-detail-left">
+            <div class="invoice-file-preview">
+              <div class="raw-title">发票原件</div>
+              <div class="invoice-file-box">
+                <template v-if="previewInvoice.file_path">
+                  <Image
+                    v-if="isInvoiceImageFile(previewInvoice.file_path)"
+                    class="invoice-image"
+                    :src="invoiceFileUrl(previewInvoice.file_path)"
+                    preview
+                    :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+                  />
+                  <iframe
+                    v-else-if="isInvoicePdfFile(previewInvoice.file_path)"
+                    class="invoice-pdf"
+                    :src="invoicePreviewUrl(previewInvoice.file_path)"
+                    loading="lazy"
+                    title="Invoice PDF Preview"
+                  />
+                  <Message v-else severity="secondary" :closable="false">该文件暂不支持预览，请点击“查看原文件”。</Message>
+                </template>
+                <Message v-else severity="secondary" :closable="false">暂无可预览的发票文件。</Message>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="grid sbm-grid-tight">
+          <div class="invoice-detail-right">
+            <div class="grid sbm-grid-tight">
           <div class="col-12 md:col-6">
             <div class="kv">
               <div class="k">发票号</div>
@@ -450,6 +457,8 @@
                 <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.buyer_name" />
                 <template v-else>{{ previewInvoice.buyer_name || '-' }}</template>
               </div>
+            </div>
+          </div>
             </div>
           </div>
         </div>
@@ -1946,6 +1955,28 @@ onMounted(() => {
 
 .preview :deep(.p-divider.p-divider-horizontal) {
   margin: 10px 0;
+}
+
+.invoice-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 38%) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.invoice-detail-left,
+.invoice-detail-right {
+  min-width: 0;
+}
+
+.invoice-detail-left .invoice-file-preview {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .invoice-detail-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .no-data {

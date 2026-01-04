@@ -185,52 +185,54 @@
           </Message>
         </div>
 
-        <div v-else class="upload-screenshot-layout">
-          <div class="upload-screenshot-left">
-            <div
-              class="upload-box sbm-dropzone"
-              @click="triggerScreenshotChoose"
-              @dragenter.prevent
-              @dragover.prevent
-              @drop.prevent="onScreenshotDrop"
-            >
-              <div class="sbm-dropzone-hero">
-                <i class="pi pi-cloud-upload" />
-                <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-                <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
-                <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
-              </div>
+        <div v-else class="upload-screenshot-ocr">
+          <div
+            class="upload-box sbm-dropzone"
+            @click="triggerScreenshotChoose"
+            @dragenter.prevent
+            @dragover.prevent
+            @drop.prevent="onScreenshotDrop"
+          >
+            <div class="sbm-dropzone-hero">
+              <i class="pi pi-cloud-upload" />
+              <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
+              <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
+            </div>
 
-              <input
-                ref="screenshotInput"
-                class="sbm-file-input-hidden"
-                type="file"
-                accept="image/png,image/jpeg"
-                @change="onScreenshotInputChange"
+            <input
+              ref="screenshotInput"
+              class="sbm-file-input-hidden"
+              type="file"
+              accept="image/png,image/jpeg"
+              @change="onScreenshotInputChange"
+            />
+
+            <div v-if="selectedScreenshotName" class="file-row" @click.stop>
+              <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
+              <Button
+                class="file-row-remove p-button-text"
+                severity="secondary"
+                icon="pi pi-times"
+                aria-label="Remove"
+                @click="clearSelectedScreenshot"
               />
-
-              <div v-if="selectedScreenshotName" class="file-row" @click.stop>
-                <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
-                <Button
-                  class="file-row-remove p-button-text"
-                  severity="secondary"
-                  icon="pi pi-times"
-                  aria-label="Remove"
-                  @click="clearSelectedScreenshot"
-                />
-              </div>
-              <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
             </div>
-
-            <div v-if="screenshotPreviewSrc" class="raw raw-screenshot">
-              <div class="raw-title">支付截图</div>
-              <div class="screenshot-wrap">
-                <Image class="screenshot" :src="screenshotPreviewSrc" preview :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }" />
-              </div>
-            </div>
+            <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
           </div>
 
-          <div class="upload-screenshot-right">
+          <div class="upload-screenshot-layout">
+            <div class="upload-screenshot-left">
+              <div v-if="screenshotPreviewSrc" class="raw raw-screenshot">
+                <div class="raw-title">支付截图</div>
+                <div class="screenshot-wrap">
+                  <Image class="screenshot" :src="screenshotPreviewSrc" preview :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }" />
+                </div>
+              </div>
+              <Message v-else severity="secondary" :closable="false">暂无截图预览</Message>
+            </div>
+
+            <div class="upload-screenshot-right">
             <form class="p-fluid" @submit.prevent="handleSaveOcrResult">
               <Message v-if="uploadDedup?.kind === 'suspected_duplicate'" severity="warn" :closable="false">
                 检测到疑似重复支付记录（金额 + 时间接近）。如果确认需要保留，可点击保存后选择“仍然保存”。
@@ -283,7 +285,7 @@
               </small>
             </div>
 
-            <div class="col-12 field">
+            <div class="col-12 md:col-6 field">
               <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
               <DatePicker id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
               <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
@@ -303,6 +305,7 @@
             </div>
           </div>
             </form>
+            </div>
           </div>
         </div>
 
@@ -2047,6 +2050,12 @@ watch(
 }
 
 .upload-screenshot-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upload-screenshot-ocr {
   display: flex;
   flex-direction: column;
   gap: 12px;

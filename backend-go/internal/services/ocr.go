@@ -4082,7 +4082,7 @@ func cleanupName(name string) string {
 	// - "购买方名称：XXX" / "销售方名称：XXX"
 	// - "销售方:(章) XXX"
 	// - "购买方：XXX" / "销售方：XXX"
-	name = regexp.MustCompile(`^(?:购买方|销售方)\s*[:：]?\s*(?:\(\s*章\s*\)\s*)?`).ReplaceAllString(name, "")
+	name = regexp.MustCompile(`^(?:购买方|销售方)\s*[:：]?\s*(?:(?:\(\s*章\s*\))|(?:（\s*章\s*）))?\s*`).ReplaceAllString(name, "")
 	name = regexp.MustCompile(`^(?:购买方名称|销售方名称)\s*[:：]?\s*`).ReplaceAllString(name, "")
 	name = strings.TrimSpace(name)
 
@@ -4093,10 +4093,25 @@ func cleanupName(name string) string {
 		name = parts[0]
 	}
 
+	// Strip leading personal name when a city-prefixed company name follows (e.g. "杜洪亮上海滴滴畅行科技有限公司").
+	// Keep this conservative to avoid damaging legitimate company names like "中国移动通信集团..." or address-prefixed sellers.
+	if regexp.MustCompile(`(?:有限责任公司|有限公司|公司|集团|商店|企业|中心|厂|店|行|社|院|局)`).MatchString(name) {
+		if m := regexp.MustCompile(`^([\p{Han}]{2,3})\s*([\p{Han}].+)$`).FindStringSubmatch(name); len(m) > 2 {
+			rest := strings.TrimSpace(m[2])
+			if regexp.MustCompile(`^(?:上海|北京|天津|重庆|广州|深圳|杭州|南京|苏州|成都|武汉|西安|郑州|长沙|青岛|厦门|宁波|无锡|沈阳|大连|佛山|东莞|昆明|合肥|福州|济南|南昌|南宁|石家庄|太原|哈尔滨|长春)`).MatchString(rest) {
+				name = rest
+			}
+		}
+	}
+
 	// If a tax ID appears in the same token stream, keep only the part before it.
 	if loc := taxIDRegex.FindStringIndex(name); loc != nil && loc[0] > 0 {
 		name = strings.TrimSpace(name[:loc[0]])
 	}
+
+	// Strip trailing stamp labels like "销售方:(章)" / "销售方:（章）".
+	name = regexp.MustCompile(`\s*销售方\s*[:：]?\s*(?:(?:\(\s*章\s*\))|(?:（\s*章\s*）))\s*$`).ReplaceAllString(name, "")
+	name = strings.TrimSpace(name)
 
 	// If an 11-digit phone appears right after a Chinese name, keep only the name.
 	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{11}\b`).FindStringSubmatch(name); len(m) > 1 {
@@ -4174,6 +4189,10 @@ func cleanPartyNameFromInlineValue(val string) string {
 	val = cleanupName(val)
 	if val == "" {
 		return ""
+	}
+	// Some PDFs end the party line with "电话: 个人" etc; treat "个人" as a valid buyer name.
+	if val == "个人" {
+		return val
 	}
 	if isBadPartyNameCandidate(val) {
 		return ""
@@ -4359,6 +4378,15 @@ func removeChineseInlineSpaces(text string) string {
 func isBadPartyNameCandidate(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
+		return true
+	}
+	// Footer/stamp fields often get concatenated into a "name" by PDF text extraction.
+	if strings.Contains(name, "销售方:(章)") || strings.Contains(name, "销售方:（章）") || strings.Contains(name, "销售方：（章）") ||
+		strings.Contains(name, "开票人") || strings.Contains(name, "复核") || strings.Contains(name, "收款人") || strings.Contains(name, "备注") {
+		return true
+	}
+	// Any embedded buyer/seller labels indicate this isn't a pure party name.
+	if strings.Contains(name, "销售方") || strings.Contains(name, "购买方") {
 		return true
 	}
 	// Pure punctuation/ellipsis-like placeholders.
@@ -5326,6 +5354,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		currentUnit     string
 		currentQty      *float64
 		currentSawMoney bool
+		preserveDup     bool
 	)
 	flush := func() {
 		name := normalizeName(currentName)
@@ -5436,9 +5465,35 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			if currentName != "" {
 				flush()
 			}
+			// Didi-style merged rows: repeated service names in one line.
+			if strings.Contains(s, "运输服务") && strings.Contains(s, "客运服务费") &&
+				(strings.Count(s, "运输服务") >= 2 || strings.Count(s, "客运服务费") >= 2) {
+				clean := strings.NewReplacer("*", "", " ", "").Replace(s)
+				spec := ""
+				if strings.Contains(clean, "无") {
+					spec = "无"
+				}
+				unit := ""
+				qty := (*float64)(nil)
+				if m := regexp.MustCompile(`(次)\s*(\d+(?:\.\d+)?)$`).FindStringSubmatch(s); len(m) > 2 {
+					unit = m[1]
+					qty = parseQuantityWithUnit(m[2], unit)
+				} else if m := regexp.MustCompile(`(次)(\d+(?:\.\d+)?)$`).FindStringSubmatch(clean); len(m) > 2 {
+					unit = m[1]
+					qty = parseQuantityWithUnit(m[2], unit)
+				}
+				name := "运输服务 客运服务费"
+				if spec != "" || unit != "" || qty != nil {
+					items = append(items, InvoiceLineItem{Name: normalizeName(name), Spec: spec, Unit: unit, Quantity: qty})
+					items = append(items, InvoiceLineItem{Name: normalizeName(name), Spec: spec, Unit: unit, Quantity: qty})
+					preserveDup = true
+					continue
+				}
+			}
 			// Multi-row packed into one line (PDF text): repeated "*分类*" segments with shared tail columns.
 			if multi := parseMultiPackedItems(s); len(multi) >= 2 {
 				items = append(items, multi...)
+				preserveDup = true
 				continue
 			}
 			// Packed single-line rows (common in PDF text): name/spec/unit/qty may be in one line.
@@ -5487,6 +5542,10 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 	if currentName != "" {
 		flush()
+	}
+
+	if preserveDup {
+		return items
 	}
 
 	// De-duplicate by name (keep the first occurrence).
@@ -5788,6 +5847,24 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 
 	parsedText := normalizeInvoiceTextForParsing(text)
 
+	isPlausibleInvoiceYear := func(y int) bool {
+		nowY := time.Now().Year()
+		return y >= 2000 && y <= nowY+2
+	}
+	extractYMD := func(s string) (y, m, d int, ok bool) {
+		mm := regexp.MustCompile(`(\d{4})年(\d{1,2})月(\d{1,2})日`).FindStringSubmatch(s)
+		if len(mm) != 4 {
+			return 0, 0, 0, false
+		}
+		yy, err1 := strconv.Atoi(mm[1])
+		mo, err2 := strconv.Atoi(mm[2])
+		dd, err3 := strconv.Atoi(mm[3])
+		if err1 != nil || err2 != nil || err3 != nil || mo < 1 || mo > 12 || dd < 1 || dd > 31 {
+			return 0, 0, 0, false
+		}
+		return yy, mo, dd, true
+	}
+
 	// Prefer the actual invoice number (usually 8 digits). Some OCR outputs place code/number
 	// in a swapped order like "发票号码: 发票代码: <code> <number>".
 	pickInvoiceNumberFromPair := func(a, b string) string {
@@ -5872,6 +5949,52 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		standaloneDateRegex := regexp.MustCompile(`(\d{4}年\d{1,2}月\d{1,2}日)`)
 		if match := standaloneDateRegex.FindStringSubmatch(parsedText); len(match) > 1 {
 			setStringWithSourceAndConfidence(&data.InvoiceDate, &data.InvoiceDateSource, &data.InvoiceDateConfidence, match[1], "standalone", 0.7)
+		}
+	}
+	// Repair implausible years (common in Didi invoices where check code digits stick to the year).
+	if data.InvoiceDate != nil {
+		if yy, mo, dd, ok := extractYMD(*data.InvoiceDate); ok && !isPlausibleInvoiceYear(yy) {
+			// Find a plausible 4-digit year in the "开票日期" header line.
+			headerLine := ""
+			for _, line := range strings.Split(parsedText, "\n") {
+				if strings.Contains(line, "开票日期") {
+					headerLine = line
+					break
+				}
+			}
+			yearCand := 0
+			if headerLine != "" {
+				for _, m := range regexp.MustCompile(`\b(\d{4})\b`).FindAllStringSubmatch(headerLine, -1) {
+					if len(m) < 2 {
+						continue
+					}
+					y, _ := strconv.Atoi(m[1])
+					if isPlausibleInvoiceYear(y) {
+						yearCand = y
+						break
+					}
+				}
+			}
+			// Also try anywhere near the header if not found.
+			if yearCand == 0 {
+				for _, m := range regexp.MustCompile(`\b(\d{4})\b`).FindAllStringSubmatch(parsedText, -1) {
+					if len(m) < 2 {
+						continue
+					}
+					y, _ := strconv.Atoi(m[1])
+					if isPlausibleInvoiceYear(y) {
+						yearCand = y
+						break
+					}
+				}
+			}
+			if yearCand != 0 {
+				fixed := fmt.Sprintf("%04d年%02d月%02d日", yearCand, mo, dd)
+				v := fixed
+				data.InvoiceDate = &v
+				data.InvoiceDateSource = "year_repair"
+				data.InvoiceDateConfidence = 0.9
+			}
 		}
 	}
 
@@ -6119,14 +6242,28 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 					buyerText = buyerText[:idx]
 				}
 			}
+			val := ""
 			if m := regexp.MustCompile(`名称\s*[:：]\s*([^\n\r]{1,80})`).FindStringSubmatch(buyerText); len(m) > 1 {
-				val := cleanPartyNameFromInlineValue(m[1])
-				if val != "" && val != "个人销售方信息名称" && !isBadPartyNameCandidate(val) {
-					v := val
-					data.BuyerName = &v
-					data.BuyerNameSource = "buyer_name_inline_block"
-					data.BuyerNameConfidence = 0.85
+				val = cleanPartyNameFromInlineValue(m[1])
+			}
+			// Some PDF extracts render "名称:" with no value; the actual value may appear at the tail like "电话: 个人".
+			if val == "" || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
+				// Didi invoices often end the buyer line with "电话: 个人".
+				if mm := regexp.MustCompile(`电话\s*[:：]\s*([^\s\n\r]{1,20})`).FindStringSubmatch(buyerText); len(mm) > 1 {
+					val = cleanPartyNameFromInlineValue(mm[1])
 				}
+			}
+			if val == "" || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
+				// Last resort: match across the buyer block window.
+				if regexp.MustCompile(`(?s)购买方.{0,240}?电话\s*[:：]\s*个人`).MatchString(buyerText) {
+					val = "个人"
+				}
+			}
+			if val != "" && val != "个人销售方信息名称" && !isBadPartyNameCandidate(val) {
+				v := val
+				data.BuyerName = &v
+				data.BuyerNameSource = "buyer_name_inline_block"
+				data.BuyerNameConfidence = 0.85
 			}
 		}
 

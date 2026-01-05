@@ -1027,6 +1027,60 @@ func TestParseInvoiceData_DidiInvoice(t *testing.T) {
 	}
 }
 
+func TestParseInvoiceData_DidiInvoice_PyMuPDFZoned(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `【第1页-分区】
+【发票信息】
+发票代码: 发票号码: 开票日期: 校验码: 031002300211 70739906 2024 07908 63166 90581 33371年07月06日
+上海增值税电子普通发票
+机器编号: 499098504973
+【购买方】
+购买方名 称: 纳税人识别号: 地址、 开户行及账号: 电话: 个人
+货物或应税劳务、服务名称规格型号单位数量
+【明细】
+* * 运输服务运输服务 * * 客运服务费客运服务费无次1
+价税合计（大写） 合计壹拾玖圆伍角捌分 ￥ 19.01 （小写） ￥ 19.58 ￥ 0.57
+【销售方】
+销售方收款人: 名 称: 纳税人识别号: 地址、 开户行及账号: 电话: 杜洪亮上海滴滴畅行科技有限公司91310114MA1GW61J6U
+【备注/其他】
+于秋红 销售方:（章）`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+	if data.InvoiceDate == nil || *data.InvoiceDate != "2024年07月06日" {
+		t.Fatalf("Expected InvoiceDate %q, got %+v (src=%q)", "2024年07月06日", data.InvoiceDate, data.InvoiceDateSource)
+	}
+	if data.BuyerName == nil || *data.BuyerName != "个人" {
+		t.Fatalf("Expected BuyerName %q, got %+v (src=%q)", "个人", data.BuyerName, data.BuyerNameSource)
+	}
+	if data.SellerName == nil || *data.SellerName != "上海滴滴畅行科技有限公司" {
+		t.Fatalf("Expected SellerName %q, got %+v (src=%q)", "上海滴滴畅行科技有限公司", data.SellerName, data.SellerNameSource)
+	}
+	if data.Amount == nil || fmt.Sprintf("%.2f", *data.Amount) != "19.58" {
+		t.Fatalf("Expected Amount 19.58, got %+v (src=%q)", data.Amount, data.AmountSource)
+	}
+	if len(data.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
+	}
+	for i, it := range data.Items {
+		if it.Unit != "次" {
+			t.Fatalf("Expected item[%d].Unit %q, got %q", i, "次", it.Unit)
+		}
+		if it.Quantity == nil || *it.Quantity != 1 {
+			t.Fatalf("Expected item[%d].Quantity 1, got %+v", i, it.Quantity)
+		}
+		if it.Spec != "无" {
+			t.Fatalf("Expected item[%d].Spec %q, got %q", i, "无", it.Spec)
+		}
+		if !strings.Contains(it.Name, "运输服务") || !strings.Contains(it.Name, "客运服务费") {
+			t.Fatalf("Unexpected item[%d].Name: %q", i, it.Name)
+		}
+	}
+}
+
 func TestIsGarbledText(t *testing.T) {
 	service := NewOCRService()
 

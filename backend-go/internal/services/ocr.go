@@ -5792,35 +5792,74 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 
 	sort.Slice(names, func(i, j int) bool { return names[i].position < names[j].position })
 
-	pickClosest := func(markerIdx int, used map[string]bool) *string {
-		bestDist := int(^uint(0) >> 1)
-		bestName := ""
-		for _, entry := range names {
-			if used[entry.name] {
-				continue
+	pickClosest := func(markerIdx int, used map[string]bool, minPos, maxPos int) *string {
+		pickFrom := func(filterRange bool) *string {
+			bestDist := int(^uint(0) >> 1)
+			bestName := ""
+			for _, entry := range names {
+				if used[entry.name] {
+					continue
+				}
+				if filterRange && (entry.position < minPos || entry.position > maxPos) {
+					continue
+				}
+				d := abs(entry.position - markerIdx)
+				if d < bestDist {
+					bestDist = d
+					bestName = entry.name
+				}
 			}
-			d := abs(entry.position - markerIdx)
-			if d < bestDist {
-				bestDist = d
-				bestName = entry.name
+			if bestName == "" {
+				return nil
 			}
+			nameCopy := bestName
+			return &nameCopy
 		}
-		if bestName == "" {
-			return nil
+
+		// Prefer names within the relevant section window to avoid picking footer names
+		// (e.g. "复核: 张唯...") as the buyer.
+		if cand := pickFrom(true); cand != nil {
+			return cand
 		}
-		nameCopy := bestName
-		return &nameCopy
+		return pickFrom(false)
 	}
 
 	used := make(map[string]bool)
 	if buyerMarkerIndex != -1 {
-		buyer = pickClosest(buyerMarkerIndex, used)
+		// Buyer name may appear slightly above the "购/购买方" marker in top-bottom layouts,
+		// so allow a small lookback window while still stopping before the seller section.
+		buyerMin := buyerMarkerIndex - 800
+		if buyerMin < 0 {
+			buyerMin = 0
+		}
+		buyerMax := len(text)
+		if sellerMarkerIndex != -1 && sellerMarkerIndex > buyerMarkerIndex {
+			buyerMax = sellerMarkerIndex
+		}
+		// When buyer/seller sections are far apart (top-bottom layout), avoid picking names
+		// that are very close to the seller marker (often footer fields like "复核: 张唯").
+		if sellerMarkerIndex != -1 && sellerMarkerIndex > buyerMarkerIndex && sellerMarkerIndex-buyerMarkerIndex > 500 {
+			cut := sellerMarkerIndex - 220
+			if cut > buyerMin {
+				buyerMax = cut
+			}
+		}
+		buyer = pickClosest(buyerMarkerIndex, used, buyerMin, buyerMax)
 		if buyer != nil {
 			used[*buyer] = true
 		}
 	}
 	if sellerMarkerIndex != -1 {
-		seller = pickClosest(sellerMarkerIndex, used)
+		// Seller name may also appear slightly above the "销/销售方" marker; keep a lookback
+		// but don't drift into the buyer header too much.
+		sellerMin := sellerMarkerIndex - 800
+		if sellerMin < 0 {
+			sellerMin = 0
+		}
+		if buyerMarkerIndex != -1 && sellerMin < buyerMarkerIndex {
+			sellerMin = buyerMarkerIndex
+		}
+		seller = pickClosest(sellerMarkerIndex, used, sellerMin, len(text))
 		if seller != nil {
 			used[*seller] = true
 		}
@@ -6229,41 +6268,56 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	// Recover buyer/seller names from merged-label PDF text (e.g. "名称：个人 销售方信息 名称：").
 	// This happens with PyMuPDF text extraction where buyer/seller blocks are on the same line.
 	{
-		// Buyer: find the first "名称：" inside the buyer block and cut before any merged labels.
-		needBuyerFix := data.BuyerName == nil || isGarbagePartyName(ptrToString(data.BuyerName)) || isBadPartyNameCandidate(ptrToString(data.BuyerName))
-		if needBuyerFix {
-			buyerText := parsedText
-			if loc := regexp.MustCompile(`(?m)^购买方\s*$`).FindStringIndex(parsedText); loc != nil {
-				buyerText = parsedText[loc[0]:]
+		// Buyer: extract from buyer block. Even if a plausible name was picked by position (e.g. footer "张唯"),
+		// override when the buyer block explicitly indicates "电话: 个人".
+		buyerText := parsedText
+		if loc := regexp.MustCompile(`(?m)^购买方\s*$`).FindStringIndex(parsedText); loc != nil {
+			// In some top-bottom layouts, the buyer name line appears slightly above the "购买方" marker.
+			// Keep a small lookback window so we can still capture it.
+			start := loc[0] - 800
+			if start < 0 {
+				start = 0
 			}
-			// Stop at later sections if present.
-			for _, stop := range []string{"密码区", "明细", "销售方"} {
-				if idx := strings.Index(buyerText, stop); idx > 0 {
-					buyerText = buyerText[:idx]
-				}
+			buyerText = parsedText[start:]
+		}
+		for _, stop := range []string{"密码区", "明细", "销售方"} {
+			if idx := strings.Index(buyerText, stop); idx > 0 {
+				buyerText = buyerText[:idx]
 			}
-			val := ""
-			if m := regexp.MustCompile(`名称\s*[:：]\s*([^\n\r]{1,80})`).FindStringSubmatch(buyerText); len(m) > 1 {
-				val = cleanPartyNameFromInlineValue(m[1])
+		}
+
+		val := ""
+		if m := regexp.MustCompile(`名称\s*[:：]\s*([^\n\r]{1,80})`).FindStringSubmatch(buyerText); len(m) > 1 {
+			val = cleanPartyNameFromInlineValue(m[1])
+		}
+		if val == "" || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
+			if mm := regexp.MustCompile(`电话\s*[:：]\s*([^\s\n\r]{1,20})`).FindStringSubmatch(buyerText); len(mm) > 1 {
+				val = cleanPartyNameFromInlineValue(mm[1])
 			}
-			// Some PDF extracts render "名称:" with no value; the actual value may appear at the tail like "电话: 个人".
-			if val == "" || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
-				// Didi invoices often end the buyer line with "电话: 个人".
-				if mm := regexp.MustCompile(`电话\s*[:：]\s*([^\s\n\r]{1,20})`).FindStringSubmatch(buyerText); len(mm) > 1 {
-					val = cleanPartyNameFromInlineValue(mm[1])
-				}
+		}
+		if val == "" || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
+			if regexp.MustCompile(`(?s)购买方.{0,240}?电话\s*[:：]\s*个人`).MatchString(buyerText) {
+				val = "个人"
 			}
-			if val == "" || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
-				// Last resort: match across the buyer block window.
-				if regexp.MustCompile(`(?s)购买方.{0,240}?电话\s*[:：]\s*个人`).MatchString(buyerText) {
-					val = "个人"
-				}
+		}
+
+		if val != "" && val != "个人销售方信息名称" && !isBadPartyNameCandidate(val) {
+			old := ptrToString(data.BuyerName)
+			shouldOverride := false
+			if val == "个人" && old != "个人" {
+				shouldOverride = true
 			}
-			if val != "" && val != "个人销售方信息名称" && !isBadPartyNameCandidate(val) {
+			if data.BuyerName == nil || strings.TrimSpace(old) == "" || isGarbagePartyName(old) || isBadPartyNameCandidate(old) {
+				shouldOverride = true
+			}
+			if !shouldOverride && data.BuyerNameSource == "position" && data.BuyerNameConfidence <= 0.75 {
+				shouldOverride = true
+			}
+			if shouldOverride {
 				v := val
 				data.BuyerName = &v
 				data.BuyerNameSource = "buyer_name_inline_block"
-				data.BuyerNameConfidence = 0.85
+				data.BuyerNameConfidence = 0.9
 			}
 		}
 

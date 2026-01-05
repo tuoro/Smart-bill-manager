@@ -408,6 +408,59 @@ func TestParseInvoiceData_ItemsExtraction_PDFTextNoisy(t *testing.T) {
 	}
 }
 
+func TestParseInvoiceData_PyMuPDFZoned_SellerAndItemUnitQty(t *testing.T) {
+	service := NewOCRService()
+
+	// PyMuPDF zoned layout: section headers are present, and some item lines may merge unit+qty into the name token.
+	// Also ensure we can recover the full seller company name from the tax-id line even if a shorter nearby name exists.
+	sampleText := `【第1页-分区】
+【明细】
+货物或应税劳务、服务名称
+规格型号
+单位
+数量
+单价
+金额
+税率
+税额
+*电信服务*话费充值元1
+200.00
+200.00
+*
+*
+合计 价税合计(大写)
+(小写) ¥200.00
+【销售方】
+上海有限公司
+方 售 销 名 称: 开户行及账号: 地 址、电 话: 纳税人识别号: 中国移动通信集团上海有限公司91310000132149237G 上海市长寿路200号13800210021`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+	if data.SellerName == nil || *data.SellerName != "中国移动通信集团上海有限公司" {
+		t.Fatalf("Expected seller name %q, got %+v (source=%q conf=%v)", "中国移动通信集团上海有限公司", data.SellerName, data.SellerNameSource, data.SellerNameConfidence)
+	}
+
+	if len(data.Items) != 1 {
+		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
+	}
+	if !strings.Contains(data.Items[0].Name, "电信服务") || !strings.Contains(data.Items[0].Name, "话费充值") {
+		t.Fatalf("Unexpected item name: %+v", data.Items[0])
+	}
+	if data.Items[0].Unit != "元" {
+		t.Fatalf("Expected unit %q, got %q", "元", data.Items[0].Unit)
+	}
+	if data.Items[0].Quantity == nil || *data.Items[0].Quantity != 1 {
+		t.Fatalf("Expected quantity 1, got %+v", data.Items[0].Quantity)
+	}
+
+	// Pretty text should keep zoned headers for readability.
+	if !strings.Contains(data.PrettyText, "【明细】") || !strings.Contains(data.PrettyText, "【销售方】") {
+		t.Fatalf("Expected PrettyText to preserve zoned section headers, got: %q", data.PrettyText)
+	}
+}
+
 func TestParseInvoiceData_ItemsExtraction_PDFTextStopsBeforePartyInfo(t *testing.T) {
 	service := NewOCRService()
 

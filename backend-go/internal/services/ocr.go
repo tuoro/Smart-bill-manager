@@ -1129,11 +1129,15 @@ func extractPartyFromROICandidate(text string, role string) (name string, taxID 
 			if !(strings.Contains(line, "名称") || strings.Contains(line, "纳税人识别号") || strings.Contains(line, "统一社会信用代码")) {
 				continue
 			}
-			idx := strings.LastIndexAny(line, ":：")
-			if idx < 0 || idx+1 >= len(line) {
-				continue
+			candidate := extractNameFromTaxIDLabelLine(line)
+			if candidate == "" {
+				// Fallback to last label value if the tax-id label extraction didn't apply.
+				idx := strings.LastIndexAny(line, ":：")
+				if idx < 0 || idx+1 >= len(line) {
+					continue
+				}
+				candidate = cleanupName(strings.TrimSpace(line[idx+1:]))
 			}
-			candidate := cleanupName(strings.TrimSpace(line[idx+1:]))
 			if candidate == "" {
 				continue
 			}
@@ -4088,6 +4092,16 @@ func cleanupName(name string) string {
 		name = parts[0]
 	}
 
+	// If a tax ID appears in the same token stream, keep only the part before it.
+	if loc := taxIDRegex.FindStringIndex(name); loc != nil && loc[0] > 0 {
+		name = strings.TrimSpace(name[:loc[0]])
+	}
+
+	// If an 11-digit phone appears right after a Chinese name, keep only the name.
+	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{11}\b`).FindStringSubmatch(name); len(m) > 1 {
+		name = strings.TrimSpace(m[1])
+	}
+
 	// Remove trailing single characters that are likely markers
 	trailingPatterns := []string{"销", "售", "购", "买", "方", "信", "息", "密", "码", "区"}
 	for _, pattern := range trailingPatterns {
@@ -4099,6 +4113,42 @@ func cleanupName(name string) string {
 	name = strings.TrimRight(name, " \t\n\r")
 
 	return name
+}
+
+func extractNameFromTaxIDLabelLine(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+	idx := strings.LastIndex(line, "纳税人识别号")
+	if idx == -1 {
+		idx = strings.LastIndex(line, "统一社会信用代码")
+	}
+	if idx == -1 {
+		return ""
+	}
+	rest := line[idx:]
+	col := strings.IndexAny(rest, ":：")
+	if col == -1 || col+1 >= len(rest) {
+		return ""
+	}
+	val := strings.TrimSpace(rest[col+1:])
+	if val == "" {
+		return ""
+	}
+	// Prefer cutting at a tax ID if present.
+	if loc := taxIDRegex.FindStringIndex(val); loc != nil && loc[0] > 0 {
+		val = strings.TrimSpace(val[:loc[0]])
+	}
+	// Or cut at a phone number.
+	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{11}\b`).FindStringSubmatch(val); len(m) > 1 {
+		val = strings.TrimSpace(m[1])
+	}
+	// If still contains long digit runs (accounts/phones), cut before them.
+	if loc := regexp.MustCompile(`\d{6,}`).FindStringIndex(val); loc != nil && loc[0] > 0 {
+		val = strings.TrimSpace(val[:loc[0]])
+	}
+	return cleanupName(val)
 }
 
 // removeChineseInlineSpaces removes *inline* spaces between Chinese characters in OCR/PDF text,
@@ -4321,7 +4371,37 @@ func normalizeInvoiceTextForParsing(text string) string {
 }
 
 func normalizeInvoiceTextForPretty(text string) string {
-	text = normalizeInvoiceTextForParsing(text)
+	// Pretty output should preserve PyMuPDF "分区" headers (e.g. "【发票信息】/【明细】"),
+	// while still normalizing common spacing/currency issues.
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = removeChineseInlineSpaces(text)
+
+	// Normalize "vertical" or whitespace-separated labels often found in PDF text extraction.
+	replacements := []struct {
+		re   *regexp.Regexp
+		repl string
+	}{
+		{regexp.MustCompile(`购\s*买\s*方`), "购买方"},
+		{regexp.MustCompile(`销\s*售\s*方`), "销售方"},
+		{regexp.MustCompile(`价\s*税\s*合\s*计`), "价税合计"},
+		{regexp.MustCompile(`开\s*票\s*日\s*期`), "开票日期"},
+		{regexp.MustCompile(`发\s*票\s*代\s*码`), "发票代码"},
+		{regexp.MustCompile(`发\s*票\s*号\s*码`), "发票号码"},
+		{regexp.MustCompile(`校\s*验\s*码`), "校验码"},
+		{regexp.MustCompile(`纳\s*税\s*人\s*识\s*别\s*号`), "纳税人识别号"},
+		{regexp.MustCompile(`名\s*称`), "名称"},
+		{regexp.MustCompile(`合\s*计`), "合计"},
+	}
+	for _, r := range replacements {
+		text = r.re.ReplaceAllString(text, r.repl)
+	}
+
+	// Normalize currency symbols / mojibake variants to the full-width RMB symbol (U+FFE5).
+	text = strings.ReplaceAll(text, "\u00ef\u00bf\u00a5", "\uffe5")
+	text = strings.ReplaceAll(text, "\u00c2\u00a5", "\uffe5")
+	text = strings.ReplaceAll(text, "\u00a5", "\uffe5")
+
 	text = paymentInvisibleSpaceReplacer.Replace(text)
 
 	lines := strings.Split(text, "\n")
@@ -4602,6 +4682,10 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if strings.Contains(s, "合计") && strings.ContainsRune(s, '￥') {
 			return true
 		}
+		// Totals may also appear as a "(小写) ¥123.45" line without the "价税合计" token (common in PDF text).
+		if (strings.Contains(s, "小写") || strings.Contains(s, "大写")) && (strings.ContainsRune(s, '￥') || regexp.MustCompile(`\d+\.\d{2}`).MatchString(s)) {
+			return true
+		}
 		return false
 	}
 
@@ -4621,7 +4705,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		}
 		// Avoid treating common unit-like tokens as item names/continuations.
 		switch s {
-		case "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "米", "公斤", "千克", "克":
+		case "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "米", "公斤", "千克", "克", "元":
 			return true
 		default:
 			return false
@@ -4726,6 +4810,10 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		n := len([]rune(s))
 		return n >= 2 && n <= 120
 	}
+
+	// Some PDF text extractions merge unit+qty into the same token as the item name,
+	// e.g. "*电信服务*话费充值元1" or "... 元 1". Peel them off early so we don't lose them.
+	unitQtySuffixRe := regexp.MustCompile(`^(.*?)(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)$`)
 
 	var parseQuantityWithUnit func(s, unit string) *float64
 	parseQuantityWithUnit = func(s, unit string) *float64 {
@@ -5033,6 +5121,21 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			if currentName != "" {
 				flush()
 			}
+			// If unit+qty is attached to the name, split them here.
+			if m := unitQtySuffixRe.FindStringSubmatch(s); len(m) > 3 {
+				namePart := strings.TrimSpace(m[1])
+				unitPart := strings.TrimSpace(m[2])
+				if namePart != "" {
+					if q := parseQuantityWithUnit(m[3], unitPart); q != nil {
+						currentName = namePart
+						currentSpec = ""
+						currentUnit = unitPart
+						currentQty = q
+						currentSawMoney = false
+						continue
+					}
+				}
+			}
 			currentName = s
 			currentSpec = ""
 			currentUnit = ""
@@ -5184,15 +5287,8 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 		if !(strings.Contains(line, "纳税人识别号") || strings.Contains(line, "统一社会信用代码")) {
 			continue
 		}
-		if !strings.ContainsAny(line, ":：") {
-			continue
-		}
-		idx := strings.LastIndexAny(line, ":：")
-		if idx < 0 || idx+1 >= len(line) {
-			continue
-		}
-		candidate := cleanupName(strings.TrimSpace(line[idx+1:]))
-		if candidate == "" || isBadPartyNameCandidate(candidate) || taxIDRegex.MatchString(candidate) {
+		candidate := extractNameFromTaxIDLabelLine(line)
+		if candidate == "" || isBadPartyNameCandidate(candidate) {
 			continue
 		}
 		pos := strings.Index(text, line)
@@ -5593,6 +5689,62 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 				if val != "" && val != "个人" && len(val) > 3 && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_company_before_taxid", 0.6)
 				}
+			}
+		}
+	}
+
+	// Strong fallback for PDF text: extract company name adjacent to a tax ID in the seller block.
+	// This avoids relying on fragile label ordering ("名称:" sometimes has no value, while the tax-id line carries the name).
+	{
+		companyTaxIDLoose := regexp.MustCompile(fmt.Sprintf(`([\p{Han}（）()·]{2,140}(?:有限责任公司|有限公司|公司|集团|银行|商店|企业|中心|厂|店|行|社|院|局)[\p{Han}（）()·]{0,40})\s*(%s)`, taxIDPattern))
+		sellerText := parsedText
+		if loc := regexp.MustCompile(`(?m)^销售方\s*$`).FindStringIndex(parsedText); loc != nil {
+			sellerText = parsedText[loc[0]:]
+		}
+
+		best := ""
+		bestLen := 0
+		for _, m := range companyTaxIDLoose.FindAllStringSubmatch(sellerText, -1) {
+			cand := cleanupName(strings.TrimSpace(m[1]))
+			if cand == "" || cand == "个人" || isBadPartyNameCandidate(cand) {
+				continue
+			}
+			l := len([]rune(cand))
+			if l > bestLen {
+				best = cand
+				bestLen = l
+			}
+		}
+
+		// If we couldn't locate the seller marker, fall back to the last company+taxid match in the whole text.
+		if best == "" && sellerText == parsedText {
+			if matches := companyTaxIDLoose.FindAllStringSubmatch(parsedText, -1); len(matches) > 0 {
+				cand := cleanupName(strings.TrimSpace(matches[len(matches)-1][1]))
+				if cand != "" && cand != "个人" && !isBadPartyNameCandidate(cand) {
+					best = cand
+				}
+			}
+		}
+
+		if best != "" {
+			shouldOverride := false
+			if data.SellerName == nil || strings.TrimSpace(*data.SellerName) == "" {
+				shouldOverride = true
+			} else {
+				old := strings.TrimSpace(*data.SellerName)
+				oldLen := len([]rune(old))
+				newLen := len([]rune(best))
+				// Override short/low-confidence positional picks when we find a longer company name tied to a tax ID.
+				if (data.SellerNameSource == "position" && data.SellerNameConfidence <= 0.75 && newLen > oldLen+1) ||
+					(newLen > oldLen+4) {
+					shouldOverride = true
+				}
+			}
+			if shouldOverride {
+				v := best
+				data.SellerName = &v
+				data.SellerNameSource = "seller_company_taxid_loose"
+				data.SellerNameConfidence = 0.9
 			}
 		}
 	}

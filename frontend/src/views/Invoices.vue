@@ -1356,10 +1356,17 @@ const markInvoiceRegressionSample = async (id: string) => {
     const res = await regressionSamplesApi.markInvoice(id)
     if (res.data.success) {
       const issues = (res.data as any)?.data?.issues as any[] | undefined
-      const hasWarn = Array.isArray(issues) && issues.some((it) => String(it?.level || '').toLowerCase() === 'warn')
+      const warnIssues = (Array.isArray(issues) ? issues : []).filter((it) => String(it?.level || '').toLowerCase() === 'warn')
+      const nonPiiWarnIssues = warnIssues.filter((it) => !String(it?.code || '').toLowerCase().startsWith('pii_'))
+      const hasWarn = nonPiiWarnIssues.length > 0
+      const hasOnlyPiiWarn = warnIssues.length > 0 && nonPiiWarnIssues.length === 0
       toast.add({
-        severity: hasWarn ? 'warn' : 'success',
-        summary: hasWarn ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u6709\u8b66\u544a\uff09' : '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c',
+        severity: hasWarn ? 'warn' : hasOnlyPiiWarn ? 'info' : 'success',
+        summary: hasWarn
+          ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u6709\u8b66\u544a\uff09'
+          : hasOnlyPiiWarn
+            ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u542b\u9690\u79c1\u5b57\u6bb5\u63d0\u793a\uff09'
+            : '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c',
         life: 2500,
       })
       return

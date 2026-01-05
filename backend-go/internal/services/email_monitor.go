@@ -380,21 +380,54 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 	newLogs := 0
 
 	if full {
-		seqSet := new(imap.SeqSet)
-		seqSet.AddRange(1, 0) // 1:* (all UIDs)
+		// Some IMAP servers behave unexpectedly with "UID FETCH 1:*" for large mailboxes.
+		// Use a two-step approach: UID SEARCH ALL -> chunked UID FETCH.
+		criteria := imap.NewSearchCriteria() // defaults to ALL
+		uids, err := c.UidSearch(criteria)
+		if err != nil {
+			log.Printf("[Email Monitor] Full sync UidSearch error: %v (falling back to UID FETCH 1:*)", err)
+			seqSet := new(imap.SeqSet)
+			seqSet.AddRange(1, 0) // 1:* (all UIDs)
 
-		messages := make(chan *imap.Message, 32)
-		go func() {
-			if err := c.UidFetch(seqSet, items, messages); err != nil {
-				log.Printf("[Email Monitor] UidFetch error: %v", err)
-			}
-		}()
+			messages := make(chan *imap.Message, 32)
+			go func() {
+				if err := c.UidFetch(seqSet, items, messages); err != nil {
+					log.Printf("[Email Monitor] UidFetch error: %v", err)
+				}
+			}()
 
-		for msg := range messages {
-			if s.processMessage(ownerUserID, configID, msg, textSection) {
-				newLogs++
+			for msg := range messages {
+				if s.processMessage(ownerUserID, configID, msg, textSection) {
+					newLogs++
+				}
 			}
-			s.markSeenByUID(c, msg.Uid)
+		} else {
+			if len(uids) == 0 {
+				return 0
+			}
+			log.Printf("[Email Monitor] Full sync: %d messages (uid list size=%d)", len(uids), len(uids))
+
+			const chunkSize = 50
+			for i := 0; i < len(uids); i += chunkSize {
+				end := i + chunkSize
+				if end > len(uids) {
+					end = len(uids)
+				}
+				seqSet := new(imap.SeqSet)
+				seqSet.AddNum(uids[i:end]...)
+
+				messages := make(chan *imap.Message, 32)
+				go func() {
+					if err := c.UidFetch(seqSet, items, messages); err != nil {
+						log.Printf("[Email Monitor] UidFetch error: %v", err)
+					}
+				}()
+				for msg := range messages {
+					if s.processMessage(ownerUserID, configID, msg, textSection) {
+						newLogs++
+					}
+				}
+			}
 		}
 	} else {
 		criteria := imap.NewSearchCriteria()

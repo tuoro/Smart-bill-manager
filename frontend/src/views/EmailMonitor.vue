@@ -361,7 +361,7 @@ const loadConfigs = async () => {
 
 const loadLogs = async () => {
   try {
-    const res = await emailApi.getLogs(undefined, 50)
+    const res = await emailApi.getLogs(undefined, 500)
     if (res.data.success && res.data.data) {
       logs.value = res.data.data
 

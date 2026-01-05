@@ -302,12 +302,13 @@ func (s *EmailService) StartMonitoring(ownerUserID string, configID string) bool
 	log.Printf("[Email Monitor] Connected to %s", config.Email)
 
 	// Start monitoring in goroutine
-	go s.monitorInbox(configID, strings.TrimSpace(config.OwnerUserID), c)
+	needFullSync := config.LastCheck == nil || strings.TrimSpace(*config.LastCheck) == ""
+	go s.monitorInbox(configID, strings.TrimSpace(config.OwnerUserID), needFullSync, c)
 
 	return true
 }
 
-func (s *EmailService) monitorInbox(configID string, ownerUserID string, c *client.Client) {
+func (s *EmailService) monitorInbox(configID string, ownerUserID string, fullSync bool, c *client.Client) {
 	// Select INBOX
 	mbox, err := c.Select("INBOX", false)
 	if err != nil {
@@ -318,8 +319,12 @@ func (s *EmailService) monitorInbox(configID string, ownerUserID string, c *clie
 
 	log.Printf("[Email Monitor] Inbox opened. %d total messages", mbox.Messages)
 
-	// Fetch unread emails initially
-	s.fetchUnreadEmails(ownerUserID, configID, c)
+	// On first run (no last_check), do a one-time historical sync.
+	if fullSync {
+		s.fetchEmails(ownerUserID, configID, c, true)
+	} else {
+		s.fetchEmails(ownerUserID, configID, c, false)
+	}
 
 	// Set up IDLE for real-time notifications
 	updates := make(chan client.Update)
@@ -335,7 +340,7 @@ func (s *EmailService) monitorInbox(configID string, ownerUserID string, c *clie
 				switch update.(type) {
 				case *client.MailboxUpdate:
 					log.Println("[Email Monitor] New mail received!")
-					s.fetchUnreadEmails(ownerUserID, configID, c)
+					s.fetchEmails(ownerUserID, configID, c, false)
 				}
 			case <-stop:
 				return
@@ -359,61 +364,102 @@ func (s *EmailService) monitorInbox(configID string, ownerUserID string, c *clie
 	s.mu.Unlock()
 }
 
-func (s *EmailService) fetchUnreadEmails(ownerUserID string, configID string, c *client.Client) {
-	// Search for unseen messages
-	criteria := imap.NewSearchCriteria()
-	criteria.WithoutFlags = []string{imap.SeenFlag}
-
-	uids, err := c.Search(criteria)
-	if err != nil {
-		log.Printf("[Email Monitor] Search error: %v", err)
-		return
+func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *client.Client, full bool) int {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	configID = strings.TrimSpace(configID)
+	if ownerUserID == "" || configID == "" || c == nil {
+		return 0
 	}
 
-	if len(uids) == 0 {
-		log.Println("[Email Monitor] No new unread emails")
-		return
-	}
-
-	log.Printf("[Email Monitor] Found %d unread emails", len(uids))
-
-	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(uids...)
-
-	messages := make(chan *imap.Message, len(uids))
 	textSection := &imap.BodySectionName{
 		BodyPartName: imap.BodyPartName{Specifier: imap.TextSpecifier},
 		Peek:         true,
 	}
 	items := []imap.FetchItem{imap.FetchUid, imap.FetchEnvelope, imap.FetchBodyStructure, textSection.FetchItem()}
 
-	go func() {
-		if err := c.Fetch(seqSet, items, messages); err != nil {
-			log.Printf("[Email Monitor] Fetch error: %v", err)
+	newLogs := 0
+
+	if full {
+		seqSet := new(imap.SeqSet)
+		seqSet.AddRange(1, 0) // 1:* (all UIDs)
+
+		messages := make(chan *imap.Message, 32)
+		go func() {
+			if err := c.UidFetch(seqSet, items, messages); err != nil {
+				log.Printf("[Email Monitor] UidFetch error: %v", err)
+			}
+		}()
+
+		for msg := range messages {
+			if s.processMessage(ownerUserID, configID, msg, textSection) {
+				newLogs++
+			}
+			s.markSeenByUID(c, msg.Uid)
 		}
-	}()
+	} else {
+		criteria := imap.NewSearchCriteria()
+		criteria.WithoutFlags = []string{imap.SeenFlag}
 
-	for msg := range messages {
-		s.processMessage(ownerUserID, configID, msg, textSection)
+		uids, err := c.UidSearch(criteria)
+		if err != nil {
+			log.Printf("[Email Monitor] Search error: %v", err)
+			return 0
+		}
+		if len(uids) == 0 {
+			return 0
+		}
 
-		// Mark as seen
-		seenSet := new(imap.SeqSet)
-		seenSet.AddNum(msg.SeqNum)
-		item := imap.FormatFlagsOp(imap.AddFlags, true)
-		flags := []interface{}{imap.SeenFlag}
-		if err := c.Store(seenSet, item, flags, nil); err != nil {
-			log.Printf("[Email Monitor] Error marking as seen: %v", err)
+		const chunkSize = 50
+		for i := 0; i < len(uids); i += chunkSize {
+			end := i + chunkSize
+			if end > len(uids) {
+				end = len(uids)
+			}
+			seqSet := new(imap.SeqSet)
+			seqSet.AddNum(uids[i:end]...)
+			messages := make(chan *imap.Message, 32)
+			go func() {
+				if err := c.UidFetch(seqSet, items, messages); err != nil {
+					log.Printf("[Email Monitor] UidFetch error: %v", err)
+				}
+			}()
+			for msg := range messages {
+				if s.processMessage(ownerUserID, configID, msg, textSection) {
+					newLogs++
+				}
+				s.markSeenByUID(c, msg.Uid)
+			}
 		}
 	}
 
-	// Update last check time
 	now := time.Now().Format(time.RFC3339)
 	_ = s.repo.UpdateLastCheckForOwner(ownerUserID, configID, now)
+	return newLogs
 }
 
-func (s *EmailService) processMessage(ownerUserID string, configID string, msg *imap.Message, section *imap.BodySectionName) {
-	if msg == nil {
+func (s *EmailService) markSeenByUID(c *client.Client, uid uint32) {
+	if c == nil || uid == 0 {
 		return
+	}
+	seenSet := new(imap.SeqSet)
+	seenSet.AddNum(uid)
+	item := imap.FormatFlagsOp(imap.AddFlags, true)
+	flags := []interface{}{imap.SeenFlag}
+	if err := c.UidStore(seenSet, item, flags, nil); err != nil {
+		log.Printf("[Email Monitor] Error marking as seen: %v", err)
+	}
+}
+
+func (s *EmailService) processMessage(ownerUserID string, configID string, msg *imap.Message, section *imap.BodySectionName) bool {
+	if msg == nil {
+		return false
+	}
+	if msg.Uid == 0 {
+		return false
+	}
+
+	if exists, err := s.repo.LogExists(ownerUserID, configID, "INBOX", msg.Uid); err == nil && exists {
+		return false
 	}
 
 	// New behavior: only log metadata + (optional) URLs, do not download PDF attachments or create invoices automatically.
@@ -462,18 +508,18 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		_ = s.repo.CreateLog(emailLog)
 
 		log.Printf("[Email Monitor] Email logged: %s", subject)
-		return
+		return true
 	}
 
 	r := msg.GetBody(section)
 	if r == nil {
-		return
+		return false
 	}
 
 	mr, err := mail.CreateReader(r)
 	if err != nil {
 		log.Printf("[Email Monitor] Error creating mail reader: %v", err)
-		return
+		return false
 	}
 
 	var subject, from string
@@ -530,6 +576,7 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		OwnerUserID:     strings.TrimSpace(ownerUserID),
 		EmailConfigID:   configID,
 		Mailbox:         "INBOX",
+		MessageUID:      msg.Uid,
 		Subject:         &subject,
 		FromAddress:     &from,
 		ReceivedDate:    &dateStr,
@@ -540,6 +587,7 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 	s.repo.CreateLog(emailLog)
 
 	log.Printf("[Email Monitor] Email logged: %s", subject)
+	return true
 }
 
 func (s *EmailService) saveAttachment(filename string, content []byte, _ string) {
@@ -610,7 +658,7 @@ func (s *EmailService) GetMonitoringStatus(ownerUserID string) ([]models.Monitor
 }
 
 // ManualCheck performs a manual email check
-func (s *EmailService) ManualCheck(ownerUserID string, configID string) (bool, string, int) {
+func (s *EmailService) ManualCheck(ownerUserID string, configID string, full bool) (bool, string, int) {
 	config, err := s.repo.FindConfigByIDForOwner(ownerUserID, configID)
 	if err != nil {
 		return false, "配置不存在", 0
@@ -633,51 +681,17 @@ func (s *EmailService) ManualCheck(ownerUserID string, configID string) (bool, s
 		return false, fmt.Sprintf("打开收件箱失败: %v", err), 0
 	}
 
-	// Search for unseen messages
-	criteria := imap.NewSearchCriteria()
-	criteria.WithoutFlags = []string{imap.SeenFlag}
-
-	uids, err := c.Search(criteria)
-	if err != nil {
-		return false, fmt.Sprintf("搜索邮件失败: %v", err), 0
-	}
-
-	if len(uids) == 0 {
-		return true, "没有新邮件", 0
-	}
-
-	seqSet := new(imap.SeqSet)
-	seqSet.AddNum(uids...)
-
-	messages := make(chan *imap.Message, len(uids))
-	textSection := &imap.BodySectionName{
-		BodyPartName: imap.BodyPartName{Specifier: imap.TextSpecifier},
-		Peek:         true,
-	}
-	items := []imap.FetchItem{imap.FetchUid, imap.FetchEnvelope, imap.FetchBodyStructure, textSection.FetchItem()}
-
-	go func() {
-		if err := c.Fetch(seqSet, items, messages); err != nil {
-			log.Printf("[Email Monitor] Fetch error: %v", err)
-		}
-	}()
-
-	count := 0
-	for msg := range messages {
-		s.processMessage(ownerUserID, configID, msg, textSection)
-
-		// Mark as seen
-		seenSet := new(imap.SeqSet)
-		seenSet.AddNum(msg.SeqNum)
-		item := imap.FormatFlagsOp(imap.AddFlags, true)
-		flags := []interface{}{imap.SeenFlag}
-		c.Store(seenSet, item, flags, nil)
-		count++
-	}
+	count := s.fetchEmails(ownerUserID, configID, c, full)
 
 	// Update last check time
 	now := time.Now().Format(time.RFC3339)
 	_ = s.repo.UpdateLastCheckForOwner(ownerUserID, configID, now)
 
+	if count == 0 {
+		return true, "没有新邮件", 0
+	}
+	if full {
+		return true, fmt.Sprintf("成功同步 %d 封邮件", count), count
+	}
 	return true, fmt.Sprintf("成功处理 %d 封邮件", count), count
 }

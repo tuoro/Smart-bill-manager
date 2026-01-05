@@ -51,7 +51,7 @@
               {{ row.last_check ? formatDateTime(row.last_check) : '-' }}
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '260px' }">
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '340px' }">
             <template #body="{ data: row }">
               <div class="actions">
                 <Button
@@ -80,6 +80,15 @@
                   :label="'\u68C0\u67E5'"
                   :loading="checkLoading === row.id"
                   @click="handleManualCheck(row.id)"
+                />
+
+                <Button
+                  size="small"
+                  class="p-button-outlined"
+                  icon="pi pi-download"
+                  :label="'\u5168\u91cf\u540C\u6B65'"
+                  :loading="fullSyncLoading === row.id"
+                  @click="handleManualFullSync(row.id)"
                 />
 
                 <Button
@@ -606,6 +615,34 @@ const handleManualCheck = async (id: string) => {
     notifications.add({ severity: 'error', title: '邮箱检查失败', detail: id })
   } finally {
     checkLoading.value = null
+  }
+}
+
+const fullSyncLoading = ref<string | null>(null)
+
+const handleManualFullSync = async (id: string) => {
+  fullSyncLoading.value = id
+  try {
+    const res = await emailApi.manualFullSync(id)
+    if (res.data.success) {
+      toast.add({ severity: 'success', summary: res.data.message || '全量同步完成', life: 2500 })
+      const newEmails = res.data.data?.newEmails || 0
+      notifications.add({
+        severity: newEmails > 0 ? 'success' : 'info',
+        title: '邮箱全量同步完成',
+        detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
+      })
+      await loadLogs()
+      await loadMonitorStatus()
+    } else {
+      toast.add({ severity: 'error', summary: res.data.message || '全量同步失败', life: 3500 })
+      notifications.add({ severity: 'error', title: '邮箱全量同步失败', detail: res.data.message || id })
+    }
+  } catch {
+    toast.add({ severity: 'error', summary: '全量同步失败', life: 3500 })
+    notifications.add({ severity: 'error', title: '邮箱全量同步失败', detail: id })
+  } finally {
+    fullSyncLoading.value = null
   }
 }
 

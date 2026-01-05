@@ -189,7 +189,8 @@ func (h *EmailHandler) GetMonitoringStatus(c *gin.Context) {
 
 func (h *EmailHandler) ManualCheck(c *gin.Context) {
 	id := c.Param("id")
-	success, message, newEmails := h.emailService.ManualCheck(middleware.GetEffectiveUserID(c), id)
+	full := c.Query("full") == "1" || c.Query("full") == "true"
+	success, message, newEmails := h.emailService.ManualCheck(middleware.GetEffectiveUserID(c), id, full)
 
 	c.JSON(200, gin.H{
 		"success": success,

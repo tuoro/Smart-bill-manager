@@ -34,4 +34,7 @@ export const emailApi = {
   
   manualCheck: (id: string) =>
     api.post<ApiResponse<{ newEmails: number }>>(`/email/check/${id}`),
+
+  manualFullSync: (id: string) =>
+    api.post<ApiResponse<{ newEmails: number }>>(`/email/check/${id}`, null, { params: { full: 1 } }),
 }

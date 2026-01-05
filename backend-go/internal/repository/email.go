@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"strings"
 
 	"smart-bill-manager/internal/models"
@@ -132,6 +133,28 @@ func (r *EmailRepository) FindLogByID(id string) (*models.EmailLog, error) {
 		return nil, err
 	}
 	return &logRow, nil
+}
+
+func (r *EmailRepository) LogExists(ownerUserID string, configID string, mailbox string, messageUID uint32) (bool, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	configID = strings.TrimSpace(configID)
+	mailbox = strings.TrimSpace(mailbox)
+	if mailbox == "" {
+		mailbox = "INBOX"
+	}
+	if ownerUserID == "" || configID == "" || messageUID == 0 {
+		return false, fmt.Errorf("missing fields")
+	}
+
+	var cnt int64
+	if err := database.GetDB().
+		Model(&models.EmailLog{}).
+		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ? AND message_uid = ?", ownerUserID, configID, mailbox, messageUID).
+		Limit(1).
+		Count(&cnt).Error; err != nil {
+		return false, err
+	}
+	return cnt > 0, nil
 }
 
 func (r *EmailRepository) UpdateLog(id string, data map[string]interface{}) error {

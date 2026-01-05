@@ -120,6 +120,7 @@ docker run -d --name smart-bill-manager -p 80:80 \
 - `SBM_PDF_TEXT_EXTRACTOR=pymupdf|off`（默认 `pymupdf`）
 - `SBM_PDF_OCR_DPI=220`（可选，建议 `120-450`）
 - `SBM_INVOICE_PARTY_ROI=auto|true|false`（默认 `auto`）
+- `SBM_INVOICE_TOTAL_ROI=auto|true|false`（默认 `auto`，仅当价税合计/税额缺失时做 ROI 补充识别）
 - `SBM_OCR_DEBUG=true`（可选）
 
 ### 异步 OCR 任务（Task Worker）

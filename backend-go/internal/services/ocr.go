@@ -917,6 +917,28 @@ func (s *OCRService) pdfToImageOCR(pdfPath string) (string, error) {
 			}
 		}
 
+		// Totals (amount/tax) ROI fallback:
+		// - true/1/yes: always try ROI injection
+		// - auto (default): try ROI only when amount/tax seems missing from the OCR text
+		totalMode := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_INVOICE_TOTAL_ROI")))
+		if totalMode == "" {
+			totalMode = "auto"
+		}
+		needTotalsROI := false
+		switch totalMode {
+		case "1", "true", "yes":
+			needTotalsROI = true
+		case "auto":
+			parsed, _ := s.ParseInvoiceData(text)
+			needTotalsROI = parsed == nil || parsed.Amount == nil || parsed.TaxAmount == nil
+		}
+		if needTotalsROI {
+			totalsInjected, _, _ := s.injectInvoiceTotalsFromRegions(tempDir, imgPath)
+			if totalsInjected != "" {
+				text = totalsInjected + "\n" + text
+			}
+		}
+
 		fmt.Printf("[OCR] Extracted %d characters from page %d\n", len(text), i+1)
 		allText.WriteString(text)
 		allText.WriteString("\n")
@@ -968,6 +990,69 @@ func (s *OCRService) injectInvoicePartiesFromRegions(tempDir, imgPath string) (i
 
 	injected = strings.Join(parts, "\n")
 	return injected, buyerOK, sellerOK
+}
+
+func (s *OCRService) injectInvoiceTotalsFromRegions(tempDir, imgPath string) (injected string, totalOK bool, taxOK bool) {
+	// Heuristic crop (A4 invoice layouts):
+	// - Totals: bottom-right area near "价税合计(小写)" and "税额".
+	text, err := s.ocrInvoiceRegion(tempDir, imgPath, "totals", 0.50, 0.66, 0.98, 0.94)
+	if err != nil {
+		fmt.Printf("[OCR] Totals ROI OCR failed: %v\n", err)
+		return "", false, false
+	}
+
+	total, tax := extractTotalsFromROICandidate(text)
+
+	var parts []string
+	if total != nil {
+		parts = append(parts, "\u4ef7\u7a0e\u5408\u8ba1(\u5c0f\u5199)\uff1a\u00a5"+formatFloat2(total))
+		totalOK = true
+	}
+	if tax != nil {
+		parts = append(parts, "\u7a0e\u989d\uff1a\u00a5"+formatFloat2(tax))
+		taxOK = true
+	}
+
+	injected = strings.Join(parts, "\n")
+	return injected, totalOK, taxOK
+}
+
+func extractTotalsFromROICandidate(text string) (total *float64, tax *float64) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, nil
+	}
+
+	amountToken := `([0-9][0-9,]*(?:\.[0-9]{1,2})?)`
+	ccyChars := "\u00a5\uFFE5" // ¥ and ￥
+	ccy := fmt.Sprintf(`(?:[%s]\s*)?`, ccyChars)
+
+	taxTotalKey := "\u4ef7\u7a0e\u5408\u8ba1"
+	sumAmountKey := "\u5408\u8ba1\u91d1\u989d"
+	totalKey := "\u603b\u8ba1"
+	sumKey := "\u5408\u8ba1"
+
+	totalRe := regexp.MustCompile(fmt.Sprintf(`(?s)(?:%s|%s|%s|%s).*?%s%s`, taxTotalKey, sumAmountKey, totalKey, sumKey, ccy, amountToken))
+	totalMatches := totalRe.FindAllStringSubmatch(text, -1)
+	if len(totalMatches) > 0 {
+		last := totalMatches[len(totalMatches)-1]
+		if len(last) > 1 {
+			total = parseAmount(last[len(last)-1])
+		}
+	}
+
+	taxKey := "\u7a0e\u989d"
+	taxMoneyKey := "\u7a0e\u91d1"
+	taxRe := regexp.MustCompile(fmt.Sprintf(`(?s)(?:%s|%s).*?%s%s`, taxKey, taxMoneyKey, ccy, amountToken))
+	taxMatches := taxRe.FindAllStringSubmatch(text, -1)
+	if len(taxMatches) > 0 {
+		last := taxMatches[len(taxMatches)-1]
+		if len(last) > 1 {
+			tax = parseAmount(last[len(last)-1])
+		}
+	}
+
+	return total, tax
 }
 
 func extractPartyFromROICandidate(text string, role string) (name string, taxID string) {

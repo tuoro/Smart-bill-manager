@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -5104,6 +5105,46 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if loc := specInlineRe.FindStringIndex(line); loc != nil {
 			splitAt = loc[0]
 		}
+		// Some packed rows have no inline spec; instead, they list unit/qty/prices after all names,
+		// sometimes with duplicated units like "包包2 2 ...". In that case, split at the first
+		// unit+quantity marker and backtrack to include any duplicated unit token.
+		if splitAt < 0 {
+			if ms := unitQtyInlineRe.FindAllStringSubmatchIndex(line, -1); len(ms) > 0 {
+				m := ms[0]
+				if len(m) >= 4 {
+					splitAt = m[0]
+					// Backtrack to include repeated unit tokens just before the first "unit+qty" match.
+					if len(m) >= 6 && m[2] >= 0 && m[3] > m[2] {
+						unitToken := line[m[2]:m[3]]
+						back := splitAt
+						for back > 0 {
+							// Trim spaces between duplicated unit tokens.
+							r, size := utf8.DecodeLastRuneInString(line[:back])
+							if size <= 0 {
+								break
+							}
+							if unicode.IsSpace(r) {
+								back -= size
+								splitAt = back
+								continue
+							}
+							if back >= len(unitToken) && strings.HasSuffix(line[:back], unitToken) {
+								back -= len(unitToken)
+								splitAt = back
+								continue
+							}
+							break
+						}
+					}
+					// Ensure we still have multiple category segments in the names part.
+					if splitAt > 0 {
+						if len(categoryAnyRe.FindAllStringIndex(strings.TrimSpace(line[:splitAt]), -1)) < 2 {
+							splitAt = -1
+						}
+					}
+				}
+			}
+		}
 		namePart := line
 		tailPart := ""
 		if splitAt > 0 {
@@ -6314,6 +6355,81 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 				data.InvoiceDate = &v
 				data.InvoiceDateSource = "year_repair"
 				data.InvoiceDateConfidence = 0.9
+			}
+		}
+	}
+
+	// Some invoices print a "价税合计(小写)" line that includes multiple numeric amounts after 小写,
+	// e.g. "... (小写) 396.04 ￥ 400.00 ￥ 3.96". Prefer the largest as total, and when possible
+	// derive tax from (total - net) by matching another extracted number.
+	if data.Amount == nil || data.TaxAmount == nil {
+		decimal2Re := regexp.MustCompile(`\d+\.\d{2}`)
+		for _, line := range strings.Split(parsedText, "\n") {
+			if !strings.Contains(line, "价税合计") || !strings.Contains(line, "小写") {
+				continue
+			}
+			rawNums := decimal2Re.FindAllString(line, -1)
+			if len(rawNums) < 2 {
+				continue
+			}
+			vals := make([]float64, 0, len(rawNums))
+			for _, s := range rawNums {
+				if v := parseAmount(s); v != nil && *v >= MinValidAmount && *v <= 1e7 {
+					vals = append(vals, *v)
+				}
+			}
+			if len(vals) < 2 {
+				continue
+			}
+			total := vals[0]
+			for _, v := range vals[1:] {
+				if v > total {
+					total = v
+				}
+			}
+			totalPtr := total
+			setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, &totalPtr, "tax_total_xiaoxie_multi", 0.95)
+
+			if data.TaxAmount == nil && len(vals) >= 3 {
+				const eps = 0.02
+				bestTax := 0.0
+				for _, net := range vals {
+					if net <= 0 || net >= total {
+						continue
+					}
+					// Net amount should be close to total; ignore very small values that are likely tax.
+					if net < total*0.5 {
+						continue
+					}
+					diff := total - net
+					if diff <= 0 || diff >= total {
+						continue
+					}
+					// Tax is usually much smaller than total; ignore implausibly large diffs.
+					if diff > total*0.5 {
+						continue
+					}
+					for _, cand := range vals {
+						if cand <= 0 || cand >= total {
+							continue
+						}
+						if cand > total*0.5 {
+							continue
+						}
+						if math.Abs(cand-diff) <= eps {
+							if bestTax == 0 || cand > bestTax {
+								bestTax = cand
+							}
+						}
+					}
+				}
+				if bestTax > 0 && bestTax < total {
+					taxPtr := bestTax
+					setAmountWithSourceAndConfidence(&data.TaxAmount, &data.TaxAmountSource, &data.TaxAmountConfidence, &taxPtr, "tax_total_xiaoxie_multi", 0.95)
+				}
+			}
+			if data.Amount != nil && (data.TaxAmount != nil || len(vals) >= 2) {
+				break
 			}
 		}
 	}

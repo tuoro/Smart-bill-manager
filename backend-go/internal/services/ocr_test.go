@@ -1634,6 +1634,52 @@ func TestParseInvoiceData_JDItemNamePrefixLeakedIntoBuyer_PyMuPDFZoned(t *testin
 	}
 }
 
+func TestParseInvoiceData_TobaccoTwoItemsAndGrossTotal_PyMuPDFZoned(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `【第1页-分区】
+【发票信息】
+发票号码： 25312000000374653683
+开票日期： 2025年11月18日
+电子发票（普通发票）
+【购买方】
+购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
+项目名称规格型号单位数量
+【密码区】
+统一社会信用代码/纳税人识别号： 单价上海市徐汇区闽辉杂货店198.02 198.02金额92310104MA1KB05E3B 税率/征收率1% 1% 税额1.98 1.98下载次数：2
+【明细】
+*烟草制品*细支和天下 *烟草制品*南京九五包包2 2 99.009900990099 99.009900990099
+价税合计（大写） 合计肆佰圆整 ￥ （小写） 396.04 ￥ 400.00 ￥ 3.96
+【销售方】
+上海市徐汇区闽辉杂货店`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+	if data.InvoiceNumber == nil || *data.InvoiceNumber != "25312000000374653683" {
+		t.Fatalf("Expected InvoiceNumber '25312000000374653683', got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
+	}
+	if data.Amount == nil || *data.Amount != 400.00 {
+		t.Fatalf("Expected Amount 400.00, got %+v (src=%q)", data.Amount, data.AmountSource)
+	}
+	if data.TaxAmount == nil || *data.TaxAmount != 3.96 {
+		t.Fatalf("Expected TaxAmount 3.96, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	}
+
+	if len(data.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
+	}
+	for _, it := range data.Items {
+		if it.Unit != "包" || it.Quantity == nil || *it.Quantity != 2 {
+			t.Fatalf("Unexpected item parsed: %+v", it)
+		}
+	}
+	if !strings.Contains(data.Items[0].Name+data.Items[1].Name, "细支和天下") || !strings.Contains(data.Items[0].Name+data.Items[1].Name, "南京九五") {
+		t.Fatalf("Expected both item names present, got %+v", data.Items)
+	}
+}
+
 func TestParseInvoiceData_SpaceSeparatedDate(t *testing.T) {
 	service := NewOCRService()
 

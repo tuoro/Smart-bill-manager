@@ -1547,6 +1547,7 @@ const rawTextSourceLabel = (src?: string) => {
   const s = String(src || '').trim().toLowerCase()
   if (!s) return ''
   if (s === 'pymupdf') return 'PyMuPDF'
+  if (s === 'pymupdf_zones') return 'PyMuPDF（分区）'
   if (s === 'rapidocr') return 'RapidOCR'
   if (s === 'merged') return 'Merged'
   return src || ''

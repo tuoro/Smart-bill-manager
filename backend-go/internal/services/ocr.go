@@ -561,25 +561,34 @@ type PDFTextCLIResponse struct {
 	Success   bool   `json:"success"`
 	Text      string `json:"text"`
 	RawText   string `json:"raw_text,omitempty"`
+	ZonedText string `json:"zoned_text,omitempty"`
+	Layout    string `json:"layout,omitempty"` // zones|ordered|raw
 	Ordered   bool   `json:"ordered,omitempty"`
 	PageCount int    `json:"page_count,omitempty"`
 	Extractor string `json:"extractor,omitempty"`
 	Error     string `json:"error,omitempty"`
 }
 
-func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, error) {
+func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, string, error) {
 	fmt.Printf("[OCR] Attempting PDF text extraction with PyMuPDF: %s\n", pdfPath)
 
 	scriptPath := s.findPDFTextScript()
 	if scriptPath == "" {
-		return "", fmt.Errorf("pdf_text_cli.py script not found")
+		return "", "", fmt.Errorf("pdf_text_cli.py script not found")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	run := func(python string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, python, scriptPath, pdfPath)
+		layout := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_PDF_TEXT_LAYOUT")))
+		if layout == "" {
+			layout = "zones"
+		}
+		if layout != "zones" && layout != "ordered" && layout != "raw" {
+			layout = "zones"
+		}
+		cmd := exec.CommandContext(ctx, python, scriptPath, pdfPath, "--layout", layout)
 		return cmd.CombinedOutput()
 	}
 
@@ -594,13 +603,13 @@ func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, error) {
 	var result PDFTextCLIResponse
 	if err := unmarshalPossiblyNoisyJSON(output, &result); err != nil {
 		if execErr != nil {
-			return "", fmt.Errorf("failed to execute PyMuPDF CLI: %w (output: %s)", execErr, string(output))
+			return "", "", fmt.Errorf("failed to execute PyMuPDF CLI: %w (output: %s)", execErr, string(output))
 		}
-		return "", fmt.Errorf("failed to parse PyMuPDF CLI output: %w (output: %s)", err, string(output))
+		return "", "", fmt.Errorf("failed to parse PyMuPDF CLI output: %w (output: %s)", err, string(output))
 	}
 
 	if !result.Success {
-		return "", fmt.Errorf("PyMuPDF error: %s", result.Error)
+		return "", "", fmt.Errorf("PyMuPDF error: %s", result.Error)
 	}
 
 	text := result.Text
@@ -608,8 +617,17 @@ func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, error) {
 		text = result.RawText
 	}
 
-	fmt.Printf("[OCR] PyMuPDF extracted %d characters from %d pages (%s, ordered=%v)\n", len(text), result.PageCount, result.Extractor, result.Ordered)
-	return text, nil
+	layout := strings.ToLower(strings.TrimSpace(result.Layout))
+	if layout == "" {
+		layout = "raw"
+	}
+	source := "pymupdf"
+	if layout == "zones" {
+		source = "pymupdf_zones"
+	}
+
+	fmt.Printf("[OCR] PyMuPDF extracted %d characters from %d pages (%s, layout=%s, ordered=%v)\n", len(text), result.PageCount, result.Extractor, layout, result.Ordered)
+	return text, source, nil
 }
 
 func (s *OCRService) isLikelyUsefulInvoicePDFText(text string) bool {
@@ -721,9 +739,12 @@ func (s *OCRService) RecognizePDFWithSource(pdfPath string) (text string, source
 	}
 
 	if mode != "off" && mode != "false" && mode != "0" {
-		if text, err := s.extractTextWithPyMuPDF(pdfPath); err == nil {
+		if text, src, err := s.extractTextWithPyMuPDF(pdfPath); err == nil {
 			if s.isLikelyUsefulInvoicePDFText(text) {
-				return text, "pymupdf", nil
+				if strings.TrimSpace(src) == "" {
+					src = "pymupdf"
+				}
+				return text, src, nil
 			}
 			fmt.Printf("[OCR] PyMuPDF text looks incomplete; falling back to RapidOCR image OCR\n")
 		} else {
@@ -4051,6 +4072,15 @@ func cleanupName(name string) string {
 	name = strings.TrimSpace(name)
 	name = strings.Trim(name, ":：")
 
+	// Strip common leading labels that occasionally get included in the captured "name".
+	// Examples:
+	// - "购买方名称：XXX" / "销售方名称：XXX"
+	// - "销售方:(章) XXX"
+	// - "购买方：XXX" / "销售方：XXX"
+	name = regexp.MustCompile(`^(?:购买方|销售方)\s*[:：]?\s*(?:\(\s*章\s*\)\s*)?`).ReplaceAllString(name, "")
+	name = regexp.MustCompile(`^(?:购买方名称|销售方名称)\s*[:：]?\s*`).ReplaceAllString(name, "")
+	name = strings.TrimSpace(name)
+
 	// Split by multiple spaces (2 or more) and take the first part
 	// This handles cases where the name is followed by other content with significant spacing
 	parts := regexp.MustCompile(`\s{2,}`).Split(name, 2)
@@ -4157,6 +4187,10 @@ func isBadPartyNameCandidate(name string) bool {
 	if name == "" {
 		return true
 	}
+	// Pure punctuation/ellipsis-like placeholders.
+	if strings.Trim(name, ".·•…") == "" {
+		return true
+	}
 	// Common label fragments that sometimes get captured as a "name".
 	bad := []string{
 		"名称", "名称:", "名称：",
@@ -4164,7 +4198,7 @@ func isBadPartyNameCandidate(name string) bool {
 		"购买方", "销售方", "购买", "销售",
 		"纳税人识别号", "纳税人识别号:", "纳税人识别号：",
 		"地址", "地址、电话", "电话",
-		"开户行", "开户行及账号", "账号",
+		"开户行", "开户行及账号", "账号", "支行", "分行", "营业部",
 	}
 	for _, b := range bad {
 		if name == b {
@@ -4178,6 +4212,9 @@ func isBadPartyNameCandidate(name string) bool {
 		return true
 	}
 	if strings.Contains(name, "纳税人识别号") || strings.Contains(name, "统一社会信用代码") || strings.Contains(name, "地址") || strings.Contains(name, "开户行") {
+		return true
+	}
+	if strings.Contains(name, "支行") || strings.Contains(name, "分行") || strings.Contains(name, "营业部") {
 		return true
 	}
 	// Dates are not party names; avoid confusing invoice date with seller/buyer.
@@ -4203,6 +4240,41 @@ func isBadPartyNameCandidate(name string) bool {
 		return true
 	}
 	return false
+}
+
+func isLikelyBuyerName(name string) bool {
+	name = cleanupName(strings.TrimSpace(name))
+	if name == "" || isBadPartyNameCandidate(name) {
+		return false
+	}
+	if name == "个人" {
+		return true
+	}
+	han := 0
+	for _, r := range name {
+		if unicode.Is(unicode.Han, r) {
+			han++
+		}
+	}
+	return han >= 2
+}
+
+func isLikelySellerName(name string) bool {
+	name = cleanupName(strings.TrimSpace(name))
+	if name == "" || isBadPartyNameCandidate(name) {
+		return false
+	}
+	// A seller should not be "个人" for invoices we handle.
+	if name == "个人" {
+		return false
+	}
+	han := 0
+	for _, r := range name {
+		if unicode.Is(unicode.Han, r) {
+			han++
+		}
+	}
+	return han >= 2
 }
 
 func normalizeInvoiceTextForParsing(text string) string {
@@ -5084,6 +5156,45 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 		}
 	}
 
+	// Extract embedded personal names that appear inside noisy lines, e.g. "武亚峰13512168111"
+	// where the line may also contain password symbols and be rejected by line-level heuristics.
+	phoneNameRe := regexp.MustCompile(`([\p{Han}]{2,6})\s*\d{11}`)
+	phoneNameMatches := phoneNameRe.FindAllStringSubmatchIndex(text, -1)
+	for _, m := range phoneNameMatches {
+		if len(m) < 4 {
+			continue
+		}
+		addName(text[m[2]:m[3]], m[0])
+	}
+
+	// Extract company/person names that appear at the tail of multi-label lines like:
+	// "名称: 开户行及账号: 地址、电话: 纳税人识别号: 中国移动通信集团上海有限公司"
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !(strings.Contains(line, "纳税人识别号") || strings.Contains(line, "统一社会信用代码")) {
+			continue
+		}
+		if !strings.ContainsAny(line, ":：") {
+			continue
+		}
+		idx := strings.LastIndexAny(line, ":：")
+		if idx < 0 || idx+1 >= len(line) {
+			continue
+		}
+		candidate := cleanupName(strings.TrimSpace(line[idx+1:]))
+		if candidate == "" || isBadPartyNameCandidate(candidate) || taxIDRegex.MatchString(candidate) {
+			continue
+		}
+		pos := strings.Index(text, line)
+		if pos < 0 {
+			pos = 0
+		}
+		addName(candidate, pos)
+	}
+
 	// Additional patterns: handle inline forms like "名称: XXX" (but avoid the naive
 	// "next line" capture, which often grabs "纳税人识别号:" when the value is empty).
 	nameInlineRe := regexp.MustCompile(`(?m)(?:名称)[:：]\s*([^\n\r]+)`)
@@ -5396,11 +5507,11 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 	}
 
 	if buyer, seller := s.extractBuyerAndSellerByPosition(parsedText); buyer != nil || seller != nil {
-		if buyer != nil && !isBadPartyNameCandidate(*buyer) {
-			setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, *buyer, "position", 0.7)
+		if buyer != nil && isLikelyBuyerName(*buyer) {
+			setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, cleanupName(*buyer), "position", 0.7)
 		}
-		if seller != nil && !isBadPartyNameCandidate(*seller) {
-			setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, *seller, "position", 0.7)
+		if seller != nil && isLikelySellerName(*seller) {
+			setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, cleanupName(*seller), "position", 0.7)
 		}
 	}
 
@@ -5412,8 +5523,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 		for _, re := range buyerRegexes {
 			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-				val := strings.TrimSpace(match[1])
-				if val != "" && val != "信息" && val != "名称：" && val != "名称:" {
+				val := cleanupName(strings.TrimSpace(match[1]))
+				if val != "" && val != "信息" && val != "名称" && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, val, "buyer_label", 0.8)
 					break
 				}
@@ -5422,8 +5533,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.BuyerName == nil {
 			buyerSectionRegex := regexp.MustCompile(`(?s)购买方信息.*?纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
 			if match := buyerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
-				val := strings.TrimSpace(match[2])
-				if val != "" && val != "名称" {
+				val := cleanupName(strings.TrimSpace(match[2]))
+				if val != "" && val != "名称" && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, val, "buyer_section", 0.8)
 				}
 			}
@@ -5443,8 +5554,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 		for _, re := range sellerRegexes {
 			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-				val := strings.TrimSpace(match[1])
-				if val != "" && val != "信息" && val != "名称：" && val != "名称:" {
+				val := cleanupName(strings.TrimSpace(match[1]))
+				if val != "" && val != "信息" && val != "名称" && val != "个人" && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_label", 0.8)
 					break
 				}
@@ -5453,8 +5564,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.SellerName == nil {
 			sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
 			if match := sellerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
-				val := strings.TrimSpace(match[2])
-				if val != "" && val != "名称" {
+				val := cleanupName(strings.TrimSpace(match[2]))
+				if val != "" && val != "名称" && val != "个人" && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_section", 0.8)
 				}
 			}
@@ -5462,8 +5573,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.SellerName == nil {
 			taxThenName := regexp.MustCompile(fmt.Sprintf(`\b(%s)\b[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
 			if match := taxThenName.FindStringSubmatch(parsedText); len(match) > 2 {
-				val := strings.TrimSpace(match[2])
-				if val != "" && val != "个人" && len(val) > 2 {
+				val := cleanupName(strings.TrimSpace(match[2]))
+				if val != "" && val != "个人" && len(val) > 2 && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_taxid_name", 0.7)
 				}
 			}
@@ -5471,8 +5582,8 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		if data.SellerName == nil {
 			companyBeforeTaxID := regexp.MustCompile(fmt.Sprintf(`([^\n\r]*(?:公司|商店|企业|中心|厂|店|行|社|院|局)[^\n\r]*)[\s\n\r]+(%s)`, taxIDPattern))
 			if match := companyBeforeTaxID.FindStringSubmatch(parsedText); len(match) > 2 {
-				val := strings.TrimSpace(match[1])
-				if val != "" && val != "个人" && len(val) > 3 {
+				val := cleanupName(strings.TrimSpace(match[1]))
+				if val != "" && val != "个人" && len(val) > 3 && !isBadPartyNameCandidate(val) {
 					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_company_before_taxid", 0.6)
 				}
 			}

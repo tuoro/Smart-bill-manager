@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -514,6 +515,52 @@ func TestParseInvoiceData_PyMuPDFZoned_MergedBuyerSellerAndPackedItemRow(t *test
 
 	if data.PrettyText == "" || !strings.Contains(data.PrettyText, "【购买方】") || !strings.Contains(data.PrettyText, "【明细】") {
 		t.Fatalf("Expected PrettyText to preserve zoned section headers, got: %q", data.PrettyText)
+	}
+}
+
+func TestParseInvoiceData_PyMuPDFZoned_TwoItemsAndCorrectTotalAmount(t *testing.T) {
+	service := NewOCRService()
+
+	sampleText := `【第1页-分区】
+【发票信息】
+发票号码： 25312000000336194167
+开票日期： 2025年10月21日
+电子发票（普通发票）
+【购买方】
+购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
+项目名称规格型号单位数量
+【密码区】
+统一社会信用代码/纳税人识别号： 单价上海市虹口区鹏侠百货商店1683.17 1366.34金额92310109MA1KMFLM1K 税率/征收率1% 1% 税额16.83 13.66下载次数：1
+【明细】
+*酒*白酒汾酒青花30 *酒*葡萄酒奔富407 53°*6 750ml*6瓶瓶2 2 841.584158415842 683.168316831683
+价税合计（大写） 合计叁仟零捌拾圆整 ￥ 3049.51 （小写） ￥ 3080.00 ￥ 30.49
+【备注/其他】
+开票人： 江祜璆`
+
+	data, err := service.ParseInvoiceData(sampleText)
+	if err != nil {
+		t.Fatalf("ParseInvoiceData returned error: %v", err)
+	}
+	if data.Amount == nil || *data.Amount != 3080 {
+		t.Fatalf("Expected amount 3080, got %+v (src=%q)", data.Amount, data.AmountSource)
+	}
+	if data.TaxAmount == nil || fmt.Sprintf("%.2f", *data.TaxAmount) != "30.49" {
+		t.Fatalf("Expected tax_amount 30.49, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	}
+	if len(data.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
+	}
+	if !strings.Contains(data.Items[0].Name, "汾酒") || data.Items[0].Unit != "瓶" || data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
+		t.Fatalf("Unexpected item 0: %+v", data.Items[0])
+	}
+	if data.Items[0].Spec == "" || !strings.Contains(data.Items[0].Spec, "53") {
+		t.Fatalf("Unexpected item 0 spec: %+v", data.Items[0])
+	}
+	if !strings.Contains(data.Items[1].Name, "奔富") || data.Items[1].Unit != "瓶" || data.Items[1].Quantity == nil || *data.Items[1].Quantity != 2 {
+		t.Fatalf("Unexpected item 1: %+v", data.Items[1])
+	}
+	if data.Items[1].Spec == "" || !strings.Contains(strings.ToLower(data.Items[1].Spec), "ml") {
+		t.Fatalf("Unexpected item 1 spec: %+v", data.Items[1])
 	}
 }
 

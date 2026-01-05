@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/liyue201/goqr"
 )
@@ -4938,9 +4939,128 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	// e.g. "*电信服务*话费充值元1" or "... 元 1". Peel them off early so we don't lose them.
 	unitQtySuffixRe := regexp.MustCompile(`^(.*?)(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)$`)
 	unitQtyInlineRe := regexp.MustCompile(`(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)`)
-	specInlineRe := regexp.MustCompile(`\d+(?:\.\d+)?\s*°\s*(?:[×x\*])\s*\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)?`)
+	specInlineRe := regexp.MustCompile(`(?:\d+(?:\.\d+)?\s*°\s*(?:[×x\*])\s*\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)?|\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)\s*(?:[×x\*])\s*\d+(?:\.\d+)?)`)
+	categoryAnyRe := regexp.MustCompile(`\*[^*\n\r]{1,20}\*`)
+	longDecimalRe := regexp.MustCompile(`\d+\.\d{4,}`)
+	decimalRe := regexp.MustCompile(`\d+\.\d+`)
+	percentRe := regexp.MustCompile(`\d{1,3}%`)
+	intRe := regexp.MustCompile(`\b\d+\b`)
 
 	var parseQuantityWithUnit func(s, unit string) *float64
+
+	parseMultiPackedItems := func(line string) []InvoiceLineItem {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return nil
+		}
+		cats := categoryAnyRe.FindAllStringIndex(line, -1)
+		if len(cats) < 2 {
+			return nil
+		}
+
+		// Split into [namesPart | tailPart] at the first spec occurrence.
+		splitAt := -1
+		if loc := specInlineRe.FindStringIndex(line); loc != nil {
+			splitAt = loc[0]
+		}
+		namePart := line
+		tailPart := ""
+		if splitAt > 0 {
+			namePart = strings.TrimSpace(line[:splitAt])
+			tailPart = strings.TrimSpace(line[splitAt:])
+		}
+
+		// Extract name segments (each starts with a "*类别*").
+		segStarts := categoryAnyRe.FindAllStringIndex(namePart, -1)
+		if len(segStarts) < 2 {
+			return nil
+		}
+		names := make([]string, 0, len(segStarts))
+		for i := 0; i < len(segStarts); i++ {
+			start := segStarts[i][0]
+			end := len(namePart)
+			if i+1 < len(segStarts) {
+				end = segStarts[i+1][0]
+			}
+			seg := strings.TrimSpace(namePart[start:end])
+			if seg != "" {
+				names = append(names, seg)
+			}
+		}
+		if len(names) < 2 {
+			return nil
+		}
+
+		// Extract specs in order (e.g. "53°×6", "750ml×6").
+		specs := make([]string, 0, len(names))
+		for _, sidx := range specInlineRe.FindAllStringIndex(tailPart, -1) {
+			if sidx[0] >= 0 && sidx[1] > sidx[0] {
+				raw := tailPart[sidx[0]:sidx[1]]
+				specs = append(specs, strings.NewReplacer("*", "×", "x", "×", "X", "×").Replace(raw))
+			}
+		}
+
+		// Units: if a single unit repeats N times, assume it's for each row (common for invoices).
+		units := make([]string, 0, len(names))
+		for _, u := range []string{"瓶", "件", "个", "箱", "袋", "包", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "米", "公斤", "千克", "克", "元"} {
+			c := strings.Count(tailPart, u)
+			if c >= len(names) {
+				for i := 0; i < len(names); i++ {
+					units = append(units, u)
+				}
+				break
+			}
+		}
+
+		// Quantities: remove specs, decimals/prices and percents, then take the last N integers.
+		cleanTail := tailPart
+		cleanTail = specInlineRe.ReplaceAllString(cleanTail, " ")
+		cleanTail = percentRe.ReplaceAllString(cleanTail, " ")
+		cleanTail = longDecimalRe.ReplaceAllString(cleanTail, " ")
+		cleanTail = decimalRe.ReplaceAllString(cleanTail, " ")
+		ints := intRe.FindAllString(cleanTail, -1)
+		qtys := make([]*float64, 0, len(names))
+		if len(ints) >= len(names) {
+			ints = ints[len(ints)-len(names):]
+		}
+		for _, q := range ints {
+			v := parseQuantityWithUnit(q, "")
+			if v == nil {
+				qtys = append(qtys, nil)
+				continue
+			}
+			qtys = append(qtys, v)
+		}
+
+		if len(specs) == 0 && len(units) == 0 && len(qtys) == 0 {
+			return nil
+		}
+
+		out := make([]InvoiceLineItem, 0, len(names))
+		for i := 0; i < len(names); i++ {
+			name := normalizeName(names[i])
+			spec := ""
+			if i < len(specs) {
+				spec = strings.TrimSpace(specs[i])
+			}
+			unit := ""
+			if i < len(units) {
+				unit = strings.TrimSpace(units[i])
+			}
+			var qty *float64
+			if i < len(qtys) {
+				qty = qtys[i]
+			}
+			if name == "" {
+				continue
+			}
+			out = append(out, InvoiceLineItem{Name: name, Spec: spec, Unit: unit, Quantity: qty})
+		}
+		if len(out) >= 2 {
+			return out
+		}
+		return nil
+	}
 
 	parsePackedRow := func(line string) (name, spec, unit string, qty *float64, ok bool) {
 		line = strings.TrimSpace(line)
@@ -4974,7 +5094,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		}
 		rest = strings.TrimSpace(strings.Join(fields, " "))
 
-		// Extract inline spec like "53°*500ml" and normalize separator to "×".
+		// Extract inline spec like "53°*6" / "750ml*6" and normalize separator to "×".
 		if loc := specInlineRe.FindStringIndex(rest); loc != nil && loc[0] >= 0 && loc[1] > loc[0] {
 			rawSpec := rest[loc[0]:loc[1]]
 			spec = strings.NewReplacer("*", "×", "x", "×", "X", "×").Replace(rawSpec)
@@ -5315,6 +5435,11 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			}
 			if currentName != "" {
 				flush()
+			}
+			// Multi-row packed into one line (PDF text): repeated "*分类*" segments with shared tail columns.
+			if multi := parseMultiPackedItems(s); len(multi) >= 2 {
+				items = append(items, multi...)
+				continue
 			}
 			// Packed single-line rows (common in PDF text): name/spec/unit/qty may be in one line.
 			if n, sp, un, q, ok := parsePackedRow(s); ok {
@@ -5750,23 +5875,91 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		}
 	}
 
+	// Prefer totals line parsing that contains both net amount, total amount, and tax amount, e.g.:
+	// "价税合计（大写） ... ¥ 3049.51 （小写） ¥ 3080.00 ¥ 30.49"
+	// Some PDF text merges multiple item rows and also glues "（小写）" without a colon, so we handle it explicitly.
+	taxTotalThreeRe := regexp.MustCompile(`(?s)价税合计.{0,200}?(?:[¥￥]\s*([\d,.]+)).{0,200}?(?:[（(]?\s*小写\s*[）)])\s*(?:[¥￥]\s*([\d,.]+)).{0,80}?(?:[¥￥]\s*([\d,.]+))`)
+	if m := taxTotalThreeRe.FindStringSubmatch(parsedText); len(m) > 3 {
+		if total := parseAmount(m[2]); total != nil {
+			setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, total, "tax_total_three", 0.95)
+		}
+		if tax := parseAmount(m[3]); tax != nil {
+			setAmountWithSourceAndConfidence(&data.TaxAmount, &data.TaxAmountSource, &data.TaxAmountConfidence, tax, "tax_total_three", 0.95)
+		}
+	}
+	// Two-amount variant: compute tax = total - net.
+	if data.Amount == nil || data.TaxAmount == nil {
+		taxTotalTwoRe := regexp.MustCompile(`(?s)价税合计.{0,200}?(?:[¥￥]\s*([\d,.]+)).{0,200}?(?:[（(]?\s*小写\s*[）)])\s*(?:[¥￥]\s*([\d,.]+))`)
+		if m := taxTotalTwoRe.FindStringSubmatch(parsedText); len(m) > 2 {
+			net := parseAmount(m[1])
+			total := parseAmount(m[2])
+			if total != nil && (data.Amount == nil || *data.Amount == 0) {
+				setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, total, "tax_total_two", 0.9)
+			}
+			if data.TaxAmount == nil && net != nil && total != nil {
+				diff := *total - *net
+				if diff > 0 && diff < *total {
+					v := diff
+					setAmountWithSourceAndConfidence(&data.TaxAmount, &data.TaxAmountSource, &data.TaxAmountConfidence, &v, "tax_total_two_diff", 0.85)
+				}
+			}
+		}
+	}
+
 	amountRegexes := []struct {
 		re   *regexp.Regexp
 		src  string
 		conf float64
 	}{
 		{regexp.MustCompile(`价税合计\s*[（(]?小写[）)]?\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "tax_total_label", 0.9},
-		{regexp.MustCompile(`(?s)价税合计[（(]?大写[）)]?.{0,20}（小写）\s*[¥￥]?\s*([\d,.]+)`), "tax_total_label_daxie_then_xiaoxie", 0.9},
+		{regexp.MustCompile(`(?s)价税合计[（(]?大写[）)]?.{0,240}?(?:[（(]?\s*小写\s*[）)])\s*[¥￥]?\s*([\d,.]+)`), "tax_total_label_daxie_then_xiaoxie", 0.9},
 		{regexp.MustCompile(`总计\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "total_label", 0.85},
 		{regexp.MustCompile(`合计\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "sum_label", 0.8},
 		{regexp.MustCompile(`合计金额[（(]?小写[）)]?\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "sum_amount_label", 0.8},
-		{regexp.MustCompile(`小写\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "xiaoxie_label", 0.7},
-		{regexp.MustCompile(`金额\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "generic_amount", 0.6},
+		{regexp.MustCompile(`(?:[（(]?\s*小写\s*[）)])\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`), "xiaoxie_label", 0.7},
 	}
 	for _, cfg := range amountRegexes {
 		if match := cfg.re.FindStringSubmatch(parsedText); len(match) > 1 {
 			if amount := parseAmount(match[1]); amount != nil {
 				setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, amount, cfg.src, cfg.conf)
+				break
+			}
+		}
+	}
+	// Very last resort: "金额: 123.45" (guard against tax-id like "金额92310109MA...").
+	if data.Amount == nil {
+		amountLabelRe := regexp.MustCompile(`金额\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`)
+		matches := amountLabelRe.FindAllStringSubmatchIndex(parsedText, -1)
+		for _, m := range matches {
+			if len(m) < 4 {
+				continue
+			}
+			numStart, numEnd := m[2], m[3]
+			if numStart < 0 || numEnd <= numStart || numEnd > len(parsedText) {
+				continue
+			}
+			// Skip if immediately followed by ASCII letters (likely part of a tax-id).
+			if numEnd < len(parsedText) {
+				r, _ := utf8.DecodeRuneInString(parsedText[numEnd:])
+				if r != utf8.RuneError && unicode.IsLetter(r) && r < 128 {
+					continue
+				}
+			}
+			// Skip if the surrounding context indicates taxpayer ID.
+			ctxStart := m[0] - 40
+			if ctxStart < 0 {
+				ctxStart = 0
+			}
+			ctx := parsedText[ctxStart:m[1]]
+			if strings.Contains(ctx, "纳税人识别号") || strings.Contains(ctx, "统一社会信用代码") {
+				continue
+			}
+			if amount := parseAmount(parsedText[numStart:numEnd]); amount != nil && *amount >= MinValidAmount {
+				// Heuristic: reject absurdly large amounts for invoices.
+				if *amount > 1e7 {
+					continue
+				}
+				setAmountWithSourceAndConfidence(&data.Amount, &data.AmountSource, &data.AmountConfidence, amount, "amount_label_guarded", 0.5)
 				break
 			}
 		}

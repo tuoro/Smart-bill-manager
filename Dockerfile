@@ -56,6 +56,7 @@ FROM nginx:stable-bookworm AS production
 RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     ca-certificates \
+    wget \
     poppler-utils \
     python3 \
     python3-pip \

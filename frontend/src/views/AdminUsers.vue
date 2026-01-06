@@ -14,10 +14,15 @@
           :paginator="true"
           :rows="pageSize"
           :rowsPerPageOptions="[10, 20, 50, 100]"
+          :tableStyle="{ minWidth: '920px', tableLayout: 'fixed' }"
           responsiveLayout="scroll"
           @page="onPage"
         >
-          <Column field="username" header="用户名" />
+          <Column field="username" header="用户名" :style="{ width: '220px' }">
+            <template #body="{ data: row }">
+              <span class="sbm-ellipsis" :title="row.username">{{ row.username }}</span>
+            </template>
+          </Column>
           <Column field="role" header="角色" :style="{ width: '120px' }">
             <template #body="{ data: row }">
               <Tag :severity="row.role === 'admin' ? 'danger' : 'secondary'" :value="row.role" />
@@ -50,9 +55,9 @@
               />
             </template>
           </Column>
-          <Column header="ID" :style="{ width: '320px' }">
+          <Column header="ID" :style="{ width: '420px' }">
             <template #body="{ data: row }">
-              <span class="mono">{{ row.id }}</span>
+              <span class="mono sbm-ellipsis" :title="row.id">{{ row.id }}</span>
             </template>
           </Column>
         </DataTable>
@@ -141,5 +146,14 @@ onBeforeUnmount(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 12px;
   color: var(--p-text-muted-color);
+}
+
+.sbm-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 </style>

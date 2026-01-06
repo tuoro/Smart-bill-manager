@@ -9,6 +9,7 @@
       </template>
       <template #content>
         <DataTable
+          class="sbm-dt-fixed"
           :value="users"
           :loading="loading"
           :paginator="true"
@@ -18,7 +19,7 @@
           responsiveLayout="scroll"
           @page="onPage"
         >
-          <Column field="username" header="用户名" :style="{ width: '220px' }">
+          <Column field="username" header="用户名" :style="{ width: '180px' }">
             <template #body="{ data: row }">
               <span class="sbm-ellipsis" :title="row.username">{{ row.username }}</span>
             </template>
@@ -76,6 +77,7 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import api from '@/api/auth'
 import { clearActAs, getActAsUserId, setActAsUser } from '@/api'
+import { isRequestCanceled } from '@/utils/http'
 import type { ApiResponse, User } from '@/types'
 
 const toast = useToast()
@@ -83,6 +85,7 @@ const users = ref<User[]>([])
 const loading = ref(false)
 const currentActAsUserId = ref<string | null>(null)
 const pageSize = ref(10)
+const usersAbort = ref<AbortController | null>(null)
 
 const onPage = (e: any) => {
   pageSize.value = e?.rows || pageSize.value
@@ -105,14 +108,19 @@ const stopActAs = () => {
 }
 
 const loadUsers = async () => {
+  usersAbort.value?.abort()
+  const controller = new AbortController()
+  usersAbort.value = controller
   loading.value = true
   try {
-    const res = await api.get<ApiResponse<User[]>>('/admin/users')
+    const res = await api.get<ApiResponse<User[]>>('/admin/users', { signal: controller.signal })
     if (res.data.success && res.data.data) users.value = res.data.data
-  } catch {
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return
     toast.add({ severity: 'error', summary: '加载用户失败', life: 3000 })
   } finally {
     loading.value = false
+    if (usersAbort.value === controller) usersAbort.value = null
   }
 }
 
@@ -124,6 +132,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') window.removeEventListener('sbm-act-as-change', refreshActAsState)
+  usersAbort.value?.abort()
 })
 </script>
 

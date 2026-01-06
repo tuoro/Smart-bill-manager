@@ -28,6 +28,7 @@
       </template>
       <template #content>
         <DataTable
+          class="sbm-dt-fixed"
           :value="configs"
           :loading="loading"
           :paginator="true"
@@ -129,6 +130,7 @@
       </template>
       <template #content>
         <DataTable
+          class="sbm-dt-fixed"
           :value="logs"
           :paginator="true"
           :rows="logPageSize"
@@ -286,6 +288,7 @@ import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { emailApi } from '@/api'
 import { useNotificationStore } from '@/stores/notifications'
+import { isRequestCanceled } from '@/utils/http'
 import type { EmailConfig, EmailLog } from '@/types'
 
 const toast = useToast()
@@ -336,6 +339,13 @@ const selectedPreset = ref<string | null>(null)
 const pollTimer = ref<number | null>(null)
 const configPageSize = ref(10)
 const logPageSize = ref(10)
+const configsAbort = ref<AbortController | null>(null)
+const logsAbort = ref<AbortController | null>(null)
+const statusAbort = ref<AbortController | null>(null)
+const pollInFlight = ref(false)
+const pollErrorStreak = ref(0)
+const BASE_POLL_MS = 4000
+const MAX_POLL_MS = 30000
 
 const onConfigPage = (e: any) => {
   configPageSize.value = e?.rows || configPageSize.value
@@ -391,21 +401,31 @@ const validate = () => {
   return !errors.email && !errors.imap_host && !errors.imap_port && !errors.password
 }
 
-const loadConfigs = async () => {
+const loadConfigs = async (): Promise<boolean> => {
+  configsAbort.value?.abort()
+  const controller = new AbortController()
+  configsAbort.value = controller
   loading.value = true
   try {
-    const res = await emailApi.getConfigs()
+    const res = await emailApi.getConfigs({ signal: controller.signal })
     if (res.data.success && res.data.data) configs.value = res.data.data
-  } catch {
+    return Boolean(res.data.success)
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return false
     toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u90AE\u7BB1\u914D\u7F6E\u5931\u8D25', life: 3000 })
+    return false
   } finally {
+    if (configsAbort.value === controller) configsAbort.value = null
     loading.value = false
   }
 }
 
-const loadLogs = async () => {
+const loadLogs = async (): Promise<boolean> => {
+  logsAbort.value?.abort()
+  const controller = new AbortController()
+  logsAbort.value = controller
   try {
-    const res = await emailApi.getLogs(undefined, 500)
+    const res = await emailApi.getLogs(undefined, 500, { signal: controller.signal })
     if (res.data.success && res.data.data) {
       logs.value = res.data.data
 
@@ -413,7 +433,7 @@ const loadLogs = async () => {
       const maxTs = Math.max(0, ...logs.value.map((x) => parseTs(x.created_at)))
       if (lastTs === 0) {
         if (maxTs > 0) setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
-        return
+        return true
       }
 
       const newLogs = logs.value
@@ -431,14 +451,22 @@ const loadLogs = async () => {
 
       if (maxTs > lastTs) setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
     }
-  } catch (error) {
-    console.error('Load logs failed:', error)
+    return Boolean(res.data.success)
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return false
+    console.error('Load logs failed:', e)
+    return false
+  } finally {
+    if (logsAbort.value === controller) logsAbort.value = null
   }
 }
 
-const loadMonitorStatus = async () => {
+const loadMonitorStatus = async (): Promise<boolean> => {
+  statusAbort.value?.abort()
+  const controller = new AbortController()
+  statusAbort.value = controller
   try {
-    const res = await emailApi.getMonitoringStatus()
+    const res = await emailApi.getMonitoringStatus({ signal: controller.signal })
     if (res.data.success && res.data.data) {
       const statusMap: Record<string, string> = {}
       res.data.data.forEach((item: any) => {
@@ -446,8 +474,13 @@ const loadMonitorStatus = async () => {
       })
       monitorStatus.value = statusMap
     }
-  } catch (error) {
-    console.error('Load monitor status failed:', error)
+    return Boolean(res.data.success)
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return false
+    console.error('Load monitor status failed:', e)
+    return false
+  } finally {
+    if (statusAbort.value === controller) statusAbort.value = null
   }
 }
 
@@ -694,22 +727,60 @@ const formatDateTime = (date: string) => dayjs(date).format('MM-DD HH:mm')
 
 const pollTick = async () => {
   if (document.visibilityState !== 'visible') return
-  await Promise.all([loadLogs(), loadMonitorStatus()])
+  if (pollInFlight.value) return
+  pollInFlight.value = true
+  try {
+    const [okLogs, okStatus] = await Promise.all([loadLogs(), loadMonitorStatus()])
+    if (okLogs && okStatus) pollErrorStreak.value = 0
+    else pollErrorStreak.value = Math.min(6, pollErrorStreak.value + 1)
+  } finally {
+    pollInFlight.value = false
+  }
+}
+
+const stopPolling = () => {
+  if (pollTimer.value) {
+    window.clearTimeout(pollTimer.value)
+    pollTimer.value = null
+  }
+}
+
+const nextPollDelayMs = () => {
+  const exp = Math.min(3, pollErrorStreak.value)
+  return Math.min(MAX_POLL_MS, BASE_POLL_MS * Math.pow(2, exp))
+}
+
+const scheduleNextPoll = (delayMs: number) => {
+  stopPolling()
+  pollTimer.value = window.setTimeout(async () => {
+    await pollTick()
+    scheduleNextPoll(nextPollDelayMs())
+  }, delayMs)
+}
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState !== 'visible') {
+    stopPolling()
+    return
+  }
+  pollErrorStreak.value = 0
+  void pollTick()
+  scheduleNextPoll(BASE_POLL_MS)
 }
 
 onMounted(() => {
-  loadAll()
-  pollTick()
-  pollTimer.value = window.setInterval(pollTick, 4000)
-  document.addEventListener('visibilitychange', pollTick)
+  void loadAll()
+  void pollTick()
+  scheduleNextPoll(BASE_POLL_MS)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
-  if (pollTimer.value) {
-    window.clearInterval(pollTimer.value)
-    pollTimer.value = null
-  }
-  document.removeEventListener('visibilitychange', pollTick)
+  stopPolling()
+  configsAbort.value?.abort()
+  logsAbort.value?.abort()
+  statusAbort.value?.abort()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

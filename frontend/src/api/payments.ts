@@ -1,4 +1,5 @@
 import api from './auth'
+import type { AxiosRequestConfig } from 'axios'
 import type { Payment, Invoice, ApiResponse, DedupHint } from '@/types'
 
 type UploadScreenshotResult = {
@@ -16,14 +17,20 @@ type UploadScreenshotAsyncResult = {
 }
 
 export const paymentApi = {
-  getAll: (params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; category?: string; includeDraft?: boolean }) =>
-    api.get<ApiResponse<{ items: Payment[]; total: number }>>('/payments', { params }),
+  getAll: (
+    params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; category?: string; includeDraft?: boolean },
+    config?: AxiosRequestConfig,
+  ) =>
+    api.get<ApiResponse<{ items: Payment[]; total: number }>>('/payments', { params, ...(config || {}) }),
   
-  getById: (id: string) =>
-    api.get<ApiResponse<Payment>>(`/payments/${id}`),
+  getById: (id: string, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<Payment>>(`/payments/${id}`, config),
   
-  getStats: (startDate?: string, endDate?: string) =>
-    api.get<ApiResponse<{ totalAmount: number; totalCount: number; categoryStats: Record<string, number>; merchantStats: Record<string, number>; dailyStats: Record<string, number> }>>('/payments/stats', { params: { startDate, endDate } }),
+  getStats: (startDate?: string, endDate?: string, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<{ totalAmount: number; totalCount: number; categoryStats: Record<string, number>; merchantStats: Record<string, number>; dailyStats: Record<string, number> }>>(
+      '/payments/stats',
+      { params: { startDate, endDate }, ...(config || {}) },
+    ),
   
   create: (payment: Omit<Payment, 'id' | 'created_at'>) =>
     api.post<ApiResponse<Payment>>('/payments', payment),
@@ -60,18 +67,19 @@ export const paymentApi = {
     api.post<ApiResponse<unknown>>(`/payments/${id}/reparse`),
   
   // Get invoices linked to a payment
-  getPaymentInvoices: (paymentId: string) =>
-    api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/invoices`),
+  getPaymentInvoices: (paymentId: string, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/invoices`, config),
 
   // Get suggested invoices for a payment (smart matching)
-  getSuggestedInvoices: (paymentId: string, params?: { limit?: number; debug?: boolean }) =>
+  getSuggestedInvoices: (paymentId: string, params?: { limit?: number; debug?: boolean }, config?: AxiosRequestConfig) =>
     api.get<ApiResponse<Invoice[]>>(`/payments/${paymentId}/suggest-invoices`, {
       params: {
         ...(params || {}),
         debug: params?.debug ? 1 : undefined,
       },
+      ...(config || {}),
     }),
 
-  getScreenshotBlob: (paymentId: string) =>
-    api.get(`/payments/${paymentId}/screenshot`, { responseType: 'blob' }),
+  getScreenshotBlob: (paymentId: string, config?: AxiosRequestConfig) =>
+    api.get(`/payments/${paymentId}/screenshot`, { responseType: 'blob', ...(config || {}) }),
 }

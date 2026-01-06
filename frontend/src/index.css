@@ -116,7 +116,8 @@ body {
     -webkit-overflow-scrolling: touch;
   }
 
-  .p-datatable-table {
+  .p-datatable-table,
+  .sbm-dt-fixed .p-datatable-table {
     width: max-content;
     min-width: 100%;
   }
@@ -140,4 +141,25 @@ a {
 
 a:hover {
   color: var(--color-primary-hover);
+}
+
+.sbm-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.sbm-dt-fixed .p-datatable-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.sbm-dt-fixed .p-datatable-thead > tr > th,
+.sbm-dt-fixed .p-datatable-tbody > tr > td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -1,8 +1,11 @@
 import axios from 'axios'
+import type { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import type { ApiResponse, User } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 export const FILE_BASE_URL = import.meta.env.VITE_FILE_URL || ''
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 15000)
+const API_CONCURRENCY = Math.max(1, Number(import.meta.env.VITE_API_CONCURRENCY || 6))
 
 const ACT_AS_USER_ID_KEY = 'sbm_act_as_user_id'
 const ACT_AS_USERNAME_KEY = 'sbm_act_as_username'
@@ -94,25 +97,71 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: API_TIMEOUT_MS,
 })
 
+type ReleaseFn = () => void
+type SbmInternalConfig = InternalAxiosRequestConfig & { _sbmRelease?: ReleaseFn }
+
+const createConcurrencyLimiter = (max: number) => {
+  const queue: Array<() => void> = []
+  let active = 0
+
+  const acquire = () =>
+    new Promise<() => void>((resolve) => {
+      const grant = () => {
+        active += 1
+        let released = false
+        resolve(() => {
+          if (released) return
+          released = true
+          active = Math.max(0, active - 1)
+          const next = queue.shift()
+          if (next) next()
+        })
+      }
+
+      if (active < max) {
+        grant()
+        return
+      }
+
+      queue.push(grant)
+    })
+
+  return { acquire }
+}
+
+const limiter = createConcurrencyLimiter(API_CONCURRENCY)
+
 // Add token to requests
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  const cfg = config as SbmInternalConfig
   const token = getToken()
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+    cfg.headers.Authorization = `Bearer ${token}`
   }
   const actAsUserId = getActAsUserId()
   if (actAsUserId) {
-    config.headers['X-Act-As-User'] = actAsUserId
+    cfg.headers['X-Act-As-User'] = actAsUserId
   }
-  return config
+
+  const release = await limiter.acquire()
+  cfg._sbmRelease = release
+  return cfg
 })
 
 // Handle 401 responses
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const release = (response.config as SbmInternalConfig)?._sbmRelease
+    if (typeof release === 'function') release()
+    return response
+  },
   async (error) => {
+    const release = (error?.config as SbmInternalConfig | undefined)?._sbmRelease
+    if (typeof release === 'function') release()
+
     if (error.response?.status === 400 && error.response?.data?.data?.code === 'ACT_AS_CONFIRM_REQUIRED') {
       const originalConfig = error.config
       const alreadyConfirmed = originalConfig?.headers?.['X-Act-As-Confirmed']
@@ -165,7 +214,7 @@ export const authApi = {
   adminCreateInvite: (expiresInDays?: number) =>
     api.post<ApiResponse<{ code: string; code_hint: string; expiresAt?: string | null }>>('/admin/invites', { expiresInDays }),
 
-  adminListInvites: (limit = 30) =>
+  adminListInvites: (limit = 30, config?: AxiosRequestConfig) =>
     api.get<
       ApiResponse<
         Array<{
@@ -179,7 +228,7 @@ export const authApi = {
           expired: boolean
         }>
       >
-    >('/admin/invites', { params: { limit } }),
+    >('/admin/invites', { params: { limit }, ...(config || {}) }),
 
   adminDeleteInvite: (id: string) => api.delete<ApiResponse<{ deleted: boolean }>>(`/admin/invites/${id}`),
 }

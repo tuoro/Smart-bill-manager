@@ -50,15 +50,17 @@
           </div>
 
           <DataTable
-            class="invites-table"
+            class="invites-table sbm-dt-fixed"
             :value="filteredInvites"
             :loading="loading"
             responsiveLayout="scroll"
             :paginator="true"
-            :rows="20"
+            :rows="pageSize"
             :rowsPerPageOptions="[10, 20, 50]"
+            :tableStyle="{ minWidth: '980px', tableLayout: 'fixed' }"
             dataKey="id"
             v-model:selection="selectedInvites"
+            @page="onPage"
           >
             <Column
               v-if="batchDeleteMode"
@@ -145,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Card from "primevue/card";
 import Button from "primevue/button";
 import DataTable from "primevue/datatable";
@@ -160,6 +162,7 @@ import { useConfirm } from "primevue/useconfirm";
 import dayjs from "dayjs";
 import { authApi } from "@/api";
 import { useAuthStore } from "@/stores/auth";
+import { isRequestCanceled } from "@/utils/http";
 
 type InviteRow = {
   id: string;
@@ -182,6 +185,12 @@ const loading = ref(false);
 const invites = ref<InviteRow[]>([]);
 const selectedInvites = ref<InviteRow[]>([]);
 const batchDeleteMode = ref(false);
+const pageSize = ref(20);
+const invitesAbort = ref<AbortController | null>(null);
+
+const onPage = (e: any) => {
+  pageSize.value = e?.rows || pageSize.value;
+};
 
 type UsedFilterValue = "all" | "unused" | "used";
 const usedFilter = ref<UsedFilterValue>("all");
@@ -218,9 +227,12 @@ const formatDateTime = (v?: string | null) => {
 
 const loadInvites = async () => {
   if (!isAdmin.value) return;
+  invitesAbort.value?.abort();
+  const controller = new AbortController();
+  invitesAbort.value = controller;
   loading.value = true;
   try {
-    const res = await authApi.adminListInvites(50);
+    const res = await authApi.adminListInvites(50, { signal: controller.signal });
     if (res.data.success && res.data.data) {
       invites.value = res.data.data as any;
       return;
@@ -231,6 +243,7 @@ const loadInvites = async () => {
       life: 3000,
     });
   } catch (e: any) {
+    if (isRequestCanceled(e)) return;
     toast.add({
       severity: "error",
       summary: e.response?.data?.message || "获取邀请码失败",
@@ -238,6 +251,7 @@ const loadInvites = async () => {
     });
   } finally {
     loading.value = false;
+    if (invitesAbort.value === controller) invitesAbort.value = null;
   }
 };
 
@@ -383,6 +397,10 @@ const copyLastCode = async () => {
 
 onMounted(() => {
   loadInvites();
+});
+
+onBeforeUnmount(() => {
+  invitesAbort.value?.abort();
 });
 </script>
 

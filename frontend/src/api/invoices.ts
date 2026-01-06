@@ -1,4 +1,5 @@
 import api from './auth'
+import type { AxiosRequestConfig } from 'axios'
 import type { Invoice, Payment, ApiResponse, DedupHint } from '@/types'
 
 type UploadInvoiceResult = {
@@ -12,17 +13,23 @@ type UploadInvoiceAsyncResult = {
 }
 
 export const invoiceApi = {
-  getAll: (params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; includeDraft?: boolean }) =>
-    api.get<ApiResponse<{ items: Invoice[]; total: number }>>('/invoices', { params }),
+  getAll: (
+    params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; includeDraft?: boolean },
+    config?: AxiosRequestConfig,
+  ) =>
+    api.get<ApiResponse<{ items: Invoice[]; total: number }>>('/invoices', { params, ...(config || {}) }),
 
-  getUnlinked: (params?: { limit?: number; offset?: number }) =>
-    api.get<ApiResponse<{ items: Invoice[]; total: number }>>('/invoices/unlinked', { params }),
+  getUnlinked: (params?: { limit?: number; offset?: number }, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<{ items: Invoice[]; total: number }>>('/invoices/unlinked', { params, ...(config || {}) }),
   
-  getById: (id: string) =>
-    api.get<ApiResponse<Invoice>>(`/invoices/${id}`),
+  getById: (id: string, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<Invoice>>(`/invoices/${id}`, config),
   
-  getStats: (params?: { startDate?: string; endDate?: string }) =>
-    api.get<ApiResponse<{ totalCount: number; totalAmount: number; bySource: Record<string, number>; byMonth: Record<string, number> }>>('/invoices/stats', { params }),
+  getStats: (params?: { startDate?: string; endDate?: string }, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<{ totalCount: number; totalAmount: number; bySource: Record<string, number>; byMonth: Record<string, number> }>>(
+      '/invoices/stats',
+      { params, ...(config || {}) },
+    ),
   
   upload: (file: File, paymentId?: string) => {
     const formData = new FormData()
@@ -70,16 +77,17 @@ export const invoiceApi = {
     api.post<ApiResponse<Invoice>>(`/invoices/${id}/parse`),
   
   // Get payments linked to an invoice
-  getLinkedPayments: (invoiceId: string) =>
-    api.get<ApiResponse<Payment[]>>(`/invoices/${invoiceId}/linked-payments`),
+  getLinkedPayments: (invoiceId: string, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<Payment[]>>(`/invoices/${invoiceId}/linked-payments`, config),
   
   // Get suggested payments for an invoice (smart matching)
-  getSuggestedPayments: (invoiceId: string, params?: { limit?: number; debug?: boolean }) =>
+  getSuggestedPayments: (invoiceId: string, params?: { limit?: number; debug?: boolean }, config?: AxiosRequestConfig) =>
     api.get<ApiResponse<Payment[]>>(`/invoices/${invoiceId}/suggest-payments`, {
       params: {
         ...(params || {}),
         debug: params?.debug ? 1 : undefined,
       },
+      ...(config || {}),
     }),
   
   // Link a payment to an invoice
@@ -90,6 +98,6 @@ export const invoiceApi = {
   unlinkPayment: (invoiceId: string, paymentId: string) =>
     api.delete<ApiResponse<void>>(`/invoices/${invoiceId}/unlink-payment?payment_id=${paymentId}`),
 
-  getFileBlob: (invoiceId: string) =>
-    api.get(`/invoices/${invoiceId}/file`, { responseType: 'blob' }),
+  getFileBlob: (invoiceId: string, config?: AxiosRequestConfig) =>
+    api.get(`/invoices/${invoiceId}/file`, { responseType: 'blob', ...(config || {}) }),
 }

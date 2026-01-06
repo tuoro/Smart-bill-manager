@@ -1,4 +1,5 @@
 import api from './auth'
+import type { AxiosRequestConfig } from 'axios'
 import type {
   ApiResponse,
   AssignmentChangeSummary,
@@ -10,9 +11,9 @@ import type {
 } from '@/types'
 
 export const tripsApi = {
-  list: () => api.get<ApiResponse<Trip[]>>('/trips'),
+  list: (config?: AxiosRequestConfig) => api.get<ApiResponse<Trip[]>>('/trips', config),
 
-  getSummaries: () => api.get<ApiResponse<TripSummary[]>>('/trips/summaries'),
+  getSummaries: (config?: AxiosRequestConfig) => api.get<ApiResponse<TripSummary[]>>('/trips/summaries', config),
 
   create: (trip: Omit<Trip, 'id' | 'created_at' | 'updated_at'>) =>
     api.post<ApiResponse<{ trip: Trip; changes?: AssignmentChangeSummary }>>('/trips', trip),
@@ -20,19 +21,22 @@ export const tripsApi = {
   update: (id: string, trip: Partial<Pick<Trip, 'name' | 'start_time' | 'end_time' | 'note' | 'reimburse_status' | 'timezone'>>) =>
     api.put<ApiResponse<{ changes?: AssignmentChangeSummary }>>(`/trips/${id}`, trip),
 
-  getSummary: (id: string) => api.get<ApiResponse<TripSummary>>(`/trips/${id}/summary`),
+  getSummary: (id: string, config?: AxiosRequestConfig) => api.get<ApiResponse<TripSummary>>(`/trips/${id}/summary`, config),
 
-  getPayments: (id: string, includeInvoices = true) =>
+  getPayments: (id: string, includeInvoices = true, config?: AxiosRequestConfig) =>
     api.get<ApiResponse<TripPaymentWithInvoices[]>>(`/trips/${id}/payments`, {
       params: { includeInvoices: includeInvoices ? 1 : 0 },
+      ...(config || {}),
     }),
 
-  exportZip: async (id: string) =>
+  exportZip: async (id: string, config?: AxiosRequestConfig) =>
     api.get(`/trips/${id}/export`, {
       responseType: 'blob',
+      ...(config || {}),
     }),
 
-  cascadePreview: (id: string) => api.get<ApiResponse<TripCascadePreview>>(`/trips/${id}/cascade-preview`),
+  cascadePreview: (id: string, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<TripCascadePreview>>(`/trips/${id}/cascade-preview`, config),
 
   deleteCascade: (
     id: string,
@@ -42,7 +46,7 @@ export const tripsApi = {
       params: opts,
     }),
 
-  pendingPayments: () => api.get<ApiResponse<PendingPayment[]>>('/trips/pending-payments'),
+  pendingPayments: (config?: AxiosRequestConfig) => api.get<ApiResponse<PendingPayment[]>>('/trips/pending-payments', config),
 
   assignPendingPayment: (paymentId: string, tripId: string) =>
     api.post<ApiResponse<void>>(`/trips/pending-payments/${paymentId}/assign`, { trip_id: tripId }),

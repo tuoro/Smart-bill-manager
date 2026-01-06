@@ -186,11 +186,12 @@
                         :loading="loadingPaymentsTripId === trip.id"
                         responsiveLayout="scroll"
                         :paginator="true"
-                        :rows="10"
+                        :rows="tripTableRows"
                         :rowsPerPageOptions="[10, 20, 50]"
                         class="trip-table"
                         :pt="tableScrollPt"
                         :tableStyle="tripTableStyle"
+                        @page="onTripTablePage"
                       >
                         <Column header="序号" :style="{ width: '84px' }">
                           <template #body="{ data: row }">
@@ -336,7 +337,7 @@
                     label="刷新"
                     icon="pi pi-refresh"
                     class="p-button-outlined"
-                    @click="loadPendingPayments"
+                    @click="refreshPendingPayments"
                   />
                 </div>
 
@@ -352,11 +353,12 @@
                     :value="pendingPayments"
                     responsiveLayout="scroll"
                     :paginator="true"
-                    :rows="10"
+                    :rows="pendingTableRows"
                     :rowsPerPageOptions="[10, 20, 50]"
                     class="pending-table"
                     :pt="tableScrollPt"
                     :tableStyle="tripTableStyle"
+                    @page="onPendingTablePage"
                   >
                     <Column header="金额" :style="{ width: '120px' }">
                       <template #body="{ data: row }">
@@ -485,11 +487,12 @@
                           :value="calendarDisplayPayments"
                           responsiveLayout="scroll"
                           :paginator="true"
-                          :rows="10"
+                          :rows="calendarTableRows"
                           :rowsPerPageOptions="[10, 20, 50]"
                           class="calendar-table"
                           :pt="tableScrollPt"
                           :tableStyle="calendarTableStyle"
+                          @page="onCalendarTablePage"
                         >
                           <Column
                             field="amount"
@@ -775,7 +778,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import Accordion from "primevue/accordion";
 import AccordionTab from "primevue/accordiontab";
 import Button from "primevue/button";
@@ -800,6 +803,8 @@ import { useToast } from "primevue/usetoast";
 import dayjs from "dayjs";
 import { Temporal } from "@js-temporal/polyfill";
 import { invoiceApi, paymentApi, tripsApi } from "@/api";
+import { debounce } from "@/utils/debounce";
+import { isRequestCanceled } from "@/utils/http";
 import type {
   Payment,
   PendingPayment,
@@ -998,6 +1003,22 @@ const pagedTrips = computed(() =>
 const onTripListPage = (e: { first: number; rows: number }) => {
   tripListFirst.value = e.first;
   tripListRows.value = e.rows;
+};
+
+const tripTableRows = ref(10);
+const pendingTableRows = ref(10);
+const calendarTableRows = ref(10);
+
+const onTripTablePage = (e: any) => {
+  tripTableRows.value = e?.rows || tripTableRows.value;
+};
+
+const onPendingTablePage = (e: any) => {
+  pendingTableRows.value = e?.rows || pendingTableRows.value;
+};
+
+const onCalendarTablePage = (e: any) => {
+  calendarTableRows.value = e?.rows || calendarTableRows.value;
 };
 
 const openTripIds = reactive(new Set<string>());
@@ -1318,27 +1339,50 @@ const handleSaveTrip = async () => {
   }
 };
 
-const loadTrips = async () => {
-  const res = await tripsApi.list();
-  trips.value = res.data.data || [];
+const reloadAbort = ref<AbortController | null>(null);
+const tripPaymentsAbort = reactive<Record<string, AbortController | null>>({});
+
+const loadTrips = async (signal?: AbortSignal) => {
+  try {
+    const res = await tripsApi.list({ signal });
+    trips.value = res.data.data || [];
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return;
+    throw e;
+  }
 };
 
-const loadSummaries = async () => {
-  const res = await tripsApi.getSummaries();
-  const list = res.data.data || [];
-  for (const k of Object.keys(summaries)) delete summaries[k];
-  for (const s of list) summaries[s.trip_id] = s;
+const loadSummaries = async (signal?: AbortSignal) => {
+  try {
+    const res = await tripsApi.getSummaries({ signal });
+    const list = res.data.data || [];
+    for (const k of Object.keys(summaries)) delete summaries[k];
+    for (const s of list) summaries[s.trip_id] = s;
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return;
+    throw e;
+  }
 };
 
-const loadTripPayments = async (tripId: string) => {
+const loadTripPayments = async (tripId: string, signal?: AbortSignal) => {
+  tripPaymentsAbort[tripId]?.abort();
+  const controller = new AbortController();
+  tripPaymentsAbort[tripId] = controller;
   loadingPaymentsTripId.value = tripId;
   try {
-    const res = await tripsApi.getPayments(tripId, true);
+    const res = await tripsApi.getPayments(tripId, true, {
+      signal: controller.signal,
+    });
+    if (signal?.aborted) return;
     const items = res.data.data || [];
     tripPayments[tripId] = items;
     tripOrders[tripId] = computeTripOrder(items);
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return;
+    throw e;
   } finally {
-    loadingPaymentsTripId.value = null;
+    if (tripPaymentsAbort[tripId] === controller) tripPaymentsAbort[tripId] = null;
+    if (loadingPaymentsTripId.value === tripId) loadingPaymentsTripId.value = null;
   }
 };
 
@@ -1485,17 +1529,34 @@ const exportTrip = async (trip: Trip) => {
   }
 };
 
-const loadPendingPayments = async () => {
-  const res = await tripsApi.pendingPayments();
-  pendingPayments.value = res.data.data || [];
+const pendingAbort = ref<AbortController | null>(null);
 
-  // Reset selections for current list.
-  const next: Record<string, string | null> = {};
-  for (const row of pendingPayments.value) {
-    next[row.payment.id] = pendingSelection[row.payment.id] || null;
+const loadPendingPayments = async (signal?: AbortSignal) => {
+  pendingAbort.value?.abort();
+  const controller = new AbortController();
+  pendingAbort.value = controller;
+  try {
+    const res = await tripsApi.pendingPayments({ signal: controller.signal });
+    if (signal?.aborted) return;
+    pendingPayments.value = res.data.data || [];
+
+    // Reset selections for current list.
+    const next: Record<string, string | null> = {};
+    for (const row of pendingPayments.value) {
+      next[row.payment.id] = pendingSelection[row.payment.id] || null;
+    }
+    for (const k of Object.keys(pendingSelection)) delete pendingSelection[k];
+    for (const [k, v] of Object.entries(next)) pendingSelection[k] = v;
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return;
+    throw e;
+  } finally {
+    if (pendingAbort.value === controller) pendingAbort.value = null;
   }
-  for (const k of Object.keys(pendingSelection)) delete pendingSelection[k];
-  for (const [k, v] of Object.entries(next)) pendingSelection[k] = v;
+};
+
+const refreshPendingPayments = () => {
+  void loadPendingPayments();
 };
 
 const assignPending = async (paymentId: string) => {
@@ -1570,18 +1631,37 @@ const handleTripClose = (e: { index: number }) => {
   const trip = pagedTrips.value[e.index];
   if (!trip) return;
   openTripIds.delete(trip.id);
+  tripPaymentsAbort[trip.id]?.abort();
   delete tripOrders[trip.id];
 };
 
 const reloadAll = async () => {
-  await loadTrips();
-  await loadSummaries();
-  // keep payments lazy; load on demand if already opened (simple: just refresh cache)
-  for (const t of trips.value) {
-    if (tripPayments[t.id]) await loadTripPayments(t.id);
+  reloadAbort.value?.abort();
+  const controller = new AbortController();
+  reloadAbort.value = controller;
+  const signal = controller.signal;
+
+  try {
+    await Promise.all([loadTrips(signal), loadSummaries(signal)]);
+
+    const openedTripIds = Array.from(openTripIds).filter(Boolean);
+    if (openedTripIds.length > 0) {
+      await Promise.all(openedTripIds.map((id) => loadTripPayments(id, signal)));
+    }
+
+    if (activeTab.value === "pending" || pendingPayments.value.length > 0) {
+      await loadPendingPayments(signal);
+    }
+
+    if (activeTab.value === "calendar") {
+      await refreshCalendarMonth(signal);
+    }
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return;
+    toast.add({ severity: "error", summary: "刷新失败", life: 3000 });
+  } finally {
+    if (reloadAbort.value === controller) reloadAbort.value = null;
   }
-  await loadPendingPayments();
-  await refreshCalendarMonth();
 };
 
 const closeDeleteTripDialog = () => {
@@ -1907,15 +1987,33 @@ const normalizePrimeMonthIndex = (month: number) => {
   return month;
 };
 
+const refreshCalendarMonthDebounced = debounce(() => {
+  if (activeTab.value !== "calendar") return;
+  void refreshCalendarMonth();
+}, 250);
+
 const handleCalendarMonthChange = (e: { month: number; year: number }) => {
   calendarMonth.value = {
     year: e.year,
     month: normalizePrimeMonthIndex(e.month),
   };
-  refreshCalendarMonth();
+  refreshCalendarMonthDebounced();
 };
 
-const refreshCalendarMonth = async () => {
+const calendarAbort = ref<AbortController | null>(null);
+
+const refreshCalendarMonth = async (signal?: AbortSignal) => {
+  calendarAbort.value?.abort();
+  const controller = new AbortController();
+  calendarAbort.value = controller;
+  if (signal?.aborted) {
+    controller.abort();
+    return;
+  }
+  if (signal) {
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
   const { year, month } = calendarMonth.value;
   const start = dayjs().year(year).month(month).startOf("month").toISOString();
   const end = dayjs().year(year).month(month).endOf("month").toISOString();
@@ -1923,27 +2021,37 @@ const refreshCalendarMonth = async () => {
   const cap = 2000;
   let offset = 0;
   const all: Payment[] = [];
-  while (offset < cap) {
-    const res = await paymentApi.getAll({
-      startDate: start,
-      endDate: end,
-      limit,
-      offset,
-    });
-    const data = res.data?.data as any;
-    const items = (data?.items || []) as Payment[];
-    const total: number = typeof data?.total === "number" ? data.total : 0;
-    all.push(...items);
-    offset += items.length;
-    if (items.length === 0 || (total > 0 && offset >= total)) break;
+  try {
+    while (offset < cap) {
+      const res = await paymentApi.getAll(
+        {
+          startDate: start,
+          endDate: end,
+          limit,
+          offset,
+        },
+        { signal: controller.signal },
+      );
+      const data = res.data?.data as any;
+      const items = (data?.items || []) as Payment[];
+      const total: number = typeof data?.total === "number" ? data.total : 0;
+      all.push(...items);
+      offset += items.length;
+      if (items.length === 0 || (total > 0 && offset >= total)) break;
+    }
+    calendarMonthPayments.value = all;
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return;
+    console.warn("Load calendar payments failed:", e);
+  } finally {
+    if (calendarAbort.value === controller) calendarAbort.value = null;
   }
-  calendarMonthPayments.value = all;
 };
 
 const goToThisMonth = () => {
   calendarSelectedDate.value = new Date();
   calendarMonth.value = { year: dayjs().year(), month: dayjs().month() };
-  refreshCalendarMonth();
+  refreshCalendarMonthDebounced();
 };
 
 const calendarFilteredPayments = computed(() => {
@@ -2056,12 +2164,34 @@ watch(
       }
     }
 
-    await refreshCalendarMonth();
+    refreshCalendarMonthDebounced();
   },
 );
 
 onMounted(async () => {
   await reloadAll();
+});
+
+watch(
+  () => activeTab.value,
+  (tab) => {
+    if (tab === "pending" && pendingPayments.value.length === 0) {
+      void loadPendingPayments();
+    }
+    if (tab === "calendar" && calendarMonthPayments.value.length === 0) {
+      refreshCalendarMonthDebounced();
+    }
+  },
+);
+
+onBeforeUnmount(() => {
+  reloadAbort.value?.abort();
+  pendingAbort.value?.abort();
+  calendarAbort.value?.abort();
+  refreshCalendarMonthDebounced.cancel();
+  for (const id of Object.keys(tripPaymentsAbort)) {
+    tripPaymentsAbort[id]?.abort();
+  }
 });
 </script>
 

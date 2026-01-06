@@ -1,4 +1,5 @@
 import api from './auth'
+import type { AxiosRequestConfig } from 'axios'
 import type { ApiResponse } from '@/types'
 
 export type RegressionSample = {
@@ -37,8 +38,8 @@ export const regressionSamplesApi = {
       force: Boolean(opts?.force),
     }),
 
-  list: (params?: { kind?: string; origin?: string; search?: string; limit?: number; offset?: number }) =>
-    api.get<ApiResponse<{ items: RegressionSample[]; total: number }>>('/admin/regression-samples', { params }),
+  list: (params?: { kind?: string; origin?: string; search?: string; limit?: number; offset?: number }, config?: AxiosRequestConfig) =>
+    api.get<ApiResponse<{ items: RegressionSample[]; total: number }>>('/admin/regression-samples', { params, ...(config || {}) }),
 
   bulkDelete: (ids: string[]) => api.post<ApiResponse<{ deleted: number }>>('/admin/regression-samples/bulk-delete', { ids }),
 

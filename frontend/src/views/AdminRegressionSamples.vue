@@ -45,7 +45,7 @@
           </div>
 
           <DataTable
-            class="samples-table"
+            class="samples-table sbm-dt-fixed"
             :value="items"
             :loading="loading"
             responsiveLayout="scroll"
@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import DataTable from 'primevue/datatable'
@@ -118,6 +118,8 @@ import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { regressionSamplesApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { debounce } from '@/utils/debounce'
+import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
 import type { RegressionSample } from '@/api/regressionSamples'
 
 const toast = useToast()
@@ -141,6 +143,7 @@ const displaySourceId = (row: RegressionSample) => {
 }
 
 const loading = ref(false)
+const listAbort = ref<AbortController | null>(null)
 const items = ref<RegressionSample[]>([])
 const total = ref(0)
 const selected = ref<RegressionSample[]>([])
@@ -175,11 +178,14 @@ const formatDateTime = (v?: string | null) => {
 
 const load = async () => {
   if (!isAdmin.value) return
+  listAbort.value?.abort()
+  const controller = new AbortController()
+  listAbort.value = controller
   loading.value = true
   try {
     const kind = kindFilter.value === 'all' ? undefined : kindFilter.value
     const origin = originFilter.value === 'all' ? undefined : originFilter.value
-    const res = await regressionSamplesApi.list({ kind, origin, limit: limit.value, offset: offset.value })
+    const res = await regressionSamplesApi.list({ kind, origin, limit: limit.value, offset: offset.value }, { signal: controller.signal })
     if (res.data.success && res.data.data) {
       items.value = res.data.data.items || []
       total.value = res.data.data.total || 0
@@ -187,9 +193,11 @@ const load = async () => {
     }
     toast.add({ severity: 'error', summary: res.data.message || '获取回归样本失败', life: 3000 })
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '获取回归样本失败', life: 3000 })
+    if (isRequestCanceled(e)) return
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '获取回归样本失败'), life: 3000 })
   } finally {
     loading.value = false
+    if (listAbort.value === controller) listAbort.value = null
   }
 }
 
@@ -284,12 +292,21 @@ onMounted(() => {
   void load()
 })
 
-watch(kindFilter, () => {
+const reloadDebounced = debounce(() => {
   void reload()
+}, 200)
+
+watch(kindFilter, () => {
+  reloadDebounced()
 })
 
 watch(originFilter, () => {
-  void reload()
+  reloadDebounced()
+})
+
+onBeforeUnmount(() => {
+  reloadDebounced.cancel()
+  listAbort.value?.abort()
 })
 </script>
 

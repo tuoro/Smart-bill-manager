@@ -78,7 +78,7 @@
       </template>
       <template #content>
         <DataTable
-          class="invoices-table"
+          class="invoices-table sbm-dt-fixed"
           :value="invoices"
           :loading="loading"
           :paginator="true"
@@ -635,7 +635,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import Accordion from 'primevue/accordion'
 import AccordionTab from 'primevue/accordiontab'
@@ -656,6 +656,8 @@ import { useToast } from 'primevue/usetoast'
 import { invoiceApi, tasksApi, regressionSamplesApi } from '@/api'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
+import { debounce } from '@/utils/debounce'
+import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
 import type { Invoice, Payment, DedupHint } from '@/types'
 
 interface InvoiceExtractedData {
@@ -918,59 +920,82 @@ const invoiceDetailForm = reactive({
 const loadingLinkedPayments = ref(false)
 const linkedPayments = ref<Payment[]>([])
 
+const invoicesAbort = ref<AbortController | null>(null)
+const statsAbort = ref<AbortController | null>(null)
+
 const loadInvoices = async () => {
+  invoicesAbort.value?.abort()
+  const controller = new AbortController()
+  invoicesAbort.value = controller
   loading.value = true
   try {
-    const params: Record<string, any> = {
-      limit: pageSize.value,
-      offset: first.value,
-    }
-    if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
-      params.startDate = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
-      params.endDate = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
-    }
-    const res = await invoiceApi.getAll(params)
-    const data = res.data.data
-    if (res.data.success && data) {
-      invoices.value = data.items || []
-      totalRecords.value = typeof data.total === 'number' ? data.total : 0
-      if (invoices.value.length === 0 && totalRecords.value > 0 && first.value > 0) {
-        first.value = Math.max(0, first.value - pageSize.value)
-        await loadInvoices()
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const params: Record<string, any> = {
+        limit: pageSize.value,
+        offset: first.value,
       }
+      if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
+        params.startDate = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
+        params.endDate = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
+      }
+      const res = await invoiceApi.getAll(params, { signal: controller.signal })
+      const data = res.data.data
+      if (res.data.success && data) {
+        invoices.value = data.items || []
+        totalRecords.value = typeof data.total === 'number' ? data.total : 0
+        if (invoices.value.length === 0 && totalRecords.value > 0 && first.value > 0) {
+          first.value = Math.max(0, first.value - pageSize.value)
+          continue
+        }
+      }
+      break
     }
-  } catch {
-    toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u53D1\u7968\u5217\u8868\u5931\u8D25', life: 3000 })
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '\u52A0\u8F7D\u53D1\u7968\u5217\u8868\u5931\u8D25'), life: 3000 })
   } finally {
-    loading.value = false
+    if (invoicesAbort.value === controller) {
+      invoicesAbort.value = null
+      loading.value = false
+    }
   }
 }
 
 const loadStats = async () => {
   try {
+    statsAbort.value?.abort()
+    const controller = new AbortController()
+    statsAbort.value = controller
     const startDate =
       dateRange.value?.[0] && dateRange.value?.[1] ? dayjs(dateRange.value[0]).format('YYYY-MM-DD') : undefined
     const endDate =
       dateRange.value?.[0] && dateRange.value?.[1] ? dayjs(dateRange.value[1]).format('YYYY-MM-DD') : undefined
-    const res = await invoiceApi.getStats({ startDate, endDate })
+    const res = await invoiceApi.getStats({ startDate, endDate }, { signal: controller.signal })
     if (res.data.success && res.data.data) stats.value = res.data.data
-  } catch (error) {
-    console.error('Load stats failed:', error)
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return
+    console.error('Load stats failed:', e)
+  } finally {
+    statsAbort.value = null
   }
 }
 
-const handleDateChange = () => {
+const reloadDebounced = debounce(() => {
   first.value = 0
   selectedInvoices.value = []
-  loadInvoices()
-  loadStats()
+  void loadInvoices()
+  void loadStats()
+}, 250)
+
+const handleDateChange = () => {
+  reloadDebounced()
 }
 
 const onPage = (event: any) => {
   first.value = typeof event?.first === 'number' ? event.first : 0
   pageSize.value = typeof event?.rows === 'number' ? event.rows : pageSize.value
   selectedInvoices.value = []
-  loadInvoices()
+  void loadInvoices()
 }
 
 const toggleBatchDeleteMode = () => {
@@ -1657,6 +1682,13 @@ onMounted(() => {
     await loadInvoices()
     await loadStats()
   })()
+})
+
+onBeforeUnmount(() => {
+  reloadDebounced.cancel()
+  invoicesAbort.value?.abort()
+  statsAbort.value?.abort()
+  revokeObjectUrl(previewInvoiceFileSrc.value)
 })
 </script>
 

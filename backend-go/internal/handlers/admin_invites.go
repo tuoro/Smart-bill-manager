@@ -65,8 +65,14 @@ func (h *AdminInvitesHandler) ListInvites(c *gin.Context) {
 		}
 	}
 
-	items, err := h.authService.ListInvites(limit)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	items, err := h.authService.ListInvitesCtx(ctx, limit)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取邀请码失败", err)
 		return
 	}

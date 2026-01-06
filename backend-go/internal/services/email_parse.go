@@ -38,9 +38,16 @@ const (
 )
 
 func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.Invoice, error) {
+	return s.ParseEmailLogCtx(context.Background(), ownerUserID, logID)
+}
+
+func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string, logID string) (*models.Invoice, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
 		return nil, fmt.Errorf("missing owner_user_id")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	logID = strings.TrimSpace(logID)
@@ -48,7 +55,7 @@ func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.
 		return nil, fmt.Errorf("missing log id")
 	}
 
-	logRow, err := s.repo.FindLogByID(logID)
+	logRow, err := s.repo.FindLogByIDCtx(ctx, logID)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +82,7 @@ func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.
 		"parse_error": nil,
 	})
 
-	cfg, err := s.repo.FindConfigByID(logRow.EmailConfigID)
+	cfg, err := s.repo.FindConfigByIDCtx(ctx, logRow.EmailConfigID)
 	if err != nil {
 		_ = s.repo.UpdateLog(logID, map[string]interface{}{
 			"status":      "error",
@@ -236,7 +243,7 @@ func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.
 			})
 			return nil, fmt.Errorf("no pdf attachment and no pdf download url found")
 		}
-		b, err := downloadURLWithLimit(*pdfURL, emailParseMaxPDFBytes)
+		b, err := downloadURLWithLimitCtx(ctx, *pdfURL, emailParseMaxPDFBytes)
 		if err != nil {
 			_ = s.repo.UpdateLog(logID, map[string]interface{}{
 				"status":      "error",
@@ -383,6 +390,13 @@ func readWithLimit(r io.Reader, limit int64) ([]byte, error) {
 }
 
 func downloadURLWithLimit(rawURL string, limit int64) ([]byte, error) {
+	return downloadURLWithLimitCtx(context.Background(), rawURL, limit)
+}
+
+func downloadURLWithLimitCtx(ctx context.Context, rawURL string, limit int64) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
 		return nil, err
@@ -398,7 +412,7 @@ func downloadURLWithLimit(rawURL string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 
-	release, err := AcquireEmailDownload(context.Background())
+	release, err := AcquireEmailDownload(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -414,9 +428,9 @@ func downloadURLWithLimit(rawURL string, limit int64) ([]byte, error) {
 		},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(rctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}

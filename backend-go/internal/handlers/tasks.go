@@ -33,8 +33,14 @@ func (h *TaskHandler) Get(c *gin.Context) {
 	}
 
 	ownerUserID := middleware.GetEffectiveUserID(c)
-	t, err := h.taskService.GetTaskForOwner(ownerUserID, id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	t, err := h.taskService.GetTaskForOwnerCtx(ctx, ownerUserID, id)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, http.StatusNotFound, "任务不存在", err)
 		return
 	}

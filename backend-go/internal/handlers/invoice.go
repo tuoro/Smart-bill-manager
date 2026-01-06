@@ -191,8 +191,14 @@ func (h *InvoiceHandler) GetFile(c *gin.Context) {
 		return
 	}
 
-	invoice, err := h.invoiceService.GetByID(middleware.GetEffectiveUserID(c), id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	invoice, err := h.invoiceService.GetByIDCtx(ctx, middleware.GetEffectiveUserID(c), id)
 	if err != nil || invoice == nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 404, "invoice not found", nil)
 		return
 	}
@@ -214,8 +220,14 @@ func (h *InvoiceHandler) GetFile(c *gin.Context) {
 
 func (h *InvoiceHandler) Download(c *gin.Context) {
 	id := c.Param("id")
-	invoice, err := h.invoiceService.GetByID(middleware.GetEffectiveUserID(c), id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	invoice, err := h.invoiceService.GetByIDCtx(ctx, middleware.GetEffectiveUserID(c), id)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 404, "发票不存在", nil)
 		return
 	}
@@ -848,8 +860,14 @@ func (h *InvoiceHandler) UnlinkPayment(c *gin.Context) {
 func (h *InvoiceHandler) GetLinkedPayments(c *gin.Context) {
 	id := c.Param("id")
 
-	payments, err := h.invoiceService.GetLinkedPayments(middleware.GetEffectiveUserID(c), id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	payments, err := h.invoiceService.GetLinkedPaymentsCtx(ctx, middleware.GetEffectiveUserID(c), id)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取关联支付记录失败", err)
 		return
 	}
@@ -869,8 +887,14 @@ func (h *InvoiceHandler) SuggestPayments(c *gin.Context) {
 
 	log.Printf("[MATCH] suggest-payments invoice_id=%s limit=%d debug=%t", id, limit, debug)
 
-	payments, err := h.invoiceService.SuggestPayments(middleware.GetEffectiveUserID(c), id, limit, debug)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	payments, err := h.invoiceService.SuggestPaymentsCtx(ctx, middleware.GetEffectiveUserID(c), id, limit, debug)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取建议支付记录失败", err)
 		return
 	}

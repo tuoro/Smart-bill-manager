@@ -265,8 +265,14 @@ func (h *TripHandler) DeleteCascade(c *gin.Context) {
 }
 
 func (h *TripHandler) GetPendingPayments(c *gin.Context) {
-	out, err := h.tripService.GetPendingPayments(middleware.GetEffectiveUserID(c))
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	out, err := h.tripService.GetPendingPaymentsCtx(ctx, middleware.GetEffectiveUserID(c))
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取待分配支付失败", err)
 		return
 	}

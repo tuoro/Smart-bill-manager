@@ -122,7 +122,10 @@ func (h *AdminRegressionSamplesHandler) List(c *gin.Context) {
 		}
 	}
 
-	items, total, err := h.svc.List(services.ListRegressionSamplesParams{
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	items, total, err := h.svc.ListCtx(ctx, services.ListRegressionSamplesParams{
 		Kind:   kind,
 		Origin: origin,
 		Search: search,
@@ -130,6 +133,9 @@ func (h *AdminRegressionSamplesHandler) List(c *gin.Context) {
 		Offset: offset,
 	})
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取回归样本失败", err)
 		return
 	}

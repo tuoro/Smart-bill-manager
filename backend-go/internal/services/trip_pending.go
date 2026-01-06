@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -22,11 +23,18 @@ type PendingPayment struct {
 }
 
 func (s *TripService) GetPendingPayments(ownerUserID string) ([]PendingPayment, error) {
+	return s.GetPendingPaymentsCtx(context.Background(), ownerUserID)
+}
+
+func (s *TripService) GetPendingPaymentsCtx(ctx context.Context, ownerUserID string) ([]PendingPayment, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
 		return nil, fmt.Errorf("missing owner_user_id")
 	}
-	db := database.GetDB()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := database.GetDB().WithContext(ctx)
 
 	type row struct {
 		PaymentID          string
@@ -42,7 +50,6 @@ func (s *TripService) GetPendingPayments(ownerUserID string) ([]PendingPayment, 
 		TransactionTime    string
 		TransactionTimeTs  int64
 		ScreenshotPath     *string
-		ExtractedData      *string
 		CandidateTripID    string
 		CandidateTripName  string
 		CandidateStartTime string
@@ -67,7 +74,6 @@ func (s *TripService) GetPendingPayments(ownerUserID string) ([]PendingPayment, 
 			p.transaction_time AS transaction_time,
 			p.transaction_time_ts AS transaction_time_ts,
 			p.screenshot_path AS screenshot_path,
-			p.extracted_data AS extracted_data,
 			t.id AS candidate_trip_id,
 			t.name AS candidate_trip_name,
 			t.start_time AS candidate_start_time,
@@ -115,7 +121,6 @@ func (s *TripService) GetPendingPayments(ownerUserID string) ([]PendingPayment, 
 				TransactionTime:   r.TransactionTime,
 				TransactionTimeTs: r.TransactionTimeTs,
 				ScreenshotPath:    r.ScreenshotPath,
-				ExtractedData:     r.ExtractedData,
 			}
 			pp = &PendingPayment{Payment: p}
 			byPay[r.PaymentID] = pp

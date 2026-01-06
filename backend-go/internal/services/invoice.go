@@ -812,11 +812,19 @@ func (s *InvoiceService) UnlinkPayment(ownerUserID string, invoiceID, paymentID 
 
 // GetLinkedPayments returns all payments linked to an invoice
 func (s *InvoiceService) GetLinkedPayments(ownerUserID string, invoiceID string) ([]models.Payment, error) {
-	return s.repo.GetLinkedPayments(strings.TrimSpace(ownerUserID), invoiceID)
+	return s.GetLinkedPaymentsCtx(context.Background(), ownerUserID, invoiceID)
+}
+
+func (s *InvoiceService) GetLinkedPaymentsCtx(ctx context.Context, ownerUserID string, invoiceID string) ([]models.Payment, error) {
+	return s.repo.GetLinkedPaymentsCtx(ctx, strings.TrimSpace(ownerUserID), invoiceID)
 }
 
 // SuggestPayments suggests payments that might match this invoice based on amount and date
 func (s *InvoiceService) SuggestPayments(ownerUserID string, invoiceID string, limit int, debug bool) ([]models.Payment, error) {
+	return s.SuggestPaymentsCtx(context.Background(), ownerUserID, invoiceID, limit, debug)
+}
+
+func (s *InvoiceService) SuggestPaymentsCtx(ctx context.Context, ownerUserID string, invoiceID string, limit int, debug bool) ([]models.Payment, error) {
 	invoice, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), invoiceID)
 	if err != nil {
 		return nil, err
@@ -832,7 +840,7 @@ func (s *InvoiceService) SuggestPayments(ownerUserID string, invoiceID string, l
 		)
 	}
 
-	linked, _ := s.repo.GetLinkedPayments(strings.TrimSpace(ownerUserID), invoiceID)
+	linked, _ := s.repo.GetLinkedPaymentsCtx(ctx, strings.TrimSpace(ownerUserID), invoiceID)
 	linkedIDs := make(map[string]struct{}, len(linked))
 	for _, p := range linked {
 		linkedIDs[p.ID] = struct{}{}
@@ -846,7 +854,7 @@ func (s *InvoiceService) SuggestPayments(ownerUserID string, invoiceID string, l
 		maxCandidates = 200
 	}
 
-	candidates, err := s.repo.SuggestPayments(invoice, maxCandidates)
+	candidates, err := s.repo.SuggestPaymentsCtx(ctx, invoice, maxCandidates)
 	if err != nil {
 		return nil, err
 	}
@@ -855,13 +863,13 @@ func (s *InvoiceService) SuggestPayments(ownerUserID string, invoiceID string, l
 		// Safety net: if repository-side filters are too strict (or data is missing),
 		// fall back to the most recent payments so scoring still has something to rank.
 		var total int64
-		_ = database.GetDB().Model(&models.Payment{}).Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).Count(&total).Error
+		_ = database.GetDB().WithContext(ctx).Model(&models.Payment{}).Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).Count(&total).Error
 		if debug {
 			log.Printf("[MATCH] invoice=%s repo candidates=0, fallback to recent payments (total=%d)", invoiceID, total)
 		}
 		if total > 0 {
 			var recent []models.Payment
-			_ = database.GetDB().
+			_ = database.GetDB().WithContext(ctx).
 				Model(&models.Payment{}).
 				Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).
 				Order("transaction_time DESC").

@@ -164,7 +164,7 @@ func (h *PaymentHandler) Update(c *gin.Context) {
 func (h *PaymentHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 
-	payment, err := h.paymentService.GetByID(middleware.GetEffectiveUserID(c), id)
+	payment, err := h.paymentService.GetByIDCtx(c.Request.Context(), middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return
@@ -552,8 +552,14 @@ func (h *PaymentHandler) CancelUploadScreenshot(c *gin.Context) {
 
 func (h *PaymentHandler) GetLinkedInvoices(c *gin.Context) {
 	id := c.Param("id")
-	invoices, err := h.paymentService.GetLinkedInvoices(middleware.GetEffectiveUserID(c), id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	invoices, err := h.paymentService.GetLinkedInvoicesCtx(ctx, middleware.GetEffectiveUserID(c), id)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取关联发票失败", err)
 		return
 	}
@@ -573,8 +579,14 @@ func (h *PaymentHandler) SuggestInvoices(c *gin.Context) {
 
 	log.Printf("[MATCH] suggest-invoices payment_id=%s limit=%d debug=%t", id, limit, debug)
 
-	invoices, err := h.paymentService.SuggestInvoices(middleware.GetEffectiveUserID(c), id, limit, debug)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	invoices, err := h.paymentService.SuggestInvoicesCtx(ctx, middleware.GetEffectiveUserID(c), id, limit, debug)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取建议发票失败", err)
 		return
 	}
@@ -591,8 +603,14 @@ func (h *PaymentHandler) GetScreenshot(c *gin.Context) {
 	}
 
 	ownerUserID := middleware.GetEffectiveUserID(c)
-	payment, err := h.paymentService.GetByID(ownerUserID, id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	payment, err := h.paymentService.GetByIDCtx(ctx, ownerUserID, id)
 	if err != nil || payment == nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 404, "payment not found", nil)
 		return
 	}
@@ -626,7 +644,7 @@ func (h *PaymentHandler) GetScreenshot(c *gin.Context) {
 func (h *PaymentHandler) ReparseScreenshot(c *gin.Context) {
 	id := c.Param("id")
 
-	payment, err := h.paymentService.GetByID(middleware.GetEffectiveUserID(c), id)
+	payment, err := h.paymentService.GetByIDCtx(c.Request.Context(), middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return

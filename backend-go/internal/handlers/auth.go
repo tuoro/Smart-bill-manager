@@ -34,7 +34,7 @@ type RegisterInput struct {
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	// Public registration is disabled. Use setup for the first admin and invite codes for additional users.
-	hasUsers, err := h.authService.HasUsers()
+	hasUsers, err := h.authService.HasUsersCtx(c.Request.Context())
 	if err != nil {
 		utils.Error(c, 500, "检查用户失败", err)
 		return
@@ -84,7 +84,7 @@ type InviteRegisterInput struct {
 }
 
 func (h *AuthHandler) InviteRegister(c *gin.Context) {
-	hasUsers, err := h.authService.HasUsers()
+	hasUsers, err := h.authService.HasUsersCtx(c.Request.Context())
 	if err != nil {
 		utils.Error(c, 500, "检查用户失败", err)
 		return
@@ -156,8 +156,14 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authService.GetUserByID(userID)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	user, err := h.authService.GetUserByIDCtx(ctx, userID)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 404, "用户不存在", err)
 		return
 	}
@@ -219,8 +225,14 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 }
 
 func (h *AuthHandler) SetupRequired(c *gin.Context) {
-	hasUsers, err := h.authService.HasUsers()
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	hasUsers, err := h.authService.HasUsersCtx(ctx)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "检查用户失败", err)
 		return
 	}
@@ -235,7 +247,7 @@ type SetupInput struct {
 }
 
 func (h *AuthHandler) SetupAdmin(c *gin.Context) {
-	hasUsers, err := h.authService.HasUsers()
+	hasUsers, err := h.authService.HasUsersCtx(c.Request.Context())
 	if err != nil {
 		utils.Error(c, 500, "检查用户失败", err)
 		return

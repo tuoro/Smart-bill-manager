@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
@@ -10,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/gorm"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/utils"
@@ -109,6 +110,13 @@ func (s *AuthService) CreateInvite(createdByUserID string, expiresInDays int) (*
 }
 
 func (s *AuthService) ListInvites(limit int) ([]models.Invite, error) {
+	return s.ListInvitesCtx(context.Background(), limit)
+}
+
+func (s *AuthService) ListInvitesCtx(ctx context.Context, limit int) ([]models.Invite, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if limit <= 0 {
 		limit = 30
 	}
@@ -116,7 +124,7 @@ func (s *AuthService) ListInvites(limit int) ([]models.Invite, error) {
 		limit = 200
 	}
 
-	db := database.GetDB()
+	db := database.GetDB().WithContext(ctx)
 	out := make([]models.Invite, 0, limit)
 	if err := db.Order("created_at DESC").Limit(limit).Find(&out).Error; err != nil {
 		return nil, err

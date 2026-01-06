@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -27,11 +28,11 @@ const (
 )
 
 type TaskService struct {
-	db            *gorm.DB
-	paymentSvc    *PaymentService
-	invoiceSvc    *InvoiceService
-	pollInterval  time.Duration
-	wakeCh        chan struct{}
+	db           *gorm.DB
+	paymentSvc   *PaymentService
+	invoiceSvc   *InvoiceService
+	pollInterval time.Duration
+	wakeCh       chan struct{}
 }
 
 func NewTaskService(db *gorm.DB, paymentSvc *PaymentService, invoiceSvc *InvoiceService) *TaskService {
@@ -131,6 +132,10 @@ func (s *TaskService) CreateTask(taskType string, createdBy string, targetID str
 }
 
 func (s *TaskService) GetTaskForOwner(ownerUserID string, id string) (*models.Task, error) {
+	return s.GetTaskForOwnerCtx(context.Background(), ownerUserID, id)
+}
+
+func (s *TaskService) GetTaskForOwnerCtx(ctx context.Context, ownerUserID string, id string) (*models.Task, error) {
 	if s.db == nil {
 		return nil, errors.New("db not initialized")
 	}
@@ -139,8 +144,11 @@ func (s *TaskService) GetTaskForOwner(ownerUserID string, id string) (*models.Ta
 	if ownerUserID == "" || id == "" {
 		return nil, gorm.ErrRecordNotFound
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var t models.Task
-	if err := s.db.Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&t).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&t).Error; err != nil {
 		return nil, err
 	}
 	return &t, nil

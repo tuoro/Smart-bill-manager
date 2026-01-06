@@ -19,11 +19,16 @@ func (h *AdminUsersHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 func (h *AdminUsersHandler) List(c *gin.Context) {
-	users, err := h.authService.GetAllUsers()
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	users, err := h.authService.GetAllUsersCtx(ctx)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取用户列表失败", err)
 		return
 	}
 	utils.SuccessData(c, users)
 }
-

@@ -35,8 +35,14 @@ func (h *EmailHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 func (h *EmailHandler) GetAllConfigs(c *gin.Context) {
-	configs, err := h.emailService.GetAllConfigs(middleware.GetEffectiveUserID(c))
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	configs, err := h.emailService.GetAllConfigsCtx(ctx, middleware.GetEffectiveUserID(c))
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取邮箱配置失败", err)
 		return
 	}
@@ -128,8 +134,14 @@ func (h *EmailHandler) GetLogs(c *gin.Context) {
 		}
 	}
 
-	logs, err := h.emailService.GetLogs(middleware.GetEffectiveUserID(c), configID, limit)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	logs, err := h.emailService.GetLogsCtx(ctx, middleware.GetEffectiveUserID(c), configID, limit)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取邮件日志失败", err)
 		return
 	}
@@ -140,7 +152,7 @@ func (h *EmailHandler) GetLogs(c *gin.Context) {
 func (h *EmailHandler) ParseLog(c *gin.Context) {
 	id := c.Param("id")
 	ownerUserID := middleware.GetEffectiveUserID(c)
-	invoice, err := h.emailService.ParseEmailLog(ownerUserID, id)
+	invoice, err := h.emailService.ParseEmailLogCtx(c.Request.Context(), ownerUserID, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, 404, "邮件日志不存在", nil)
@@ -178,8 +190,14 @@ func (h *EmailHandler) StopMonitoring(c *gin.Context) {
 }
 
 func (h *EmailHandler) GetMonitoringStatus(c *gin.Context) {
-	statuses, err := h.emailService.GetMonitoringStatus(middleware.GetEffectiveUserID(c))
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	statuses, err := h.emailService.GetMonitoringStatusCtx(ctx, middleware.GetEffectiveUserID(c))
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取监控状态失败", err)
 		return
 	}

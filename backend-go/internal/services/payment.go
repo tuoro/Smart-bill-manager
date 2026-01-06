@@ -908,7 +908,11 @@ func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFr
 
 // GetLinkedInvoices returns all invoices linked to a payment
 func (s *PaymentService) GetLinkedInvoices(ownerUserID string, paymentID string) ([]models.Invoice, error) {
-	return s.repo.GetLinkedInvoices(strings.TrimSpace(ownerUserID), paymentID)
+	return s.GetLinkedInvoicesCtx(context.Background(), ownerUserID, paymentID)
+}
+
+func (s *PaymentService) GetLinkedInvoicesCtx(ctx context.Context, ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	return s.repo.GetLinkedInvoicesCtx(ctx, strings.TrimSpace(ownerUserID), paymentID)
 }
 
 type scoredInvoiceCandidate struct {
@@ -960,6 +964,10 @@ func pickSuggestedInvoices(payment *models.Payment, scoredAll []scoredInvoiceCan
 
 // SuggestInvoices suggests invoices that might match this payment using amount/seller/date signals.
 func (s *PaymentService) SuggestInvoices(ownerUserID string, paymentID string, limit int, debug bool) ([]models.Invoice, error) {
+	return s.SuggestInvoicesCtx(context.Background(), ownerUserID, paymentID, limit, debug)
+}
+
+func (s *PaymentService) SuggestInvoicesCtx(ctx context.Context, ownerUserID string, paymentID string, limit int, debug bool) ([]models.Invoice, error) {
 	payment, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), paymentID)
 	if err != nil {
 		return nil, err
@@ -989,7 +997,7 @@ func (s *PaymentService) SuggestInvoices(ownerUserID string, paymentID string, l
 		maxCandidates = 200
 	}
 
-	candidates, err := s.invoiceRepo.SuggestInvoices(payment, maxCandidates)
+	candidates, err := s.invoiceRepo.SuggestInvoicesCtx(ctx, payment, maxCandidates)
 	if err != nil {
 		return nil, err
 	}

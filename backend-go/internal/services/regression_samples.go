@@ -625,7 +625,14 @@ type ListRegressionSamplesParams struct {
 }
 
 func (s *RegressionSampleService) List(params ListRegressionSamplesParams) ([]models.RegressionSample, int64, error) {
-	db := database.GetDB()
+	return s.ListCtx(context.Background(), params)
+}
+
+func (s *RegressionSampleService) ListCtx(ctx context.Context, params ListRegressionSamplesParams) ([]models.RegressionSample, int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := database.GetDB().WithContext(ctx)
 	q := db.Model(&models.RegressionSample{})
 
 	kind := strings.TrimSpace(params.Kind)

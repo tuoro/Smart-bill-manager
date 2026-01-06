@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -204,7 +205,11 @@ func (s *EmailService) CreateConfig(ownerUserID string, input CreateEmailConfigI
 }
 
 func (s *EmailService) GetAllConfigs(ownerUserID string) ([]models.EmailConfigResponse, error) {
-	configs, err := s.repo.FindAllConfigs(ownerUserID)
+	return s.GetAllConfigsCtx(context.Background(), ownerUserID)
+}
+
+func (s *EmailService) GetAllConfigsCtx(ctx context.Context, ownerUserID string) ([]models.EmailConfigResponse, error) {
+	configs, err := s.repo.FindAllConfigsCtx(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +222,11 @@ func (s *EmailService) GetAllConfigs(ownerUserID string) ([]models.EmailConfigRe
 }
 
 func (s *EmailService) GetConfigByID(ownerUserID string, id string) (*models.EmailConfig, error) {
-	return s.repo.FindConfigByIDForOwner(ownerUserID, id)
+	return s.GetConfigByIDCtx(context.Background(), ownerUserID, id)
+}
+
+func (s *EmailService) GetConfigByIDCtx(ctx context.Context, ownerUserID string, id string) (*models.EmailConfig, error) {
+	return s.repo.FindConfigByIDForOwnerCtx(ctx, ownerUserID, id)
 }
 
 func (s *EmailService) UpdateConfig(ownerUserID string, id string, data map[string]interface{}) error {
@@ -239,15 +248,19 @@ func (s *EmailService) DeleteConfig(ownerUserID string, id string) error {
 }
 
 func (s *EmailService) GetLogs(ownerUserID string, configID string, limit int) ([]models.EmailLog, error) {
+	return s.GetLogsCtx(context.Background(), ownerUserID, configID, limit)
+}
+
+func (s *EmailService) GetLogsCtx(ctx context.Context, ownerUserID string, configID string, limit int) ([]models.EmailLog, error) {
 	if limit == 0 {
 		limit = 50
 	}
 	if strings.TrimSpace(configID) != "" {
-		if _, err := s.repo.FindConfigByIDForOwner(ownerUserID, configID); err != nil {
+		if _, err := s.repo.FindConfigByIDForOwnerCtx(ctx, ownerUserID, configID); err != nil {
 			return []models.EmailLog{}, nil
 		}
 	}
-	return s.repo.FindLogs(ownerUserID, configID, limit)
+	return s.repo.FindLogsCtx(ctx, ownerUserID, configID, limit)
 }
 
 // TestConnection tests IMAP connection
@@ -667,7 +680,11 @@ func (s *EmailService) StopMonitoring(configID string) bool {
 
 // GetMonitoringStatus returns status of all configs
 func (s *EmailService) GetMonitoringStatus(ownerUserID string) ([]models.MonitorStatus, error) {
-	ids, err := s.repo.GetConfigIDs(ownerUserID)
+	return s.GetMonitoringStatusCtx(context.Background(), ownerUserID)
+}
+
+func (s *EmailService) GetMonitoringStatusCtx(ctx context.Context, ownerUserID string) ([]models.MonitorStatus, error) {
+	ids, err := s.repo.GetConfigIDsCtx(ctx, ownerUserID)
 	if err != nil {
 		return nil, err
 	}

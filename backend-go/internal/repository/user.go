@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
 )
@@ -16,8 +18,15 @@ func (r *UserRepository) Create(user *models.User) error {
 }
 
 func (r *UserRepository) FindByUsername(username string) (*models.User, error) {
+	return r.FindByUsernameCtx(context.Background(), username)
+}
+
+func (r *UserRepository) FindByUsernameCtx(ctx context.Context, username string) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var user models.User
-	err := database.GetDB().Where("username = ? AND is_active = 1", username).First(&user).Error
+	err := database.GetDB().WithContext(ctx).Where("username = ? AND is_active = 1", username).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -25,8 +34,15 @@ func (r *UserRepository) FindByUsername(username string) (*models.User, error) {
 }
 
 func (r *UserRepository) FindByID(id string) (*models.User, error) {
+	return r.FindByIDCtx(context.Background(), id)
+}
+
+func (r *UserRepository) FindByIDCtx(ctx context.Context, id string) (*models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var user models.User
-	err := database.GetDB().Where("id = ?", id).First(&user).Error
+	err := database.GetDB().WithContext(ctx).Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -34,8 +50,15 @@ func (r *UserRepository) FindByID(id string) (*models.User, error) {
 }
 
 func (r *UserRepository) FindAll() ([]models.User, error) {
+	return r.FindAllCtx(context.Background())
+}
+
+func (r *UserRepository) FindAllCtx(ctx context.Context) ([]models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var users []models.User
-	err := database.GetDB().Find(&users).Error
+	err := database.GetDB().WithContext(ctx).Find(&users).Error
 	return users, err
 }
 
@@ -52,13 +75,27 @@ func (r *UserRepository) UpdateRole(username, role string) error {
 }
 
 func (r *UserRepository) Count() (int64, error) {
+	return r.CountCtx(context.Background())
+}
+
+func (r *UserRepository) CountCtx(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var count int64
-	err := database.GetDB().Model(&models.User{}).Count(&count).Error
+	err := database.GetDB().WithContext(ctx).Model(&models.User{}).Count(&count).Error
 	return count, err
 }
 
 func (r *UserRepository) ExistsByUsername(username string) (bool, error) {
+	return r.ExistsByUsernameCtx(context.Background(), username)
+}
+
+func (r *UserRepository) ExistsByUsernameCtx(ctx context.Context, username string) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var count int64
-	err := database.GetDB().Model(&models.User{}).Where("username = ?", username).Count(&count).Error
+	err := database.GetDB().WithContext(ctx).Model(&models.User{}).Where("username = ?", username).Count(&count).Error
 	return count > 0, err
 }

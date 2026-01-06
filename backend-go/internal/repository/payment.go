@@ -319,8 +319,15 @@ func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID str
 
 // GetLinkedInvoices returns all invoices linked to a payment
 func (r *PaymentRepository) GetLinkedInvoices(ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	return r.GetLinkedInvoicesCtx(context.Background(), ownerUserID, paymentID)
+}
+
+func (r *PaymentRepository) GetLinkedInvoicesCtx(ctx context.Context, ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var invoices []models.Invoice
-	q := database.GetDB().
+	q := database.GetDB().WithContext(ctx).
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.invoice_id = invoices.id").
 		Where("invoice_payment_links.payment_id = ?", paymentID).
 		Where("invoices.is_draft = 0")

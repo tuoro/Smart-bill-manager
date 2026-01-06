@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"log"
 
@@ -30,7 +31,7 @@ type AuthResult struct {
 // Register creates a new user
 func (s *AuthService) Register(username, password string, email *string) (*AuthResult, error) {
 	// Check if username exists
-	exists, err := s.userRepo.ExistsByUsername(username)
+	exists, err := s.userRepo.ExistsByUsernameCtx(context.Background(), username)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func (s *AuthService) Register(username, password string, email *string) (*AuthR
 
 // Login authenticates a user
 func (s *AuthService) Login(username, password string) (*AuthResult, error) {
-	user, err := s.userRepo.FindByUsername(username)
+	user, err := s.userRepo.FindByUsernameCtx(context.Background(), username)
 	if err != nil {
 		return &AuthResult{Success: false, Message: "用户名或密码错误"}, nil
 	}
@@ -108,7 +109,11 @@ func (s *AuthService) VerifyToken(tokenString string) (*utils.Claims, error) {
 
 // GetUserByID gets a user by ID
 func (s *AuthService) GetUserByID(id string) (*models.UserResponse, error) {
-	user, err := s.userRepo.FindByID(id)
+	return s.GetUserByIDCtx(context.Background(), id)
+}
+
+func (s *AuthService) GetUserByIDCtx(ctx context.Context, id string) (*models.UserResponse, error) {
+	user, err := s.userRepo.FindByIDCtx(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +123,11 @@ func (s *AuthService) GetUserByID(id string) (*models.UserResponse, error) {
 
 // GetAllUsers gets all users
 func (s *AuthService) GetAllUsers() ([]models.UserResponse, error) {
-	users, err := s.userRepo.FindAll()
+	return s.GetAllUsersCtx(context.Background())
+}
+
+func (s *AuthService) GetAllUsersCtx(ctx context.Context) ([]models.UserResponse, error) {
+	users, err := s.userRepo.FindAllCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +141,7 @@ func (s *AuthService) GetAllUsers() ([]models.UserResponse, error) {
 
 // UpdatePassword updates user password
 func (s *AuthService) UpdatePassword(userID, oldPassword, newPassword string) (*AuthResult, error) {
-	user, err := s.userRepo.FindByID(userID)
+	user, err := s.userRepo.FindByIDCtx(context.Background(), userID)
 	if err != nil {
 		return &AuthResult{Success: false, Message: "用户不存在"}, nil
 	}
@@ -157,7 +166,11 @@ func (s *AuthService) UpdatePassword(userID, oldPassword, newPassword string) (*
 
 // HasUsers checks if any users exist
 func (s *AuthService) HasUsers() (bool, error) {
-	count, err := s.userRepo.Count()
+	return s.HasUsersCtx(context.Background())
+}
+
+func (s *AuthService) HasUsersCtx(ctx context.Context) (bool, error) {
+	count, err := s.userRepo.CountCtx(ctx)
 	if err != nil {
 		return false, err
 	}

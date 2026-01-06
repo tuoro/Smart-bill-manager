@@ -428,13 +428,20 @@ func (r *InvoiceRepository) UnlinkPayment(ownerUserID string, invoiceID, payment
 
 // GetLinkedPayments returns all payments linked to an invoice
 func (r *InvoiceRepository) GetLinkedPayments(ownerUserID string, invoiceID string) ([]models.Payment, error) {
+	return r.GetLinkedPaymentsCtx(context.Background(), ownerUserID, invoiceID)
+}
+
+func (r *InvoiceRepository) GetLinkedPaymentsCtx(ctx context.Context, ownerUserID string, invoiceID string) ([]models.Payment, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	invoiceID = strings.TrimSpace(invoiceID)
 	if ownerUserID == "" || invoiceID == "" {
 		return []models.Payment{}, nil
 	}
 	var payments []models.Payment
-	err := database.GetDB().
+	err := database.GetDB().WithContext(ctx).
 		Table("payments").
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.payment_id = payments.id").
 		Joins("INNER JOIN invoices ON invoices.id = invoice_payment_links.invoice_id").
@@ -448,10 +455,18 @@ func (r *InvoiceRepository) GetLinkedPayments(ownerUserID string, invoiceID stri
 
 // SuggestPayments suggests payments that might match an invoice
 func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) ([]models.Payment, error) {
+	return r.SuggestPaymentsCtx(context.Background(), invoice, limit)
+}
+
+func (r *InvoiceRepository) SuggestPaymentsCtx(ctx context.Context, invoice *models.Invoice, limit int) ([]models.Payment, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var payments []models.Payment
 
-	base := database.GetDB().Model(&models.Payment{})
-	baseNoAmount := database.GetDB().Model(&models.Payment{})
+	db := database.GetDB().WithContext(ctx)
+	base := db.Model(&models.Payment{})
+	baseNoAmount := db.Model(&models.Payment{})
 	base = base.Where("is_draft = 0")
 	baseNoAmount = baseNoAmount.Where("is_draft = 0")
 	if invoice != nil && strings.TrimSpace(invoice.OwnerUserID) != "" {
@@ -536,11 +551,18 @@ func (r *InvoiceRepository) SuggestPayments(invoice *models.Invoice, limit int) 
 
 // SuggestInvoices suggests invoices that might match a payment (used by payment-side recommendations).
 func (r *InvoiceRepository) SuggestInvoices(payment *models.Payment, limit int) ([]models.Invoice, error) {
+	return r.SuggestInvoicesCtx(context.Background(), payment, limit)
+}
+
+func (r *InvoiceRepository) SuggestInvoicesCtx(ctx context.Context, payment *models.Payment, limit int) ([]models.Invoice, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var invoices []models.Invoice
 
 	// Suggest only invoices that are not linked to any non-draft payment.
 	// This keeps suggestions actionable and avoids recommending already-linked invoices.
-	query := database.GetDB().
+	query := database.GetDB().WithContext(ctx).
 		Model(&models.Invoice{}).
 		Where("is_draft = 0").
 		Where(`

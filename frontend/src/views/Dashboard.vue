@@ -223,16 +223,30 @@
         </Card>
       </div>
 
-      <div class="grid">
+      <div class="grid grid-equal">
         <Card class="panel sbm-surface">
           <template #title>
             <span>&#26368;&#36817;&#37038;&#20214;</span>
           </template>
           <template #content>
-            <DataTable :value="data.email.recentLogs" size="small" :rows="6" responsiveLayout="scroll">
-              <Column field="subject" :header="'\u4E3B\u9898'" />
-              <Column field="from_address" :header="'\u53D1\u4EF6\u4EBA'" />
-              <Column :header="'\u9644\u4EF6'">
+            <DataTable
+              :value="data.email.recentLogs"
+              size="small"
+              :rows="6"
+              responsiveLayout="scroll"
+              :tableStyle="{ minWidth: '720px', tableLayout: 'fixed' }"
+            >
+              <Column :header="'\u4E3B\u9898'" :style="{ width: '44%' }">
+                <template #body="{ data: row }">
+                  <span class="sbm-ellipsis" :title="row.subject || ''">{{ row.subject || '-' }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u53D1\u4EF6\u4EBA'" :style="{ width: '32%' }">
+                <template #body="{ data: row }">
+                  <span class="sbm-ellipsis" :title="row.from_address || ''">{{ row.from_address || '-' }}</span>
+                </template>
+              </Column>
+              <Column :header="'\u9644\u4EF6'" :style="{ width: '90px' }">
                 <template #body="{ data: row }">
                   <Tag
                     v-if="row.has_attachment"
@@ -242,9 +256,9 @@
                   <Tag v-else severity="secondary" :value="'\u65E0'" />
                 </template>
               </Column>
-              <Column :header="'\u65F6\u95F4'">
+              <Column :header="'\u65F6\u95F4'" :style="{ width: '140px' }">
                 <template #body="{ data: row }">
-                  {{ row.received_date ? formatDate(row.received_date) : '-' }}
+                  <span class="dt-nowrap">{{ row.received_date ? formatDate(row.received_date) : '-' }}</span>
                 </template>
               </Column>
             </DataTable>
@@ -674,6 +688,10 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
+}
+
+.dt-nowrap {
+  white-space: nowrap;
 }
 
 .money {

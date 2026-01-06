@@ -60,8 +60,14 @@ func (h *PaymentHandler) GetAll(c *gin.Context) {
 	}
 
 	ownerUserID := middleware.GetEffectiveUserID(c)
-	items, total, err := h.paymentService.ListWithInvoiceCounts(ownerUserID, filter)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	items, total, err := h.paymentService.ListWithInvoiceCountsCtx(ctx, ownerUserID, filter)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取支付记录失败", err)
 		return
 	}
@@ -84,8 +90,14 @@ func (h *PaymentHandler) GetStats(c *gin.Context) {
 	endDate := c.Query("endDate")
 
 	ownerUserID := middleware.GetEffectiveUserID(c)
-	stats, err := h.paymentService.GetStats(ownerUserID, startDate, endDate)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	stats, err := h.paymentService.GetStatsCtx(ctx, ownerUserID, startDate, endDate)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取统计数据失败", err)
 		return
 	}
@@ -96,8 +108,14 @@ func (h *PaymentHandler) GetStats(c *gin.Context) {
 func (h *PaymentHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 	ownerUserID := middleware.GetEffectiveUserID(c)
-	payment, err := h.paymentService.GetByID(ownerUserID, id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	payment, err := h.paymentService.GetByIDCtx(ctx, ownerUserID, id)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 404, "支付记录不存在", nil)
 		return
 	}

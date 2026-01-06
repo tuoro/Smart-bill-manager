@@ -82,8 +82,14 @@ func (h *InvoiceHandler) GetAll(c *gin.Context) {
 		return
 	}
 
-	items, total, err := h.invoiceService.List(middleware.GetEffectiveUserID(c), filter)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	items, total, err := h.invoiceService.ListCtx(ctx, middleware.GetEffectiveUserID(c), filter)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取发票列表失败", err)
 		return
 	}
@@ -115,8 +121,14 @@ func (h *InvoiceHandler) GetUnlinked(c *gin.Context) {
 		}
 	}
 
-	items, total, err := h.invoiceService.GetUnlinked(middleware.GetEffectiveUserID(c), limit, offset)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	items, total, err := h.invoiceService.GetUnlinkedCtx(ctx, middleware.GetEffectiveUserID(c), limit, offset)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取未关联发票失败", err)
 		return
 	}
@@ -137,12 +149,17 @@ func (h *InvoiceHandler) GetStats(c *gin.Context) {
 	)
 
 	ownerUserID := middleware.GetEffectiveUserID(c)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
 	if startDate != "" || endDate != "" {
-		stats, err = h.invoiceService.GetStatsByInvoiceDate(ownerUserID, startDate, endDate)
+		stats, err = h.invoiceService.GetStatsByInvoiceDateCtx(ctx, ownerUserID, startDate, endDate)
 	} else {
-		stats, err = h.invoiceService.GetStats(ownerUserID)
+		stats, err = h.invoiceService.GetStatsCtx(ctx, ownerUserID)
 	}
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取统计数据失败", err)
 		return
 	}
@@ -152,8 +169,14 @@ func (h *InvoiceHandler) GetStats(c *gin.Context) {
 
 func (h *InvoiceHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
-	invoice, err := h.invoiceService.GetByID(middleware.GetEffectiveUserID(c), id)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	invoice, err := h.invoiceService.GetByIDCtx(ctx, middleware.GetEffectiveUserID(c), id)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 404, "发票不存在", nil)
 		return
 	}
@@ -214,8 +237,14 @@ func (h *InvoiceHandler) Download(c *gin.Context) {
 
 func (h *InvoiceHandler) GetByPaymentID(c *gin.Context) {
 	paymentID := c.Param("paymentId")
-	invoices, err := h.invoiceService.GetByPaymentID(middleware.GetEffectiveUserID(c), paymentID)
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	invoices, err := h.invoiceService.GetByPaymentIDCtx(ctx, middleware.GetEffectiveUserID(c), paymentID)
 	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
 		utils.Error(c, 500, "获取发票失败", err)
 		return
 	}

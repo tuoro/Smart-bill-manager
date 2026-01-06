@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -416,6 +417,10 @@ func (s *InvoiceService) GetAll(ownerUserID string, filter InvoiceFilterInput) (
 }
 
 func (s *InvoiceService) List(ownerUserID string, filter InvoiceFilterInput) ([]models.Invoice, int64, error) {
+	return s.ListCtx(context.Background(), ownerUserID, filter)
+}
+
+func (s *InvoiceService) ListCtx(ctx context.Context, ownerUserID string, filter InvoiceFilterInput) ([]models.Invoice, int64, error) {
 	filter.Limit, filter.Offset = normalizeLimitOffset(filter.Limit, filter.Offset)
 
 	beforeCreatedAt := time.Time{}
@@ -453,7 +458,7 @@ func (s *InvoiceService) List(ownerUserID string, filter InvoiceFilterInput) ([]
 		"created_at",
 	}
 
-	return s.repo.FindAllPaged(repository.InvoiceFilter{
+	return s.repo.FindAllPagedCtx(ctx, repository.InvoiceFilter{
 		OwnerUserID:     strings.TrimSpace(ownerUserID),
 		Limit:           filter.Limit,
 		Offset:          filter.Offset,
@@ -466,15 +471,23 @@ func (s *InvoiceService) List(ownerUserID string, filter InvoiceFilterInput) ([]
 }
 
 func (s *InvoiceService) GetUnlinked(ownerUserID string, limit int, offset int) ([]models.Invoice, int64, error) {
-	return s.repo.FindUnlinked(strings.TrimSpace(ownerUserID), limit, offset)
+	return s.GetUnlinkedCtx(context.Background(), ownerUserID, limit, offset)
+}
+
+func (s *InvoiceService) GetUnlinkedCtx(ctx context.Context, ownerUserID string, limit int, offset int) ([]models.Invoice, int64, error) {
+	return s.repo.FindUnlinkedCtx(ctx, strings.TrimSpace(ownerUserID), limit, offset)
 }
 
 func (s *InvoiceService) GetByID(ownerUserID string, id string) (*models.Invoice, error) {
-	inv, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	return s.GetByIDCtx(context.Background(), ownerUserID, id)
+}
+
+func (s *InvoiceService) GetByIDCtx(ctx context.Context, ownerUserID string, id string) (*models.Invoice, error) {
+	inv, err := s.repo.FindByIDForOwnerCtx(ctx, strings.TrimSpace(ownerUserID), id)
 	if err != nil {
 		return nil, err
 	}
-	blob, err := s.blobRepo.FindInvoiceBlob(strings.TrimSpace(ownerUserID), inv.ID)
+	blob, err := s.blobRepo.FindInvoiceBlobCtx(ctx, strings.TrimSpace(ownerUserID), inv.ID)
 	if err == nil && blob != nil {
 		inv.ExtractedData = blob.ExtractedData
 		inv.RawText = blob.RawText
@@ -483,7 +496,11 @@ func (s *InvoiceService) GetByID(ownerUserID string, id string) (*models.Invoice
 }
 
 func (s *InvoiceService) GetByPaymentID(ownerUserID string, paymentID string) ([]models.Invoice, error) {
-	return s.repo.FindByPaymentID(strings.TrimSpace(ownerUserID), paymentID)
+	return s.GetByPaymentIDCtx(context.Background(), ownerUserID, paymentID)
+}
+
+func (s *InvoiceService) GetByPaymentIDCtx(ctx context.Context, ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	return s.repo.FindByPaymentIDCtx(ctx, strings.TrimSpace(ownerUserID), paymentID)
 }
 
 type UpdateInvoiceInput struct {
@@ -734,11 +751,19 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 }
 
 func (s *InvoiceService) GetStats(ownerUserID string) (*models.InvoiceStats, error) {
-	return s.repo.GetStats(strings.TrimSpace(ownerUserID), "", "")
+	return s.GetStatsCtx(context.Background(), ownerUserID)
+}
+
+func (s *InvoiceService) GetStatsCtx(ctx context.Context, ownerUserID string) (*models.InvoiceStats, error) {
+	return s.repo.GetStatsCtx(ctx, strings.TrimSpace(ownerUserID), "", "")
 }
 
 func (s *InvoiceService) GetStatsByInvoiceDate(ownerUserID string, startDate string, endDate string) (*models.InvoiceStats, error) {
-	return s.repo.GetStats(strings.TrimSpace(ownerUserID), strings.TrimSpace(startDate), strings.TrimSpace(endDate))
+	return s.GetStatsByInvoiceDateCtx(context.Background(), ownerUserID, startDate, endDate)
+}
+
+func (s *InvoiceService) GetStatsByInvoiceDateCtx(ctx context.Context, ownerUserID string, startDate string, endDate string) (*models.InvoiceStats, error) {
+	return s.repo.GetStatsCtx(ctx, strings.TrimSpace(ownerUserID), strings.TrimSpace(startDate), strings.TrimSpace(endDate))
 }
 
 // LinkPayment links an invoice to a payment

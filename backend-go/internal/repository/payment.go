@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
 	"strings"
@@ -43,8 +44,11 @@ type PaymentFilter struct {
 	IncludeDraft bool
 }
 
-func (r *PaymentRepository) buildFindAllQuery(filter PaymentFilter) *gorm.DB {
-	query := database.GetDB().Model(&models.Payment{})
+func (r *PaymentRepository) buildFindAllQuery(ctx context.Context, filter PaymentFilter) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	query := database.GetDB().WithContext(ctx).Model(&models.Payment{})
 	if filter.OwnerUserID != "" {
 		query = query.Where("owner_user_id = ?", filter.OwnerUserID)
 	}
@@ -70,7 +74,7 @@ func (r *PaymentRepository) buildFindAllQuery(filter PaymentFilter) *gorm.DB {
 func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, error) {
 	var payments []models.Payment
 
-	query := r.buildFindAllQuery(filter).Order("transaction_time_ts DESC, id DESC")
+	query := r.buildFindAllQuery(context.Background(), filter).Order("transaction_time_ts DESC, id DESC")
 
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
@@ -84,19 +88,23 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 }
 
 func (r *PaymentRepository) FindAllPaged(filter PaymentFilter, selectCols []string) ([]models.Payment, int64, error) {
+	return r.FindAllPagedCtx(context.Background(), filter, selectCols)
+}
+
+func (r *PaymentRepository) FindAllPagedCtx(ctx context.Context, filter PaymentFilter, selectCols []string) ([]models.Payment, int64, error) {
 	var payments []models.Payment
 
 	// total should represent the full filtered dataset, not the cursor window
 	countFilter := filter
 	countFilter.AfterTs = 0
 	countFilter.AfterID = ""
-	query := r.buildFindAllQuery(countFilter)
+	query := r.buildFindAllQuery(ctx, countFilter)
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	query = r.buildFindAllQuery(filter).Order("transaction_time_ts DESC, id DESC")
+	query = r.buildFindAllQuery(ctx, filter).Order("transaction_time_ts DESC, id DESC")
 	if len(selectCols) > 0 {
 		query = query.Select(selectCols)
 	}
@@ -114,8 +122,15 @@ func (r *PaymentRepository) FindAllPaged(filter PaymentFilter, selectCols []stri
 }
 
 func (r *PaymentRepository) FindByIDForOwner(ownerUserID string, id string) (*models.Payment, error) {
+	return r.FindByIDForOwnerCtx(context.Background(), ownerUserID, id)
+}
+
+func (r *PaymentRepository) FindByIDForOwnerCtx(ctx context.Context, ownerUserID string, id string) (*models.Payment, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var payment models.Payment
-	q := database.GetDB().Where("id = ?", id)
+	q := database.GetDB().WithContext(ctx).Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}
@@ -216,6 +231,13 @@ func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.Payment
 // GetStatsByTs uses SQL aggregation to compute stats efficiently.
 // startTs/endTs are UTC unix milliseconds; 0 means unbounded.
 func (r *PaymentRepository) GetStatsByTs(ownerUserID string, startTs, endTs int64) (*models.PaymentStats, error) {
+	return r.GetStatsByTsCtx(context.Background(), ownerUserID, startTs, endTs)
+}
+
+func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID string, startTs, endTs int64) (*models.PaymentStats, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	applyFilter := func(q *gorm.DB) *gorm.DB {
 		q = q.Where("is_draft = 0")
 		if ownerUserID != "" {
@@ -241,7 +263,7 @@ func (r *PaymentRepository) GetStatsByTs(ownerUserID string, startTs, endTs int6
 		TotalCount  int64   `gorm:"column:total_count"`
 	}
 	var totals totalsRow
-	if err := applyFilter(database.GetDB().Table("payments")).
+	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
 		Select("COALESCE(SUM(amount), 0) AS total_amount, COUNT(*) AS total_count").
 		Scan(&totals).Error; err != nil {
 		return nil, err
@@ -256,7 +278,7 @@ func (r *PaymentRepository) GetStatsByTs(ownerUserID string, startTs, endTs int6
 
 	// Category stats
 	var catRows []kvRow
-	if err := applyFilter(database.GetDB().Table("payments")).
+	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
 		Select(`CASE WHEN category IS NULL OR TRIM(category) = '' THEN '未分类' ELSE category END AS k, COALESCE(SUM(amount), 0) AS total`).
 		Group("k").
 		Scan(&catRows).Error; err != nil {
@@ -268,7 +290,7 @@ func (r *PaymentRepository) GetStatsByTs(ownerUserID string, startTs, endTs int6
 
 	// Merchant stats
 	var merchRows []kvRow
-	if err := applyFilter(database.GetDB().Table("payments")).
+	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
 		Select(`CASE WHEN merchant IS NULL OR TRIM(merchant) = '' THEN '未知商家' ELSE merchant END AS k, COALESCE(SUM(amount), 0) AS total`).
 		Group("k").
 		Scan(&merchRows).Error; err != nil {
@@ -280,7 +302,7 @@ func (r *PaymentRepository) GetStatsByTs(ownerUserID string, startTs, endTs int6
 
 	// Daily stats (YYYY-MM-DD from RFC3339 string)
 	var dayRows []kvRow
-	if err := applyFilter(database.GetDB().Table("payments")).
+	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
 		Select(`SUBSTR(transaction_time, 1, 10) AS k, COALESCE(SUM(amount), 0) AS total`).
 		Group("k").
 		Scan(&dayRows).Error; err != nil {

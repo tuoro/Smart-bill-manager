@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"regexp"
@@ -46,8 +47,15 @@ func (r *InvoiceRepository) Create(invoice *models.Invoice) error {
 }
 
 func (r *InvoiceRepository) FindByID(id string) (*models.Invoice, error) {
+	return r.FindByIDCtx(context.Background(), id)
+}
+
+func (r *InvoiceRepository) FindByIDCtx(ctx context.Context, id string) (*models.Invoice, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var invoice models.Invoice
-	err := database.GetDB().Where("id = ?", id).First(&invoice).Error
+	err := database.GetDB().WithContext(ctx).Where("id = ?", id).First(&invoice).Error
 	if err != nil {
 		return nil, err
 	}
@@ -55,13 +63,20 @@ func (r *InvoiceRepository) FindByID(id string) (*models.Invoice, error) {
 }
 
 func (r *InvoiceRepository) FindByIDForOwner(ownerUserID string, id string) (*models.Invoice, error) {
+	return r.FindByIDForOwnerCtx(context.Background(), ownerUserID, id)
+}
+
+func (r *InvoiceRepository) FindByIDForOwnerCtx(ctx context.Context, ownerUserID string, id string) (*models.Invoice, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	id = strings.TrimSpace(id)
 	if ownerUserID == "" || id == "" {
 		return nil, gorm.ErrRecordNotFound
 	}
 	var invoice models.Invoice
-	err := database.GetDB().Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&invoice).Error
+	err := database.GetDB().WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&invoice).Error
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +97,11 @@ type InvoiceFilter struct {
 	IncludeDraft bool
 }
 
-func (r *InvoiceRepository) buildFindAllQuery(filter InvoiceFilter) *gorm.DB {
-	query := database.GetDB().Model(&models.Invoice{})
+func (r *InvoiceRepository) buildFindAllQuery(ctx context.Context, filter InvoiceFilter) *gorm.DB {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	query := database.GetDB().WithContext(ctx).Model(&models.Invoice{})
 	if strings.TrimSpace(filter.OwnerUserID) != "" {
 		query = query.Where("owner_user_id = ?", strings.TrimSpace(filter.OwnerUserID))
 	}
@@ -105,7 +123,7 @@ func (r *InvoiceRepository) buildFindAllQuery(filter InvoiceFilter) *gorm.DB {
 
 func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, error) {
 	var invoices []models.Invoice
-	query := r.buildFindAllQuery(filter).Order("created_at DESC, id DESC")
+	query := r.buildFindAllQuery(context.Background(), filter).Order("created_at DESC, id DESC")
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
 		if filter.Offset > 0 {
@@ -117,17 +135,21 @@ func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, err
 }
 
 func (r *InvoiceRepository) FindAllPaged(filter InvoiceFilter, selectCols []string) ([]models.Invoice, int64, error) {
+	return r.FindAllPagedCtx(context.Background(), filter, selectCols)
+}
+
+func (r *InvoiceRepository) FindAllPagedCtx(ctx context.Context, filter InvoiceFilter, selectCols []string) ([]models.Invoice, int64, error) {
 	// total should represent the full filtered dataset, not the cursor window
 	countFilter := filter
 	countFilter.BeforeCreatedAt = time.Time{}
 	countFilter.BeforeID = ""
-	query := r.buildFindAllQuery(countFilter)
+	query := r.buildFindAllQuery(ctx, countFilter)
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	query = r.buildFindAllQuery(filter).Order("created_at DESC, id DESC")
+	query = r.buildFindAllQuery(ctx, filter).Order("created_at DESC, id DESC")
 	if len(selectCols) > 0 {
 		query = query.Select(selectCols)
 	}
@@ -146,6 +168,13 @@ func (r *InvoiceRepository) FindAllPaged(filter InvoiceFilter, selectCols []stri
 }
 
 func (r *InvoiceRepository) FindUnlinked(ownerUserID string, limit int, offset int) ([]models.Invoice, int64, error) {
+	return r.FindUnlinkedCtx(context.Background(), ownerUserID, limit, offset)
+}
+
+func (r *InvoiceRepository) FindUnlinkedCtx(ctx context.Context, ownerUserID string, limit int, offset int) ([]models.Invoice, int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	db := database.GetDB()
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
@@ -154,7 +183,7 @@ func (r *InvoiceRepository) FindUnlinked(ownerUserID string, limit int, offset i
 
 	// Consider an invoice "linked" only if there is at least one valid link to an existing non-draft payment.
 	// This avoids legacy invoices.payment_id noise and prevents broken/stale link rows from hiding invoices.
-	base := db.
+	base := db.WithContext(ctx).
 		Model(&models.Invoice{}).
 		Where("invoices.is_draft = 0").
 		Where("invoices.owner_user_id = ?", ownerUserID).
@@ -189,13 +218,20 @@ func (r *InvoiceRepository) FindUnlinked(ownerUserID string, limit int, offset i
 }
 
 func (r *InvoiceRepository) FindByPaymentID(ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	return r.FindByPaymentIDCtx(context.Background(), ownerUserID, paymentID)
+}
+
+func (r *InvoiceRepository) FindByPaymentIDCtx(ctx context.Context, ownerUserID string, paymentID string) ([]models.Invoice, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	paymentID = strings.TrimSpace(paymentID)
 	if ownerUserID == "" || paymentID == "" {
 		return []models.Invoice{}, nil
 	}
 	var invoices []models.Invoice
-	err := database.GetDB().
+	err := database.GetDB().WithContext(ctx).
 		Model(&models.Invoice{}).
 		Where("owner_user_id = ? AND is_draft = 0", ownerUserID).
 		Where(`
@@ -250,6 +286,13 @@ func (r *InvoiceRepository) DeleteForOwner(ownerUserID string, id string) error 
 }
 
 func (r *InvoiceRepository) GetStats(ownerUserID string, startDate string, endDate string) (*models.InvoiceStats, error) {
+	return r.GetStatsCtx(context.Background(), ownerUserID, startDate, endDate)
+}
+
+func (r *InvoiceRepository) GetStatsCtx(ctx context.Context, ownerUserID string, startDate string, endDate string) (*models.InvoiceStats, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
 		return nil, fmt.Errorf("missing owner_user_id")
@@ -275,7 +318,7 @@ func (r *InvoiceRepository) GetStats(ownerUserID string, startDate string, endDa
 		TotalAmount float64 `gorm:"column:total_amount"`
 	}
 	var totals totalsRow
-	if err := applyDate(database.GetDB().
+	if err := applyDate(database.GetDB().WithContext(ctx).
 		Table("invoices").
 		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
 		Select("COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_amount"),
@@ -291,7 +334,7 @@ func (r *InvoiceRepository) GetStats(ownerUserID string, startDate string, endDa
 		Cnt    int64  `gorm:"column:cnt"`
 	}
 	var srcRows []srcRow
-	if err := applyDate(database.GetDB().
+	if err := applyDate(database.GetDB().WithContext(ctx).
 		Table("invoices").
 		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
 		Select(`CASE WHEN source IS NULL OR TRIM(source) = '' THEN 'unknown' ELSE source END AS src, COUNT(*) AS cnt`).
@@ -309,7 +352,7 @@ func (r *InvoiceRepository) GetStats(ownerUserID string, startDate string, endDa
 		Total float64 `gorm:"column:total"`
 	}
 	var monthRows []monthRow
-	if err := applyDate(database.GetDB().
+	if err := applyDate(database.GetDB().WithContext(ctx).
 		Table("invoices").
 		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
 		Where("invoice_date_ymd IS NOT NULL AND LENGTH(invoice_date_ymd) >= 7 AND amount IS NOT NULL").

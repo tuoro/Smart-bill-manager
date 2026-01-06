@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -400,6 +401,10 @@ func (s *PaymentService) GetAllWithInvoiceCounts(ownerUserID string, filter Paym
 }
 
 func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter PaymentFilterInput) ([]PaymentListItem, int64, error) {
+	return s.ListWithInvoiceCountsCtx(context.Background(), ownerUserID, filter)
+}
+
+func (s *PaymentService) ListWithInvoiceCountsCtx(ctx context.Context, ownerUserID string, filter PaymentFilterInput) ([]PaymentListItem, int64, error) {
 	startTs := int64(0)
 	endTs := int64(0)
 	if strings.TrimSpace(filter.StartDate) != "" {
@@ -450,7 +455,7 @@ func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter Paymen
 		"created_at",
 	}
 
-	payments, total, err := s.repo.FindAllPaged(repository.PaymentFilter{
+	payments, total, err := s.repo.FindAllPagedCtx(ctx, repository.PaymentFilter{
 		OwnerUserID:  strings.TrimSpace(ownerUserID),
 		Limit:        filter.Limit,
 		Offset:       filter.Offset,
@@ -480,12 +485,14 @@ func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter Paymen
 		Cnt       int    `gorm:"column:cnt"`
 	}
 	var rows []row
-	_ = database.GetDB().
+	if err := database.GetDB().WithContext(ctx).
 		Table("invoice_payment_links").
 		Select("payment_id, COUNT(*) AS cnt").
 		Where("payment_id IN ?", ids).
 		Group("payment_id").
-		Scan(&rows).Error
+		Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
 
 	counts := make(map[string]int, len(rows))
 	for _, r := range rows {
@@ -503,11 +510,15 @@ func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter Paymen
 }
 
 func (s *PaymentService) GetByID(ownerUserID string, id string) (*models.Payment, error) {
-	p, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	return s.GetByIDCtx(context.Background(), ownerUserID, id)
+}
+
+func (s *PaymentService) GetByIDCtx(ctx context.Context, ownerUserID string, id string) (*models.Payment, error) {
+	p, err := s.repo.FindByIDForOwnerCtx(ctx, strings.TrimSpace(ownerUserID), id)
 	if err != nil {
 		return nil, err
 	}
-	blob, err := s.blobRepo.FindPaymentBlob(strings.TrimSpace(ownerUserID), p.ID)
+	blob, err := s.blobRepo.FindPaymentBlobCtx(ctx, strings.TrimSpace(ownerUserID), p.ID)
 	if err == nil && blob != nil {
 		p.ExtractedData = blob.ExtractedData
 	}
@@ -764,6 +775,10 @@ func (s *PaymentService) Delete(ownerUserID string, id string) error {
 }
 
 func (s *PaymentService) GetStats(ownerUserID string, startDate, endDate string) (*models.PaymentStats, error) {
+	return s.GetStatsCtx(context.Background(), ownerUserID, startDate, endDate)
+}
+
+func (s *PaymentService) GetStatsCtx(ctx context.Context, ownerUserID string, startDate, endDate string) (*models.PaymentStats, error) {
 	startTs := int64(0)
 	endTs := int64(0)
 	if strings.TrimSpace(startDate) != "" {
@@ -780,7 +795,7 @@ func (s *PaymentService) GetStats(ownerUserID string, startDate, endDate string)
 			return nil, fmt.Errorf("invalid endDate: %w", err)
 		}
 	}
-	return s.repo.GetStatsByTs(strings.TrimSpace(ownerUserID), startTs, endTs)
+	return s.repo.GetStatsByTsCtx(ctx, strings.TrimSpace(ownerUserID), startTs, endTs)
 }
 
 // CreateFromScreenshot creates a payment from a screenshot with OCR

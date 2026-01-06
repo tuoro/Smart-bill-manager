@@ -8,7 +8,15 @@
         </div>
       </template>
       <template #content>
-        <DataTable :value="users" :loading="loading" :paginator="true" :rows="10" responsiveLayout="scroll">
+        <DataTable
+          :value="users"
+          :loading="loading"
+          :paginator="true"
+          :rows="pageSize"
+          :rowsPerPageOptions="[10, 20, 50, 100]"
+          responsiveLayout="scroll"
+          @page="onPage"
+        >
           <Column field="username" header="用户名" />
           <Column field="role" header="角色" :style="{ width: '120px' }">
             <template #body="{ data: row }">
@@ -69,6 +77,11 @@ const toast = useToast()
 const users = ref<User[]>([])
 const loading = ref(false)
 const currentActAsUserId = ref<string | null>(null)
+const pageSize = ref(10)
+
+const onPage = (e: any) => {
+  pageSize.value = e?.rows || pageSize.value
+}
 
 const refreshActAsState = () => {
   currentActAsUserId.value = getActAsUserId()

@@ -27,7 +27,15 @@
         </div>
       </template>
       <template #content>
-        <DataTable :value="configs" :loading="loading" :paginator="true" :rows="10" responsiveLayout="scroll">
+        <DataTable
+          :value="configs"
+          :loading="loading"
+          :paginator="true"
+          :rows="configPageSize"
+          :rowsPerPageOptions="[10, 20, 50, 100]"
+          responsiveLayout="scroll"
+          @page="onConfigPage"
+        >
           <Column :header="'\u90AE\u7BB1\u5730\u5740'">
             <template #body="{ data: row }">
               <div class="email-cell">
@@ -113,7 +121,14 @@
         </div>
       </template>
       <template #content>
-        <DataTable :value="logs" :paginator="true" :rows="10" responsiveLayout="scroll">
+        <DataTable
+          :value="logs"
+          :paginator="true"
+          :rows="logPageSize"
+          :rowsPerPageOptions="[10, 20, 50, 100]"
+          responsiveLayout="scroll"
+          @page="onLogPage"
+        >
           <Column field="subject" :header="'\u4E3B\u9898'" />
           <Column field="from_address" :header="'\u53D1\u4EF6\u4EBA'" :style="{ width: '220px' }" />
           <Column :header="'\u9644\u4EF6'" :style="{ width: '110px' }">
@@ -300,6 +315,16 @@ const checkLoading = ref<string | null>(null)
 const parseLoading = ref<string | null>(null)
 const selectedPreset = ref<string | null>(null)
 const pollTimer = ref<number | null>(null)
+const configPageSize = ref(10)
+const logPageSize = ref(10)
+
+const onConfigPage = (e: any) => {
+  configPageSize.value = e?.rows || configPageSize.value
+}
+
+const onLogPage = (e: any) => {
+  logPageSize.value = e?.rows || logPageSize.value
+}
 
 const form = reactive({
   email: '',

@@ -232,7 +232,7 @@
             <DataTable
               :value="data.email.recentLogs"
               size="small"
-              :rows="6"
+              :rows="5"
               responsiveLayout="scroll"
               :tableStyle="{ width: '100%', tableLayout: 'fixed' }"
             >

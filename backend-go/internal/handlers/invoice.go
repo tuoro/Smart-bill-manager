@@ -88,9 +88,16 @@ func (h *InvoiceHandler) GetAll(c *gin.Context) {
 		return
 	}
 
+	nextCursor := ""
+	if len(items) > 0 {
+		last := items[len(items)-1]
+		nextCursor = services.EncodeInvoiceCursor(last.CreatedAt, last.ID)
+	}
+
 	utils.SuccessData(c, gin.H{
-		"items": items,
-		"total": total,
+		"items":      items,
+		"total":      total,
+		"nextCursor": nextCursor,
 	})
 }
 

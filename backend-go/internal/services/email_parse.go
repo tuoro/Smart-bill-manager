@@ -398,6 +398,12 @@ func downloadURLWithLimit(rawURL string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 
+	release, err := AcquireEmailDownload(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	client := &http.Client{
 		Timeout: 20 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {

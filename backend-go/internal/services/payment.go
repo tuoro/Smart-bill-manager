@@ -21,6 +21,7 @@ var ErrMissingTransactionTime = errors.New("missing transaction time")
 type PaymentService struct {
 	repo        *repository.PaymentRepository
 	invoiceRepo *repository.InvoiceRepository
+	blobRepo    *repository.OCRBlobRepository
 	ocrService  *OCRService
 	uploadsDir  string
 }
@@ -29,6 +30,7 @@ func NewPaymentService(uploadsDir string) *PaymentService {
 	return &PaymentService{
 		repo:        repository.NewPaymentRepository(),
 		invoiceRepo: repository.NewInvoiceRepository(),
+		blobRepo:    repository.NewOCRBlobRepository(),
 		ocrService:  NewOCRService(),
 		uploadsDir:  uploadsDir,
 	}
@@ -151,9 +153,7 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 		extractedDataJSON = nil
 	}
 
-	updateData := map[string]any{
-		"extracted_data": extractedDataJSON,
-	}
+	updateData := map[string]any{}
 
 	if extracted.Amount != nil {
 		absAmount := math.Abs(*extracted.Amount)
@@ -175,12 +175,25 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 		}
 	}
 
-	if err := s.repo.Update(paymentID, updateData); err != nil {
+	db := database.GetDB()
+	ownerUserID := strings.TrimSpace(payment.OwnerUserID)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.Update(paymentID, updateData); err != nil {
+			return err
+		}
+		return s.blobRepo.UpsertPaymentBlob(tx, ownerUserID, paymentID, extractedDataJSON)
+	}); err != nil {
 		return nil, err
 	}
 
 	updated, _ := s.repo.FindByID(paymentID)
 	dedup := any(nil)
+	if updated != nil {
+		blob, _ := s.blobRepo.FindPaymentBlob(ownerUserID, updated.ID)
+		if blob != nil {
+			updated.ExtractedData = blob.ExtractedData
+		}
+	}
 
 	// If we have a meaningful amount+time, compute suspected duplicates for UI.
 	if updated != nil && updated.Amount > 0 && updated.TransactionTimeTs > 0 {
@@ -256,7 +269,7 @@ func (s *PaymentService) Create(ownerUserID string, input CreatePaymentInput) (*
 		TransactionTime:   t.Format(time.RFC3339),
 		TransactionTimeTs: unixMilli(t),
 		ScreenshotPath:    screenshotPath,
-		ExtractedData:     extractedData,
+		ExtractedData:     nil, // stored in payment_ocr_blobs
 		DedupStatus:       DedupStatusOK,
 		TripAssignSrc:     assignSrcAuto,
 		TripAssignState:   assignStateNoMatch,
@@ -267,17 +280,27 @@ func (s *PaymentService) Create(ownerUserID string, input CreatePaymentInput) (*
 		if err := tx.Create(payment).Error; err != nil {
 			return err
 		}
+		if extractedData != nil {
+			if err := s.blobRepo.UpsertPaymentBlob(tx, strings.TrimSpace(ownerUserID), payment.ID, extractedData); err != nil {
+				return err
+			}
+		}
 		return autoAssignPaymentTx(tx, strings.TrimSpace(ownerUserID), payment)
 	}); err != nil {
 		return nil, err
 	}
 
+	// Include OCR payload in response.
+	if extractedData != nil {
+		payment.ExtractedData = extractedData
+	}
 	return payment, nil
 }
 
 type PaymentFilterInput struct {
 	Limit     int    `form:"limit"`
 	Offset    int    `form:"offset"`
+	Cursor    string `form:"cursor"`
 	StartDate string `form:"startDate"`
 	EndDate   string `form:"endDate"`
 	Category  string `form:"category"`
@@ -394,6 +417,17 @@ func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter Paymen
 		}
 	}
 	filter.Limit, filter.Offset = normalizeLimitOffset(filter.Limit, filter.Offset)
+	afterTs := int64(0)
+	afterID := ""
+	if strings.TrimSpace(filter.Cursor) != "" {
+		ts, id, err := decodePaymentCursor(filter.Cursor)
+		if err != nil {
+			return nil, 0, err
+		}
+		afterTs = ts
+		afterID = id
+		filter.Offset = 0
+	}
 
 	selectCols := []string{
 		"id",
@@ -420,6 +454,8 @@ func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter Paymen
 		OwnerUserID:  strings.TrimSpace(ownerUserID),
 		Limit:        filter.Limit,
 		Offset:       filter.Offset,
+		AfterTs:      afterTs,
+		AfterID:      afterID,
 		StartDate:    filter.StartDate,
 		EndDate:      filter.EndDate,
 		StartTs:      startTs,
@@ -467,7 +503,15 @@ func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter Paymen
 }
 
 func (s *PaymentService) GetByID(ownerUserID string, id string) (*models.Payment, error) {
-	return s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	p, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	if err != nil {
+		return nil, err
+	}
+	blob, err := s.blobRepo.FindPaymentBlob(strings.TrimSpace(ownerUserID), p.ID)
+	if err == nil && blob != nil {
+		p.ExtractedData = blob.ExtractedData
+	}
+	return p, nil
 }
 
 type UpdatePaymentInput struct {
@@ -707,6 +751,7 @@ func (s *PaymentService) Delete(ownerUserID string, id string) error {
 	db := database.GetDB()
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		_ = tx.Where("payment_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
+		_ = s.blobRepo.DeletePaymentBlob(tx, strings.TrimSpace(ownerUserID), id)
 		return tx.Where("id = ? AND owner_user_id = ?", id, strings.TrimSpace(ownerUserID)).Delete(&models.Payment{}).Error
 	}); err != nil {
 		return err
@@ -803,7 +848,7 @@ func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFr
 		TransactionTimeTs: unixMilli(payTime),
 		ScreenshotPath:    &input.ScreenshotPath,
 		FileSHA256:        input.FileSHA256,
-		ExtractedData:     extractedDataJSON,
+		ExtractedData:     nil, // stored in payment_ocr_blobs
 		TripAssignSrc:     assignSrcAuto,
 		TripAssignState:   assignStateNoMatch,
 		DedupStatus:       DedupStatusOK,
@@ -824,6 +869,8 @@ func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFr
 	if err := db.Create(payment).Error; err != nil {
 		return nil, nil, err
 	}
+	_ = s.blobRepo.UpsertPaymentBlob(nil, strings.TrimSpace(ownerUserID), payment.ID, extractedDataJSON)
+	payment.ExtractedData = extractedDataJSON
 
 	// Mark suspected duplicates for UI (amount+time) if we have a meaningful timestamp.
 	if payment.Amount > 0 && payment.TransactionTimeTs > 0 {
@@ -1017,7 +1064,6 @@ func (s *PaymentService) ReparseScreenshot(paymentID string) (*PaymentExtractedD
 
 	// Update payment record with new extracted data
 	updateData := make(map[string]interface{})
-	updateData["extracted_data"] = extractedDataJSON
 
 	// Update amount if extracted
 	if extracted.Amount != nil {
@@ -1053,6 +1099,7 @@ func (s *PaymentService) ReparseScreenshot(paymentID string) (*PaymentExtractedD
 	if err := s.repo.Update(paymentID, updateData); err != nil {
 		return nil, fmt.Errorf("failed to update payment: %w", err)
 	}
+	_ = s.blobRepo.UpsertPaymentBlob(nil, strings.TrimSpace(payment.OwnerUserID), paymentID, extractedDataJSON)
 
 	return extracted, nil
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
@@ -18,6 +19,7 @@ import (
 
 type InvoiceService struct {
 	repo       *repository.InvoiceRepository
+	blobRepo   *repository.OCRBlobRepository
 	ocrService *OCRService
 	uploadsDir string
 }
@@ -25,6 +27,7 @@ type InvoiceService struct {
 func NewInvoiceService(uploadsDir string) *InvoiceService {
 	return &InvoiceService{
 		repo:       repository.NewInvoiceRepository(),
+		blobRepo:   repository.NewOCRBlobRepository(),
 		ocrService: NewOCRService(),
 		uploadsDir: uploadsDir,
 	}
@@ -167,10 +170,8 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 		parseStatus, parseError := s.parseInvoiceFile(filePath, inv.Filename)
 
 	updateData := map[string]any{
-		"parse_status":   parseStatus,
-		"parse_error":    parseError,
-		"raw_text":       rawText,
-		"extracted_data": extractedData,
+		"parse_status": parseStatus,
+		"parse_error":  parseError,
 	}
 	if invoiceNumber != nil {
 		updateData["invoice_number"] = *invoiceNumber
@@ -212,12 +213,27 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 		updateData["buyer_name"] = nil
 	}
 
-	if err := s.repo.Update(inv.ID, updateData); err != nil {
+	ownerUserID := strings.TrimSpace(inv.OwnerUserID)
+	db := database.GetDB()
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.Update(inv.ID, updateData); err != nil {
+			return err
+		}
+		// Store OCR blobs outside the invoices table to keep it slim.
+		return s.blobRepo.UpsertInvoiceBlob(tx, ownerUserID, inv.ID, extractedData, rawText)
+	}); err != nil {
 		return nil, err
 	}
 
 	updated, _ := s.repo.FindByID(inv.ID)
 	dedup := any(nil)
+	if updated != nil {
+		blob, _ := s.blobRepo.FindInvoiceBlob(ownerUserID, updated.ID)
+		if blob != nil {
+			updated.ExtractedData = blob.ExtractedData
+			updated.RawText = blob.RawText
+		}
+	}
 
 	// Mark suspected duplicates based on invoice_number.
 	if updated != nil && updated.InvoiceNumber != nil {
@@ -306,14 +322,23 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 		FileSHA256:    input.FileSHA256,
 		InvoiceNumber: invoiceNumber,
 		InvoiceDate:   invoiceDate,
+		InvoiceDateYMD: func() *string {
+			if invoiceDate == nil {
+				return nil
+			}
+			if ymd := utils.NormalizeDateYMD(*invoiceDate); ymd != "" {
+				return &ymd
+			}
+			return nil
+		}(),
 		Amount:        amount,
 		TaxAmount:     taxAmount,
 		SellerName:    sellerName,
 		BuyerName:     buyerName,
-		ExtractedData: extractedData,
+		ExtractedData: nil, // stored in invoice_ocr_blobs
 		ParseStatus:   parseStatus,
 		ParseError:    parseError,
-		RawText:       rawText,
+		RawText:       nil, // stored in invoice_ocr_blobs
 		Source:        source,
 		DedupStatus:   DedupStatusOK,
 	}
@@ -322,6 +347,9 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 	db := database.GetDB()
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(invoice).Error; err != nil {
+			return err
+		}
+		if err := s.blobRepo.UpsertInvoiceBlob(tx, ownerUserID, invoice.ID, extractedData, rawText); err != nil {
 			return err
 		}
 		if input.PaymentID != nil {
@@ -343,6 +371,10 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 	}); err != nil {
 		return nil, err
 	}
+
+	// Include OCR payload in response.
+	invoice.ExtractedData = extractedData
+	invoice.RawText = rawText
 
 	// Mark suspected duplicates for UI/confirm step (invoice_number).
 	if invoice.InvoiceNumber != nil {
@@ -366,6 +398,7 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 type InvoiceFilterInput struct {
 	Limit        int    `form:"limit"`
 	Offset       int    `form:"offset"`
+	Cursor       string `form:"cursor"`
 	StartDate    string `form:"startDate"`
 	EndDate      string `form:"endDate"`
 	IncludeDraft bool   `form:"includeDraft"`
@@ -384,6 +417,18 @@ func (s *InvoiceService) GetAll(ownerUserID string, filter InvoiceFilterInput) (
 
 func (s *InvoiceService) List(ownerUserID string, filter InvoiceFilterInput) ([]models.Invoice, int64, error) {
 	filter.Limit, filter.Offset = normalizeLimitOffset(filter.Limit, filter.Offset)
+
+	beforeCreatedAt := time.Time{}
+	beforeID := ""
+	if strings.TrimSpace(filter.Cursor) != "" {
+		t, id, err := decodeInvoiceCursor(filter.Cursor)
+		if err != nil {
+			return nil, 0, err
+		}
+		beforeCreatedAt = t
+		beforeID = id
+		filter.Offset = 0
+	}
 
 	selectCols := []string{
 		"id",
@@ -409,12 +454,14 @@ func (s *InvoiceService) List(ownerUserID string, filter InvoiceFilterInput) ([]
 	}
 
 	return s.repo.FindAllPaged(repository.InvoiceFilter{
-		OwnerUserID:  strings.TrimSpace(ownerUserID),
-		Limit:        filter.Limit,
-		Offset:       filter.Offset,
-		StartDate:    strings.TrimSpace(filter.StartDate),
-		EndDate:      strings.TrimSpace(filter.EndDate),
-		IncludeDraft: filter.IncludeDraft,
+		OwnerUserID:     strings.TrimSpace(ownerUserID),
+		Limit:           filter.Limit,
+		Offset:          filter.Offset,
+		BeforeCreatedAt: beforeCreatedAt,
+		BeforeID:        beforeID,
+		StartDate:       strings.TrimSpace(filter.StartDate),
+		EndDate:         strings.TrimSpace(filter.EndDate),
+		IncludeDraft:    filter.IncludeDraft,
 	}, selectCols)
 }
 
@@ -423,7 +470,16 @@ func (s *InvoiceService) GetUnlinked(ownerUserID string, limit int, offset int) 
 }
 
 func (s *InvoiceService) GetByID(ownerUserID string, id string) (*models.Invoice, error) {
-	return s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	inv, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	if err != nil {
+		return nil, err
+	}
+	blob, err := s.blobRepo.FindInvoiceBlob(strings.TrimSpace(ownerUserID), inv.ID)
+	if err == nil && blob != nil {
+		inv.ExtractedData = blob.ExtractedData
+		inv.RawText = blob.RawText
+	}
+	return inv, nil
 }
 
 func (s *InvoiceService) GetByPaymentID(ownerUserID string, paymentID string) ([]models.Invoice, error) {
@@ -665,6 +721,7 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 	db := database.GetDB()
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		_ = tx.Where("invoice_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
+		_ = s.blobRepo.DeleteInvoiceBlob(tx, ownerUserID, id)
 		if err := tx.Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.Invoice{}).Error; err != nil {
 			return err
 		}
@@ -1000,7 +1057,6 @@ func (s *InvoiceService) Reparse(ownerUserID string, id string) (*models.Invoice
 	updateData := map[string]interface{}{
 		"parse_status": parseStatus,
 		"parse_error":  parseError,
-		"raw_text":     rawText,
 	}
 
 	if invoiceNumber != nil {
@@ -1028,14 +1084,17 @@ func (s *InvoiceService) Reparse(ownerUserID string, id string) (*models.Invoice
 	if buyerName != nil {
 		updateData["buyer_name"] = *buyerName
 	}
-	if extractedData != nil {
-		updateData["extracted_data"] = *extractedData
-	}
-
-	if err := s.repo.UpdateForOwner(strings.TrimSpace(ownerUserID), id, updateData); err != nil {
+	db := database.GetDB()
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.UpdateForOwner(ownerUserID, id, updateData); err != nil {
+			return err
+		}
+		return s.blobRepo.UpsertInvoiceBlob(tx, ownerUserID, id, extractedData, rawText)
+	}); err != nil {
 		return nil, err
 	}
 
-	// Return updated invoice
-	return s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	// Return updated invoice (hydrated).
+	return s.GetByID(ownerUserID, id)
 }

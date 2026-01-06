@@ -252,6 +252,16 @@ func (s *OCRService) RecognizeWithRapidOCRProfile(imagePath, profile string) (st
 }
 
 func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []string) (string, error) {
+	// One OCR job can be CPU-heavy (and may spawn external processes).
+	// Limit concurrent OCR to keep the server responsive.
+	ctx, cancel := context.WithTimeout(context.Background(), rapidOCRTimeout)
+	defer cancel()
+	release, err := acquireWithTimeout(ctx, limitOCR, rapidOCRTimeout, "ocr")
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
 	// Prefer a persistent worker to avoid per-request Python startup overhead.
 	// Falls back to the CLI when the worker is disabled or unavailable.
 	reqProfile := parseOCRProfileFromArgs(extraArgs)
@@ -305,9 +315,6 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	}
 
 	// Execute Python script
-	ctx, cancel := context.WithTimeout(context.Background(), rapidOCRTimeout)
-	defer cancel()
-
 	run := func(python string) ([]byte, error) {
 		args := []string{scriptPath}
 		args = append(args, extraArgs...)

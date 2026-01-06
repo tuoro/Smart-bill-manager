@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"smart-bill-manager/internal/middleware"
 	"smart-bill-manager/internal/services"
 	"smart-bill-manager/internal/utils"
-	"gorm.io/gorm"
 )
 
 type TripHandler struct {
@@ -121,7 +121,14 @@ func (h *TripHandler) ExportZip(c *gin.Context) {
 		return
 	}
 
-	plan, err := h.tripService.PrepareTripExportZip(middleware.GetEffectiveUserID(c), id)
+	release, err := services.AcquireZipExport(c.Request.Context())
+	if err != nil {
+		utils.Error(c, 429, "export busy", err)
+		return
+	}
+	defer release()
+
+	plan, err := h.tripService.PrepareTripExportZip(c.Request.Context(), middleware.GetEffectiveUserID(c), id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Error(c, 404, "行程不存在", err)

@@ -8,6 +8,7 @@ import (
 	"smart-bill-manager/pkg/database"
 	"strconv"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -68,9 +69,11 @@ func (r *InvoiceRepository) FindByIDForOwner(ownerUserID string, id string) (*mo
 }
 
 type InvoiceFilter struct {
-	OwnerUserID string
-	Limit       int
-	Offset      int
+	OwnerUserID     string
+	Limit           int
+	Offset          int
+	BeforeCreatedAt time.Time
+	BeforeID        string
 	// StartDate/EndDate are "YYYY-MM-DD" prefixes for filtering invoice_date.
 	StartDate string
 	EndDate   string
@@ -87,6 +90,10 @@ func (r *InvoiceRepository) buildFindAllQuery(filter InvoiceFilter) *gorm.DB {
 	if !filter.IncludeDraft {
 		query = query.Where("is_draft = 0")
 	}
+	if !filter.BeforeCreatedAt.IsZero() && strings.TrimSpace(filter.BeforeID) != "" {
+		id := strings.TrimSpace(filter.BeforeID)
+		query = query.Where("(created_at < ?) OR (created_at = ? AND id < ?)", filter.BeforeCreatedAt, filter.BeforeCreatedAt, id)
+	}
 	if strings.TrimSpace(filter.StartDate) != "" && strings.TrimSpace(filter.EndDate) != "" {
 		start := strings.TrimSpace(filter.StartDate)
 		end := strings.TrimSpace(filter.EndDate)
@@ -98,7 +105,7 @@ func (r *InvoiceRepository) buildFindAllQuery(filter InvoiceFilter) *gorm.DB {
 
 func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, error) {
 	var invoices []models.Invoice
-	query := r.buildFindAllQuery(filter).Order("created_at DESC")
+	query := r.buildFindAllQuery(filter).Order("created_at DESC, id DESC")
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
 		if filter.Offset > 0 {
@@ -110,13 +117,17 @@ func (r *InvoiceRepository) FindAll(filter InvoiceFilter) ([]models.Invoice, err
 }
 
 func (r *InvoiceRepository) FindAllPaged(filter InvoiceFilter, selectCols []string) ([]models.Invoice, int64, error) {
-	query := r.buildFindAllQuery(filter)
+	// total should represent the full filtered dataset, not the cursor window
+	countFilter := filter
+	countFilter.BeforeCreatedAt = time.Time{}
+	countFilter.BeforeID = ""
+	query := r.buildFindAllQuery(countFilter)
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	query = query.Order("created_at DESC")
+	query = r.buildFindAllQuery(filter).Order("created_at DESC, id DESC")
 	if len(selectCols) > 0 {
 		query = query.Select(selectCols)
 	}

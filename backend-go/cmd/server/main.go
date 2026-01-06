@@ -42,6 +42,8 @@ func main() {
 		&models.Payment{},
 		&models.Trip{},
 		&models.Invoice{},
+		&models.InvoiceOCRBlob{},
+		&models.PaymentOCRBlob{},
 		&models.InvoicePaymentLink{},
 		&models.EmailConfig{},
 		&models.EmailLog{},
@@ -138,6 +140,8 @@ func main() {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_file_sha256 ON invoices(file_sha256)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_owner_file_sha256 ON invoices(owner_user_id, file_sha256)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_dedup_status ON invoices(dedup_status)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoice_ocr_blobs_owner_invoice ON invoice_ocr_blobs(owner_user_id, invoice_id)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_payment_ocr_blobs_owner_payment ON payment_ocr_blobs(owner_user_id, payment_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_tasks_status_created_at ON tasks(status, created_at)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by)")
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_source ON regression_samples(source_type, source_id, kind)")
@@ -193,6 +197,25 @@ func main() {
 		}
 		db.Exec(`UPDATE invoices SET invoice_date_ymd = ? WHERE id = ?`, ymd, r.ID)
 	}
+
+	// Backfill OCR blobs tables from legacy columns (best-effort; keeps existing data readable).
+	db.Exec(`
+		INSERT INTO invoice_ocr_blobs (invoice_id, owner_user_id, extracted_data, raw_text, created_at, updated_at)
+		SELECT id, owner_user_id, extracted_data, raw_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+		FROM invoices
+		WHERE (extracted_data IS NOT NULL AND TRIM(extracted_data) != '')
+		   OR (raw_text IS NOT NULL AND TRIM(raw_text) != '')
+		  AND NOT EXISTS (SELECT 1 FROM invoice_ocr_blobs b WHERE b.invoice_id = invoices.id)
+		LIMIT 500
+	`)
+	db.Exec(`
+		INSERT INTO payment_ocr_blobs (payment_id, owner_user_id, extracted_data, created_at, updated_at)
+		SELECT id, owner_user_id, extracted_data, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+		FROM payments
+		WHERE extracted_data IS NOT NULL AND TRIM(extracted_data) != ''
+		  AND NOT EXISTS (SELECT 1 FROM payment_ocr_blobs b WHERE b.payment_id = payments.id)
+		LIMIT 500
+	`)
 
 	// Ensure uploads directory exists
 	uploadsDir := cfg.UploadsDir

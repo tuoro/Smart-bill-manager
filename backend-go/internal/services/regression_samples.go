@@ -2,6 +2,7 @@ package services
 
 import (
 	"archive/zip"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -713,7 +714,7 @@ type ExportRegressionSamplesParams struct {
 	Redact bool     // redact raw_text for export
 }
 
-func (s *RegressionSampleService) PrepareExportZip(params ExportRegressionSamplesParams) (*ZipStream, error) {
+func (s *RegressionSampleService) PrepareExportZip(ctx context.Context, params ExportRegressionSamplesParams) (*ZipStream, error) {
 	db := database.GetDB()
 	backfillRegressionSampleRawHashes(db)
 	q := db.Model(&models.RegressionSample{})
@@ -769,10 +770,19 @@ func (s *RegressionSampleService) PrepareExportZip(params ExportRegressionSample
 	return &ZipStream{
 		Filename: zipName,
 		Write: func(w io.Writer) error {
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			zw := zip.NewWriter(w)
 			seenPaths := map[string]int{}
 
 			for _, r := range rows {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				path := exportSampleZipPath(base, r)
 				if n := seenPaths[path]; n > 0 {
 					ext := filepath.Ext(path)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -26,12 +27,15 @@ type tripExportInvoice struct {
 	CreatedAt     time.Time
 }
 
-func (s *TripService) PrepareTripExportZip(ownerUserID string, tripID string) (*ZipStream, error) {
+func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID string, tripID string) (*ZipStream, error) {
 	db := database.GetDB()
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	tripID = strings.TrimSpace(tripID)
 	if ownerUserID == "" || tripID == "" {
 		return nil, fmt.Errorf("missing owner_user_id or trip_id")
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	var trip models.Trip
@@ -127,12 +131,18 @@ func (s *TripService) PrepareTripExportZip(ownerUserID string, tripID string) (*
 	return &ZipStream{
 		Filename: zipName,
 		Write: func(w io.Writer) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			zw := zip.NewWriter(w)
 
 			var warnings []string
 			_, _ = zw.Create(rootDir + "/")
 
 			for i, p := range payments {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				seq := fmt.Sprintf("%0*d", width, i+1)
 				when := formatZipTimeLabel(p.TransactionTime, p.CreatedAt)
 				merchant := sanitizeZipComponent(ptrOrEmpty(p.Merchant), 24)
@@ -147,7 +157,7 @@ func (s *TripService) PrepareTripExportZip(ownerUserID string, tripID string) (*
 					abs, err := resolveUploadsFilePathAbs(s.uploadsDir, stored)
 					if err != nil {
 						warnings = append(warnings, fmt.Sprintf("payment %s screenshot path invalid: %s (%v)", p.ID, stored, err))
-					} else if err := zipAddFile(zw, paymentDir+("payment_screenshot"+fileExtOrDefault(stored, ".png")), abs); err != nil {
+					} else if err := zipAddFile(ctx, zw, paymentDir+("payment_screenshot"+fileExtOrDefault(stored, ".png")), abs); err != nil {
 						warnings = append(warnings, fmt.Sprintf("payment %s screenshot read failed: %s (%v)", p.ID, stored, err))
 					}
 				}
@@ -173,6 +183,9 @@ func (s *TripService) PrepareTripExportZip(ownerUserID string, tripID string) (*
 				})
 
 				for j, inv := range invs {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					sub := indexToLetters(j)
 					label := inv.ID
 					if inv.InvoiceNumber != nil && strings.TrimSpace(*inv.InvoiceNumber) != "" {
@@ -201,7 +214,7 @@ func (s *TripService) PrepareTripExportZip(ownerUserID string, tripID string) (*
 						ext = fileExtOrDefault(stored, ".pdf")
 					}
 					name := fmt.Sprintf("invoice_%s_%s%s", sub, label, ext)
-					if err := zipAddFile(zw, paymentDir+name, abs); err != nil {
+					if err := zipAddFile(ctx, zw, paymentDir+name, abs); err != nil {
 						warnings = append(warnings, fmt.Sprintf("invoice %s read failed: %s (%v)", inv.ID, stored, err))
 					}
 				}
@@ -219,7 +232,10 @@ func (s *TripService) PrepareTripExportZip(ownerUserID string, tripID string) (*
 	}, nil
 }
 
-func zipAddFile(zw *zip.Writer, zipPath string, absPath string) error {
+func zipAddFile(ctx context.Context, zw *zip.Writer, zipPath string, absPath string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	zipPath = strings.ReplaceAll(zipPath, "\\", "/")
 	zipPath = strings.TrimPrefix(zipPath, "/")
 	if zipPath == "" || strings.Contains(zipPath, "..") {
@@ -235,8 +251,25 @@ func zipAddFile(zw *zip.Writer, zipPath string, absPath string) error {
 		return err
 	}
 	defer r.Close()
-	_, err = io.Copy(fw, r)
-	return err
+	buf := make([]byte, 128*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		n, rerr := r.Read(buf)
+		if n > 0 {
+			if _, werr := fw.Write(buf[:n]); werr != nil {
+				return werr
+			}
+		}
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			return rerr
+		}
+	}
+	return nil
 }
 
 func fileExtOrDefault(path string, def string) string {

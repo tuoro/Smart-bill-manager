@@ -66,9 +66,16 @@ func (h *PaymentHandler) GetAll(c *gin.Context) {
 		return
 	}
 
+	nextCursor := ""
+	if len(items) > 0 {
+		last := items[len(items)-1]
+		nextCursor = services.EncodePaymentCursor(last.TransactionTimeTs, last.ID)
+	}
+
 	utils.SuccessData(c, gin.H{
-		"items": items,
-		"total": total,
+		"items":      items,
+		"total":      total,
+		"nextCursor": nextCursor,
 	})
 }
 

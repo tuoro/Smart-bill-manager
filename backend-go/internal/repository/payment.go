@@ -3,6 +3,7 @@ package repository
 import (
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/pkg/database"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -28,13 +29,15 @@ func (r *PaymentRepository) FindByID(id string) (*models.Payment, error) {
 
 type PaymentFilter struct {
 	OwnerUserID string
-	Limit     int
-	Offset    int
-	StartDate string
-	EndDate   string
-	StartTs   int64
-	EndTs     int64
-	Category  string
+	Limit       int
+	Offset      int
+	AfterTs     int64
+	AfterID     string
+	StartDate   string
+	EndDate     string
+	StartTs     int64
+	EndTs       int64
+	Category    string
 	// IncludeDraft controls whether draft records are included.
 	// By default, drafts are hidden from normal list/stats flows.
 	IncludeDraft bool
@@ -57,13 +60,17 @@ func (r *PaymentRepository) buildFindAllQuery(filter PaymentFilter) *gorm.DB {
 	if filter.Category != "" {
 		query = query.Where("category = ?", filter.Category)
 	}
+	if filter.AfterTs > 0 && strings.TrimSpace(filter.AfterID) != "" {
+		afterID := strings.TrimSpace(filter.AfterID)
+		query = query.Where("(transaction_time_ts < ?) OR (transaction_time_ts = ? AND id < ?)", filter.AfterTs, filter.AfterTs, afterID)
+	}
 	return query
 }
 
 func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, error) {
 	var payments []models.Payment
 
-	query := r.buildFindAllQuery(filter).Order("transaction_time_ts DESC")
+	query := r.buildFindAllQuery(filter).Order("transaction_time_ts DESC, id DESC")
 
 	if filter.Limit > 0 {
 		query = query.Limit(filter.Limit)
@@ -79,13 +86,17 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 func (r *PaymentRepository) FindAllPaged(filter PaymentFilter, selectCols []string) ([]models.Payment, int64, error) {
 	var payments []models.Payment
 
-	query := r.buildFindAllQuery(filter)
+	// total should represent the full filtered dataset, not the cursor window
+	countFilter := filter
+	countFilter.AfterTs = 0
+	countFilter.AfterID = ""
+	query := r.buildFindAllQuery(countFilter)
 	var total int64
 	if err := query.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	query = query.Order("transaction_time_ts DESC")
+	query = r.buildFindAllQuery(filter).Order("transaction_time_ts DESC, id DESC")
 	if len(selectCols) > 0 {
 		query = query.Select(selectCols)
 	}

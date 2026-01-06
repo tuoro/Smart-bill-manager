@@ -175,7 +175,15 @@ func (h *AdminRegressionSamplesHandler) Export(c *gin.Context) {
 	kind := strings.TrimSpace(c.Query("kind"))
 	origin := strings.TrimSpace(c.Query("origin"))
 	redact := strings.TrimSpace(c.Query("redact")) == "1"
-	plan, err := h.svc.PrepareExportZip(services.ExportRegressionSamplesParams{
+
+	release, err := services.AcquireZipExport(c.Request.Context())
+	if err != nil {
+		utils.Error(c, 429, "导出服务繁忙，请稍后重试", err)
+		return
+	}
+	defer release()
+
+	plan, err := h.svc.PrepareExportZip(c.Request.Context(), services.ExportRegressionSamplesParams{
 		Kind:   kind,
 		Origin: origin,
 		Redact: redact,
@@ -202,7 +210,15 @@ func (h *AdminRegressionSamplesHandler) ExportSelected(c *gin.Context) {
 		utils.Error(c, 400, "参数错误", err)
 		return
 	}
-	plan, err := h.svc.PrepareExportZip(services.ExportRegressionSamplesParams{
+
+	release, err := services.AcquireZipExport(c.Request.Context())
+	if err != nil {
+		utils.Error(c, 429, "导出服务繁忙，请稍后重试", err)
+		return
+	}
+	defer release()
+
+	plan, err := h.svc.PrepareExportZip(c.Request.Context(), services.ExportRegressionSamplesParams{
 		Kind:   strings.TrimSpace(input.Kind),
 		Origin: strings.TrimSpace(input.Origin),
 		IDs:    input.IDs,

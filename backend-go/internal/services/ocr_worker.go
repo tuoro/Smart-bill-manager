@@ -50,7 +50,7 @@ func getEnvInt64(key string, def int64) int64 {
 func ocrWorkerRestartEveryN() int64 {
 	// Default ON: restart periodically to prevent long-running Python + native libs from ballooning RSS.
 	// Set to 0 to disable.
-	n := getEnvInt64("SBM_OCR_WORKER_RESTART_EVERY_N", 200)
+	n := getEnvInt64("SBM_OCR_WORKER_RESTART_EVERY_N", 50)
 	if n < 0 {
 		return 0
 	}

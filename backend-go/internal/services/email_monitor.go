@@ -600,12 +600,12 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		case *mail.AttachmentHeader:
 			filename, _ := h.Filename()
 			if strings.HasSuffix(strings.ToLower(filename), ".pdf") {
-				content, err := io.ReadAll(p.Body)
+				content, err := readWithLimit(p.Body, emailParseMaxPDFBytes)
 				if err != nil {
 					log.Printf("[Email Monitor] Error reading attachment: %v", err)
 					continue
 				}
-				s.saveAttachment(filename, content, configID)
+				s.saveAttachment(ownerUserID, filename, content)
 				attachmentCount++
 				hasAttachment = 1
 			}
@@ -636,15 +636,20 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 	return true
 }
 
-func (s *EmailService) saveAttachment(filename string, content []byte, _ string) {
+func (s *EmailService) saveAttachment(ownerUserID string, filename string, content []byte) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	safeFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeFilename(filename))
 
-	if err := os.MkdirAll(s.uploadsDir, 0755); err != nil {
+	targetDir := s.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(s.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		log.Printf("[Email Monitor] Error creating uploads dir: %v", err)
 		return
 	}
 
-	filePath := filepath.Join(s.uploadsDir, safeFilename)
+	filePath := filepath.Join(targetDir, safeFilename)
 	if err := os.WriteFile(filePath, content, 0644); err != nil {
 		log.Printf("[Email Monitor] Error saving attachment: %v", err)
 		return

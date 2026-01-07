@@ -26,7 +26,8 @@ func (r *UserRepository) FindByUsernameCtx(ctx context.Context, username string)
 		ctx = context.Background()
 	}
 	var user models.User
-	err := database.GetDB().WithContext(ctx).Where("username = ? AND is_active = 1", username).First(&user).Error
+	// Do not filter is_active here; callers (e.g. login) may want to distinguish "disabled" from "not found".
+	err := database.GetDB().WithContext(ctx).Where("username = ?", username).First(&user).Error
 	if err != nil {
 		return nil, err
 	}

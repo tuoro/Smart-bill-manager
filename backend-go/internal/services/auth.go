@@ -82,6 +82,10 @@ func (s *AuthService) Login(username, password string) (*AuthResult, error) {
 		return &AuthResult{Success: false, Message: "用户名或密码错误"}, nil
 	}
 
+	if user.IsActive != 1 {
+		return &AuthResult{Success: false, Message: "账号已停用"}, nil
+	}
+
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		return &AuthResult{Success: false, Message: "用户名或密码错误"}, nil

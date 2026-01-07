@@ -71,7 +71,21 @@
               field="code_hint"
               header="邀请码"
               :style="{ width: '18%' }"
-            />
+            >
+              <template #body="{ data: row }">
+                <span class="mono sbm-ellipsis" :title="row.code_hint">{{ row.code_hint }}</span>
+              </template>
+            </Column>
+            <Column header="使用者" :style="{ width: '18%' }">
+              <template #body="{ data: row }">
+                <div class="user-cell">
+                  <span class="sbm-ellipsis" :title="row.usedByUsername || row.usedBy || ''">
+                    {{ displayUserLabel(row.usedByUsername, row.usedBy, row.usedByDeleted) }}
+                  </span>
+                  <small v-if="row.usedBy" class="muted sbm-ellipsis" :title="row.usedBy">ID：{{ row.usedBy }}</small>
+                </div>
+              </template>
+            </Column>
             <Column
               field="createdAt"
               header="生成时间"
@@ -168,10 +182,14 @@ type InviteRow = {
   id: string;
   code_hint: string;
   createdBy: string;
+  createdByUsername?: string;
+  createdByDeleted?: boolean;
   createdAt: string;
   expiresAt?: string | null;
   usedAt?: string | null;
   usedBy?: string | null;
+  usedByUsername?: string;
+  usedByDeleted?: boolean;
   expired: boolean;
 };
 
@@ -255,6 +273,14 @@ const loadInvites = async () => {
   }
 };
 
+const displayUserLabel = (username?: string, userId?: string | null, deleted?: boolean) => {
+  const n = String(username || "").trim();
+  const id = String(userId || "").trim();
+  if (n) return n;
+  if (deleted && id) return "（已删除）";
+  return id ? id : "-";
+};
+
 const createInvite = async () => {
   if (!isAdmin.value) return;
   loading.value = true;
@@ -331,8 +357,9 @@ const confirmDeleteSelected = () => {
   const selected = selectedInvites.value;
   if (selected.length === 0) return;
 
-  const deletable = selected.filter((r) => !r.usedAt);
-  const used = selected.filter((r) => !!r.usedAt);
+  const deletable = selected.filter((r) => !r.usedAt || r.usedByDeleted);
+  const used = selected.filter((r) => !!r.usedAt && !r.usedByDeleted);
+  const usedButDeletedUser = selected.filter((r) => !!r.usedAt && r.usedByDeleted);
 
   if (deletable.length === 0) {
     toast.add({
@@ -343,10 +370,11 @@ const confirmDeleteSelected = () => {
     return;
   }
 
-  const message =
-    used.length > 0
-      ? `确定删除选中的 ${deletable.length} 个未使用邀请码吗？（已使用 ${used.length} 个将跳过）`
-      : `确定删除选中的 ${deletable.length} 个未使用邀请码吗？`;
+  const messageParts: string[] = [];
+  messageParts.push(`确定删除选中的 ${deletable.length} 个邀请码吗？`);
+  if (usedButDeletedUser.length > 0) messageParts.push(`包含 ${usedButDeletedUser.length} 个“已使用但使用者已删除”的邀请码（允许删除）`);
+  if (used.length > 0) messageParts.push(`已使用 ${used.length} 个将跳过`);
+  const message = messageParts.join("；");
 
   confirm.require({
     message,
@@ -473,6 +501,17 @@ onBeforeUnmount(() => {
 
 .muted {
   color: var(--p-text-muted-color);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.user-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .invites-table :deep(.p-datatable-table) {

@@ -133,7 +133,14 @@ func (s *AuthService) ListInvitesCtx(ctx context.Context, limit int) ([]models.I
 }
 
 func (s *AuthService) DeleteInvite(id string) error {
-	db := database.GetDB()
+	return s.DeleteInviteCtx(context.Background(), id)
+}
+
+func (s *AuthService) DeleteInviteCtx(ctx context.Context, id string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	db := database.GetDB().WithContext(ctx)
 
 	var inv models.Invite
 	if err := db.Where("id = ?", id).First(&inv).Error; err != nil {
@@ -144,7 +151,20 @@ func (s *AuthService) DeleteInvite(id string) error {
 	}
 
 	if inv.UsedAt != nil {
-		return ErrInviteUsed
+		usedBy := ""
+		if inv.UsedBy != nil {
+			usedBy = strings.TrimSpace(*inv.UsedBy)
+		}
+		if usedBy == "" {
+			return ErrInviteUsed
+		}
+		exists, err := s.userRepo.ExistsByIDCtx(ctx, usedBy)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return ErrInviteUsed
+		}
 	}
 
 	if err := db.Delete(&models.Invite{}, "id = ?", id).Error; err != nil {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -77,6 +78,30 @@ func (h *AdminInvitesHandler) ListInvites(c *gin.Context) {
 		return
 	}
 
+	idsSet := make(map[string]struct{}, len(items)*2)
+	for _, inv := range items {
+		if s := strings.TrimSpace(inv.CreatedBy); s != "" {
+			idsSet[s] = struct{}{}
+		}
+		if inv.UsedBy != nil {
+			if s := strings.TrimSpace(*inv.UsedBy); s != "" {
+				idsSet[s] = struct{}{}
+			}
+		}
+	}
+	ids := make([]string, 0, len(idsSet))
+	for id := range idsSet {
+		ids = append(ids, id)
+	}
+	nameByID, err := h.authService.GetUsernamesByIDsCtx(ctx, ids)
+	if err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
+		utils.Error(c, 500, "获取邀请码用户信息失败", err)
+		return
+	}
+
 	out := make([]gin.H, 0, len(items))
 	now := time.Now()
 	for _, inv := range items {
@@ -84,15 +109,29 @@ func (h *AdminInvitesHandler) ListInvites(c *gin.Context) {
 		if inv.ExpiresAt != nil && inv.ExpiresAt.Before(now) {
 			expired = true
 		}
+
+		createdByUsername := nameByID[strings.TrimSpace(inv.CreatedBy)]
+		createdByDeleted := strings.TrimSpace(inv.CreatedBy) != "" && createdByUsername == ""
+		usedByUsername := ""
+		usedByDeleted := false
+		if inv.UsedBy != nil {
+			uid := strings.TrimSpace(*inv.UsedBy)
+			usedByUsername = nameByID[uid]
+			usedByDeleted = uid != "" && inv.UsedAt != nil && usedByUsername == ""
+		}
 		out = append(out, gin.H{
-			"id":        inv.ID,
-			"code_hint": inv.CodeHint,
-			"createdBy": inv.CreatedBy,
-			"createdAt": inv.CreatedAt,
-			"expiresAt": inv.ExpiresAt,
-			"usedAt":    inv.UsedAt,
-			"usedBy":    inv.UsedBy,
-			"expired":   expired,
+			"id":                inv.ID,
+			"code_hint":         inv.CodeHint,
+			"createdBy":         inv.CreatedBy,
+			"createdByUsername": createdByUsername,
+			"createdByDeleted":  createdByDeleted,
+			"createdAt":         inv.CreatedAt,
+			"expiresAt":         inv.ExpiresAt,
+			"usedAt":            inv.UsedAt,
+			"usedBy":            inv.UsedBy,
+			"usedByUsername":    usedByUsername,
+			"usedByDeleted":     usedByDeleted,
+			"expired":           expired,
 		})
 	}
 

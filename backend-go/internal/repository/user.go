@@ -62,6 +62,60 @@ func (r *UserRepository) FindAllCtx(ctx context.Context) ([]models.User, error) 
 	return users, err
 }
 
+func (r *UserRepository) FindUsernamesByIDsCtx(ctx context.Context, ids []string) ([]models.User, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if len(ids) == 0 {
+		return []models.User{}, nil
+	}
+	var users []models.User
+	err := database.GetDB().WithContext(ctx).
+		Select("id", "username", "role", "is_active").
+		Where("id IN ?", ids).
+		Find(&users).Error
+	return users, err
+}
+
+func (r *UserRepository) ExistsByIDCtx(ctx context.Context, id string) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var count int64
+	err := database.GetDB().WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Count(&count).Error
+	return count > 0, err
+}
+
+func (r *UserRepository) CountActiveAdminsCtx(ctx context.Context) (int64, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var count int64
+	err := database.GetDB().WithContext(ctx).
+		Model(&models.User{}).
+		Where("role = ? AND is_active = 1", "admin").
+		Count(&count).Error
+	return count, err
+}
+
+func (r *UserRepository) UpdateActiveByIDCtx(ctx context.Context, id string, active bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	val := 0
+	if active {
+		val = 1
+	}
+	return database.GetDB().WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Update("is_active", val).Error
+}
+
+func (r *UserRepository) DeleteByIDCtx(ctx context.Context, id string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return database.GetDB().WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error
+}
+
 func (r *UserRepository) Update(user *models.User) error {
 	return database.GetDB().Save(user).Error
 }

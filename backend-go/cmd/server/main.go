@@ -328,7 +328,7 @@ func main() {
 	adminGroup.Use(middleware.RequireAdmin())
 	adminInvitesHandler := handlers.NewAdminInvitesHandler(authService)
 	adminInvitesHandler.RegisterRoutes(adminGroup.Group("/invites"))
-	adminUsersHandler := handlers.NewAdminUsersHandler(authService)
+	adminUsersHandler := handlers.NewAdminUsersHandler(authService, uploadsDir)
 	adminUsersHandler.RegisterRoutes(adminGroup.Group("/users"))
 	adminRegressionHandler := handlers.NewAdminRegressionSamplesHandler(services.NewRegressionSampleService())
 	adminRegressionHandler.RegisterRoutes(adminGroup.Group("/regression-samples"))

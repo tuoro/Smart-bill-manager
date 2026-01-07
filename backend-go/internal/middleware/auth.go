@@ -33,6 +33,17 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 			return
 		}
 
+		// Ensure the actor user still exists and is active.
+		if user, err := authService.GetUserByIDCtx(c.Request.Context(), claims.UserID); err != nil {
+			utils.Error(c, 401, "账号不存在或已被删除", nil)
+			c.Abort()
+			return
+		} else if user == nil || user.IsActive != 1 {
+			utils.Error(c, 401, "账号已停用", nil)
+			c.Abort()
+			return
+		}
+
 		// Set user info in context (actor)
 		c.Set("userId", claims.UserID)
 		c.Set("username", claims.Username)

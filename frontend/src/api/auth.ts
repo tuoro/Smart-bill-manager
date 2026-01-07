@@ -86,6 +86,22 @@ export type ActAsConfirmInfo = {
   path?: string
 }
 
+export type AdminDeleteUserResult = {
+  userId: string
+  paymentsDeleted: number
+  invoicesDeleted: number
+  tripsDeleted: number
+  emailConfigsDeleted: number
+  emailLogsDeleted: number
+  tasksDeleted: number
+  regressionSamplesDeleted: number
+  paymentOCRDeleted: number
+  invoiceOCRDeleted: number
+  linksDeleted: number
+  invitesCreatedByUser: number
+  invitesUsedByUser: number
+}
+
 let actAsConfirmHandler: ((info: ActAsConfirmInfo) => Promise<boolean>) | null = null
 
 export const setActAsConfirmHandler = (handler: ((info: ActAsConfirmInfo) => Promise<boolean>) | null) => {
@@ -211,6 +227,8 @@ export const authApi = {
   setup: (username: string, password: string, email?: string) =>
     api.post<{ success: boolean; message: string; user?: User; token?: string }>('/auth/setup', { username, password, email }),
 
+  adminListUsers: (config?: AxiosRequestConfig) => api.get<ApiResponse<User[]>>('/admin/users', config),
+
   adminCreateInvite: (expiresInDays?: number) =>
     api.post<ApiResponse<{ code: string; code_hint: string; expiresAt?: string | null }>>('/admin/invites', { expiresInDays }),
 
@@ -221,16 +239,25 @@ export const authApi = {
           id: string
           code_hint: string
           createdBy: string
+          createdByUsername?: string
+          createdByDeleted?: boolean
           createdAt: string
           expiresAt?: string | null
           usedAt?: string | null
           usedBy?: string | null
+          usedByUsername?: string
+          usedByDeleted?: boolean
           expired: boolean
         }>
       >
     >('/admin/invites', { params: { limit }, ...(config || {}) }),
 
   adminDeleteInvite: (id: string) => api.delete<ApiResponse<{ deleted: boolean }>>(`/admin/invites/${id}`),
+
+  adminSetUserActive: (id: string, active: boolean) =>
+    api.patch<ApiResponse<User>>(`/admin/users/${id}/active`, { is_active: active }),
+
+  adminDeleteUser: (id: string) => api.delete<ApiResponse<AdminDeleteUserResult>>(`/admin/users/${id}`),
 }
 
 export default api

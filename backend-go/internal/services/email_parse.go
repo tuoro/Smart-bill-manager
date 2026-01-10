@@ -35,6 +35,7 @@ const (
 	emailParseMaxPDFBytes  = 20 * 1024 * 1024
 	emailParseMaxXMLBytes  = 5 * 1024 * 1024
 	emailParseMaxTextBytes = 512 * 1024
+	emailParseMaxPageBytes = 2 * 1024 * 1024
 )
 
 func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.Invoice, error) {
@@ -241,12 +242,58 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 		pdfURL = foundPDF
 	}
 
+	// Some providers send only a preview-page link that requires clicking "下载PDF/XML".
+	// Best-effort: fetch the page and try to discover direct download URLs.
+	previewResolveErr := ""
+	if pdfURL == nil && xmlURL == nil {
+		if previewURL := firstURLFromText(bodyText); previewURL != "" {
+			resXML, resPDF, err := resolveInvoiceDownloadLinksFromPreviewURLCtx(ctx, previewURL)
+			if err == nil {
+				if xmlURL == nil && resXML != nil && strings.TrimSpace(*resXML) != "" {
+					xmlURL = resXML
+				}
+				if pdfURL == nil && resPDF != nil && strings.TrimSpace(*resPDF) != "" {
+					pdfURL = resPDF
+				}
+				if (resXML != nil || resPDF != nil) && logID != "" {
+					_ = s.repo.UpdateLog(logID, map[string]interface{}{
+						"invoice_xml_url": func() interface{} {
+							if xmlURL == nil {
+								return nil
+							}
+							return *xmlURL
+						}(),
+						"invoice_pdf_url": func() interface{} {
+							if pdfURL == nil {
+								return nil
+							}
+							return *pdfURL
+						}(),
+					})
+				}
+			} else {
+				previewResolveErr = err.Error()
+			}
+		}
+	}
+
 	// Ensure we have the PDF bytes for preview (either from attachment or from a PDF download link).
 	if pdfBytes == nil {
 		if pdfURL == nil {
+			if strings.TrimSpace(previewResolveErr) != "" {
+				previewResolveErr = strings.TrimSpace(previewResolveErr)
+				if len(previewResolveErr) > 240 {
+					previewResolveErr = previewResolveErr[:240] + "..."
+				}
+			}
 			_ = s.repo.UpdateLog(logID, map[string]interface{}{
 				"status":      "error",
-				"parse_error": "no pdf attachment and no pdf download url found",
+				"parse_error": func() string {
+					if previewResolveErr == "" {
+						return "no pdf attachment and no pdf download url found"
+					}
+					return "no pdf attachment and no pdf download url found; preview link resolve failed: " + previewResolveErr
+				}(),
 				"invoice_xml_url": func() interface{} {
 					if xmlURL == nil {
 						return nil
@@ -733,4 +780,335 @@ func buildInvoiceItems(values map[string][]string) []InvoiceLineItem {
 		items = append(items, item)
 	}
 	return items
+}
+
+func firstURLFromText(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	urlRe := regexp.MustCompile(`https?://[^\s<>"'()]+`)
+	all := urlRe.FindAllString(body, -1)
+	if len(all) == 0 {
+		return ""
+	}
+	clean := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.TrimRight(s, ">)].,;\"'")
+		return s
+	}
+	for _, raw := range all {
+		u := clean(raw)
+		if u == "" {
+			continue
+		}
+		return u
+	}
+	return ""
+}
+
+type fetchedURL struct {
+	FinalURL     string
+	ContentType  string
+	ResponseBody []byte
+}
+
+func fetchURLWithLimitCtx(ctx context.Context, rawURL string, limit int64) (*fetchedURL, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme: %s", u.Scheme)
+	}
+	if u.Host == "" {
+		return nil, fmt.Errorf("missing host")
+	}
+	if err := ensurePublicHost(u.Hostname()); err != nil {
+		return nil, err
+	}
+
+	release, err := AcquireEmailDownload(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	client := &http.Client{
+		Timeout: 20 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return errors.New("stopped after 3 redirects")
+			}
+			return ensurePublicHost(req.URL.Hostname())
+		},
+	}
+
+	rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(rctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "smart-bill-manager/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	body, err := readWithLimit(resp.Body, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	finalURL := u.String()
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+
+	return &fetchedURL{
+		FinalURL:     finalURL,
+		ContentType:  strings.TrimSpace(resp.Header.Get("Content-Type")),
+		ResponseBody: body,
+	}, nil
+}
+
+func resolveInvoiceDownloadLinksFromPreviewURLCtx(ctx context.Context, previewURL string) (xmlURL *string, pdfURL *string, err error) {
+	previewURL = strings.TrimSpace(previewURL)
+	if previewURL == "" {
+		return nil, nil, fmt.Errorf("empty preview url")
+	}
+
+	// Provider-specific fast path (e.g. Baiwang preview pages have deterministic download endpoints).
+	if x, p, ok := resolveKnownProviderInvoiceLinksCtx(ctx, previewURL); ok {
+		return x, p, nil
+	}
+
+	f, err := fetchURLWithLimitCtx(ctx, previewURL, emailParseMaxPageBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ct := strings.ToLower(f.ContentType)
+	if strings.Contains(ct, "application/pdf") {
+		v := strings.TrimSpace(f.FinalURL)
+		return nil, &v, nil
+	}
+	if strings.Contains(ct, "xml") {
+		v := strings.TrimSpace(f.FinalURL)
+		return &v, nil, nil
+	}
+
+	// If the fetched page is a known provider preview, try a provider-specific resolver again using the
+	// final URL (some short links resolve only after a HEAD/redirect trick).
+	if x, p, ok := resolveKnownProviderInvoiceLinksCtx(ctx, f.FinalURL); ok {
+		return x, p, nil
+	}
+
+	base, _ := url.Parse(f.FinalURL)
+	content := string(f.ResponseBody)
+
+	absURLRe := regexp.MustCompile(`https?://[^\s<>"'()]+`)
+	candidates := absURLRe.FindAllString(content, -1)
+
+	relHrefRe := regexp.MustCompile(`(?i)href\s*=\s*["']([^"']+)["']`)
+	for _, m := range relHrefRe.FindAllStringSubmatch(content, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		candidates = append(candidates, m[1])
+	}
+
+	clean := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.TrimRight(s, ">)].,;\"'")
+		return s
+	}
+	resolve := func(raw string) string {
+		raw = clean(raw)
+		if raw == "" {
+			return ""
+		}
+		u, err := url.Parse(raw)
+		if err != nil {
+			return ""
+		}
+		if !u.IsAbs() && base != nil {
+			u = base.ResolveReference(u)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return ""
+		}
+		return u.String()
+	}
+
+	bestPDF := ""
+	bestXML := ""
+
+	for _, raw := range candidates {
+		u := resolve(raw)
+		if u == "" {
+			continue
+		}
+		l := strings.ToLower(u)
+		if bestPDF == "" && strings.Contains(l, ".pdf") {
+			bestPDF = u
+		}
+		if bestXML == "" && strings.Contains(l, ".xml") {
+			bestXML = u
+		}
+		if bestPDF != "" && bestXML != "" {
+			break
+		}
+	}
+
+	if bestPDF != "" {
+		v := bestPDF
+		pdfURL = &v
+	}
+	if bestXML != "" {
+		v := bestXML
+		xmlURL = &v
+	}
+
+	if pdfURL == nil && xmlURL == nil {
+		return nil, nil, fmt.Errorf("no direct pdf/xml links found from preview page")
+	}
+	return xmlURL, pdfURL, nil
+}
+
+func resolveKnownProviderInvoiceLinksCtx(ctx context.Context, previewURL string) (xmlURL *string, pdfURL *string, ok bool) {
+	u, err := url.Parse(strings.TrimSpace(previewURL))
+	if err != nil || u == nil || u.Scheme == "" || u.Host == "" {
+		return nil, nil, false
+	}
+
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+
+	// Baiwang (百望云) short links: http(s)://u.baiwang.com/kXXXXX
+	// A HEAD request returns the final preview URL containing the "param=" token:
+	// https://pis.baiwang.com/smkp-vue/previewInvoiceAllEle?param=...
+	if host == "u.baiwang.com" && strings.HasPrefix(strings.TrimLeft(u.Path, "/"), "k") {
+		if finalURL, err := followHEADRedirectsCtx(ctx, u.String(), 2); err == nil && finalURL != "" {
+			u2, err2 := url.Parse(finalURL)
+			if err2 == nil && u2 != nil {
+				u = u2
+				host = strings.ToLower(strings.TrimSpace(u.Hostname()))
+			}
+		}
+	}
+
+	// Baiwang invoice preview: /smkp-vue/previewInvoiceAllEle?param=...
+	if host == "pis.baiwang.com" && strings.HasPrefix(strings.ToLower(u.Path), "/smkp-vue/previewinvoiceallele") {
+		param := strings.TrimSpace(u.Query().Get("param"))
+		if param == "" {
+			return nil, nil, false
+		}
+
+		// The preview page's "下载PDF/XML/OFD文件" buttons point to:
+		// /bwmg/mix/bw/downloadFormat?param=<param>&formatType=PDF|XML|OFD
+		base := &url.URL{Scheme: u.Scheme, Host: u.Host}
+		mk := func(format string) *string {
+			v := url.Values{}
+			v.Set("param", param)
+			v.Set("formatType", format)
+			rel := &url.URL{Path: "/bwmg/mix/bw/downloadFormat", RawQuery: v.Encode()}
+			out := base.ResolveReference(rel).String()
+			out = strings.TrimSpace(out)
+			if out == "" {
+				return nil
+			}
+			return &out
+		}
+
+		return mk("XML"), mk("PDF"), true
+	}
+
+	return nil, nil, false
+}
+
+func followHEADRedirectsCtx(ctx context.Context, rawURL string, max int) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return "", fmt.Errorf("empty url")
+	}
+	if max <= 0 {
+		return rawURL, nil
+	}
+
+	release, err := AcquireEmailDownload(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
+	client := &http.Client{
+		Timeout: 20 * time.Second,
+		// Don't automatically follow; we want to inspect Location and apply our own host checks.
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	cur := rawURL
+	for i := 0; i < max; i++ {
+		u, err := url.Parse(strings.TrimSpace(cur))
+		if err != nil {
+			return "", err
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return "", fmt.Errorf("unsupported scheme: %s", u.Scheme)
+		}
+		if u.Host == "" {
+			return "", fmt.Errorf("missing host")
+		}
+		if err := ensurePublicHost(u.Hostname()); err != nil {
+			return "", err
+		}
+
+		rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		req, err := http.NewRequestWithContext(rctx, http.MethodHead, u.String(), nil)
+		if err != nil {
+			cancel()
+			return "", err
+		}
+		req.Header.Set("User-Agent", "smart-bill-manager/1.0")
+
+		resp, err := client.Do(req)
+		cancel()
+		if err != nil {
+			return "", err
+		}
+		_ = resp.Body.Close()
+
+		if resp.StatusCode < 300 || resp.StatusCode >= 400 {
+			return cur, nil
+		}
+		loc := strings.TrimSpace(resp.Header.Get("Location"))
+		if loc == "" {
+			return cur, nil
+		}
+		next, err := url.Parse(loc)
+		if err != nil {
+			return "", err
+		}
+		if !next.IsAbs() {
+			next = u.ResolveReference(next)
+		}
+		cur = next.String()
+	}
+
+	return cur, nil
 }

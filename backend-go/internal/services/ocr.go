@@ -4646,7 +4646,164 @@ func normalizeInvoiceTextForPretty(text string) string {
 		}
 		out = append(out, s)
 	}
+
+	// Fix PyMuPDF zoned output when an invoice template has no password area.
+	// Some providers/templates omit the "密码区", but the fixed region split still emits a "【密码区】" block,
+	// and buyer info may be pushed into it, making the pretty zoned text misleading (even if the final
+	// extracted fields are correct).
+	out = fixInvoiceZonesForPretty(out)
+
 	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
+func fixInvoiceZonesForPretty(lines []string) []string {
+	isZoneHeader := func(s string) bool {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return false
+		}
+		if regexp.MustCompile(`^【第\d+页-分区】$`).MatchString(s) {
+			return true
+		}
+		return regexp.MustCompile(`^【[^】]{1,20}】$`).MatchString(s)
+	}
+	isPageHeader := func(s string) bool {
+		return regexp.MustCompile(`^【第\d+页-分区】$`).MatchString(strings.TrimSpace(s))
+	}
+	isLikelyPasswordBlock := func(block []string) bool {
+		if len(block) == 0 {
+			return false
+		}
+		s := strings.TrimSpace(strings.Join(block, " "))
+		if s == "" {
+			return false
+		}
+		// Explicit marker or typical encrypted patterns.
+		if strings.Contains(s, "密码区") || strings.Contains(s, "密 码 区") || strings.ContainsAny(s, "<>") {
+			return true
+		}
+		// Strong symbol density is a good hint for the encrypted password area.
+		// Avoid using "/" as a signal because many non-password invoices contain "税率/征收率".
+		if strings.Count(s, "*") >= 3 || strings.Count(s, "+") >= 2 {
+			return true
+		}
+		// If it contains typical buyer/seller fields, it's not a password area.
+		for _, badPwd := range []string{"纳税人识别号", "统一社会信用代码", "地址", "电话", "开户行", "项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率", "税额"} {
+			if strings.Contains(s, badPwd) {
+				return false
+			}
+		}
+		// Heuristic: password blocks have very low Han ratio and high digit/symbol ratio.
+		total := 0
+		han := 0
+		digitOrSym := 0
+		for _, r := range s {
+			if unicode.IsSpace(r) {
+				continue
+			}
+			total++
+			if unicode.Is(unicode.Han, r) {
+				han++
+				continue
+			}
+			if unicode.IsDigit(r) {
+				digitOrSym++
+				continue
+			}
+			switch r {
+			case '*', '/', '+', '-', '=', '_', '.', ',', ':', '：', '￥', '¥', '<', '>':
+				digitOrSym++
+			}
+		}
+		if total == 0 {
+			return false
+		}
+		hanRatio := float64(han) / float64(total)
+		dsRatio := float64(digitOrSym) / float64(total)
+		return dsRatio >= 0.45 && hanRatio <= 0.15
+	}
+
+	type seg struct {
+		header  string
+		content []string
+		removed bool
+	}
+
+	// If there are no zone headers, do nothing.
+	hasZone := false
+	for _, l := range lines {
+		if isZoneHeader(l) {
+			hasZone = true
+			break
+		}
+	}
+	if !hasZone {
+		return lines
+	}
+
+	segs := make([]seg, 0, 16)
+	cur := seg{}
+	flush := func() {
+		if cur.header == "" && len(cur.content) == 0 {
+			return
+		}
+		segs = append(segs, cur)
+		cur = seg{}
+	}
+	for _, l := range lines {
+		if isZoneHeader(l) {
+			flush()
+			cur.header = l
+			continue
+		}
+		cur.content = append(cur.content, l)
+	}
+	flush()
+
+	// Merge "【密码区】" into "【购买方】" when it doesn't look like a real password block.
+	for i := 0; i < len(segs); i++ {
+		if strings.TrimSpace(segs[i].header) != "【密码区】" {
+			continue
+		}
+		if isLikelyPasswordBlock(segs[i].content) {
+			continue
+		}
+
+		// Find the nearest buyer segment within the same page.
+		buyerIdx := -1
+		for j := i - 1; j >= 0; j-- {
+			if isPageHeader(segs[j].header) {
+				break
+			}
+			if strings.TrimSpace(segs[j].header) == "【购买方】" {
+				buyerIdx = j
+				break
+			}
+		}
+		if buyerIdx == -1 {
+			continue
+		}
+		segs[buyerIdx].content = append(segs[buyerIdx].content, segs[i].content...)
+		segs[i].removed = true
+	}
+
+	rebuilt := make([]string, 0, len(lines))
+	for _, s := range segs {
+		if s.removed {
+			continue
+		}
+		if strings.TrimSpace(s.header) != "" {
+			rebuilt = append(rebuilt, strings.TrimSpace(s.header))
+		}
+		for _, l := range s.content {
+			v := strings.TrimSpace(l)
+			if v == "" {
+				continue
+			}
+			rebuilt = append(rebuilt, v)
+		}
+	}
+	return rebuilt
 }
 
 func formatFloat2(v *float64) string {

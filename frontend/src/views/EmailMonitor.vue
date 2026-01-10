@@ -160,7 +160,7 @@
               <Tag v-else severity="secondary" :value="'\u65E0'" />
             </template>
           </Column>
-          <Column :header="'\u63A5\u6536\u65F6\u95F4'" :style="{ width: '170px' }">
+          <Column :header="'\u63A5\u6536\u65F6\u95F4'" :style="{ width: '190px' }">
             <template #body="{ data: row }">
               {{ row.received_date ? formatDateTime(row.received_date) : '-' }}
             </template>
@@ -723,7 +723,7 @@ const handleManualFullSync = async (id: string) => {
   }
 }
 
-const formatDateTime = (date: string) => dayjs(date).format('MM-DD HH:mm')
+const formatDateTime = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm')
 
 const pollTick = async () => {
   if (document.visibilityState !== 'visible') return

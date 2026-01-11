@@ -454,83 +454,116 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 	// Best-effort: fetch the page and try to discover direct download URLs.
 	previewResolveErr := ""
 	{
-		isDirectPDFURL := func(u string) bool {
-			l := strings.ToLower(strings.TrimSpace(u))
-			if l == "" {
-				return false
-			}
-			if strings.Contains(l, ".pdf") {
-				return true
-			}
-			if strings.Contains(l, "formattype=pdf") {
-				return true
-			}
-			return false
+		// If older builds persisted "invoice_pdf_url/xml_url" with a non-direct/irrelevant URL, do not let it block
+		// re-parsing. We'll treat such placeholders as candidates for preview resolving (or ignore if obviously bad).
+		if pdfURL != nil && isBadEmailPreviewURL(*pdfURL) {
+			pdfURL = nil
 		}
-		isDirectXMLURL := func(u string) bool {
-			l := strings.ToLower(strings.TrimSpace(u))
-			if l == "" {
-				return false
-			}
-			if strings.Contains(l, ".xml") {
-				return true
-			}
-			if strings.Contains(l, "formattype=xml") {
-				return true
-			}
-			if strings.Contains(l, ".zip") && strings.Contains(l, "/xml/") {
-				return true
-			}
-			return false
+		if xmlURL != nil && isBadEmailPreviewURL(*xmlURL) {
+			xmlURL = nil
 		}
 
-		previewURL := ""
-		// Prefer resolving from an existing URL that doesn't look like a direct PDF/XML download (common in Baiwang emails).
-		if previewURL == "" && pdfURL != nil && !isDirectPDFURL(*pdfURL) {
-			previewURL = strings.TrimSpace(*pdfURL)
-		}
-		if previewURL == "" && xmlURL != nil && !isDirectXMLURL(*xmlURL) {
-			previewURL = strings.TrimSpace(*xmlURL)
-		}
-		if previewURL == "" && pdfURL == nil && xmlURL == nil {
-			previewURL = firstURLFromText(bodyText)
-		}
+		needPDF := pdfBytes == nil && (pdfURL == nil || !isDirectInvoicePDFURL(*pdfURL))
+		needXML := xmlBytes == nil && (xmlURL == nil || !isDirectInvoiceXMLURL(*xmlURL))
+		if needPDF || needXML {
+			addCandidate := func(candidates *[]string, u string) {
+				u = strings.TrimSpace(u)
+				if u == "" || isBadEmailPreviewURL(u) {
+					return
+				}
+				for _, existing := range *candidates {
+					if strings.EqualFold(existing, u) {
+						return
+					}
+				}
+				*candidates = append(*candidates, u)
+			}
 
-		if strings.TrimSpace(previewURL) != "" {
-			resXML, resPDF, err := resolveInvoiceDownloadLinksFromPreviewURLCtx(ctx, previewURL)
-			if err == nil {
+			var previewCandidates []string
+			// Always prefer picking from body text (it tends to be the "real" invoice link shown to users).
+			addCandidate(&previewCandidates, bestPreviewURLFromText(bodyText))
+
+			// Include any persisted placeholder URLs as fallbacks.
+			if pdfURL != nil && !isDirectInvoicePDFURL(*pdfURL) {
+				addCandidate(&previewCandidates, *pdfURL)
+			}
+			if xmlURL != nil && !isDirectInvoiceXMLURL(*xmlURL) {
+				addCandidate(&previewCandidates, *xmlURL)
+			}
+
+			// Last resort: take the first URL in the email text.
+			if len(previewCandidates) == 0 {
+				addCandidate(&previewCandidates, firstURLFromText(bodyText))
+			}
+
+			var resolveErrs []string
+			for _, previewURL := range previewCandidates {
+				// Direct links: accept without extra fetching.
+				if needPDF && isDirectInvoicePDFURL(previewURL) {
+					pdfURL = ptrString(previewURL)
+					needPDF = false
+				}
+				if needXML && isDirectInvoiceXMLURL(previewURL) {
+					xmlURL = ptrString(previewURL)
+					needXML = false
+				}
+				if !needPDF && !needXML {
+					break
+				}
+
+				resXML, resPDF, err := resolveInvoiceDownloadLinksFromPreviewURLCtx(ctx, previewURL)
+				if err != nil {
+					resolveErrs = append(resolveErrs, fmt.Sprintf("%v (preview_url=%s)", err, previewURL))
+					continue
+				}
+
 				// Override preview-like placeholders with resolved direct download URLs.
-				if resXML != nil && strings.TrimSpace(*resXML) != "" && (xmlURL == nil || !isDirectXMLURL(*xmlURL)) {
+				if needXML && resXML != nil && strings.TrimSpace(*resXML) != "" {
 					xmlURL = resXML
+					needXML = false
 				}
-				if resPDF != nil && strings.TrimSpace(*resPDF) != "" && (pdfURL == nil || !isDirectPDFURL(*pdfURL)) {
+				if needPDF && resPDF != nil && strings.TrimSpace(*resPDF) != "" {
 					pdfURL = resPDF
+					needPDF = false
 				}
-				if (resXML != nil || resPDF != nil) && logID != "" {
-					_ = s.repo.UpdateLog(logID, map[string]interface{}{
-						"invoice_xml_url": func() interface{} {
-							if xmlURL == nil {
-								return nil
-							}
-							return *xmlURL
-						}(),
-						"invoice_pdf_url": func() interface{} {
-							if pdfURL == nil {
-								return nil
-							}
-							return *pdfURL
-						}(),
-					})
+				if !needPDF && !needXML {
+					break
 				}
-			} else {
-				previewResolveErr = err.Error()
+			}
+
+			if len(resolveErrs) > 0 && (needPDF || needXML) {
+				previewResolveErr = resolveErrs[len(resolveErrs)-1]
+			}
+
+			// Persist resolved direct links (or clear bad placeholders).
+			if logID != "" {
+				_ = s.repo.UpdateLog(logID, map[string]interface{}{
+					"invoice_xml_url": func() interface{} {
+						if xmlURL == nil {
+							return nil
+						}
+						if strings.TrimSpace(*xmlURL) == "" {
+							return nil
+						}
+						return *xmlURL
+					}(),
+					"invoice_pdf_url": func() interface{} {
+						if pdfURL == nil {
+							return nil
+						}
+						if strings.TrimSpace(*pdfURL) == "" {
+							return nil
+						}
+						return *pdfURL
+					}(),
+				})
 			}
 		}
 	}
 
 	// Ensure we have the PDF bytes for preview (either from attachment or from a PDF download link).
 	if pdfBytes == nil {
-		if pdfURL == nil {
+		if pdfURL == nil || !isDirectInvoicePDFURL(*pdfURL) {
 			if strings.TrimSpace(previewResolveErr) != "" {
 				previewResolveErr = strings.TrimSpace(previewResolveErr)
 				if len(previewResolveErr) > 240 {
@@ -1078,6 +1111,187 @@ func firstURLFromText(body string) string {
 		return u
 	}
 	return ""
+}
+
+func bestPreviewURLFromText(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+
+	urlRe := regexp.MustCompile(`https?://[^\s<>"'()]+`)
+	all := urlRe.FindAllString(body, -1)
+	if len(all) == 0 {
+		return ""
+	}
+
+	clean := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.TrimRight(s, ">)].,;\"'")
+		return s
+	}
+	isAssetURL := func(u string) bool {
+		l := strings.ToLower(u)
+		switch {
+		case strings.Contains(l, ".png"),
+			strings.Contains(l, ".jpg"),
+			strings.Contains(l, ".jpeg"),
+			strings.Contains(l, ".gif"),
+			strings.Contains(l, ".webp"),
+			strings.Contains(l, ".svg"),
+			strings.Contains(l, ".css"),
+			strings.Contains(l, ".js"),
+			strings.Contains(l, ".woff"),
+			strings.Contains(l, ".woff2"),
+			strings.Contains(l, ".ttf"):
+			return true
+		default:
+			return false
+		}
+	}
+
+	best := ""
+	bestScore := -1 << 30
+
+	for _, raw := range all {
+		uRaw := clean(raw)
+		if uRaw == "" {
+			continue
+		}
+		u, err := url.Parse(uRaw)
+		if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			continue
+		}
+
+		l := strings.ToLower(uRaw)
+		score := 0
+
+		// De-prioritize assets/tracking links.
+		if isAssetURL(l) {
+			score -= 1000
+		}
+
+		// Prefer known providers.
+		host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+		switch host {
+		case "pis.baiwang.com":
+			score += 500
+		case "u.baiwang.com":
+			score += 450
+		case "nnfp.jss.com.cn":
+			score += 400
+		case "of1.cn":
+			score += 390
+		}
+
+		// Prefer provider-specific preview pages.
+		if strings.Contains(l, "previewinvoiceallele") {
+			score += 250
+		}
+		if strings.Contains(l, "/scan-invoice/printqrcode") && strings.Contains(l, "paramlist=") {
+			score += 250
+		}
+
+		// Prefer direct links.
+		if strings.Contains(l, ".pdf") || strings.Contains(l, "formattype=pdf") {
+			score += 900
+		}
+		if strings.Contains(l, ".xml") || strings.Contains(l, "formattype=xml") {
+			score += 850
+		}
+
+		// Prefer likely identifier-bearing URLs.
+		if strings.Contains(l, "param=") {
+			score += 120
+		}
+		if strings.Contains(l, "paramlist=") {
+			score += 120
+		}
+
+		// De-prioritize generic landing pages.
+		if strings.Contains(l, "/scan-invoice/invoiceshow") {
+			score -= 200
+		}
+
+		if score > bestScore || (score == bestScore && best != "" && len(uRaw) < len(best)) {
+			bestScore = score
+			best = uRaw
+		}
+	}
+
+	return best
+}
+
+func isDirectInvoicePDFURL(u string) bool {
+	l := strings.ToLower(strings.TrimSpace(u))
+	if l == "" {
+		return false
+	}
+	if strings.Contains(l, ".pdf") {
+		return true
+	}
+	// Baiwang download endpoint: .../downloadFormat?...&formatType=PDF
+	if strings.Contains(l, "formattype=pdf") {
+		return true
+	}
+	return false
+}
+
+func isDirectInvoiceXMLURL(u string) bool {
+	l := strings.ToLower(strings.TrimSpace(u))
+	if l == "" {
+		return false
+	}
+	if strings.Contains(l, ".xml") {
+		return true
+	}
+	// Baiwang download endpoint: .../downloadFormat?...&formatType=XML
+	if strings.Contains(l, "formattype=xml") {
+		return true
+	}
+	// Some providers ship XML inside a zip, typically with a /xml/ path segment.
+	if strings.Contains(l, ".zip") && strings.Contains(l, "/xml/") {
+		return true
+	}
+	return false
+}
+
+func isBadEmailPreviewURL(u string) bool {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return true
+	}
+	l := strings.ToLower(u)
+
+	// Ignore obvious asset links.
+	switch {
+	case strings.Contains(l, ".png"),
+		strings.Contains(l, ".jpg"),
+		strings.Contains(l, ".jpeg"),
+		strings.Contains(l, ".gif"),
+		strings.Contains(l, ".webp"),
+		strings.Contains(l, ".svg"),
+		strings.Contains(l, ".css"),
+		strings.Contains(l, ".js"),
+		strings.Contains(l, ".woff"),
+		strings.Contains(l, ".woff2"),
+		strings.Contains(l, ".ttf"):
+		return true
+	}
+
+	pu, err := url.Parse(u)
+	if err != nil || pu == nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(pu.Hostname()))
+	pathLower := strings.ToLower(strings.TrimSpace(pu.Path))
+
+	// NuoNuo generic landing page (not invoice-specific).
+	if host == "nnfp.jss.com.cn" && strings.HasPrefix(pathLower, "/scan-invoice/invoiceshow") {
+		return true
+	}
+
+	return false
 }
 
 type fetchedURL struct {

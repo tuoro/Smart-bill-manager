@@ -27,6 +27,15 @@ type tripExportInvoice struct {
 	CreatedAt     time.Time
 }
 
+type tripExportInvoiceAttachment struct {
+	ID           string
+	InvoiceID    string
+	Kind         string
+	OriginalName string
+	FilePath     string
+	CreatedAt    time.Time
+}
+
 func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID string, tripID string) (*ZipStream, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	tripID = strings.TrimSpace(tripID)
@@ -98,6 +107,7 @@ func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID stri
 	}
 
 	invByID := map[string]tripExportInvoice{}
+	attachByInvID := map[string][]tripExportInvoiceAttachment{}
 	if len(invoiceIDs) > 0 {
 		var invoices []models.Invoice
 		if err := db.Model(&models.Invoice{}).
@@ -125,6 +135,25 @@ func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID stri
 				InvoiceDate:   inv.InvoiceDate,
 				SellerName:    inv.SellerName,
 				CreatedAt:     inv.CreatedAt,
+			}
+		}
+
+		var atts []models.InvoiceAttachment
+		if err := db.Model(&models.InvoiceAttachment{}).
+			Select([]string{"id", "invoice_id", "kind", "original_name", "file_path", "created_at"}).
+			Where("owner_user_id = ?", ownerUserID).
+			Where("invoice_id IN ?", invoiceIDs).
+			Order("created_at ASC, id ASC").
+			Find(&atts).Error; err == nil {
+			for _, a := range atts {
+				attachByInvID[a.InvoiceID] = append(attachByInvID[a.InvoiceID], tripExportInvoiceAttachment{
+					ID:           a.ID,
+					InvoiceID:    a.InvoiceID,
+					Kind:         strings.TrimSpace(a.Kind),
+					OriginalName: a.OriginalName,
+					FilePath:     a.FilePath,
+					CreatedAt:    a.CreatedAt,
+				})
 			}
 		}
 	}
@@ -234,6 +263,37 @@ func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID stri
 					name := fmt.Sprintf("invoice_%s_%s%s", sub, label, ext)
 					if err := zipAddFile(ctx, zw, paymentDir+name, abs); err != nil {
 						warnings = append(warnings, fmt.Sprintf("invoice %s read failed: %s (%v)", inv.ID, stored, err))
+					}
+
+					// Extra invoice attachments (e.g. itinerary PDFs).
+					if atts := attachByInvID[inv.ID]; len(atts) > 0 {
+						for k, a := range atts {
+							if err := ctx.Err(); err != nil {
+								return err
+							}
+							storedA := strings.TrimSpace(a.FilePath)
+							if storedA == "" {
+								continue
+							}
+							absA, err := resolveUploadsFilePathAbs(s.uploadsDir, storedA)
+							if err != nil {
+								warnings = append(warnings, fmt.Sprintf("invoice %s attachment %s path invalid: %s (%v)", inv.ID, a.ID, storedA, err))
+								continue
+							}
+							extA := filepath.Ext(a.OriginalName)
+							if extA == "" {
+								extA = fileExtOrDefault(storedA, ".pdf")
+							}
+							baseA := sanitizeZipComponent(strings.TrimSuffix(a.OriginalName, extA), 60)
+							kindA := sanitizeZipComponent(a.Kind, 16)
+							if kindA == "" {
+								kindA = "attachment"
+							}
+							nameA := fmt.Sprintf("invoice_%s_%s_%02d_%s%s", sub, kindA, k+1, baseA, extA)
+							if err := zipAddFile(ctx, zw, paymentDir+nameA, absA); err != nil {
+								warnings = append(warnings, fmt.Sprintf("invoice %s attachment %s read failed: %s (%v)", inv.ID, a.ID, storedA, err))
+							}
+						}
 					}
 				}
 			}

@@ -21,6 +21,7 @@ import (
 type InvoiceService struct {
 	repo       *repository.InvoiceRepository
 	blobRepo   *repository.OCRBlobRepository
+	attachRepo *repository.InvoiceAttachmentRepository
 	ocrService *OCRService
 	uploadsDir string
 }
@@ -29,6 +30,7 @@ func NewInvoiceService(uploadsDir string) *InvoiceService {
 	return &InvoiceService{
 		repo:       repository.NewInvoiceRepository(),
 		blobRepo:   repository.NewOCRBlobRepository(),
+		attachRepo: repository.NewInvoiceAttachmentRepository(),
 		ocrService: NewOCRService(),
 		uploadsDir: uploadsDir,
 	}
@@ -492,6 +494,11 @@ func (s *InvoiceService) GetByIDCtx(ctx context.Context, ownerUserID string, id 
 		inv.ExtractedData = blob.ExtractedData
 		inv.RawText = blob.RawText
 	}
+	if s.attachRepo != nil {
+		if rows, err := s.attachRepo.FindByInvoiceIDForOwnerCtx(ctx, strings.TrimSpace(ownerUserID), inv.ID); err == nil {
+			inv.Attachments = rows
+		}
+	}
 	return inv, nil
 }
 
@@ -514,6 +521,87 @@ type UpdateInvoiceInput struct {
 	BuyerName          *string  `json:"buyer_name"`
 	Confirm            *bool    `json:"confirm"`
 	ForceDuplicateSave *bool    `json:"force_duplicate_save"`
+}
+
+type CreateInvoiceAttachmentInput struct {
+	Kind         string
+	Filename     string
+	OriginalName string
+	FilePath     string
+	FileSize     *int64
+	FileSHA256   *string
+	Source       string
+}
+
+func (s *InvoiceService) CreateAttachmentCtx(ctx context.Context, ownerUserID string, invoiceID string, input CreateInvoiceAttachmentInput) (*models.InvoiceAttachment, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	if ownerUserID == "" || invoiceID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if s.attachRepo == nil {
+		return nil, fmt.Errorf("attachment repository not available")
+	}
+
+	kind := strings.TrimSpace(input.Kind)
+	if kind == "" {
+		kind = "attachment"
+	}
+	source := strings.TrimSpace(input.Source)
+	if source == "" {
+		source = "email"
+	}
+
+	a := &models.InvoiceAttachment{
+		ID:           utils.GenerateUUID(),
+		OwnerUserID:  ownerUserID,
+		InvoiceID:    invoiceID,
+		Kind:         kind,
+		Filename:     strings.TrimSpace(input.Filename),
+		OriginalName: strings.TrimSpace(input.OriginalName),
+		FilePath:     strings.TrimSpace(input.FilePath),
+		FileSize:     input.FileSize,
+		FileSHA256:   input.FileSHA256,
+		Source:       source,
+	}
+	if a.Filename == "" || a.OriginalName == "" || a.FilePath == "" {
+		return nil, fmt.Errorf("missing attachment file fields")
+	}
+
+	// Best-effort dedup per invoice by sha.
+	if a.FileSHA256 != nil && strings.TrimSpace(*a.FileSHA256) != "" {
+		var cnt int64
+		_ = database.GetDB().WithContext(ctx).
+			Model(&models.InvoiceAttachment{}).
+			Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
+			Count(&cnt).Error
+		if cnt > 0 {
+			return a, nil
+		}
+	}
+
+	if err := s.attachRepo.CreateCtx(ctx, a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+func (s *InvoiceService) GetAttachmentByIDCtx(ctx context.Context, ownerUserID string, attachmentID string) (*models.InvoiceAttachment, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	attachmentID = strings.TrimSpace(attachmentID)
+	if ownerUserID == "" || attachmentID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if s.attachRepo == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return s.attachRepo.FindByIDForOwnerCtx(ctx, ownerUserID, attachmentID)
 }
 
 func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoiceInput) error {
@@ -706,9 +794,16 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 		return gorm.ErrRecordNotFound
 	}
 	// Get invoice first to delete file
+	ctx := context.Background()
 	invoice, err := s.repo.FindByIDForOwner(ownerUserID, id)
 	if err != nil {
 		return err
+	}
+	var attachments []models.InvoiceAttachment
+	if s.attachRepo != nil {
+		if rows, err := s.attachRepo.FindByInvoiceIDForOwnerCtx(ctx, ownerUserID, id); err == nil {
+			attachments = rows
+		}
 	}
 
 	affectedTrips := make([]string, 0, 4)
@@ -733,11 +828,22 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 		filePath = filepath.Join(s.uploadsDir, "..", filePath)
 	}
 	_ = os.Remove(filePath) // Ignore error if file doesn't exist
+	for _, a := range attachments {
+		p := strings.TrimSpace(a.FilePath)
+		if p == "" {
+			continue
+		}
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(s.uploadsDir, "..", p)
+		}
+		_ = os.Remove(p)
+	}
 
 	// Delete invoice + links atomically.
 	db := database.GetDB()
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		_ = tx.Where("invoice_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
+		_ = tx.Where("owner_user_id = ? AND invoice_id = ?", ownerUserID, id).Delete(&models.InvoiceAttachment{}).Error
 		_ = s.blobRepo.DeleteInvoiceBlob(tx, ownerUserID, id)
 		if err := tx.Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.Invoice{}).Error; err != nil {
 			return err

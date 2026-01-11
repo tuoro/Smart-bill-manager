@@ -42,6 +42,7 @@ func main() {
 		&models.Payment{},
 		&models.Trip{},
 		&models.Invoice{},
+		&models.InvoiceAttachment{},
 		&models.InvoiceOCRBlob{},
 		&models.PaymentOCRBlob{},
 		&models.InvoicePaymentLink{},

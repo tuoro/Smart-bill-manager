@@ -61,6 +61,7 @@ func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/:id", h.GetByID)
 	r.GET("/:id/file", h.GetFile)
 	r.GET("/:id/download", h.Download)
+	r.GET("/:id/attachments/:attachmentId/download", h.DownloadAttachment)
 	r.GET("/:id/linked-payments", h.GetLinkedPayments)
 	r.GET("/:id/suggest-payments", h.SuggestPayments)
 	r.GET("/payment/:paymentId", h.GetByPaymentID)
@@ -244,6 +245,57 @@ func (h *InvoiceHandler) Download(c *gin.Context) {
 
 	c.Header("Content-Disposition", "attachment; filename="+invoice.OriginalName)
 	c.Header("Content-Type", contentTypeFromInvoiceFilename(invoice.Filename))
+	c.File(filePath)
+}
+
+func (h *InvoiceHandler) DownloadAttachment(c *gin.Context) {
+	invoiceID := strings.TrimSpace(c.Param("id"))
+	attachmentID := strings.TrimSpace(c.Param("attachmentId"))
+	if invoiceID == "" || attachmentID == "" {
+		utils.Error(c, 400, "missing id", nil)
+		return
+	}
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	ownerUserID := middleware.GetEffectiveUserID(c)
+	// Ensure invoice exists and belongs to owner.
+	if _, err := h.invoiceService.GetByIDCtx(ctx, ownerUserID, invoiceID); err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
+		utils.Error(c, 404, "invoice not found", nil)
+		return
+	}
+
+	a, err := h.invoiceService.GetAttachmentByIDCtx(ctx, ownerUserID, attachmentID)
+	if err != nil || a == nil || strings.TrimSpace(a.InvoiceID) != invoiceID {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
+		utils.Error(c, 404, "attachment not found", nil)
+		return
+	}
+
+	filePath := strings.TrimSpace(a.FilePath)
+	if filePath == "" {
+		utils.Error(c, 404, "file not found", nil)
+		return
+	}
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(h.uploadsDir, "..", filePath)
+	}
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		utils.Error(c, 404, "file not found", nil)
+		return
+	}
+
+	name := strings.TrimSpace(a.OriginalName)
+	if name == "" {
+		name = a.Filename
+	}
+	c.Header("Content-Disposition", "attachment; filename="+name)
+	c.Header("Content-Type", contentTypeFromInvoiceFilename(a.Filename))
 	c.File(filePath)
 }
 

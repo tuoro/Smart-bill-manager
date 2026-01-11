@@ -30,11 +30,31 @@ type Invoice struct {
 	Source         string    `json:"source" gorm:"default:upload"`
 	DedupStatus    string    `json:"dedup_status" gorm:"not null;default:ok;index"`
 	DedupRefID     *string   `json:"dedup_ref_id" gorm:"index"`
+	Attachments    []InvoiceAttachment `json:"attachments,omitempty" gorm:"-"`
 	CreatedAt      time.Time `json:"created_at" gorm:"autoCreateTime"`
 }
 
 func (Invoice) TableName() string {
 	return "invoices"
+}
+
+// InvoiceAttachment represents an extra file associated with an invoice (e.g. itinerary PDF).
+type InvoiceAttachment struct {
+	ID           string    `json:"id" gorm:"primaryKey"`
+	OwnerUserID  string    `json:"owner_user_id" gorm:"not null;default:'';index"`
+	InvoiceID    string    `json:"invoice_id" gorm:"not null;index"`
+	Kind         string    `json:"kind" gorm:"not null;default:attachment;index"` // itinerary|attachment
+	Filename     string    `json:"filename" gorm:"not null"`
+	OriginalName string    `json:"original_name" gorm:"not null"`
+	FilePath     string    `json:"file_path" gorm:"not null"`
+	FileSize     *int64    `json:"file_size"`
+	FileSHA256   *string   `json:"file_sha256" gorm:"index"`
+	Source       string    `json:"source" gorm:"default:email"`
+	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
+}
+
+func (InvoiceAttachment) TableName() string {
+	return "invoice_attachments"
 }
 
 // InvoicePaymentLink represents the many-to-many relationship between invoices and payments

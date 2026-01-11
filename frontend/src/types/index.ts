@@ -105,9 +105,23 @@ export interface Invoice {
   parse_status?: string;
   parse_error?: string;
   raw_text?: string;
+  attachments?: InvoiceAttachment[];
   source?: string;
   dedup_status?: string;
   dedup_ref_id?: string;
+  created_at?: string;
+}
+
+export interface InvoiceAttachment {
+  id: string;
+  invoice_id: string;
+  kind: string;
+  filename: string;
+  original_name: string;
+  file_path: string;
+  file_size?: number;
+  file_sha256?: string;
+  source?: string;
   created_at?: string;
 }
 

@@ -80,12 +80,51 @@ func isPDFEmailHeader(h emailHeaderLike) (isPDF bool, filename string) {
 	return false, filename
 }
 
-func extractInvoicePDFAndBodyTextFromEmail(mr *mail.Reader) (pdfFilename string, pdfBytes []byte, bodyText string, err error) {
+func isXMLEmailHeader(h emailHeaderLike) (isXML bool, filename string) {
+	if h == nil {
+		return false, ""
+	}
+	ct, _, _ := h.ContentType()
+	ct = strings.ToLower(strings.TrimSpace(ct))
+	filename = strings.TrimSpace(extractFilenameFromEmailHeader(h))
+	filenameLower := strings.ToLower(filename)
+	if strings.Contains(ct, "xml") {
+		return true, filename
+	}
+	if strings.HasSuffix(filenameLower, ".xml") || strings.Contains(filenameLower, ".xml?") {
+		return true, filename
+	}
+	return false, filename
+}
+
+type emailBinaryAttachment struct {
+	Filename string
+	Bytes    []byte
+}
+
+func isItineraryPDFName(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if n == "" {
+		return false
+	}
+	// Common wording in Chinese invoice emails.
+	if strings.Contains(n, "行程单") || strings.Contains(n, "电子行程单") {
+		return true
+	}
+	// Some providers use English.
+	if strings.Contains(n, "itinerary") {
+		return true
+	}
+	return false
+}
+
+func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfBytes []byte, xmlBytes []byte, itineraryPDFs []emailBinaryAttachment, bodyText string, err error) {
 	if mr == nil {
-		return "", nil, "", fmt.Errorf("nil mail reader")
+		return "", nil, nil, nil, "", fmt.Errorf("nil mail reader")
 	}
 
 	textParts := make([]string, 0, 8)
+	pdfParts := make([]emailBinaryAttachment, 0, 4)
 
 	for {
 		part, err := mr.NextPart()
@@ -93,34 +132,56 @@ func extractInvoicePDFAndBodyTextFromEmail(mr *mail.Reader) (pdfFilename string,
 			break
 		}
 		if err != nil {
-			return "", nil, "", err
+			return "", nil, nil, nil, "", err
 		}
 
 		switch h := part.Header.(type) {
 		case *mail.AttachmentHeader:
 			filename, _ := h.Filename()
-			if ok, hinted := isPDFEmailHeader(h); ok && pdfBytes == nil {
+			if ok, hinted := isPDFEmailHeader(h); ok {
 				if strings.TrimSpace(filename) == "" {
 					filename = hinted
 				}
 				b, err := readWithLimit(part.Body, emailParseMaxPDFBytes)
 				if err != nil {
-					return "", nil, "", err
+					return "", nil, nil, nil, "", err
 				}
-				pdfFilename = filename
-				pdfBytes = b
+				pdfParts = append(pdfParts, emailBinaryAttachment{Filename: filename, Bytes: b})
+				continue
+			}
+			if xmlBytes == nil {
+				if ok, hinted := isXMLEmailHeader(h); ok {
+					if strings.TrimSpace(filename) == "" {
+						filename = hinted
+					}
+					b, err := readWithLimit(part.Body, emailParseMaxXMLBytes)
+					if err != nil {
+						return "", nil, nil, nil, "", err
+					}
+					xmlBytes = b
+					continue
+				}
 			}
 		case *mail.InlineHeader:
 			// Some providers mark PDF attachments as inline (Content-Disposition: inline),
 			// which `go-message/mail` surfaces as InlineHeader instead of AttachmentHeader.
-			if ok, filename := isPDFEmailHeader(h); ok && pdfBytes == nil {
+			if ok, filename := isPDFEmailHeader(h); ok {
 				b, err := readWithLimit(part.Body, emailParseMaxPDFBytes)
 				if err != nil {
-					return "", nil, "", err
+					return "", nil, nil, nil, "", err
 				}
-				pdfFilename = filename
-				pdfBytes = b
-				break
+				pdfParts = append(pdfParts, emailBinaryAttachment{Filename: filename, Bytes: b})
+				continue
+			}
+			if xmlBytes == nil {
+				if ok, _ := isXMLEmailHeader(h); ok {
+					b, err := readWithLimit(part.Body, emailParseMaxXMLBytes)
+					if err != nil {
+						return "", nil, nil, nil, "", err
+					}
+					xmlBytes = b
+					continue
+				}
 			}
 			// Otherwise treat as inline body text for link parsing.
 			if len(textParts) < 12 {
@@ -144,7 +205,44 @@ func extractInvoicePDFAndBodyTextFromEmail(mr *mail.Reader) (pdfFilename string,
 		}
 	}
 
-	return pdfFilename, pdfBytes, strings.Join(textParts, "\n"), nil
+	// Choose the best PDF as the actual invoice PDF; keep itinerary PDFs as extra attachments.
+	if len(pdfParts) > 0 {
+		bestIdx := 0
+		bestScore := -9999
+		for i, p := range pdfParts {
+			n := strings.ToLower(strings.TrimSpace(p.Filename))
+			score := 0
+			if strings.Contains(n, "电子发票") {
+				score += 40
+			}
+			if strings.Contains(n, "发票") {
+				score += 25
+			}
+			if isItineraryPDFName(n) {
+				score -= 80
+			}
+			if strings.HasSuffix(n, ".pdf") {
+				score += 1
+			}
+			if score > bestScore {
+				bestScore = score
+				bestIdx = i
+			}
+		}
+
+		pdfFilename = pdfParts[bestIdx].Filename
+		pdfBytes = pdfParts[bestIdx].Bytes
+		for i, p := range pdfParts {
+			if i == bestIdx {
+				continue
+			}
+			if isItineraryPDFName(p.Filename) {
+				itineraryPDFs = append(itineraryPDFs, p)
+			}
+		}
+	}
+
+	return pdfFilename, pdfBytes, xmlBytes, itineraryPDFs, strings.Join(textParts, "\n"), nil
 }
 
 func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.Invoice, error) {
@@ -294,9 +392,11 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 	var (
 		pdfFilename string
 		pdfBytes    []byte
+		xmlBytes    []byte
+		itineraryPDFs []emailBinaryAttachment
 	)
 
-	pdfFilename, pdfBytes, bodyText, err := extractInvoicePDFAndBodyTextFromEmail(mr)
+	pdfFilename, pdfBytes, xmlBytes, itineraryPDFs, bodyText, err := extractInvoiceArtifactsFromEmail(mr)
 	if err != nil {
 		_ = s.repo.UpdateLog(logID, map[string]interface{}{
 			"status":      "error",
@@ -405,7 +505,19 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 
 	// Prefer XML for invoice fields/items if available.
 	var inv *models.Invoice
-	if xmlURL != nil && strings.TrimSpace(*xmlURL) != "" {
+	if xmlBytes != nil {
+		if extracted, err2 := parseInvoiceXMLToExtracted(xmlBytes); err2 == nil {
+			inv, err = s.invoiceService.CreateFromExtracted(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
+				Filename:     savedFilename,
+				OriginalName: pdfFilename,
+				FilePath:     relPath,
+				FileSize:     size,
+				FileSHA256:   sha,
+				Source:       "email",
+			}, *extracted)
+		}
+	}
+	if inv == nil && xmlURL != nil && strings.TrimSpace(*xmlURL) != "" {
 		xmlBytes, err := downloadURLWithLimit(*xmlURL, emailParseMaxXMLBytes)
 		if err == nil {
 			if extracted, err2 := parseInvoiceXMLToExtracted(xmlBytes); err2 == nil {
@@ -417,40 +529,50 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 					FileSHA256:   sha,
 					Source:       "email",
 				}, *extracted)
-				if err == nil {
-					_ = s.repo.UpdateLog(logID, map[string]interface{}{
-						"status":            "parsed",
-						"parse_error":       nil,
-						"parsed_invoice_id": inv.ID,
-						"invoice_xml_url":   *xmlURL,
-						"invoice_pdf_url": func() interface{} {
-							if pdfURL == nil {
-								return nil
-							}
-							return *pdfURL
-						}(),
-					})
-					return inv, nil
-				}
 			}
 		}
 	}
 
-	// Fallback: parse PDF (OCR/PDF extract) if XML is unavailable or failed.
-	inv, err = s.invoiceService.Create(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
-		Filename:     savedFilename,
-		OriginalName: pdfFilename,
-		FilePath:     relPath,
-		FileSize:     size,
-		FileSHA256:   sha,
-		Source:       "email",
-	})
-	if err != nil {
-		_ = s.repo.UpdateLog(logID, map[string]interface{}{
-			"status":      "error",
-			"parse_error": fmt.Sprintf("create invoice failed: %v", err),
+	if inv == nil {
+		// Fallback: parse PDF (OCR/PDF extract) if XML is unavailable or failed.
+		inv, err = s.invoiceService.Create(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
+			Filename:     savedFilename,
+			OriginalName: pdfFilename,
+			FilePath:     relPath,
+			FileSize:     size,
+			FileSHA256:   sha,
+			Source:       "email",
 		})
-		return nil, err
+		if err != nil {
+			_ = s.repo.UpdateLog(logID, map[string]interface{}{
+				"status":      "error",
+				"parse_error": fmt.Sprintf("create invoice failed: %v", err),
+			})
+			return nil, err
+		}
+	}
+
+	// Save extra itinerary PDFs (optional).
+	if len(itineraryPDFs) > 0 && s.invoiceService != nil && inv != nil {
+		for _, a := range itineraryPDFs {
+			name := strings.TrimSpace(a.Filename)
+			if name == "" {
+				name = "itinerary.pdf"
+			}
+			saved, p, sz, sh, err2 := s.savePDFToUploads(strings.TrimSpace(logRow.OwnerUserID), name, a.Bytes)
+			if err2 != nil {
+				continue
+			}
+			_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), inv.ID, CreateInvoiceAttachmentInput{
+				Kind:         "itinerary",
+				Filename:     saved,
+				OriginalName: name,
+				FilePath:     p,
+				FileSize:     &sz,
+				FileSHA256:   sh,
+				Source:       "email",
+			})
+		}
 	}
 
 	_ = s.repo.UpdateLog(logID, map[string]interface{}{

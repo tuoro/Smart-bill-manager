@@ -396,6 +396,28 @@
                 <Message v-else severity="secondary" :closable="false">暂无可预览的发票文件。</Message>
               </div>
             </div>
+
+            <div v-if="previewInvoice.attachments?.length" class="invoice-attachments">
+              <div class="raw-title">附件</div>
+              <div class="invoice-attachments-box">
+                <div v-for="a in previewInvoice.attachments" :key="a.id" class="invoice-attachment-row">
+                  <div class="invoice-attachment-name">
+                    <i class="pi pi-paperclip" />
+                    <span class="sbm-ellipsis" :title="a.original_name || a.filename">{{ a.original_name || a.filename }}</span>
+                  </div>
+                  <div class="invoice-attachment-actions">
+                    <Tag v-if="a.kind" severity="secondary" :value="formatAttachmentKind(a.kind)" />
+                    <Button
+                      class="p-button-outlined p-button-sm"
+                      severity="secondary"
+                      icon="pi pi-download"
+                      :label="'下载'"
+                      @click="downloadAttachment(previewInvoice, a)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="invoice-detail-right">
@@ -658,7 +680,7 @@ import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { debounce } from '@/utils/debounce'
 import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
-import type { Invoice, Payment, DedupHint } from '@/types'
+import type { Invoice, Payment, DedupHint, InvoiceAttachment } from '@/types'
 
 interface InvoiceExtractedData {
   invoice_number?: string
@@ -1348,7 +1370,7 @@ const handleDelete = async (id: string) => {
 
 const openPreview = async (invoice: Invoice) => {
   let full = invoice
-  if (invoice?.id && (!invoice?.raw_text || !invoice?.extracted_data)) {
+  if (invoice?.id) {
     try {
       const res = await invoiceApi.getById(invoice.id)
       if (res.data?.success && res.data?.data) full = res.data.data
@@ -1378,6 +1400,26 @@ const downloadFile = async (invoice: Invoice) => {
     window.setTimeout(() => revokeObjectUrl(url), 60_000)
   } catch (err) {
     console.warn('Download invoice file failed:', err)
+  }
+}
+
+const formatAttachmentKind = (kind?: string) => {
+  const k = String(kind || '').trim().toLowerCase()
+  if (!k) return ''
+  if (k === 'itinerary') return '电子行程单'
+  return kind || ''
+}
+
+const downloadAttachment = async (invoice: Invoice, attachment: InvoiceAttachment) => {
+  if (typeof window === 'undefined') return
+  if (!invoice?.id || !attachment?.id) return
+  try {
+    const res = await invoiceApi.getAttachmentBlob(invoice.id, attachment.id)
+    const url = URL.createObjectURL(res.data as Blob)
+    window.open(url, '_blank')
+    window.setTimeout(() => revokeObjectUrl(url), 60_000)
+  } catch (err) {
+    console.warn('Download invoice attachment failed:', err)
   }
 }
 
@@ -2146,6 +2188,47 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   overflow: hidden;
   padding: 10px;
+}
+
+.invoice-attachments {
+  margin-top: 10px;
+}
+
+.invoice-attachments-box {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invoice-attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.invoice-attachment-name {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.invoice-attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .invoice-image :deep(img) {

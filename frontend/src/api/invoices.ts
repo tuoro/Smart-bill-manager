@@ -100,4 +100,7 @@ export const invoiceApi = {
 
   getFileBlob: (invoiceId: string, config?: AxiosRequestConfig) =>
     api.get(`/invoices/${invoiceId}/file`, { responseType: 'blob', ...(config || {}) }),
+
+  getAttachmentBlob: (invoiceId: string, attachmentId: string, config?: AxiosRequestConfig) =>
+    api.get<Blob>(`/invoices/${invoiceId}/attachments/${attachmentId}/download`, { responseType: 'blob', ...(config || {}) }),
 }

@@ -125,7 +125,13 @@
       <template #title>
         <div class="panel-title">
           <span>&#37038;&#20214;&#22788;&#29702;&#26085;&#24535;</span>
-          <Button :label="'\u5237\u65B0'" icon="pi pi-refresh" class="p-button-outlined" @click="loadLogs" />
+          <Button
+            :label="'\u5237\u65B0'"
+            icon="pi pi-refresh"
+            class="p-button-outlined"
+            :loading="refreshingLogs"
+            @click="refreshAllLogs"
+          />
         </div>
       </template>
       <template #content>
@@ -486,6 +492,50 @@ const loadMonitorStatus = async (): Promise<boolean> => {
 
 const loadAll = async () => {
   await Promise.all([loadConfigs(), loadLogs(), loadMonitorStatus()])
+}
+
+const refreshingLogs = ref(false)
+
+const refreshAllLogs = async () => {
+  refreshingLogs.value = true
+  try {
+    if (!configs.value.length) {
+      await loadConfigs()
+    }
+    if (!configs.value.length) {
+      toast.add({ severity: 'info', summary: '暂无邮箱配置', life: 2000 })
+      return
+    }
+
+    let ok = 0
+    let totalNew = 0
+    const failed: string[] = []
+
+    for (const cfg of configs.value) {
+      try {
+        const res = await emailApi.manualFullSync(cfg.id)
+        if (res.data?.success) {
+          ok++
+          totalNew += res.data.data?.newEmails || 0
+        } else {
+          failed.push(cfg.email || cfg.id)
+        }
+      } catch {
+        failed.push(cfg.email || cfg.id)
+      }
+    }
+
+    await Promise.all([loadLogs(), loadConfigs(), loadMonitorStatus()])
+
+    if (failed.length === 0) {
+      toast.add({ severity: 'success', summary: `刷新完成（新增 ${totalNew}）`, life: 2500 })
+    } else {
+      toast.add({ severity: 'warn', summary: `刷新完成（成功 ${ok}/${configs.value.length}）`, life: 3500 })
+      notifications.add({ severity: 'warn', title: '部分邮箱刷新失败', detail: failed.slice(0, 3).join('，') })
+    }
+  } finally {
+    refreshingLogs.value = false
+  }
 }
 
 const getLogStatusSeverity = (status: string) => {

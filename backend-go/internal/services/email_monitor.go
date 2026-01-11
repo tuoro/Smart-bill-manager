@@ -480,7 +480,7 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 			errCh <- c.UidFetch(seqSet, items, messages)
 		}()
 		for msg := range messages {
-			if s.processMessage(ownerUserID, configID, msg, nil) {
+			if s.processMessage(ownerUserID, configID, msg, nil, full) {
 				newLogs++
 			}
 			if !full && msg != nil {
@@ -556,6 +556,42 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 	return newLogs, nil
 }
 
+func computeEmailLogMetadataUpdates(existing *models.EmailLog, hasAttachment int, attachmentCount int, xmlURL *string, pdfURL *string, forceRefresh bool) map[string]interface{} {
+	if existing == nil {
+		return map[string]interface{}{}
+	}
+	updates := map[string]interface{}{}
+
+	if forceRefresh {
+		if existing.HasAttachment != hasAttachment {
+			updates["has_attachment"] = hasAttachment
+		}
+		if existing.AttachmentCount != attachmentCount {
+			updates["attachment_count"] = attachmentCount
+		}
+	} else {
+		if hasAttachment > existing.HasAttachment {
+			updates["has_attachment"] = hasAttachment
+		}
+		if attachmentCount > existing.AttachmentCount {
+			updates["attachment_count"] = attachmentCount
+		}
+	}
+
+	if xmlURL != nil && strings.TrimSpace(*xmlURL) != "" {
+		if existing.InvoiceXMLURL == nil || strings.TrimSpace(*existing.InvoiceXMLURL) == "" {
+			updates["invoice_xml_url"] = strings.TrimSpace(*xmlURL)
+		}
+	}
+	if pdfURL != nil && strings.TrimSpace(*pdfURL) != "" {
+		if existing.InvoicePDFURL == nil || strings.TrimSpace(*existing.InvoicePDFURL) == "" {
+			updates["invoice_pdf_url"] = strings.TrimSpace(*pdfURL)
+		}
+	}
+
+	return updates
+}
+
 func (s *EmailService) markSeenByUID(c *client.Client, uid uint32) {
 	if c == nil || uid == 0 {
 		return
@@ -569,7 +605,7 @@ func (s *EmailService) markSeenByUID(c *client.Client, uid uint32) {
 	}
 }
 
-func (s *EmailService) processMessage(ownerUserID string, configID string, msg *imap.Message, section *imap.BodySectionName) bool {
+func (s *EmailService) processMessage(ownerUserID string, configID string, msg *imap.Message, section *imap.BodySectionName, forceRefresh bool) bool {
 	if msg == nil {
 		return false
 	}
@@ -591,19 +627,7 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		}
 		xmlURL, pdfURL := extractInvoiceLinksFromText(bodyText)
 
-		updates := map[string]interface{}{}
-		if hasAttachment > existing.HasAttachment {
-			updates["has_attachment"] = hasAttachment
-		}
-		if attachmentCount > existing.AttachmentCount {
-			updates["attachment_count"] = attachmentCount
-		}
-		if existing.InvoiceXMLURL == nil && xmlURL != nil && strings.TrimSpace(*xmlURL) != "" {
-			updates["invoice_xml_url"] = strings.TrimSpace(*xmlURL)
-		}
-		if existing.InvoicePDFURL == nil && pdfURL != nil && strings.TrimSpace(*pdfURL) != "" {
-			updates["invoice_pdf_url"] = strings.TrimSpace(*pdfURL)
-		}
+		updates := computeEmailLogMetadataUpdates(existing, hasAttachment, attachmentCount, xmlURL, pdfURL, forceRefresh)
 		if len(updates) > 0 {
 			_ = s.repo.UpdateLog(existing.ID, updates)
 		}

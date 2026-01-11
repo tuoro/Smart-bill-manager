@@ -11,6 +11,7 @@ require (
 	github.com/liyue201/goqr v0.0.0-20200803022322-df443203d4ea
 	golang.org/x/crypto v0.45.0
 	golang.org/x/net v0.47.0
+	golang.org/x/text v0.31.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )
@@ -46,7 +47,6 @@ require (
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 )

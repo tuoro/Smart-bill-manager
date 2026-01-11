@@ -66,7 +66,9 @@ func formatIMAPAddress(a *imap.Address) string {
 	return fmt.Sprintf("%s <%s>", name, addr)
 }
 
-func countPDFAttachments(bs *imap.BodyStructure) (hasAttachment int, attachmentCount int) {
+// countInvoiceAttachments counts attachments in a message body structure.
+// It is used for UI display ("附件 X 个") during mailbox sync where we only have BODYSTRUCTURE.
+func countInvoiceAttachments(bs *imap.BodyStructure) (hasAttachment int, attachmentCount int) {
 	if bs == nil {
 		return 0, 0
 	}
@@ -119,20 +121,48 @@ func countPDFAttachments(bs *imap.BodyStructure) (hasAttachment int, attachmentC
 			return
 		}
 
-		filename := extractFilename(part)
-		filenameLower := strings.ToLower(filename)
-		mime := strings.ToLower(strings.TrimSpace(part.MIMEType + "/" + part.MIMESubType))
-		isPDF := mime == "application/pdf" || strings.HasSuffix(filenameLower, ".pdf") || strings.Contains(filenameLower, ".pdf?")
-		if !isPDF {
+		filename := strings.TrimSpace(extractFilename(part))
+		mimeType := strings.ToLower(strings.TrimSpace(part.MIMEType))
+		mimeSubType := strings.ToLower(strings.TrimSpace(part.MIMESubType))
+		mime := strings.TrimSpace(mimeType + "/" + mimeSubType)
+		disp := strings.ToLower(strings.TrimSpace(part.Disposition))
+
+		// Skip typical body parts (text/plain, text/html) unless they explicitly look like attachments.
+		if filename == "" && disp != "attachment" && mimeType == "text" && (mimeSubType == "plain" || mimeSubType == "html") {
 			return
 		}
 
-		attachmentCount++
-		hasAttachment = 1
+		// Primary signals for attachments.
+		isAttachment := disp == "attachment" || filename != ""
+
+		// Fallback: some servers omit filename/disposition; treat obvious invoice formats as attachments.
+		if !isAttachment {
+			if mime == "application/pdf" || strings.Contains(mime, "xml") {
+				isAttachment = true
+			}
+		}
+
+		if !isAttachment {
+			// As a last resort, count non-text leaf parts as attachments if they have any identifier.
+			// (Avoids undercounting when servers strip filename but keep Content-Id/Description.)
+			if mimeType != "multipart" && mimeType != "text" && (strings.TrimSpace(part.Id) != "" || strings.TrimSpace(part.Description) != "") {
+				isAttachment = true
+			}
+		}
+
+		if isAttachment {
+			attachmentCount++
+			hasAttachment = 1
+		}
 	}
 
 	walk(bs)
 	return hasAttachment, attachmentCount
+}
+
+// Backward-compatible alias for older tests/callers.
+func countPDFAttachments(bs *imap.BodyStructure) (hasAttachment int, attachmentCount int) {
+	return countInvoiceAttachments(bs)
 }
 
 func readIMAPBodyWithLimit(r io.Reader, maxBytes int64) (string, error) {
@@ -549,7 +579,7 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 
 	// If the log already exists, still backfill attachment/link metadata (older builds may have missed it).
 	if existing, err := s.repo.FindLogByUIDCtx(context.Background(), ownerUserID, configID, "INBOX", msg.Uid); err == nil && existing != nil {
-		hasAttachment, attachmentCount := countPDFAttachments(msg.BodyStructure)
+		hasAttachment, attachmentCount := countInvoiceAttachments(msg.BodyStructure)
 
 		var bodyText string
 		if section != nil {
@@ -596,7 +626,7 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		receivedDate := envelope.Date
 		dateStr := receivedDate.Format(time.RFC3339)
 
-		hasAttachment, attachmentCount := countPDFAttachments(msg.BodyStructure)
+		hasAttachment, attachmentCount := countInvoiceAttachments(msg.BodyStructure)
 
 		var bodyText string
 		if section != nil {

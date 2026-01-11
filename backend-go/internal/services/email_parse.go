@@ -43,6 +43,26 @@ type emailHeaderLike interface {
 	ContentType() (t string, params map[string]string, err error)
 }
 
+func bestEmailPartFilename(header interface{}, fallback string) string {
+	if header == nil {
+		return strings.TrimSpace(fallback)
+	}
+	// Try go-message helpers first; they decode RFC 2047 encoded words.
+	if fh, ok := header.(interface{ Filename() (string, error) }); ok {
+		if v, err := fh.Filename(); err == nil {
+			if s := strings.TrimSpace(v); s != "" {
+				return s
+			}
+		}
+	}
+	if hl, ok := header.(emailHeaderLike); ok {
+		if s := strings.TrimSpace(extractFilenameFromEmailHeader(hl)); s != "" {
+			return s
+		}
+	}
+	return strings.TrimSpace(fallback)
+}
+
 func extractFilenameFromEmailHeader(h emailHeaderLike) string {
 	if h == nil {
 		return ""
@@ -135,13 +155,39 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 			return "", nil, nil, nil, "", err
 		}
 
-		switch h := part.Header.(type) {
-		case *mail.AttachmentHeader:
-			filename, _ := h.Filename()
-			if ok, hinted := isPDFEmailHeader(h); ok {
-				if strings.TrimSpace(filename) == "" {
-					filename = hinted
+		var (
+			ct string
+		)
+		if hl, ok := part.Header.(emailHeaderLike); ok {
+			ct, _, _ = hl.ContentType()
+			ct = strings.ToLower(strings.TrimSpace(ct))
+
+			// Some providers embed the actual invoice email as a forwarded message/rfc822 part.
+			if ct == "message/rfc822" {
+				if inner, err := mail.CreateReader(part.Body); err == nil {
+					name2, pdf2, xml2, itins2, text2, err2 := extractInvoiceArtifactsFromEmail(inner)
+					if err2 != nil {
+						return "", nil, nil, nil, "", err2
+					}
+					if pdf2 != nil {
+						pdfParts = append(pdfParts, emailBinaryAttachment{Filename: name2, Bytes: pdf2})
+					}
+					if xmlBytes == nil && xml2 != nil {
+						xmlBytes = xml2
+					}
+					if len(itins2) > 0 {
+						itineraryPDFs = append(itineraryPDFs, itins2...)
+					}
+					if strings.TrimSpace(text2) != "" && len(textParts) < 12 {
+						textParts = append(textParts, text2)
+					}
 				}
+				continue
+			}
+
+			// Detect PDFs/XMLs regardless of disposition; some servers omit Content-Disposition.
+			if ok, hinted := isPDFEmailHeader(hl); ok {
+				filename := bestEmailPartFilename(part.Header, hinted)
 				b, err := readWithLimit(part.Body, emailParseMaxPDFBytes)
 				if err != nil {
 					return "", nil, nil, nil, "", err
@@ -150,10 +196,9 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 				continue
 			}
 			if xmlBytes == nil {
-				if ok, hinted := isXMLEmailHeader(h); ok {
-					if strings.TrimSpace(filename) == "" {
-						filename = hinted
-					}
+				if ok, hinted := isXMLEmailHeader(hl); ok {
+					filename := bestEmailPartFilename(part.Header, hinted)
+					_ = filename // keep for future; currently XML filename isn't stored
 					b, err := readWithLimit(part.Body, emailParseMaxXMLBytes)
 					if err != nil {
 						return "", nil, nil, nil, "", err
@@ -162,44 +207,14 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 					continue
 				}
 			}
-		case *mail.InlineHeader:
-			// Some providers mark PDF attachments as inline (Content-Disposition: inline),
-			// which `go-message/mail` surfaces as InlineHeader instead of AttachmentHeader.
-			if ok, filename := isPDFEmailHeader(h); ok {
-				b, err := readWithLimit(part.Body, emailParseMaxPDFBytes)
-				if err != nil {
-					return "", nil, nil, nil, "", err
-				}
-				pdfParts = append(pdfParts, emailBinaryAttachment{Filename: filename, Bytes: b})
-				continue
-			}
-			if xmlBytes == nil {
-				if ok, _ := isXMLEmailHeader(h); ok {
-					b, err := readWithLimit(part.Body, emailParseMaxXMLBytes)
-					if err != nil {
-						return "", nil, nil, nil, "", err
-					}
-					xmlBytes = b
-					continue
-				}
-			}
-			// Otherwise treat as inline body text for link parsing.
-			if len(textParts) < 12 {
-				if b, err := readWithLimit(part.Body, emailParseMaxTextBytes); err == nil {
-					s := strings.TrimSpace(string(b))
-					if s != "" {
-						textParts = append(textParts, s)
-					}
-				}
-			}
-		default:
-			// Inline + other body parts: collect for link parsing (xml/pdf download URLs).
-			if len(textParts) < 12 {
-				if b, err := readWithLimit(part.Body, emailParseMaxTextBytes); err == nil {
-					s := strings.TrimSpace(string(b))
-					if s != "" {
-						textParts = append(textParts, s)
-					}
+		}
+
+		// Collect body text for link parsing (xml/pdf download URLs).
+		if len(textParts) < 12 && (ct == "" || strings.HasPrefix(ct, "text/")) {
+			if b, err := readWithLimit(part.Body, emailParseMaxTextBytes); err == nil {
+				s := strings.TrimSpace(string(b))
+				if s != "" {
+					textParts = append(textParts, s)
 				}
 			}
 		}

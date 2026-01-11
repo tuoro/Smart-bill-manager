@@ -147,3 +147,56 @@ func TestExtractInvoiceArtifactsFromEmail_PicksInvoicePDFAndKeepsItinerary(t *te
 	}
 }
 
+func TestExtractInvoiceArtifactsFromEmail_MessageRfc822NestedPDF(t *testing.T) {
+	pdfRaw := []byte("%PDF-nested\n")
+	pdfB64 := base64.StdEncoding.EncodeToString(pdfRaw)
+
+	inner := strings.Join([]string{
+		"From: inner@example.com",
+		"To: you@example.com",
+		"Subject: inner",
+		"MIME-Version: 1.0",
+		"Content-Type: multipart/mixed; boundary=\"in\"",
+		"",
+		"--in",
+		"Content-Type: application/pdf",
+		"Content-Disposition: attachment; filename=\"nested_invoice.pdf\"",
+		"Content-Transfer-Encoding: base64",
+		"",
+		pdfB64,
+		"--in--",
+		"",
+	}, "\r\n")
+
+	outer := strings.Join([]string{
+		"From: outer@example.com",
+		"To: you@example.com",
+		"Subject: outer",
+		"MIME-Version: 1.0",
+		"Content-Type: multipart/mixed; boundary=\"out\"",
+		"",
+		"--out",
+		"Content-Type: message/rfc822",
+		"Content-Disposition: inline",
+		"",
+		inner,
+		"--out--",
+		"",
+	}, "\r\n")
+
+	mr, err := mail.CreateReader(strings.NewReader(outer))
+	if err != nil {
+		t.Fatalf("CreateReader: %v", err)
+	}
+
+	name, b, _, _, _, err := extractInvoiceArtifactsFromEmail(mr)
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if strings.TrimSpace(name) != "nested_invoice.pdf" {
+		t.Fatalf("expected nested_invoice.pdf, got %q", name)
+	}
+	if string(b) != string(pdfRaw) {
+		t.Fatalf("expected nested pdf bytes, got %q", string(b))
+	}
+}

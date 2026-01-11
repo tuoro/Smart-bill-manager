@@ -193,6 +193,7 @@ type InvoiceExtractedData struct {
 	RawText                 string            `json:"raw_text"`
 	RawTextSource           string            `json:"raw_text_source,omitempty"` // pymupdf/rapidocr
 	PrettyText              string            `json:"pretty_text,omitempty"`
+	PDFZones                []PDFTextZonesPage `json:"pdf_zones,omitempty"`
 }
 
 // OCRCLIResponse represents the response from the Python OCR CLI script.
@@ -571,6 +572,7 @@ type PDFTextCLIResponse struct {
 	Text      string `json:"text"`
 	RawText   string `json:"raw_text,omitempty"`
 	ZonedText string `json:"zoned_text,omitempty"`
+	Zones     []PDFTextZonesPage `json:"zones,omitempty"`
 	Layout    string `json:"layout,omitempty"` // zones|ordered|raw
 	Ordered   bool   `json:"ordered,omitempty"`
 	PageCount int    `json:"page_count,omitempty"`
@@ -578,12 +580,40 @@ type PDFTextCLIResponse struct {
 	Error     string `json:"error,omitempty"`
 }
 
+type PDFTextZonesSpan struct {
+	X0 float64 `json:"x0"`
+	Y0 float64 `json:"y0"`
+	X1 float64 `json:"x1"`
+	Y1 float64 `json:"y1"`
+	T  string  `json:"t"`
+}
+
+type PDFTextZonesRow struct {
+	Region string            `json:"region"`
+	Y0     float64           `json:"y0"`
+	Y1     float64           `json:"y1"`
+	Text   string            `json:"text"`
+	Spans  []PDFTextZonesSpan `json:"spans,omitempty"`
+}
+
+type PDFTextZonesPage struct {
+	Page   int             `json:"page"`
+	Width  float64         `json:"width"`
+	Height float64         `json:"height"`
+	Rows   []PDFTextZonesRow `json:"rows,omitempty"`
+}
+
 func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, string, error) {
+	text, source, _, err := s.extractTextWithPyMuPDFMeta(pdfPath)
+	return text, source, err
+}
+
+func (s *OCRService) extractTextWithPyMuPDFMeta(pdfPath string) (string, string, *PDFTextCLIResponse, error) {
 	fmt.Printf("[OCR] Attempting PDF text extraction with PyMuPDF: %s\n", pdfPath)
 
 	scriptPath := s.findPDFTextScript()
 	if scriptPath == "" {
-		return "", "", fmt.Errorf("pdf_text_cli.py script not found")
+		return "", "", nil, fmt.Errorf("pdf_text_cli.py script not found")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -597,7 +627,15 @@ func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, string, err
 		if layout != "zones" && layout != "ordered" && layout != "raw" {
 			layout = "zones"
 		}
-		cmd := exec.CommandContext(ctx, python, scriptPath, pdfPath, "--layout", layout)
+		includeZones := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_PDF_TEXT_INCLUDE_ZONES")))
+		if includeZones == "" {
+			includeZones = "true"
+		}
+		zonesPages := strings.TrimSpace(os.Getenv("SBM_PDF_TEXT_ZONES_PAGES"))
+		if zonesPages == "" {
+			zonesPages = "1"
+		}
+		cmd := exec.CommandContext(ctx, python, scriptPath, pdfPath, "--layout", layout, "--include-zones", includeZones, "--zones-pages", zonesPages)
 		return cmd.CombinedOutput()
 	}
 
@@ -612,13 +650,13 @@ func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, string, err
 	var result PDFTextCLIResponse
 	if err := unmarshalPossiblyNoisyJSON(output, &result); err != nil {
 		if execErr != nil {
-			return "", "", fmt.Errorf("failed to execute PyMuPDF CLI: %w (output: %s)", execErr, string(output))
+			return "", "", nil, fmt.Errorf("failed to execute PyMuPDF CLI: %w (output: %s)", execErr, string(output))
 		}
-		return "", "", fmt.Errorf("failed to parse PyMuPDF CLI output: %w (output: %s)", err, string(output))
+		return "", "", nil, fmt.Errorf("failed to parse PyMuPDF CLI output: %w (output: %s)", err, string(output))
 	}
 
 	if !result.Success {
-		return "", "", fmt.Errorf("PyMuPDF error: %s", result.Error)
+		return "", "", nil, fmt.Errorf("PyMuPDF error: %s", result.Error)
 	}
 
 	text := result.Text
@@ -636,7 +674,7 @@ func (s *OCRService) extractTextWithPyMuPDF(pdfPath string) (string, string, err
 	}
 
 	fmt.Printf("[OCR] PyMuPDF extracted %d characters from %d pages (%s, layout=%s, ordered=%v)\n", len(text), result.PageCount, result.Extractor, layout, result.Ordered)
-	return text, source, nil
+	return text, source, &result, nil
 }
 
 func (s *OCRService) isLikelyUsefulInvoicePDFText(text string) bool {
@@ -727,19 +765,26 @@ func (s *OCRService) RecognizePDF(pdfPath string) (string, error) {
 // RecognizePDFWithSource is like RecognizePDF but also returns the text source.
 // source values: "pymupdf" | "rapidocr".
 func (s *OCRService) RecognizePDFWithSource(pdfPath string) (text string, source string, err error) {
+	text, source, _, err = s.RecognizePDFWithSourceAndMeta(pdfPath)
+	return text, source, err
+}
+
+// RecognizePDFWithSourceAndMeta returns the extracted text, its source, and optional PyMuPDF layout metadata.
+// The metadata is only available when PyMuPDF extraction is used.
+func (s *OCRService) RecognizePDFWithSourceAndMeta(pdfPath string) (text string, source string, meta *PDFTextCLIResponse, err error) {
 	fmt.Printf("[OCR] Starting PDF recognition for: %s\n", pdfPath)
 
 	if strings.TrimSpace(pdfPath) == "" {
-		return "", "", fmt.Errorf("empty PDF path")
+		return "", "", nil, fmt.Errorf("empty PDF path")
 	}
 
 	// Validate PDF file exists and is a regular file
 	fileInfo, err := os.Stat(pdfPath)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to access PDF file: %w", err)
+		return "", "", nil, fmt.Errorf("failed to access PDF file: %w", err)
 	}
 	if !fileInfo.Mode().IsRegular() {
-		return "", "", fmt.Errorf("PDF path is not a regular file")
+		return "", "", nil, fmt.Errorf("PDF path is not a regular file")
 	}
 
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_PDF_TEXT_EXTRACTOR")))
@@ -748,12 +793,12 @@ func (s *OCRService) RecognizePDFWithSource(pdfPath string) (text string, source
 	}
 
 	if mode != "off" && mode != "false" && mode != "0" {
-		if text, src, err := s.extractTextWithPyMuPDF(pdfPath); err == nil {
+		if text, src, res, err := s.extractTextWithPyMuPDFMeta(pdfPath); err == nil {
 			if s.isLikelyUsefulInvoicePDFText(text) {
 				if strings.TrimSpace(src) == "" {
 					src = "pymupdf"
 				}
-				return text, src, nil
+				return text, src, res, nil
 			}
 			fmt.Printf("[OCR] PyMuPDF text looks incomplete; falling back to RapidOCR image OCR\n")
 		} else {
@@ -764,9 +809,9 @@ func (s *OCRService) RecognizePDFWithSource(pdfPath string) (text string, source
 	fmt.Printf("[OCR] Using OCR CLI for PDF pages\n")
 	text, err = s.pdfToImageOCR(pdfPath)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
-	return text, "rapidocr", nil
+	return text, "rapidocr", nil, nil
 }
 
 // getChineseCharRatio calculates the ratio of Chinese characters in the text
@@ -4367,6 +4412,465 @@ func extractNameFromTaxIDLabelLine(line string) string {
 	return cleanupName(val)
 }
 
+func extractSellerNameFromPDFZones(pages []PDFTextZonesPage) string {
+	best := ""
+	bestScore := -1
+
+	for _, p := range pages {
+		h := p.Height
+		if h <= 0 {
+			h = 1
+		}
+		for _, row := range p.Rows {
+			rowText := strings.TrimSpace(row.Text)
+			if rowText == "" && len(row.Spans) > 0 {
+				parts := make([]string, 0, len(row.Spans))
+				for _, sp := range row.Spans {
+					if t := strings.TrimSpace(sp.T); t != "" {
+						parts = append(parts, t)
+					}
+				}
+				rowText = strings.TrimSpace(strings.Join(parts, " "))
+			}
+			if rowText == "" {
+				continue
+			}
+
+			cand := ""
+			if taxIDRegex.MatchString(rowText) {
+				cand = extractCompanyNameNearTaxID(rowText)
+			}
+			if cand == "" {
+				continue
+			}
+			cand = cleanupName(strings.TrimSpace(cand))
+			if cand == "" || cand == "个人" || isBadPartyNameCandidate(cand) {
+				continue
+			}
+
+			score := len([]rune(cand))
+			score += 60 // tax-id context
+			switch strings.ToLower(strings.TrimSpace(row.Region)) {
+			case "password", "seller", "header_right":
+				score += 10
+			}
+			if row.Y0/h < 0.55 {
+				score += 6
+			}
+			if score > bestScore {
+				best = cand
+				bestScore = score
+			}
+		}
+	}
+
+	return best
+}
+
+func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLineItem {
+	type spanItem struct {
+		PDFTextZonesSpan
+		xc float64
+		yc float64
+		h  float64
+	}
+
+	flattenItemsSpans := func() (out []spanItem, pageW float64) {
+		for _, p := range pages {
+			if p.Page != 1 {
+				continue
+			}
+			pageW = p.Width
+			pageH := p.Height
+			if pageH <= 0 {
+				pageH = 1
+			}
+			for _, r := range p.Rows {
+				region := strings.ToLower(strings.TrimSpace(r.Region))
+				// Some templates place the first line item (or its prefix) close to the buyer block,
+				// so include both buyer+items and later filter by table/header detection.
+				if region != "items" && region != "buyer" {
+					continue
+				}
+				for _, sp := range r.Spans {
+					t := strings.TrimSpace(sp.T)
+					if t == "" {
+						continue
+					}
+					yr := ((sp.Y0 + sp.Y1) / 2.0) / pageH
+					// Exclude header and footer blocks that commonly contain party info / stamps.
+					if yr < 0.20 || yr > 0.86 {
+						continue
+					}
+					h := sp.Y1 - sp.Y0
+					out = append(out, spanItem{
+						PDFTextZonesSpan: sp,
+						xc:               (sp.X0 + sp.X1) / 2.0,
+						yc:               (sp.Y0 + sp.Y1) / 2.0,
+						h:                h,
+					})
+				}
+			}
+			break
+		}
+		return out, pageW
+	}
+
+	spans, pageW := flattenItemsSpans()
+	if len(spans) == 0 {
+		return nil
+	}
+	if pageW <= 0 {
+		pageW = 1
+	}
+
+	// Cluster spans into rows (more reliable than the python-side row clustering for tightly packed tables).
+	hs := make([]float64, 0, len(spans))
+	for _, s := range spans {
+		if s.h > 0 {
+			hs = append(hs, s.h)
+		}
+	}
+	sort.Float64s(hs)
+	medianH := 10.0
+	if len(hs) > 0 {
+		mid := len(hs) / 2
+		if len(hs)%2 == 1 {
+			medianH = hs[mid]
+		} else if mid > 0 {
+			medianH = (hs[mid-1] + hs[mid]) / 2.0
+		}
+	}
+	rowTol := math.Max(3.0, medianH*0.45)
+
+	sort.Slice(spans, func(i, j int) bool {
+		if spans[i].Y0 == spans[j].Y0 {
+			return spans[i].X0 < spans[j].X0
+		}
+		return spans[i].Y0 < spans[j].Y0
+	})
+
+	rows := make([][]spanItem, 0, 32)
+	var cur []spanItem
+	curMaxY := 0.0
+	for _, s := range spans {
+		if len(cur) == 0 {
+			cur = []spanItem{s}
+			curMaxY = s.Y1
+			continue
+		}
+		// Start a new row when the next span is clearly below the current row.
+		if s.Y0 <= curMaxY+rowTol {
+			cur = append(cur, s)
+			if s.Y1 > curMaxY {
+				curMaxY = s.Y1
+			}
+			continue
+		}
+		rows = append(rows, cur)
+		cur = []spanItem{s}
+		curMaxY = s.Y1
+	}
+	if len(cur) > 0 {
+		rows = append(rows, cur)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	rowText := func(r []spanItem) string {
+		sort.Slice(r, func(i, j int) bool { return r[i].X0 < r[j].X0 })
+		parts := make([]string, 0, len(r))
+		for _, sp := range r {
+			t := strings.TrimSpace(sp.T)
+			if t != "" {
+				parts = append(parts, t)
+			}
+		}
+		return strings.TrimSpace(strings.Join(parts, " "))
+	}
+
+	// Detect header row and column boundaries.
+	type col struct {
+		key    string
+		center float64
+	}
+	headerLabels := map[string][]string{
+		"name": {"项目名称", "货物或应税劳务", "服务名称"},
+		"spec": {"规格型号"},
+		"unit": {"单位"},
+		"qty":  {"数量"},
+	}
+	headerIdx := -1
+	bestHits := -1
+	for i := 0; i < len(rows) && i < 18; i++ {
+		txt := rowText(rows[i])
+		if txt == "" {
+			continue
+		}
+		hits := 0
+		for _, labels := range headerLabels {
+			for _, l := range labels {
+				if strings.Contains(txt, l) {
+					hits++
+					break
+				}
+			}
+		}
+		if hits > bestHits {
+			bestHits = hits
+			headerIdx = i
+		}
+	}
+
+	cols := make([]col, 0, 4)
+	if headerIdx >= 0 && bestHits >= 2 {
+		r := rows[headerIdx]
+		for key, labels := range headerLabels {
+			bestX := -1.0
+			for _, sp := range r {
+				t := strings.TrimSpace(sp.T)
+				if t == "" {
+					continue
+				}
+				for _, l := range labels {
+					if strings.Contains(t, l) {
+						bestX = sp.xc
+						break
+					}
+				}
+				if bestX >= 0 {
+					break
+				}
+			}
+			if bestX >= 0 {
+				cols = append(cols, col{key: key, center: bestX})
+			}
+		}
+		sort.Slice(cols, func(i, j int) bool { return cols[i].center < cols[j].center })
+	}
+
+	// Build boundaries: either from header centers, or fallback to a typical VAT invoice table layout.
+	type boundaries struct {
+		nameEnd float64
+		specEnd float64
+		unitEnd float64
+		qtyEnd  float64
+	}
+	bounds := boundaries{
+		nameEnd: 0.47 * pageW,
+		specEnd: 0.62 * pageW,
+		unitEnd: 0.70 * pageW,
+		qtyEnd:  0.79 * pageW,
+	}
+	if len(cols) >= 2 {
+		// Use midpoints between detected columns.
+		// Determine name->spec->unit->qty in order if present.
+		colPos := map[string]float64{}
+		for _, c := range cols {
+			colPos[c.key] = c.center
+		}
+		if a, okA := colPos["name"]; okA {
+			if b, okB := colPos["spec"]; okB {
+				bounds.nameEnd = (a + b) / 2
+			}
+		}
+		if a, okA := colPos["spec"]; okA {
+			if b, okB := colPos["unit"]; okB {
+				bounds.specEnd = (a + b) / 2
+			}
+		}
+		if a, okA := colPos["unit"]; okA {
+			if b, okB := colPos["qty"]; okB {
+				bounds.unitEnd = (a + b) / 2
+			}
+		}
+		if q, okQ := colPos["qty"]; okQ {
+			bounds.qtyEnd = math.Min(pageW, q+0.08*pageW)
+		}
+	}
+
+	assignCol := func(x float64) string {
+		switch {
+		case x <= bounds.nameEnd:
+			return "name"
+		case x <= bounds.specEnd:
+			return "spec"
+		case x <= bounds.unitEnd:
+			return "unit"
+		case x <= bounds.qtyEnd:
+			return "qty"
+		default:
+			return "other"
+		}
+	}
+
+	parseQty := func(s string) *float64 {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return nil
+		}
+		m := regexp.MustCompile(`-?\d+(?:\.\d+)?`).FindString(s)
+		if m == "" {
+			return nil
+		}
+		if f, err := strconv.ParseFloat(m, 64); err == nil {
+			return &f
+		}
+		return nil
+	}
+
+	isStop := func(s string) bool {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return false
+		}
+		if strings.Contains(s, "价税合计") {
+			return true
+		}
+		if strings.HasPrefix(s, "合计") || strings.Contains(s, " 合计") {
+			return true
+		}
+		if strings.Contains(s, "销售方") || strings.Contains(s, "购买方") {
+			return true
+		}
+		return false
+	}
+
+	looksLikeItemRow := func(r []spanItem) bool {
+		qtyRe := regexp.MustCompile(`^\d+(?:\.\d+)?$`)
+		unitSet := map[string]bool{
+			"\u4e2a": true, // 个
+			"\u74f6": true, // 瓶
+			"\u5305": true, // 包
+			"\u6b21": true, // 次
+			"\u5957": true, // 套
+			"\u7ec4": true, // 组
+			"\u5f20": true, // 张
+			"\u4ef6": true, // 件
+			"\u76d2": true, // 盒
+			"\u4efd": true, // 份
+			"\u53f0": true, // 台
+			"\u8f86": true, // 辆
+		}
+		hasQty := false
+		hasUnit := false
+		for _, sp := range r {
+			t := strings.TrimSpace(sp.T)
+			if t == "" {
+				continue
+			}
+			if len([]rune(t)) <= 2 && unitSet[t] && sp.X0 >= 0.55*pageW {
+				hasUnit = true
+			}
+			if qtyRe.MatchString(t) && sp.X0 >= 0.62*pageW {
+				hasQty = true
+			}
+		}
+		return hasQty && hasUnit
+	}
+
+	start := 0
+	if headerIdx >= 0 && bestHits >= 2 {
+		start = headerIdx + 1
+	}
+	if start == 0 && (headerIdx < 0 || bestHits < 2) {
+		// If the header row is missing, skip leading buyer/header clutter until we see a row that looks
+		// like a real line item (unit+quantity columns present).
+		for i := 0; i < len(rows); i++ {
+			if looksLikeItemRow(rows[i]) {
+				start = i
+				break
+			}
+		}
+	}
+
+	out := make([]InvoiceLineItem, 0, 8)
+	for i := start; i < len(rows); i++ {
+		txt := rowText(rows[i])
+		if txt == "" {
+			continue
+		}
+		if isStop(txt) {
+			break
+		}
+
+		cells := map[string][]string{
+			"name": {},
+			"spec": {},
+			"unit": {},
+			"qty":  {},
+		}
+		for _, sp := range rows[i] {
+			t := strings.TrimSpace(sp.T)
+			if t == "" {
+				continue
+			}
+			key := assignCol(sp.X0)
+			if key == "other" {
+				continue
+			}
+			cells[key] = append(cells[key], t)
+		}
+
+		name := strings.TrimSpace(strings.Join(cells["name"], " "))
+		spec := strings.TrimSpace(strings.Join(cells["spec"], " "))
+		unit := strings.TrimSpace(strings.Join(cells["unit"], " "))
+		qty := parseQty(strings.Join(cells["qty"], " "))
+
+		normalizeCell := func(s string) string {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				return ""
+			}
+			return strings.TrimSpace(strings.Join(strings.Fields(s), " "))
+		}
+		name = normalizeCell(name)
+		spec = normalizeCell(spec)
+		unit = normalizeCell(unit)
+
+		if name == "" {
+			continue
+		}
+		if strings.Contains(name, "项目名称") || strings.Contains(name, "货物或应税劳务") || strings.Contains(name, "服务名称") {
+			continue
+		}
+
+		// Handle continuation rows: no numeric columns, just a wrapped name/spec line.
+		if len(out) > 0 && qty == nil && strings.TrimSpace(unit) == "" {
+			// If spec is empty and this looks like a model code, treat as spec.
+			if out[len(out)-1].Spec == "" && regexp.MustCompile(`(?i)[A-Z]{1,3}[-/A-Z0-9]{3,}`).MatchString(name) {
+				out[len(out)-1].Spec = name
+				continue
+			}
+			out[len(out)-1].Name = strings.TrimSpace(out[len(out)-1].Name + " " + name)
+			if out[len(out)-1].Spec == "" && spec != "" {
+				out[len(out)-1].Spec = spec
+			}
+			continue
+		}
+
+		item := InvoiceLineItem{
+			Name:     strings.TrimSpace(name),
+			Spec:     strings.TrimSpace(spec),
+			Unit:     strings.TrimSpace(unit),
+			Quantity: qty,
+		}
+		out = append(out, item)
+	}
+
+	// Final cleanup: drop obviously invalid rows.
+	clean := make([]InvoiceLineItem, 0, len(out))
+	for _, it := range out {
+		n := strings.TrimSpace(it.Name)
+		if n == "" || isStop(n) {
+			continue
+		}
+		clean = append(clean, it)
+	}
+	return clean
+}
+
 // removeChineseInlineSpaces removes *inline* spaces between Chinese characters in OCR/PDF text,
 // but keeps newlines intact (important for invoice section parsing).
 func removeChineseInlineSpaces(text string) string {
@@ -4452,6 +4956,25 @@ func isBadPartyNameCandidate(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return true
+	}
+	// Single-character picks are almost always OCR/segmentation leftovers (e.g. "地").
+	if len([]rune(name)) <= 1 {
+		return true
+	}
+	// Common numeric/table labels that may be mistakenly picked as a party name.
+	// Keep this conservative: only reject short, pure-label values to avoid blocking real company names
+	// that contain these words as prefixes (we often strip them in later heuristics).
+	switch name {
+	case "金额", "单价", "税额", "税率", "征收率", "税率/征收率":
+		return true
+	}
+	if len([]rune(name)) <= 6 {
+		if strings.Contains(name, "金额") || strings.Contains(name, "单价") || strings.Contains(name, "税额") || strings.Contains(name, "税率") || strings.Contains(name, "征收率") {
+			return true
+		}
+		if strings.Contains(name, "%") && (strings.Contains(name, "税") || strings.Contains(name, "征收")) {
+			return true
+		}
 	}
 	// Footer/stamp fields often get concatenated into a "name" by PDF text extraction.
 	if strings.Contains(name, "销售方:(章)") || strings.Contains(name, "销售方:（章）") || strings.Contains(name, "销售方：（章）") ||
@@ -6678,6 +7201,12 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 
 // ParseInvoiceData extracts invoice information from OCR text
 func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error) {
+	return s.ParseInvoiceDataWithMeta(text, nil)
+}
+
+// ParseInvoiceDataWithMeta is like ParseInvoiceData but also accepts optional PDF text layout metadata.
+// When metadata is present (PyMuPDF zoned extraction), it can be used as a fallback to fix ambiguous fields.
+func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIResponse) (*InvoiceExtractedData, error) {
 	data := &InvoiceExtractedData{RawText: text}
 
 	parsedText := normalizeInvoiceTextForParsing(text)
@@ -7585,9 +8114,130 @@ func (s *OCRService) ParseInvoiceData(text string) (*InvoiceExtractedData, error
 		data.BuyerNameConfidence = 0.6
 	}
 
+	// Attach zones for debugging/UI if provided.
+	if meta != nil && len(meta.Zones) > 0 {
+		data.PDFZones = meta.Zones
+	}
+
+	// Items: prefer coordinate-based extraction when available; it is more robust for tight columns
+	// (name/spec close together) and for templates where text normalization merges columns.
+	if meta != nil && len(meta.Zones) > 0 {
+		zonedItems := extractInvoiceLineItemsFromPDFZones(meta.Zones)
+		score := func(items []InvoiceLineItem) int {
+			s := 0
+			for _, it := range items {
+				if strings.TrimSpace(it.Name) != "" {
+					s++
+				}
+				if strings.TrimSpace(it.Spec) != "" {
+					s++
+				}
+				if strings.TrimSpace(it.Unit) != "" {
+					s++
+				}
+				if it.Quantity != nil && *it.Quantity != 0 {
+					s++
+				}
+			}
+			return s
+		}
+		if len(zonedItems) > 0 {
+			curScore := score(data.Items)
+			zScore := score(zonedItems)
+			if len(data.Items) == 0 || len(zonedItems) > len(data.Items) || zScore > curScore+1 {
+				data.Items = zonedItems
+			}
+		}
+	}
+
 	if len(data.Items) == 0 {
 		data.Items = extractInvoiceLineItems(parsedText)
 	}
+
+	// When PDF zones are available, prefer coordinate-based fixes for ambiguous party names and totals.
+	if meta != nil && len(meta.Zones) > 0 {
+		// Buyer: recover from the buyer block when OCR text/normalization merged columns.
+		{
+			curBuyer := ptrToString(data.BuyerName)
+			needBuyer := data.BuyerName == nil ||
+				isGarbagePartyName(curBuyer) ||
+				isBadPartyNameCandidate(curBuyer) ||
+				curBuyer == ptrToString(data.SellerName)
+
+			if cand, ok := extractBuyerNameFromPDFZones(meta.Zones); ok {
+				shouldOverride := needBuyer
+				if !shouldOverride && curBuyer == "个人" && cand.val != "个人" {
+					// "个人" is often a placeholder; override only when our current pick is weak.
+					if data.BuyerNameConfidence <= 0.75 || data.BuyerNameSource == "position" {
+						shouldOverride = cand.conf >= 0.9
+					}
+				}
+				if shouldOverride && cand.val != "" && !isBadPartyNameCandidate(cand.val) {
+					v := cand.val
+					data.BuyerName = &v
+					data.BuyerNameSource = cand.src
+					data.BuyerNameConfidence = cand.conf
+				}
+			}
+		}
+
+		// Totals: avoid picking huge numbers from tax IDs (e.g. 92310109...) by reading the totals row.
+		{
+			total, totalSrc, totalConf, tax, taxSrc, taxConf := extractInvoiceTotalsFromPDFZones(meta.Zones)
+			if total != nil && totalSrc != "" && *total > 0 {
+				cur := data.Amount
+				need := cur == nil || data.AmountConfidence < 0.75
+				if !need && cur != nil {
+					if *cur > 1000000 && *total < 1000000 {
+						need = true
+					} else if math.Abs(*cur-*total) > 0.01 && (data.AmountSource == "standalone_amount" || data.AmountSource == "max_currency") {
+						need = true
+					}
+				}
+				if need {
+					v := *total
+					data.Amount = &v
+					data.AmountSource = totalSrc
+					data.AmountConfidence = totalConf
+				}
+			}
+			if tax != nil && taxSrc != "" && *tax >= 0 {
+				if total != nil && *total > 0 && *tax > *total {
+					// Ignore obviously invalid tax candidates.
+				} else {
+					cur := data.TaxAmount
+					need := cur == nil || data.TaxAmountConfidence < 0.75
+					if !need && cur != nil {
+						if *cur > 1000000 && *tax < 1000000 {
+							need = true
+						} else if math.Abs(*cur-*tax) > 0.01 && (data.TaxAmountSource == "tax_label" || data.TaxAmountSource == "sum_net_tax_line") {
+							need = true
+						}
+					}
+					if need {
+						v := *tax
+						data.TaxAmount = &v
+						data.TaxAmountSource = taxSrc
+						data.TaxAmountConfidence = taxConf
+					}
+				}
+			}
+		}
+	}
+
+	// If seller name is still suspicious, try to recover from coordinate-zoned rows (when available).
+	if meta != nil && len(meta.Zones) > 0 {
+		need := data.SellerName == nil ||
+			isGarbagePartyName(ptrToString(data.SellerName)) ||
+			isBadPartyNameCandidate(ptrToString(data.SellerName)) ||
+			ptrToString(data.SellerName) == ptrToString(data.BuyerName)
+		if need {
+			if cand := extractSellerNameFromPDFZones(meta.Zones); cand != "" && cand != "个人" && !isBadPartyNameCandidate(cand) {
+				setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, cand, "pymupdf_zones_coords", 0.92)
+			}
+		}
+	}
+
 	data.PrettyText = formatInvoicePrettyText(text, data)
 	return data, nil
 }

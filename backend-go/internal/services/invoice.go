@@ -1132,10 +1132,11 @@ func (s *InvoiceService) parseInvoiceFile(filePath, filename string) (
 	var (
 		text   string
 		source string
+		meta   *PDFTextCLIResponse
 		err    error
 	)
 	if ext == ".pdf" {
-		text, source, err = s.ocrService.RecognizePDFWithSource(filePath)
+		text, source, meta, err = s.ocrService.RecognizePDFWithSourceAndMeta(filePath)
 	} else {
 		text, err = s.ocrService.RecognizeImage(filePath)
 		source = "rapidocr"
@@ -1158,7 +1159,7 @@ func (s *InvoiceService) parseInvoiceFile(filePath, filename string) (
 	rawText = &text
 
 	// Parse the extracted text
-	extracted, err := s.ocrService.ParseInvoiceData(text)
+	extracted, err := s.ocrService.ParseInvoiceDataWithMeta(text, meta)
 	if err != nil {
 		parseStatus = "failed"
 		errMsg := fmt.Sprintf("Failed to parse invoice data: %v", err)

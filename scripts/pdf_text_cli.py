@@ -63,6 +63,7 @@ def main():
             raw_parts = []
             ordered_parts = []
             zoned_parts = []
+            zoned_pages = []
             page_count = 0
 
             layout_mode = "zones"
@@ -73,6 +74,23 @@ def main():
                     layout_mode = "zones"
             if layout_mode not in ("zones", "ordered", "raw"):
                 layout_mode = "zones"
+
+            include_zones = True
+            if "--include-zones" in sys.argv:
+                try:
+                    v = sys.argv[sys.argv.index("--include-zones") + 1].strip().lower()
+                    include_zones = v not in ("0", "false", "no", "off")
+                except Exception:
+                    include_zones = True
+            # Default: include first page zones only to keep payload small.
+            max_zones_pages = 1
+            if "--zones-pages" in sys.argv:
+                try:
+                    max_zones_pages = int(sys.argv[sys.argv.index("--zones-pages") + 1])
+                except Exception:
+                    max_zones_pages = 1
+            if max_zones_pages < 0:
+                max_zones_pages = 0
 
             def iter_page_spans(page):
                 try:
@@ -161,7 +179,7 @@ def main():
                 h = float(page.rect.height or 1.0)
                 spans = iter_page_spans(page)
                 if not spans:
-                    return ""
+                    return "", None
 
                 buckets = {
                     "header_left": [],
@@ -191,6 +209,42 @@ def main():
                             out.append(" ".join(parts))
                     return out
 
+                def rows_payload(region, items):
+                    out = []
+                    for row in cluster_rows(items):
+                        row.sort(key=lambda it: it["x0"])
+                        spans2 = []
+                        parts = []
+                        y0s = []
+                        y1s = []
+                        for it in row:
+                            t = str(it["t"] or "").replace("\n", " ").strip()
+                            if not t:
+                                continue
+                            spans2.append(
+                                {
+                                    "x0": float(it["x0"]),
+                                    "y0": float(it["y0"]),
+                                    "x1": float(it["x1"]),
+                                    "y1": float(it["y1"]),
+                                    "t": t,
+                                }
+                            )
+                            parts.append(t)
+                            y0s.append(float(it["y0"]))
+                            y1s.append(float(it["y1"]))
+                        if spans2:
+                            out.append(
+                                {
+                                    "region": region,
+                                    "y0": min(y0s) if y0s else 0.0,
+                                    "y1": max(y1s) if y1s else 0.0,
+                                    "text": " ".join(parts),
+                                    "spans": spans2,
+                                }
+                            )
+                    return out
+
                 hdr = rows_to_lines(buckets["header_right"]) + rows_to_lines(buckets["header_left"])
                 buyer = rows_to_lines(buckets["buyer"])
                 pwd = rows_to_lines(buckets["password"])
@@ -214,7 +268,18 @@ def main():
                     out.append(f"【{title}】")
                     out.extend(lines2)
                     out.append("")
-                return "\n".join(out).rstrip()
+                zone_payload = None
+                if include_zones:
+                    rows = []
+                    for region, items2 in buckets.items():
+                        rows.extend(rows_payload(region, items2))
+                    zone_payload = {
+                        "page": int(page_no),
+                        "width": float(w),
+                        "height": float(h),
+                        "rows": rows,
+                    }
+                return "\n".join(out).rstrip(), zone_payload
 
             for page in doc:
                 page_count += 1
@@ -224,9 +289,16 @@ def main():
                     raw_parts.append("")
                 try:
                     if layout_mode == "zones":
-                        zoned = build_zoned_text(page, page_count)
+                        zoned, zones_meta = build_zoned_text(page, page_count)
                         if zoned:
                             zoned_parts.append(zoned)
+                        if (
+                            include_zones
+                            and zones_meta
+                            and max_zones_pages > 0
+                            and len(zoned_pages) < max_zones_pages
+                        ):
+                            zoned_pages.append(zones_meta)
                 except Exception:
                     pass
                 # Blocks with position, clustered by rows (dynamic tolerance) then sorted by x.
@@ -319,6 +391,7 @@ def main():
                     "text": final_text,
                     "raw_text": raw_text,
                     "zoned_text": zoned_text,
+                    "zones": zoned_pages if include_zones and zoned_pages else None,
                     "layout": layout_used,
                     "ordered": bool(ordered_text),
                     "page_count": page_count,

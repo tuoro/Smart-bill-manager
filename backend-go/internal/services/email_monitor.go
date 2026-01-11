@@ -198,19 +198,69 @@ func extractInvoiceLinksFromText(body string) (xmlURL *string, pdfURL *string) {
 		return s
 	}
 
+	isAssetURL := func(u string) bool {
+		l := strings.ToLower(u)
+		switch {
+		case strings.Contains(l, ".png"),
+			strings.Contains(l, ".jpg"),
+			strings.Contains(l, ".jpeg"),
+			strings.Contains(l, ".gif"),
+			strings.Contains(l, ".webp"),
+			strings.Contains(l, ".svg"),
+			strings.Contains(l, ".css"),
+			strings.Contains(l, ".js"):
+			return true
+		default:
+			return false
+		}
+	}
+
+	isPDFLike := func(u string) bool {
+		l := strings.ToLower(u)
+		if isAssetURL(l) {
+			return false
+		}
+		if strings.Contains(l, ".pdf") {
+			return true
+		}
+		// Baiwang download endpoint: .../downloadFormat?...&formatType=PDF
+		if strings.Contains(l, "formattype=pdf") {
+			return true
+		}
+		return false
+	}
+
+	isXMLLike := func(u string) bool {
+		l := strings.ToLower(u)
+		if isAssetURL(l) {
+			return false
+		}
+		if strings.Contains(l, ".xml") {
+			return true
+		}
+		// Some providers ship XML inside a zip, typically with a /xml/ path segment.
+		if strings.Contains(l, ".zip") && strings.Contains(l, "/xml/") {
+			return true
+		}
+		// Baiwang download endpoint: .../downloadFormat?...&formatType=XML
+		if strings.Contains(l, "formattype=xml") {
+			return true
+		}
+		return false
+	}
+
 	for _, raw := range urls {
 		u := cleanURL(raw)
 		if u == "" {
 			continue
 		}
-		l := strings.ToLower(u)
 		if xmlURL == nil {
-			if strings.Contains(l, ".xml") || strings.Contains(l, "xml") {
+			if isXMLLike(u) {
 				xmlURL = ptrString(u)
 			}
 		}
 		if pdfURL == nil {
-			if strings.Contains(l, ".pdf") || strings.Contains(l, "pdf") {
+			if isPDFLike(u) {
 				pdfURL = ptrString(u)
 			}
 		}

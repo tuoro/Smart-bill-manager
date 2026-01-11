@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/json"
 	"encoding/hex"
 	"encoding/xml"
 	"errors"
@@ -452,14 +453,57 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 	// Some providers send only a preview-page link that requires clicking "下载PDF/XML".
 	// Best-effort: fetch the page and try to discover direct download URLs.
 	previewResolveErr := ""
-	if pdfURL == nil && xmlURL == nil {
-		if previewURL := firstURLFromText(bodyText); previewURL != "" {
+	{
+		isDirectPDFURL := func(u string) bool {
+			l := strings.ToLower(strings.TrimSpace(u))
+			if l == "" {
+				return false
+			}
+			if strings.Contains(l, ".pdf") {
+				return true
+			}
+			if strings.Contains(l, "formattype=pdf") {
+				return true
+			}
+			return false
+		}
+		isDirectXMLURL := func(u string) bool {
+			l := strings.ToLower(strings.TrimSpace(u))
+			if l == "" {
+				return false
+			}
+			if strings.Contains(l, ".xml") {
+				return true
+			}
+			if strings.Contains(l, "formattype=xml") {
+				return true
+			}
+			if strings.Contains(l, ".zip") && strings.Contains(l, "/xml/") {
+				return true
+			}
+			return false
+		}
+
+		previewURL := ""
+		// Prefer resolving from an existing URL that doesn't look like a direct PDF/XML download (common in Baiwang emails).
+		if previewURL == "" && pdfURL != nil && !isDirectPDFURL(*pdfURL) {
+			previewURL = strings.TrimSpace(*pdfURL)
+		}
+		if previewURL == "" && xmlURL != nil && !isDirectXMLURL(*xmlURL) {
+			previewURL = strings.TrimSpace(*xmlURL)
+		}
+		if previewURL == "" && pdfURL == nil && xmlURL == nil {
+			previewURL = firstURLFromText(bodyText)
+		}
+
+		if strings.TrimSpace(previewURL) != "" {
 			resXML, resPDF, err := resolveInvoiceDownloadLinksFromPreviewURLCtx(ctx, previewURL)
 			if err == nil {
-				if xmlURL == nil && resXML != nil && strings.TrimSpace(*resXML) != "" {
+				// Override preview-like placeholders with resolved direct download URLs.
+				if resXML != nil && strings.TrimSpace(*resXML) != "" && (xmlURL == nil || !isDirectXMLURL(*xmlURL)) {
 					xmlURL = resXML
 				}
-				if pdfURL == nil && resPDF != nil && strings.TrimSpace(*resPDF) != "" {
+				if resPDF != nil && strings.TrimSpace(*resPDF) != "" && (pdfURL == nil || !isDirectPDFURL(*pdfURL)) {
 					pdfURL = resPDF
 				}
 				if (resXML != nil || resPDF != nil) && logID != "" {
@@ -1042,6 +1086,8 @@ type fetchedURL struct {
 	ResponseBody []byte
 }
 
+const nuonuoBrowserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 func fetchURLWithLimitCtx(ctx context.Context, rawURL string, limit int64) (*fetchedURL, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -1084,6 +1130,82 @@ func fetchURLWithLimitCtx(ctx context.Context, rawURL string, limit int64) (*fet
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "smart-bill-manager/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	body, err := readWithLimit(resp.Body, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	finalURL := u.String()
+	if resp.Request != nil && resp.Request.URL != nil {
+		finalURL = resp.Request.URL.String()
+	}
+
+	return &fetchedURL{
+		FinalURL:     finalURL,
+		ContentType:  strings.TrimSpace(resp.Header.Get("Content-Type")),
+		ResponseBody: body,
+	}, nil
+}
+
+func fetchURLWithLimitCtxWithUAAndRedirects(ctx context.Context, rawURL string, limit int64, userAgent string, maxRedirects int) (*fetchedURL, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("unsupported scheme: %s", u.Scheme)
+	}
+	if u.Host == "" {
+		return nil, fmt.Errorf("missing host")
+	}
+	if err := ensurePublicHost(u.Hostname()); err != nil {
+		return nil, err
+	}
+	if maxRedirects <= 0 {
+		maxRedirects = 3
+	}
+	userAgent = strings.TrimSpace(userAgent)
+	if userAgent == "" {
+		userAgent = "smart-bill-manager/1.0"
+	}
+
+	release, err := AcquireEmailDownload(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	client := &http.Client{
+		Timeout: 20 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= maxRedirects {
+				return fmt.Errorf("stopped after %d redirects", maxRedirects)
+			}
+			return ensurePublicHost(req.URL.Hostname())
+		},
+	}
+
+	rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(rctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1262,7 +1384,146 @@ func resolveKnownProviderInvoiceLinksCtx(ctx context.Context, previewURL string)
 		return mk("XML"), mk("PDF"), true
 	}
 
+	// NuoNuo (诺诺网) invoice links.
+	// Their emails often contain a short link (e.g. https://of1.cn/xxxxx or https://nnfp.jss.com.cn/xxxxx) that redirects
+	// to a SPA page /scan-invoice/printQrcode?paramList=... which then POSTs to /scan2/getIvcDetailShow.do to retrieve
+	// direct PDF/XML URLs.
+	if host == "nnfp.jss.com.cn" || host == "of1.cn" {
+		finalURL := strings.TrimSpace(u.String())
+		if !strings.Contains(finalURL, "paramList=") || !strings.Contains(strings.ToLower(finalURL), "/scan-invoice/printqrcode") {
+			f, err := fetchURLWithLimitCtxWithUAAndRedirects(ctx, finalURL, emailParseMaxPageBytes, nuonuoBrowserUA, 6)
+			if err != nil {
+				return nil, nil, false
+			}
+			finalURL = strings.TrimSpace(f.FinalURL)
+		}
+
+		x, p, err := resolveNuonuoDirectInvoiceLinksFromPrintURLCtx(ctx, finalURL)
+		if err == nil && (x != nil || p != nil) {
+			return x, p, true
+		}
+		return nil, nil, false
+	}
+
 	return nil, nil, false
+}
+
+func nuonuoBuildIvcDetailRequestFromPrintURL(printURL string) (endpointPath string, form url.Values, err error) {
+	u, err := url.Parse(strings.TrimSpace(printURL))
+	if err != nil || u == nil || u.Scheme == "" || u.Host == "" {
+		return "", nil, fmt.Errorf("invalid url")
+	}
+	q := u.Query()
+	paramList := strings.TrimSpace(q.Get("paramList"))
+	if paramList == "" {
+		return "", nil, fmt.Errorf("missing paramList")
+	}
+
+	isOuterPageReq := strings.EqualFold(strings.TrimSpace(q.Get("isOuterPageReq")), "true")
+	if isOuterPageReq {
+		endpointPath = "/invoice/scan/IvcDetail.do"
+	} else {
+		endpointPath = "/scan2/getIvcDetailShow.do"
+	}
+
+	form = url.Values{}
+	form.Set("paramList", paramList)
+	form.Set("code", strings.TrimSpace(q.Get("code")))
+	form.Set("aliView", strings.TrimSpace(q.Get("aliView")))
+	form.Set("invoiceDetailMiddleUri", strings.TrimSpace(printURL))
+	form.Set("shortLinkSource", strings.TrimSpace(q.Get("shortLinkSource")))
+	return endpointPath, form, nil
+}
+
+func resolveNuonuoDirectInvoiceLinksFromPrintURLCtx(ctx context.Context, printURL string) (xmlURL *string, pdfURL *string, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	printURL = strings.TrimSpace(printURL)
+	endpointPath, form, err := nuonuoBuildIvcDetailRequestFromPrintURL(printURL)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	u, _ := url.Parse(printURL)
+	if u == nil {
+		return nil, nil, fmt.Errorf("invalid url")
+	}
+	if err := ensurePublicHost(u.Hostname()); err != nil {
+		return nil, nil, err
+	}
+
+	release, err := AcquireEmailDownload(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer release()
+
+	postURL := (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: endpointPath}).String()
+
+	client := &http.Client{Timeout: 20 * time.Second}
+	rctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(rctx, http.MethodPost, postURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("User-Agent", nuonuoBrowserUA)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Origin", (&url.URL{Scheme: u.Scheme, Host: u.Host}).String())
+	req.Header.Set("Referer", printURL)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	body, err := readWithLimit(resp.Body, emailParseMaxPageBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	type nuonuoResp struct {
+		Status    string `json:"status"`
+		Msg       string `json:"msg"`
+		RouteView string `json:"routeView"`
+		Data      *struct {
+			InvoiceSimpleVo *struct {
+				URL            string `json:"url"`
+				XMLURL         string `json:"xmlUrl"`
+				OFDDownloadURL string `json:"ofdDownloadUrl"`
+			} `json:"invoiceSimpleVo"`
+		} `json:"data"`
+	}
+
+	var parsed nuonuoResp
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, nil, err
+	}
+	if strings.TrimSpace(parsed.Status) != "0000" {
+		msg := strings.TrimSpace(parsed.Msg)
+		if msg == "" {
+			msg = "nuonuo response status not ok"
+		}
+		return nil, nil, fmt.Errorf("%s", msg)
+	}
+	if parsed.Data == nil || parsed.Data.InvoiceSimpleVo == nil {
+		return nil, nil, fmt.Errorf("nuonuo response missing invoiceSimpleVo")
+	}
+
+	if v := strings.TrimSpace(parsed.Data.InvoiceSimpleVo.XMLURL); v != "" {
+		xmlURL = &v
+	}
+	if v := strings.TrimSpace(parsed.Data.InvoiceSimpleVo.URL); v != "" {
+		pdfURL = &v
+	}
+	return xmlURL, pdfURL, nil
 }
 
 func followHEADRedirectsCtx(ctx context.Context, rawURL string, max int) (string, error) {

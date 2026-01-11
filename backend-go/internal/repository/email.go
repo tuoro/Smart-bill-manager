@@ -109,6 +109,41 @@ func (r *EmailRepository) DeleteConfigForOwner(ownerUserID string, id string) er
 	return result.Error
 }
 
+func (r *EmailRepository) DeleteLogsByConfigID(configID string) (deleted int64, err error) {
+	configID = strings.TrimSpace(configID)
+	if configID == "" {
+		return 0, fmt.Errorf("missing config id")
+	}
+	res := database.GetDB().Where("email_config_id = ?", configID).Delete(&models.EmailLog{})
+	return res.RowsAffected, res.Error
+}
+
+func (r *EmailRepository) DeleteConfigForOwnerCascade(ownerUserID string, id string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	if ownerUserID == "" || id == "" {
+		return gorm.ErrRecordNotFound
+	}
+
+	return database.GetDB().Transaction(func(tx *gorm.DB) error {
+		// Ensure config belongs to owner first.
+		var cfg models.EmailConfig
+		if err := tx.Select("id").Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&cfg).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Where("email_config_id = ?", cfg.ID).Delete(&models.EmailLog{}).Error; err != nil {
+			return err
+		}
+
+		res := tx.Where("id = ? AND owner_user_id = ?", cfg.ID, ownerUserID).Delete(&models.EmailConfig{})
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return res.Error
+	})
+}
+
 func (r *EmailRepository) UpdateLastCheck(id, lastCheck string) error {
 	return database.GetDB().Model(&models.EmailConfig{}).Where("id = ?", id).Update("last_check", lastCheck).Error
 }

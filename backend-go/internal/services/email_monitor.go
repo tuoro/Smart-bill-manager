@@ -244,7 +244,7 @@ func (s *EmailService) DeleteConfig(ownerUserID string, id string) error {
 		return err
 	}
 	s.StopMonitoring(id)
-	return s.repo.DeleteConfigForOwner(ownerUserID, id)
+	return s.repo.DeleteConfigForOwnerCascade(ownerUserID, id)
 }
 
 func (s *EmailService) GetLogs(ownerUserID string, configID string, limit int) ([]models.EmailLog, error) {

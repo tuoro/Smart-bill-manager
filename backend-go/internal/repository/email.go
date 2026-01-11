@@ -213,6 +213,29 @@ func (r *EmailRepository) FindLogByIDCtx(ctx context.Context, id string) (*model
 	return &logRow, nil
 }
 
+func (r *EmailRepository) FindLogByUIDCtx(ctx context.Context, ownerUserID string, configID string, mailbox string, messageUID uint32) (*models.EmailLog, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	configID = strings.TrimSpace(configID)
+	mailbox = strings.TrimSpace(mailbox)
+	if mailbox == "" {
+		mailbox = "INBOX"
+	}
+	if ownerUserID == "" || configID == "" || messageUID == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var logRow models.EmailLog
+	if err := database.GetDB().WithContext(ctx).
+		Select("id, owner_user_id, email_config_id, mailbox, message_uid, has_attachment, attachment_count, invoice_xml_url, invoice_pdf_url, status").
+		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ? AND message_uid = ?", ownerUserID, configID, mailbox, messageUID).
+		First(&logRow).Error; err != nil {
+		return nil, err
+	}
+	return &logRow, nil
+}
+
 func (r *EmailRepository) LogExists(ownerUserID string, configID string, mailbox string, messageUID uint32) (bool, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	configID = strings.TrimSpace(configID)

@@ -47,6 +47,38 @@ func countPDFAttachments(bs *imap.BodyStructure) (hasAttachment int, attachmentC
 		return 0, 0
 	}
 
+	extractFilename := func(part *imap.BodyStructure) string {
+		if part == nil {
+			return ""
+		}
+		// Prefer the library helper; it handles common Param/DispositionParam variants.
+		if v, err := part.Filename(); err == nil {
+			if s := strings.TrimSpace(v); s != "" {
+				return s
+			}
+		}
+		// Fallback: case-insensitive lookup across Params/DispositionParams.
+		if part.DispositionParams != nil {
+			for k, v := range part.DispositionParams {
+				if strings.EqualFold(strings.TrimSpace(k), "filename") || strings.EqualFold(strings.TrimSpace(k), "name") {
+					if s := strings.TrimSpace(v); s != "" {
+						return s
+					}
+				}
+			}
+		}
+		if part.Params != nil {
+			for k, v := range part.Params {
+				if strings.EqualFold(strings.TrimSpace(k), "name") || strings.EqualFold(strings.TrimSpace(k), "filename") {
+					if s := strings.TrimSpace(v); s != "" {
+						return s
+					}
+				}
+			}
+		}
+		return ""
+	}
+
 	var walk func(part *imap.BodyStructure)
 	walk = func(part *imap.BodyStructure) {
 		if part == nil {
@@ -63,18 +95,7 @@ func countPDFAttachments(bs *imap.BodyStructure) (hasAttachment int, attachmentC
 			return
 		}
 
-		filename := ""
-		if part.DispositionParams != nil {
-			if v := strings.TrimSpace(part.DispositionParams["filename"]); v != "" {
-				filename = v
-			}
-		}
-		if filename == "" && part.Params != nil {
-			if v := strings.TrimSpace(part.Params["name"]); v != "" {
-				filename = v
-			}
-		}
-
+		filename := extractFilename(part)
 		filenameLower := strings.ToLower(filename)
 		mime := strings.ToLower(strings.TrimSpace(part.MIMEType + "/" + part.MIMESubType))
 		isPDF := mime == "application/pdf" || strings.HasSuffix(filenameLower, ".pdf") || strings.Contains(filenameLower, ".pdf?")
@@ -504,7 +525,36 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		return false
 	}
 
-	if exists, err := s.repo.LogExists(ownerUserID, configID, "INBOX", msg.Uid); err == nil && exists {
+	// If the log already exists, still backfill attachment/link metadata (older builds may have missed it).
+	if existing, err := s.repo.FindLogByUIDCtx(context.Background(), ownerUserID, configID, "INBOX", msg.Uid); err == nil && existing != nil {
+		hasAttachment, attachmentCount := countPDFAttachments(msg.BodyStructure)
+
+		var bodyText string
+		if section != nil {
+			if r := msg.GetBody(section); r != nil {
+				if s, err := readIMAPBodyWithLimit(r, 256*1024); err == nil {
+					bodyText = s
+				}
+			}
+		}
+		xmlURL, pdfURL := extractInvoiceLinksFromText(bodyText)
+
+		updates := map[string]interface{}{}
+		if hasAttachment > existing.HasAttachment {
+			updates["has_attachment"] = hasAttachment
+		}
+		if attachmentCount > existing.AttachmentCount {
+			updates["attachment_count"] = attachmentCount
+		}
+		if existing.InvoiceXMLURL == nil && xmlURL != nil && strings.TrimSpace(*xmlURL) != "" {
+			updates["invoice_xml_url"] = strings.TrimSpace(*xmlURL)
+		}
+		if existing.InvoicePDFURL == nil && pdfURL != nil && strings.TrimSpace(*pdfURL) != "" {
+			updates["invoice_pdf_url"] = strings.TrimSpace(*pdfURL)
+		}
+		if len(updates) > 0 {
+			_ = s.repo.UpdateLog(existing.ID, updates)
+		}
 		return false
 	}
 

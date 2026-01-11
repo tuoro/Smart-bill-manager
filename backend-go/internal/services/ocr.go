@@ -4202,11 +4202,12 @@ func isGarbagePartyName(name string) bool {
 	if name == "" {
 		return true
 	}
+	compact := strings.Join(strings.Fields(name), "")
 	// Common merged-label artifacts in PDF text extraction.
-	if strings.Contains(name, "销售方信息") || strings.Contains(name, "购买方信息") {
+	if strings.Contains(compact, "销售方信息") || strings.Contains(compact, "购买方信息") {
 		return true
 	}
-	if strings.Contains(name, "信息名称") || strings.Contains(name, "名称：") || strings.Contains(name, "名称:") {
+	if strings.Contains(compact, "信息名称") || strings.Contains(compact, "名称：") || strings.Contains(compact, "名称:") {
 		return true
 	}
 	// Mojibake/replacement characters.
@@ -4725,13 +4726,17 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 		if s == "" {
 			return false
 		}
-		if strings.Contains(s, "价税合计") {
+		compact := strings.Join(strings.Fields(s), "")
+		if compact == "" {
+			return false
+		}
+		if strings.Contains(compact, "价税合计") {
 			return true
 		}
-		if strings.HasPrefix(s, "合计") || strings.Contains(s, " 合计") {
+		if strings.HasPrefix(compact, "合计") {
 			return true
 		}
-		if strings.Contains(s, "销售方") || strings.Contains(s, "购买方") {
+		if strings.Contains(compact, "销售方") || strings.Contains(compact, "购买方") {
 			return true
 		}
 		return false
@@ -4957,40 +4962,44 @@ func isBadPartyNameCandidate(name string) bool {
 	if name == "" {
 		return true
 	}
+	compact := strings.Join(strings.Fields(name), "")
+	if compact == "" {
+		return true
+	}
 	// Single-character picks are almost always OCR/segmentation leftovers (e.g. "地").
-	if len([]rune(name)) <= 1 {
+	if len([]rune(compact)) <= 1 {
 		return true
 	}
 	// Common numeric/table labels that may be mistakenly picked as a party name.
 	// Keep this conservative: only reject short, pure-label values to avoid blocking real company names
 	// that contain these words as prefixes (we often strip them in later heuristics).
-	switch name {
+	switch compact {
 	case "金额", "单价", "税额", "税率", "征收率", "税率/征收率":
 		return true
 	}
-	if len([]rune(name)) <= 6 {
-		if strings.Contains(name, "金额") || strings.Contains(name, "单价") || strings.Contains(name, "税额") || strings.Contains(name, "税率") || strings.Contains(name, "征收率") {
+	if len([]rune(compact)) <= 6 {
+		if strings.Contains(compact, "金额") || strings.Contains(compact, "单价") || strings.Contains(compact, "税额") || strings.Contains(compact, "税率") || strings.Contains(compact, "征收率") {
 			return true
 		}
-		if strings.Contains(name, "%") && (strings.Contains(name, "税") || strings.Contains(name, "征收")) {
+		if strings.Contains(compact, "%") && (strings.Contains(compact, "税") || strings.Contains(compact, "征收")) {
 			return true
 		}
 	}
 	// Footer/stamp fields often get concatenated into a "name" by PDF text extraction.
-	if strings.Contains(name, "销售方:(章)") || strings.Contains(name, "销售方:（章）") || strings.Contains(name, "销售方：（章）") ||
-		strings.Contains(name, "开票人") || strings.Contains(name, "复核") || strings.Contains(name, "收款人") || strings.Contains(name, "备注") {
+	if strings.Contains(compact, "销售方:(章)") || strings.Contains(compact, "销售方:（章）") || strings.Contains(compact, "销售方：（章）") ||
+		strings.Contains(compact, "开票人") || strings.Contains(compact, "复核") || strings.Contains(compact, "收款人") || strings.Contains(compact, "备注") {
 		return true
 	}
 	// Any embedded buyer/seller labels indicate this isn't a pure party name.
-	if strings.Contains(name, "销售方") || strings.Contains(name, "购买方") {
+	if strings.Contains(compact, "销售方") || strings.Contains(compact, "购买方") {
 		return true
 	}
 	// Truncated label fragments (OCR may drop the last character like "统一社会信用代").
-	if strings.Contains(name, "统一社会信用") || strings.Contains(name, "纳税人识别") {
+	if strings.Contains(compact, "统一社会信用") || strings.Contains(compact, "纳税人识别") {
 		return true
 	}
 	// Pure punctuation/ellipsis-like placeholders.
-	if strings.Trim(name, ".·•…") == "" {
+	if strings.Trim(compact, ".·•…") == "" {
 		return true
 	}
 	// Common label fragments that sometimes get captured as a "name".
@@ -5003,42 +5012,42 @@ func isBadPartyNameCandidate(name string) bool {
 		"开户行", "开户行及账号", "账号", "支行", "分行", "营业部",
 	}
 	for _, b := range bad {
-		if name == b {
+		if compact == b {
 			return true
 		}
 	}
-	if strings.HasSuffix(name, "识别号:") || strings.HasSuffix(name, "识别号：") {
+	if strings.HasSuffix(compact, "识别号:") || strings.HasSuffix(compact, "识别号：") {
 		return true
 	}
-	if strings.Contains(name, "小写") || strings.Contains(name, "大写") {
+	if strings.Contains(compact, "小写") || strings.Contains(compact, "大写") {
 		return true
 	}
-	if strings.Contains(name, "纳税人识别号") || strings.Contains(name, "统一社会信用代码") || strings.Contains(name, "地址") || strings.Contains(name, "开户行") {
+	if strings.Contains(compact, "纳税人识别号") || strings.Contains(compact, "统一社会信用代码") || strings.Contains(compact, "地址") || strings.Contains(compact, "开户行") {
 		return true
 	}
-	if strings.Contains(name, "支行") || strings.Contains(name, "分行") || strings.Contains(name, "营业部") {
+	if strings.Contains(compact, "支行") || strings.Contains(compact, "分行") || strings.Contains(compact, "营业部") {
 		return true
 	}
 	// Dates are not party names; avoid confusing invoice date with seller/buyer.
-	if regexp.MustCompile(`\d{4}年\d{1,2}月\d{1,2}日`).MatchString(name) {
+	if regexp.MustCompile(`\d{4}年\d{1,2}月\d{1,2}日`).MatchString(compact) {
 		return true
 	}
 	// Chinese amount-in-words (e.g. "贰佰圆整") are not party names.
-	if strings.Contains(name, "圆整") || strings.Contains(name, "元整") {
+	if strings.Contains(compact, "圆整") || strings.Contains(compact, "元整") {
 		return true
 	}
-	if regexp.MustCompile(`^[零壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元整]+$`).MatchString(name) &&
-		(strings.Contains(name, "圆") || strings.Contains(name, "元")) {
+	if regexp.MustCompile(`^[零壹贰叁肆伍陆柒捌玖拾佰仟万亿圆元整]+$`).MatchString(compact) &&
+		(strings.Contains(compact, "圆") || strings.Contains(compact, "元")) {
 		return true
 	}
 	// Bank/account/address-like lines are not party names.
-	if regexp.MustCompile(`\d{10,}`).MatchString(name) {
+	if regexp.MustCompile(`\d{10,}`).MatchString(compact) {
 		return true
 	}
-	if strings.Contains(name, "银行") || strings.Contains(name, "流水号") || strings.Contains(name, "业务") {
+	if strings.Contains(compact, "银行") || strings.Contains(compact, "流水号") || strings.Contains(compact, "业务") {
 		return true
 	}
-	if regexp.MustCompile(`(?:路|街|道|弄|巷)\d+号`).MatchString(name) || regexp.MustCompile(`\d+号`).MatchString(name) {
+	if regexp.MustCompile(`(?:路|街|道|弄|巷)\d+号`).MatchString(compact) || regexp.MustCompile(`\d+号`).MatchString(compact) {
 		return true
 	}
 	return false

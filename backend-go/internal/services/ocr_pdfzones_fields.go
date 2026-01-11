@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type pdfZonesCandidate struct {
@@ -45,6 +46,13 @@ func zonesRowSpansSorted(row PDFTextZonesRow) []PDFTextZonesSpan {
 
 func zonesCleanupPartyName(s string) string {
 	s = cleanupName(strings.TrimSpace(s))
+	s = removeChineseInlineSpaces(s)
+	if strings.IndexFunc(s, func(r rune) bool { return unicode.Is(unicode.Han, r) }) >= 0 {
+		// For Chinese party names, strip all whitespace to avoid "销 售 方" style artifacts.
+		s = strings.Join(strings.Fields(s), "")
+	} else {
+		s = strings.Join(strings.Fields(s), " ")
+	}
 	s = strings.TrimSpace(s)
 	s = strings.TrimRight(s, "/\\|,.;:：，。；")
 	return strings.TrimSpace(s)
@@ -75,14 +83,19 @@ func zonesExtractValueToRightOfLabel(row PDFTextZonesRow, label string, stopLabe
 		if t == "" {
 			continue
 		}
-		if strings.Contains(t, "\u540d\u79f0") || strings.Contains(t, "\u7eb3\u7a0e\u4eba\u8bc6\u522b\u53f7") || strings.Contains(t, "\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801") ||
+		tc := strings.Join(strings.Fields(t), "")
+		if strings.Contains(tc, "\u9500\u552e\u65b9") || strings.Contains(tc, "\u8d2d\u4e70\u65b9") {
+			nextLabelLeft = spans[i].X0
+			break
+		}
+		if strings.Contains(tc, "\u540d\u79f0") || strings.Contains(tc, "\u7eb3\u7a0e\u4eba\u8bc6\u522b\u53f7") || strings.Contains(tc, "\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801") ||
 			strings.Contains(t, "\u5730\u5740") || strings.Contains(t, "\u7535\u8bdd") || strings.Contains(t, "\u5f00\u6237\u884c") || strings.Contains(t, "\u8d26\u53f7") ||
-			strings.Contains(t, "\u9879\u76ee\u540d\u79f0") || strings.Contains(t, "\u89c4\u683c\u578b\u53f7") || strings.Contains(t, "\u5355\u4f4d") || strings.Contains(t, "\u6570\u91cf") {
+			strings.Contains(tc, "\u9879\u76ee\u540d\u79f0") || strings.Contains(tc, "\u89c4\u683c\u578b\u53f7") || strings.Contains(tc, "\u5355\u4f4d") || strings.Contains(tc, "\u6570\u91cf") {
 			nextLabelLeft = spans[i].X0
 			break
 		}
 		for _, stop := range stopLabels {
-			if stop != "" && strings.Contains(t, stop) {
+			if stop != "" && strings.Contains(tc, stop) {
 				nextLabelLeft = spans[i].X0
 				break
 			}
@@ -118,6 +131,8 @@ func extractBuyerNameFromPDFZones(pages []PDFTextZonesPage) (pdfZonesCandidate, 
 	stopLabels := []string{
 		"\u7eb3\u7a0e\u4eba\u8bc6\u522b\u53f7",
 		"\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801",
+		"\u9500\u552e\u65b9",
+		"\u9500\u552e\u65b9\u4fe1\u606f",
 		"\u5730\u5740",
 		"\u7535\u8bdd",
 		"\u5f00\u6237\u884c",

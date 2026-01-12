@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/base64"
 	"net/url"
 	"testing"
 )
@@ -46,6 +47,18 @@ func TestBestInvoicePreviewURLFromBody_HTMLAnchorAfterLabel(t *testing.T) {
 	got := bestInvoicePreviewURLFromBody(body)
 	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
 		t.Fatalf("unexpected anchored preview url: %q", got)
+	}
+}
+
+func TestBestInvoicePreviewURLFromBody_DecodesBase64Runs(t *testing.T) {
+	html := `<div><span>点击链接查看发票：</span><a href="https://nnfp.jss.com.cn/8_CszRwjaw-FBnv">下载发票</a></div>`
+	b64 := base64.StdEncoding.EncodeToString([]byte(html))
+	// Split into chunks similar to base64 email body lines.
+	body := b64[:40] + "\n" + b64[40:]
+
+	got := bestInvoicePreviewURLFromBody(body)
+	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
+		t.Fatalf("unexpected decoded preview url: %q", got)
 	}
 }
 

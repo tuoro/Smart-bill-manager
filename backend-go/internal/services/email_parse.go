@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/hex"
 	"encoding/xml"
@@ -1460,6 +1461,101 @@ func bestInvoicePreviewURLFromBody(body string) string {
 			if u := firstURLFromText(window); u != "" {
 				return u
 			}
+		}
+	}
+
+	// Some providers (or mail clients) may expose the body as base64 chunks (e.g. when exporting raw .eml).
+	// Best-effort: detect base64 runs and decode them to recover URLs.
+	if u := bestInvoicePreviewURLFromBase64Runs(body); u != "" {
+		return u
+	}
+
+	return ""
+}
+
+func bestInvoicePreviewURLFromBase64Runs(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	// If there are already URLs in the body, normal parsers should have found them.
+	if strings.Contains(body, "http://") || strings.Contains(body, "https://") || strings.Contains(body, "//") {
+		return ""
+	}
+
+	isB64Line := func(line string) bool {
+		line = strings.TrimSpace(line)
+		if len(line) < 16 {
+			return false
+		}
+		for i := 0; i < len(line); i++ {
+			c := line[i]
+			switch {
+			case c >= 'a' && c <= 'z':
+			case c >= 'A' && c <= 'Z':
+			case c >= '0' && c <= '9':
+			case c == '+' || c == '/' || c == '=':
+			default:
+				return false
+			}
+		}
+		return true
+	}
+
+	lines := strings.Split(body, "\n")
+	type run struct{ start, end int }
+	runs := make([]run, 0, 8)
+	cur := run{start: -1, end: -1}
+	for i, line := range lines {
+		if isB64Line(line) {
+			if cur.start < 0 {
+				cur = run{start: i, end: i}
+			} else {
+				cur.end = i
+			}
+			continue
+		}
+		if cur.start >= 0 {
+			runs = append(runs, cur)
+			cur = run{start: -1, end: -1}
+		}
+	}
+	if cur.start >= 0 {
+		runs = append(runs, cur)
+	}
+
+	// Sort runs by length desc (simple selection without importing sort).
+	for i := 0; i < len(runs); i++ {
+		for j := i + 1; j < len(runs); j++ {
+			if (runs[j].end-runs[j].start) > (runs[i].end-runs[i].start) {
+				runs[i], runs[j] = runs[j], runs[i]
+			}
+		}
+	}
+
+	for _, r := range runs {
+		var b64 strings.Builder
+		for i := r.start; i <= r.end; i++ {
+			b64.WriteString(strings.TrimSpace(lines[i]))
+		}
+		blob := b64.String()
+		if len(blob) < 32 {
+			continue
+		}
+		decoded, err := base64.StdEncoding.DecodeString(blob)
+		if err != nil || len(decoded) == 0 {
+			continue
+		}
+		s := string(decoded)
+		// Quick check to avoid scanning binary payloads (e.g. images).
+		if !strings.Contains(s, "http://") && !strings.Contains(s, "https://") && !strings.Contains(strings.ToLower(s), "<a") {
+			continue
+		}
+		if u := bestInvoicePreviewURLFromBody(s); u != "" {
+			return u
+		}
+		if u := bestPreviewURLFromText(s); u != "" {
+			return u
 		}
 	}
 

@@ -4990,6 +4990,69 @@ func peelTrailingUnitSpecTokensFromItemName(name, spec, unit string) (string, st
 		}
 	}
 
+	isShortHanToken := func(s string) bool {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return false
+		}
+		rs := []rune(s)
+		if len(rs) < 1 || len(rs) > 2 {
+			return false
+		}
+		for _, r := range rs {
+			if !unicode.Is(unicode.Han, r) {
+				return false
+			}
+		}
+		return true
+	}
+
+	stripTrailingToken := func(tok string) bool {
+		tok = strings.TrimSpace(tok)
+		if tok == "" {
+			return false
+		}
+		// Try whitespace token stripping first.
+		fields := strings.Fields(name)
+		if len(fields) >= 2 && strings.TrimSpace(fields[len(fields)-1]) == tok {
+			trimmed := strings.TrimSpace(strings.Join(fields[:len(fields)-1], " "))
+			if trimmed != "" {
+				name = trimmed
+				return true
+			}
+		}
+		// Fallback: glued suffix stripping, e.g. "...项项".
+		if strings.HasSuffix(name, tok) {
+			trimmed := strings.TrimSpace(strings.TrimSuffix(name, tok))
+			if trimmed != "" {
+				name = trimmed
+				return true
+			}
+		}
+		return false
+	}
+
+	// If unit/spec are already known and look like short tokens, strip duplicated tails from name.
+	// This handles cases where OCR/zone splitting keeps unit/spec inside the name column too.
+	if unit != "" && isShortHanToken(unit) {
+		// If spec is empty and the name still ends with the same token, it's very likely the spec column leaked into name.
+		// Example: "...项项1" becomes name "...项" + unit "项" + qty "1" after splitting; treat the remaining trailing "项" as spec.
+		if spec == "" {
+			if stripTrailingToken(unit) {
+				spec = unit
+			}
+		} else {
+			_ = stripTrailingToken(unit)
+		}
+	}
+	if spec != "" && isShortHanToken(spec) {
+		_ = stripTrailingToken(spec)
+		// If spec==unit and name still ends with the token twice, try one more time.
+		if spec == unit {
+			_ = stripTrailingToken(spec)
+		}
+	}
+
 	// First try to peel by whitespace-separated tokens (more reliable when PDF extraction preserved spaces).
 	fields := strings.Fields(name)
 	if unit == "" && len(fields) >= 2 && isUnitToken(fields[len(fields)-1]) {
@@ -5003,29 +5066,12 @@ func peelTrailingUnitSpecTokensFromItemName(name, spec, unit string) (string, st
 		name = strings.TrimSpace(strings.Join(fields, " "))
 	}
 
-	// If the OCR removed spaces, the trailing unit/spec may be glued, e.g. "...项项".
-	// Only do this when we still have missing fields.
-	peelSuffix := func(tok string) bool {
-		if tok == "" {
-			return false
-		}
-		if !strings.HasSuffix(name, tok) {
-			return false
-		}
-		trimmed := strings.TrimSpace(strings.TrimSuffix(name, tok))
-		if trimmed == "" {
-			return false
-		}
-		name = trimmed
-		return true
-	}
-
 	if unit == "" || spec == "" {
 		// Prefer longer tokens first (e.g. "公斤").
 		candidates := []string{"公斤", "千克", "克", "米", "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "项"}
 		if unit == "" {
 			for _, tok := range candidates {
-				if peelSuffix(tok) {
+				if stripTrailingToken(tok) {
 					unit = tok
 					break
 				}
@@ -5033,7 +5079,7 @@ func peelTrailingUnitSpecTokensFromItemName(name, spec, unit string) (string, st
 		}
 		if spec == "" {
 			for _, tok := range candidates {
-				if peelSuffix(tok) {
+				if stripTrailingToken(tok) {
 					spec = tok
 					break
 				}
@@ -6124,8 +6170,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 	// Some PDF text extractions merge unit+qty into the same token as the item name,
 	// e.g. "*电信服务*话费充值元1" or "... 元 1". Peel them off early so we don't lose them.
-	unitQtySuffixRe := regexp.MustCompile(`^(.*?)(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)$`)
-	unitQtyInlineRe := regexp.MustCompile(`(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)`)
+	unitQtySuffixRe := regexp.MustCompile(`^(.*?)(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|项|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)$`)
+	unitQtyInlineRe := regexp.MustCompile(`(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|项|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)`)
 	specInlineRe := regexp.MustCompile(`(?:\d+(?:\.\d+)?\s*°\s*(?:[×x\*])\s*\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)?|\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)\s*(?:[×x\*])\s*\d+(?:\.\d+)?)`)
 	categoryAnyRe := regexp.MustCompile(`\*[^*\n\r]{1,20}\*`)
 	longDecimalRe := regexp.MustCompile(`\d+\.\d{4,}`)
@@ -6768,6 +6814,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			currentSawMoney = false
 			return
 		}
+		name, currentSpec, currentUnit = peelTrailingUnitSpecTokensFromItemName(name, currentSpec, currentUnit)
 		qty := currentQty
 		if qty == nil && currentSawMoney {
 			one := 1.0

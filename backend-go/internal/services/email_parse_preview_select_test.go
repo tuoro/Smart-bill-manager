@@ -115,6 +115,7 @@ func TestIsBadEmailPreviewURL(t *testing.T) {
 		{"asset_png", "https://example.com/a.png", true},
 		{"asset_js", "https://example.com/app.js", true},
 		{"nuonuo_invoiceShow", "https://nnfp.jss.com.cn/scan-invoice/invoiceShow", true},
+		{"nuonuo_invoiceShow_with_query", "https://nnfp.jss.com.cn/scan-invoice/invoiceShow?token=abc", false},
 		{"baiwang_short", "http://u.baiwang.com/k5pE5SNf1ld", false},
 		{"baiwang_preview", "https://pis.baiwang.com/smkp-vue/previewInvoiceAllEle?param=abc", false},
 	}

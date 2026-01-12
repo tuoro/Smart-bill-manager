@@ -676,17 +676,18 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 					previewResolveErr = previewResolveErr[:240] + "..."
 				}
 			}
+			parseErrMsg := func() string {
+				if previewResolveErr == "" {
+					if strings.TrimSpace(bodyText) == "" {
+						return "no pdf attachment and no pdf download url found (no email body text found)"
+					}
+					return "no pdf attachment and no pdf download url found"
+				}
+				return "no pdf attachment and no pdf download url found; preview link resolve failed: " + previewResolveErr
+			}()
 			_ = s.repo.UpdateLog(logID, map[string]interface{}{
 				"status":      "error",
-				"parse_error": func() string {
-					if previewResolveErr == "" {
-						if strings.TrimSpace(bodyText) == "" {
-							return "no pdf attachment and no pdf download url found (no email body text found)"
-						}
-						return "no pdf attachment and no pdf download url found"
-					}
-					return "no pdf attachment and no pdf download url found; preview link resolve failed: " + previewResolveErr
-				}(),
+				"parse_error": parseErrMsg,
 				"invoice_xml_url": func() interface{} {
 					if xmlURL == nil {
 						return nil
@@ -694,7 +695,7 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 					return *xmlURL
 				}(),
 			})
-			return nil, fmt.Errorf("no pdf attachment and no pdf download url found")
+			return nil, fmt.Errorf("%s", parseErrMsg)
 		}
 		b, err := downloadURLWithLimitCtx(ctx, *pdfURL, emailParseMaxPDFBytes)
 		if err != nil {
@@ -1254,26 +1255,6 @@ func bestPreviewURLFromText(body string) string {
 		s = strings.TrimRight(s, ">)].,;\"'")
 		return s
 	}
-	isAssetURL := func(u string) bool {
-		l := strings.ToLower(u)
-		switch {
-		case strings.Contains(l, ".png"),
-			strings.Contains(l, ".jpg"),
-			strings.Contains(l, ".jpeg"),
-			strings.Contains(l, ".gif"),
-			strings.Contains(l, ".webp"),
-			strings.Contains(l, ".bmp"),
-			strings.Contains(l, ".svg"),
-			strings.Contains(l, ".css"),
-			strings.Contains(l, ".js"),
-			strings.Contains(l, ".woff"),
-			strings.Contains(l, ".woff2"),
-			strings.Contains(l, ".ttf"):
-			return true
-		default:
-			return false
-		}
-	}
 
 	expandEmbeddedURLs := func(rawURLs []string) []string {
 		seen := map[string]struct{}{}
@@ -1346,7 +1327,20 @@ func bestPreviewURLFromText(body string) string {
 		score := 0
 
 		// De-prioritize assets/tracking links.
-		if isAssetURL(l) {
+		pathLower := strings.ToLower(strings.TrimSpace(u.Path))
+		switch {
+		case strings.Contains(pathLower, ".png"),
+			strings.Contains(pathLower, ".jpg"),
+			strings.Contains(pathLower, ".jpeg"),
+			strings.Contains(pathLower, ".gif"),
+			strings.Contains(pathLower, ".webp"),
+			strings.Contains(pathLower, ".bmp"),
+			strings.Contains(pathLower, ".svg"),
+			strings.Contains(pathLower, ".css"),
+			strings.Contains(pathLower, ".js"),
+			strings.Contains(pathLower, ".woff"),
+			strings.Contains(pathLower, ".woff2"),
+			strings.Contains(pathLower, ".ttf"):
 			score -= 1000
 		}
 
@@ -1777,23 +1771,6 @@ func isBadEmailPreviewURL(u string) bool {
 	if u == "" {
 		return true
 	}
-	l := strings.ToLower(u)
-
-	// Ignore obvious asset links.
-	switch {
-	case strings.Contains(l, ".png"),
-		strings.Contains(l, ".jpg"),
-		strings.Contains(l, ".jpeg"),
-		strings.Contains(l, ".gif"),
-		strings.Contains(l, ".webp"),
-		strings.Contains(l, ".svg"),
-		strings.Contains(l, ".css"),
-		strings.Contains(l, ".js"),
-		strings.Contains(l, ".woff"),
-		strings.Contains(l, ".woff2"),
-		strings.Contains(l, ".ttf"):
-		return true
-	}
 
 	pu, err := url.Parse(u)
 	if err != nil || pu == nil {
@@ -1802,9 +1779,29 @@ func isBadEmailPreviewURL(u string) bool {
 	host := strings.ToLower(strings.TrimSpace(pu.Hostname()))
 	pathLower := strings.ToLower(strings.TrimSpace(pu.Path))
 
-	// NuoNuo generic landing page (not invoice-specific).
-	if host == "nnfp.jss.com.cn" && strings.HasPrefix(pathLower, "/scan-invoice/invoiceshow") {
+	// Ignore obvious asset links (check path only; hostnames like *.jss.com.cn must not be treated as ".js").
+	switch {
+	case strings.Contains(pathLower, ".png"),
+		strings.Contains(pathLower, ".jpg"),
+		strings.Contains(pathLower, ".jpeg"),
+		strings.Contains(pathLower, ".gif"),
+		strings.Contains(pathLower, ".webp"),
+		strings.Contains(pathLower, ".bmp"),
+		strings.Contains(pathLower, ".svg"),
+		strings.Contains(pathLower, ".css"),
+		strings.Contains(pathLower, ".js"),
+		strings.Contains(pathLower, ".woff"),
+		strings.Contains(pathLower, ".woff2"),
+		strings.Contains(pathLower, ".ttf"):
 		return true
+	}
+
+	// NuoNuo generic landing page (not invoice-specific).
+	// Some invoice-specific pages may also use /scan-invoice/invoiceShow with query params; keep those.
+	if host == "nnfp.jss.com.cn" && strings.HasPrefix(pathLower, "/scan-invoice/invoiceshow") {
+		if strings.TrimSpace(pu.RawQuery) == "" && strings.TrimSpace(pu.Fragment) == "" {
+			return true
+		}
 	}
 	if isNuonuoPortalRootURL(pu) {
 		return true

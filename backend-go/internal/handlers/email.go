@@ -173,6 +173,24 @@ func (h *EmailHandler) ExportLogEML(c *gin.Context) {
 	ctx, cancel := withReadTimeout(c)
 	defer cancel()
 
+	format := c.Query("format")
+	if format == "debug" {
+		debug, err := h.emailService.ExportEmailLogDebugCtx(ctx, ownerUserID, id)
+		if err != nil {
+			if handleReadTimeoutError(c, err) {
+				return
+			}
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				utils.Error(c, 404, "邮件日志不存在", nil)
+				return
+			}
+			utils.Error(c, 500, "导出邮件调试信息失败", err)
+			return
+		}
+		utils.SuccessData(c, debug)
+		return
+	}
+
 	filename, emlBytes, err := h.emailService.ExportEmailLogEMLCtx(ctx, ownerUserID, id)
 	if err != nil {
 		if handleReadTimeoutError(c, err) {
@@ -186,7 +204,6 @@ func (h *EmailHandler) ExportLogEML(c *gin.Context) {
 		return
 	}
 
-	format := c.Query("format")
 	if format == "text" {
 		c.Header("Content-Type", "text/plain; charset=utf-8")
 		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))

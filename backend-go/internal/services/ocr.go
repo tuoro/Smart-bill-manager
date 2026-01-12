@@ -77,6 +77,8 @@ var (
 	// Compiled regex patterns for better performance
 	amountRegex = regexp.MustCompile(amountPattern)
 	taxIDRegex  = regexp.MustCompile(taxIDPatternWithBoundary)
+	// Matches "监制" even when OCR inserts 1-2 characters between them (e.g. "监局制").
+	taxAuthorityControlRegex = regexp.MustCompile(`监.{0,2}制`)
 
 	// Name pattern for position-based extraction
 	namePositionPattern = regexp.MustCompile(`名\s*称[：:]\s*([^\n\r]+?)(?:\s{3,}|[\n\r]|$)`)
@@ -4197,9 +4199,39 @@ func cleanupName(name string) string {
 	return name
 }
 
+func looksLikeTaxAuthorityHeader(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	// Remove inline spaces that OCR/PDF extraction often inserts between Chinese characters.
+	compact := removeChineseInlineSpaces(name)
+	compact = strings.Join(strings.Fields(compact), "")
+	if compact == "" {
+		return false
+	}
+
+	// Tax-bureau headers frequently appear near the top of e-invoices and can be mistakenly picked as "seller".
+	// Examples:
+	// - "全国北国家税务总局统京一市发税票务局监制"
+	// - "全国福国家税务总局统建一省发税票务监局制"
+	if !taxAuthorityControlRegex.MatchString(compact) {
+		return false
+	}
+	if strings.Contains(compact, "国家税务总局") || strings.Contains(compact, "税务局") || strings.Contains(compact, "税务") ||
+		strings.Contains(compact, "发票") || strings.Contains(compact, "税票务") || strings.Contains(compact, "发税票务") ||
+		strings.Contains(compact, "统建") {
+		return true
+	}
+	return false
+}
+
 func isGarbagePartyName(name string) bool {
 	name = strings.TrimSpace(name)
 	if name == "" {
+		return true
+	}
+	if looksLikeTaxAuthorityHeader(name) {
 		return true
 	}
 	compact := strings.Join(strings.Fields(name), "")
@@ -4376,13 +4408,34 @@ func extractNameFromTaxIDLabelLine(line string) string {
 		return ""
 	}
 	rest := line[idx:]
-	col := strings.IndexAny(rest, ":：")
-	if col == -1 || col+1 >= len(rest) {
+	colASCII := strings.Index(rest, ":")
+	colFull := strings.Index(rest, "：")
+	col := -1
+	sepLen := 0
+	if colASCII >= 0 && (colFull < 0 || colASCII < colFull) {
+		col = colASCII
+		sepLen = 1
+	} else if colFull >= 0 {
+		col = colFull
+		sepLen = len("：")
+	}
+	if col == -1 || col+sepLen >= len(rest) {
 		return ""
 	}
-	val := strings.TrimSpace(rest[col+1:])
+	val := strings.TrimSpace(rest[col+sepLen:])
 	if val == "" {
 		return ""
+	}
+	// Cut at merged buyer/seller label fragments if present.
+	for _, marker := range []string{
+		"销售方信息", "销售方", "购买方信息", "购买方",
+		"项目名称", "规格型号", "单位", "数量",
+		"单价", "金额", "税率", "税额",
+		"下载次数",
+	} {
+		if idx := strings.Index(val, marker); idx > 0 {
+			val = strings.TrimSpace(val[:idx])
+		}
 	}
 	// Prefer cutting at a tax ID if present.
 	if loc := taxIDRegex.FindStringIndex(val); loc != nil && loc[0] > 0 {
@@ -4414,58 +4467,10 @@ func extractNameFromTaxIDLabelLine(line string) string {
 }
 
 func extractSellerNameFromPDFZones(pages []PDFTextZonesPage) string {
-	best := ""
-	bestScore := -1
-
-	for _, p := range pages {
-		h := p.Height
-		if h <= 0 {
-			h = 1
-		}
-		for _, row := range p.Rows {
-			rowText := strings.TrimSpace(row.Text)
-			if rowText == "" && len(row.Spans) > 0 {
-				parts := make([]string, 0, len(row.Spans))
-				for _, sp := range row.Spans {
-					if t := strings.TrimSpace(sp.T); t != "" {
-						parts = append(parts, t)
-					}
-				}
-				rowText = strings.TrimSpace(strings.Join(parts, " "))
-			}
-			if rowText == "" {
-				continue
-			}
-
-			cand := ""
-			if taxIDRegex.MatchString(rowText) {
-				cand = extractCompanyNameNearTaxID(rowText)
-			}
-			if cand == "" {
-				continue
-			}
-			cand = cleanupName(strings.TrimSpace(cand))
-			if cand == "" || cand == "个人" || isBadPartyNameCandidate(cand) {
-				continue
-			}
-
-			score := len([]rune(cand))
-			score += 60 // tax-id context
-			switch strings.ToLower(strings.TrimSpace(row.Region)) {
-			case "password", "seller", "header_right":
-				score += 10
-			}
-			if row.Y0/h < 0.55 {
-				score += 6
-			}
-			if score > bestScore {
-				best = cand
-				bestScore = score
-			}
-		}
+	if cand, ok := extractSellerNameFromPDFZonesCandidate(pages); ok {
+		return cand.val
 	}
-
-	return best
+	return ""
 }
 
 func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLineItem {
@@ -5181,6 +5186,9 @@ func isBadPartyNameCandidate(name string) bool {
 	if name == "" {
 		return true
 	}
+	if looksLikeTaxAuthorityHeader(name) {
+		return true
+	}
 	compact := strings.Join(strings.Fields(name), "")
 	if compact == "" {
 		return true
@@ -5201,6 +5209,13 @@ func isBadPartyNameCandidate(name string) bool {
 			return true
 		}
 		if strings.Contains(compact, "%") && (strings.Contains(compact, "税") || strings.Contains(compact, "征收")) {
+			return true
+		}
+	}
+	// Long merged rows that contain money/tax labels + numbers are not party names.
+	// Example: "单价上海市虹口区鹏侠百货商店1683.17金额...".
+	if strings.Contains(compact, "单价") || strings.Contains(compact, "金额") || strings.Contains(compact, "税额") || strings.Contains(compact, "税率") || strings.Contains(compact, "征收率") {
+		if regexp.MustCompile(`\d`).MatchString(compact) || strings.Contains(compact, "%") {
 			return true
 		}
 	}
@@ -8134,21 +8149,33 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 		}
 	}
 
-	if data.BuyerName == nil {
-		buyerRegexes := []*regexp.Regexp{
-			regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-			regexp.MustCompile(`购买方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-			regexp.MustCompile(`购货方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-		}
-		for _, re := range buyerRegexes {
-			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-				val := cleanPartyNameFromInlineValue(match[1])
-				if val != "" && val != "信息" && val != "名称" && !isBadPartyNameCandidate(val) {
-					setStringWithSourceAndConfidence(&data.BuyerName, &data.BuyerNameSource, &data.BuyerNameConfidence, val, "buyer_label", 0.8)
-					break
+	{
+		curBuyer := ptrToString(data.BuyerName)
+		needBuyerLabel := data.BuyerName == nil ||
+			isGarbagePartyName(curBuyer) ||
+			isBadPartyNameCandidate(curBuyer) ||
+			(data.BuyerNameSource == "position" && data.BuyerNameConfidence <= 0.75)
+
+		if needBuyerLabel {
+			buyerRegexes := []*regexp.Regexp{
+				regexp.MustCompile(`购买方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+				regexp.MustCompile(`购买方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+				regexp.MustCompile(`购货方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+			}
+			for _, re := range buyerRegexes {
+				if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
+					val := cleanPartyNameFromInlineValue(match[1])
+					if val != "" && val != "信息" && val != "名称" && !isBadPartyNameCandidate(val) {
+						v := val
+						data.BuyerName = &v
+						data.BuyerNameSource = "buyer_label"
+						data.BuyerNameConfidence = 0.8
+						break
+					}
 				}
 			}
 		}
+
 		if data.BuyerName == nil {
 			buyerSectionRegex := regexp.MustCompile(`(?s)购买方信息.*?纳税人识别号[：:]?\s*[\n\r]?\s*([A-Z0-9]*)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`)
 			if match := buyerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
@@ -8165,21 +8192,34 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 		}
 	}
 
-	if data.SellerName == nil {
-		sellerRegexes := []*regexp.Regexp{
-			regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-			regexp.MustCompile(`销售方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-			regexp.MustCompile(`出票方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
-		}
-		for _, re := range sellerRegexes {
-			if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
-				val := cleanPartyNameFromInlineValue(match[1])
-				if val != "" && val != "信息" && val != "名称" && val != "个人" && !isBadPartyNameCandidate(val) {
-					setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, val, "seller_label", 0.8)
-					break
+	{
+		curSeller := ptrToString(data.SellerName)
+		needSellerLabel := data.SellerName == nil ||
+			isGarbagePartyName(curSeller) ||
+			isBadPartyNameCandidate(curSeller) ||
+			looksLikeTaxAuthorityHeader(curSeller) ||
+			(data.SellerNameSource == "position" && data.SellerNameConfidence <= 0.75)
+
+		if needSellerLabel {
+			sellerRegexes := []*regexp.Regexp{
+				regexp.MustCompile(`销售方[：:]?\s*名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+				regexp.MustCompile(`销售方名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+				regexp.MustCompile(`出票方[：:]?\s*[\n\r]?\s*([^\n\r]+)`),
+			}
+			for _, re := range sellerRegexes {
+				if match := re.FindStringSubmatch(parsedText); len(match) > 1 {
+					val := cleanPartyNameFromInlineValue(match[1])
+					if val != "" && val != "信息" && val != "名称" && val != "个人" && !isBadPartyNameCandidate(val) {
+						v := val
+						data.SellerName = &v
+						data.SellerNameSource = "seller_label"
+						data.SellerNameConfidence = 0.8
+						break
+					}
 				}
 			}
 		}
+
 		if data.SellerName == nil {
 			sellerSectionRegex := regexp.MustCompile(fmt.Sprintf(`(?s)销.*?纳税人识别号[：:]?\s*[\n\r]?\s*(%s)[\s\n\r]+名称[：:]?\s*[\n\r]?\s*([^\n\r]+)`, taxIDPattern))
 			if match := sellerSectionRegex.FindStringSubmatch(parsedText); len(match) > 2 {
@@ -8224,9 +8264,15 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 			}
 			buyerText = parsedText[start:]
 		}
+		// If we used a lookback window, buyerText may also contain earlier "销售方..." content.
+		// Only apply stop markers *after* the "购买方" marker to avoid truncating the buyer block early.
+		cutFrom := 0
+		if idx := strings.Index(buyerText, "购买方"); idx >= 0 {
+			cutFrom = idx
+		}
 		for _, stop := range []string{"密码区", "明细", "销售方"} {
-			if idx := strings.Index(buyerText, stop); idx > 0 {
-				buyerText = buyerText[:idx]
+			if idx := strings.Index(buyerText[cutFrom:], stop); idx > 0 {
+				buyerText = buyerText[:cutFrom+idx]
 			}
 		}
 
@@ -8245,6 +8291,23 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 				cand := cleanPartyNameFromInlineValue(ms[len(ms)-1][1])
 				if cand != "" && len([]rune(cand)) > 1 && !isBadPartyNameCandidate(cand) {
 					val = cand
+				}
+			}
+		}
+		// Merged-label buyer block: "名称：统一社会信用代码/纳税人识别号：个人（个人）..." (no direct name after "名称：").
+		if val == "" || len([]rune(val)) <= 1 || isGarbagePartyName(val) || isBadPartyNameCandidate(val) {
+			for _, line := range strings.Split(buyerText, "\n") {
+				l := strings.TrimSpace(strings.TrimRight(line, "\r"))
+				if l == "" {
+					continue
+				}
+				if strings.Contains(l, "纳税人识别号") || strings.Contains(l, "统一社会信用代码") {
+					cand := extractNameFromTaxIDLabelLine(l)
+					cand = strings.TrimSpace(cand)
+					if cand != "" && len([]rune(cand)) > 1 && !isBadPartyNameCandidate(cand) {
+						val = cand
+						break
+					}
 				}
 			}
 		}
@@ -8299,7 +8362,11 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 		}
 
 		// Seller: try to recover company name near tax-id (even if there are numbers/amounts between them).
-		needSellerFix := data.SellerName == nil || isGarbagePartyName(ptrToString(data.SellerName)) || isBadPartyNameCandidate(ptrToString(data.SellerName)) || ptrToString(data.SellerName) == ptrToString(data.BuyerName)
+		needSellerFix := data.SellerName == nil ||
+			isGarbagePartyName(ptrToString(data.SellerName)) ||
+			isBadPartyNameCandidate(ptrToString(data.SellerName)) ||
+			looksLikeTaxAuthorityHeader(ptrToString(data.SellerName)) ||
+			ptrToString(data.SellerName) == ptrToString(data.BuyerName)
 		if needSellerFix {
 			if cand := extractCompanyNameNearTaxID(parsedText); cand != "" && cand != "个人" && !isBadPartyNameCandidate(cand) {
 				v := cand
@@ -8353,7 +8420,8 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 				oldLen := len([]rune(old))
 				newLen := len([]rune(best))
 				// Override short/low-confidence positional picks or garbage merged-label picks when we find a company name tied to a tax ID.
-				if (data.SellerNameSource == "position" && data.SellerNameConfidence <= 0.75 && newLen > oldLen+1) ||
+				if looksLikeTaxAuthorityHeader(old) ||
+					(data.SellerNameSource == "position" && data.SellerNameConfidence <= 0.75 && newLen > oldLen+1) ||
 					isGarbagePartyName(old) ||
 					(newLen > oldLen+4) {
 					shouldOverride = true
@@ -8444,22 +8512,31 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 
 	// When PDF zones are available, prefer coordinate-based fixes for ambiguous party names and totals.
 	if meta != nil && len(meta.Zones) > 0 {
-		// Buyer: recover from the buyer block when OCR text/normalization merged columns.
+		// Buyer: coordinate-first selection (zones) with safe override rules.
 		{
 			curBuyer := ptrToString(data.BuyerName)
-			needBuyer := data.BuyerName == nil ||
-				isGarbagePartyName(curBuyer) ||
-				isBadPartyNameCandidate(curBuyer) ||
-				curBuyer == ptrToString(data.SellerName)
-
 			if cand, ok := extractBuyerNameFromPDFZones(meta.Zones); ok {
-				shouldOverride := needBuyer
-				if !shouldOverride && curBuyer == "个人" && cand.val != "个人" {
-					// "个人" is often a placeholder; override only when our current pick is weak.
-					if data.BuyerNameConfidence <= 0.75 || data.BuyerNameSource == "position" {
-						shouldOverride = cand.conf >= 0.9
+				shouldOverride := false
+
+				// Never override structured sources like XML.
+				if data.BuyerNameSource != "xml" {
+					needBuyer := data.BuyerName == nil ||
+						isGarbagePartyName(curBuyer) ||
+						isBadPartyNameCandidate(curBuyer) ||
+						curBuyer == ptrToString(data.SellerName) ||
+						(data.BuyerNameSource == "position" && data.BuyerNameConfidence <= 0.8)
+
+					if needBuyer {
+						shouldOverride = true
+					} else if curBuyer == "个人" && cand.val != "个人" {
+						// Upgrade placeholder to a more specific buyer.
+						shouldOverride = cand.conf >= 0.85
+					} else if cand.conf >= 0.92 && cand.val != "" && cand.val != curBuyer {
+						// High-confidence zones extraction is typically more reliable for structured fields.
+						shouldOverride = true
 					}
 				}
+
 				if shouldOverride && cand.val != "" && !isBadPartyNameCandidate(cand.val) {
 					v := cand.val
 					data.BuyerName = &v
@@ -8515,13 +8592,32 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 
 	// If seller name is still suspicious, try to recover from coordinate-zoned rows (when available).
 	if meta != nil && len(meta.Zones) > 0 {
-		need := data.SellerName == nil ||
-			isGarbagePartyName(ptrToString(data.SellerName)) ||
-			isBadPartyNameCandidate(ptrToString(data.SellerName)) ||
-			ptrToString(data.SellerName) == ptrToString(data.BuyerName)
-		if need {
-			if cand := extractSellerNameFromPDFZones(meta.Zones); cand != "" && cand != "个人" && !isBadPartyNameCandidate(cand) {
-				setStringWithSourceAndConfidence(&data.SellerName, &data.SellerNameSource, &data.SellerNameConfidence, cand, "pymupdf_zones_coords", 0.92)
+		curSeller := ptrToString(data.SellerName)
+		if cand, ok := extractSellerNameFromPDFZonesCandidate(meta.Zones); ok {
+			shouldOverride := false
+
+			// Never override structured sources like XML.
+			if data.SellerNameSource != "xml" {
+				need := data.SellerName == nil ||
+					isGarbagePartyName(curSeller) ||
+					isBadPartyNameCandidate(curSeller) ||
+					looksLikeTaxAuthorityHeader(curSeller) ||
+					curSeller == ptrToString(data.BuyerName) ||
+					(data.SellerNameSource == "position" && data.SellerNameConfidence <= 0.8)
+
+				if need {
+					shouldOverride = true
+				} else if cand.conf >= 0.92 && cand.val != "" && cand.val != curSeller {
+					// High-confidence zones extraction is typically more reliable for structured fields.
+					shouldOverride = true
+				}
+			}
+
+			if shouldOverride && cand.val != "" && cand.val != "个人" && !isBadPartyNameCandidate(cand.val) {
+				v := cand.val
+				data.SellerName = &v
+				data.SellerNameSource = cand.src
+				data.SellerNameConfidence = cand.conf
 			}
 		}
 	}

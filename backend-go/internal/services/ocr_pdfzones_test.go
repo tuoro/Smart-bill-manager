@@ -56,6 +56,32 @@ func TestExtractBuyerNameFromPDFZones_FallbackFromBankFieldWhenNameIsGarbage(t *
 	}
 }
 
+func TestExtractBuyerNameFromPDFZones_MergedLabelPersonalKeepsParens(t *testing.T) {
+	pages := []PDFTextZonesPage{
+		{
+			Page:   1,
+			Width:  1000,
+			Height: 1000,
+			Rows: []PDFTextZonesRow{
+				{
+					Region: "buyer",
+					Y0:     220,
+					Y1:     250,
+					Text:   "购买方信息 名称：统一社会信用代码/纳税人识别号：个人（个人） 销售方信息名称：",
+				},
+			},
+		},
+	}
+
+	got, ok := extractBuyerNameFromPDFZones(pages)
+	if !ok {
+		t.Fatalf("expected buyer candidate, got ok=false")
+	}
+	if got.val != "个人（个人）" {
+		t.Fatalf("expected buyer=%q got %q (src=%s)", "个人（个人）", got.val, got.src)
+	}
+}
+
 func TestExtractInvoiceTotalsFromPDFZones_PicksXiaoxieAndTax(t *testing.T) {
 	pages := []PDFTextZonesPage{
 		{
@@ -140,4 +166,3 @@ func TestExtractInvoiceLineItemsFromPDFZones_SplitsColumns(t *testing.T) {
 		t.Fatalf("expected qty 2, got %+v", items[0].Quantity)
 	}
 }
-

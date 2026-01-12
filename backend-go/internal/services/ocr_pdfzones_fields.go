@@ -15,6 +15,78 @@ type pdfZonesCandidate struct {
 	conf float64
 }
 
+func extractSellerNameFromPDFZonesCandidate(pages []PDFTextZonesPage) (pdfZonesCandidate, bool) {
+	best := pdfZonesCandidate{}
+	bestScore := -1
+
+	for _, p := range pages {
+		h := p.Height
+		if h <= 0 {
+			h = 1
+		}
+		for _, row := range p.Rows {
+			region := strings.ToLower(strings.TrimSpace(row.Region))
+			if region != "password" && region != "seller" && region != "header_right" && region != "header_left" {
+				continue
+			}
+
+			rowText := zonesRowText(row)
+			if strings.TrimSpace(rowText) == "" {
+				continue
+			}
+
+			cands := make([]pdfZonesCandidate, 0, 4)
+
+			// Strong signal: company name tied to a tax-id label line (often in "密码区" for PyMuPDF zoned extraction).
+			if taxIDRegex.MatchString(rowText) || strings.Contains(rowText, "\u7eb3\u7a0e\u4eba\u8bc6\u522b\u53f7") || strings.Contains(rowText, "\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801") {
+				if v := extractCompanyNameNearTaxID(rowText); v != "" && !isBadPartyNameCandidate(v) {
+					cands = append(cands, pdfZonesCandidate{val: v, src: "pymupdf_zones_seller_taxid_context", conf: 0.92})
+				}
+			}
+
+			// Some templates may contain the seller name in the same row without a tax-id match; accept only clear company-like strings.
+			if strings.Contains(rowText, "\u9500\u552e\u65b9") && strings.Contains(rowText, "\u540d\u79f0") {
+				if v := extractNameFromTaxIDLabelLine(rowText); v != "" && !isBadPartyNameCandidate(v) && v != "\u4e2a\u4eba" {
+					cands = append(cands, pdfZonesCandidate{val: v, src: "pymupdf_zones_seller_name_inline", conf: 0.86})
+				}
+			}
+
+			for _, cand := range cands {
+				v := zonesCleanupPartyName(cand.val)
+				if v == "" || v == "\u4e2a\u4eba" || isBadPartyNameCandidate(v) {
+					continue
+				}
+				if looksLikeTaxAuthorityHeader(v) {
+					continue
+				}
+
+				score := len([]rune(v))
+				switch region {
+				case "seller", "header_right":
+					score += 30
+				case "password":
+					score += 22
+				case "header_left":
+					score += 10
+				}
+				yRatio := row.Y0 / h
+				if yRatio >= 0.18 && yRatio <= 0.62 {
+					score += 8
+				}
+				if cand.src == "pymupdf_zones_seller_taxid_context" {
+					score += 55
+				}
+				if score > bestScore {
+					best = pdfZonesCandidate{val: v, src: cand.src, conf: cand.conf}
+					bestScore = score
+				}
+			}
+		}
+	}
+
+	return best, strings.TrimSpace(best.val) != ""
+}
+
 func zonesRowText(row PDFTextZonesRow) string {
 	if t := strings.TrimSpace(row.Text); t != "" {
 		return t
@@ -46,6 +118,8 @@ func zonesRowSpansSorted(row PDFTextZonesRow) []PDFTextZonesSpan {
 
 func zonesCleanupPartyName(s string) string {
 	s = cleanupName(strings.TrimSpace(s))
+	// Some PDFs/decoders may introduce replacement characters; strip them for stable matching.
+	s = strings.ReplaceAll(s, "\uFFFD", "")
 	s = removeChineseInlineSpaces(s)
 	if strings.IndexFunc(s, func(r rune) bool { return unicode.Is(unicode.Han, r) }) >= 0 {
 		// For Chinese party names, strip all whitespace to avoid "销 售 方" style artifacts.
@@ -187,6 +261,13 @@ func extractBuyerNameFromPDFZones(pages []PDFTextZonesPage) (pdfZonesCandidate, 
 					cands = append(cands, pdfZonesCandidate{val: v, src: "pymupdf_zones_buyer_taxid_label", conf: 0.85})
 				}
 			}
+			// Merged-label buyer block (personal buyers often have no tax ID):
+			// "名称：统一社会信用代码/纳税人识别号：个人（个人） 销售方信息名称：..."
+			if (region == "buyer" || region == "header_left") && (strings.Contains(rowText, "\u7eb3\u7a0e\u4eba\u8bc6\u522b\u53f7") || strings.Contains(rowText, "\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801")) {
+				if v := extractNameFromTaxIDLabelLine(rowText); v != "" && !isBadPartyNameCandidate(v) && v != "\u4e2a\u4eba" {
+					cands = append(cands, pdfZonesCandidate{val: v, src: "pymupdf_zones_buyer_taxid_inline", conf: 0.88})
+				}
+			}
 
 			// Fallback: preserve "个人" as a valid buyer name if it appears in the buyer block.
 			if strings.Contains(rowText, "\u4e2a\u4eba") {
@@ -218,6 +299,9 @@ func extractBuyerNameFromPDFZones(pages []PDFTextZonesPage) (pdfZonesCandidate, 
 				}
 				if cand.src == "pymupdf_zones_buyer_taxid_label" {
 					score += 35
+				}
+				if cand.src == "pymupdf_zones_buyer_taxid_inline" {
+					score += 40
 				}
 				if score > bestScore {
 					best = pdfZonesCandidate{val: v, src: cand.src, conf: cand.conf}

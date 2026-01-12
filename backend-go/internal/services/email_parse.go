@@ -1437,6 +1437,13 @@ func bestInvoicePreviewURLFromHTML(body string) string {
 		"查看发票",
 		"领取发票",
 	}
+	isTrackingURL := func(u string) bool {
+		pu, err := url.Parse(strings.TrimSpace(u))
+		if err != nil || pu == nil {
+			return false
+		}
+		return isTrackingRedirectHost(pu.Hostname())
+	}
 	containsAny := func(s string, needles []string) bool {
 		for _, n := range needles {
 			if strings.Contains(s, n) {
@@ -1457,18 +1464,31 @@ func bestInvoicePreviewURLFromHTML(body string) string {
 	}
 
 	// Prefer anchors whose own visible text is the CTA (e.g. "下载发票") or an URL.
+	bestTrackingCTA := ""
 	for _, tok := range tokens {
 		if tok.kind != "a" {
 			continue
 		}
 		if containsAny(tok.text, labels) {
 			if u := cleanHref(tok.href); u != "" {
-				return u
+				// Some emails wrap the real invoice link behind a tracking redirect. Prefer returning a
+				// direct/known-provider link if one exists later in the body.
+				if isTrackingURL(u) {
+					if bestTrackingCTA == "" {
+						bestTrackingCTA = u
+					}
+				} else {
+					return u
+				}
 			}
 		}
 		if u := firstURLFromText(tok.text); u != "" {
 			return u
 		}
+	}
+
+	if bestTrackingCTA != "" {
+		return bestTrackingCTA
 	}
 
 	// Prefer the first <a href> that follows a CTA label in nearby text.
@@ -1497,6 +1517,18 @@ func bestInvoicePreviewURLFromHTML(body string) string {
 	}
 
 	return ""
+}
+
+func isTrackingRedirectHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return false
+	}
+	// Seen in NuoNuo email templates as a tracking redirect wrapper.
+	if host == "linktrace.triggerdelivery.com" || strings.HasSuffix(host, ".triggerdelivery.com") {
+		return true
+	}
+	return false
 }
 
 func isDirectInvoicePDFURL(u string) bool {
@@ -1785,6 +1817,17 @@ func resolveInvoiceDownloadLinksFromPreviewURLCtx(ctx context.Context, previewUR
 	// Provider-specific fast path (e.g. Baiwang preview pages have deterministic download endpoints).
 	if x, p, ok := resolveKnownProviderInvoiceLinksCtx(ctx, previewURL); ok {
 		return x, p, nil
+	}
+
+	// Some providers wrap invoice links in tracking redirects that require more hops than our default fetch helper.
+	if u, err2 := url.Parse(previewURL); err2 == nil && u != nil && isTrackingRedirectHost(u.Hostname()) {
+		if f, err := fetchURLWithLimitCtxWithUAAndRedirects(ctx, previewURL, emailParseMaxPageBytes, nuonuoBrowserUA, 10); err == nil && f != nil {
+			// Retry known-provider detection on the resolved final URL before falling back to scraping.
+			if x, p, ok := resolveKnownProviderInvoiceLinksCtx(ctx, f.FinalURL); ok {
+				return x, p, nil
+			}
+			previewURL = strings.TrimSpace(f.FinalURL)
+		}
 	}
 
 	f, err := fetchURLWithLimitCtx(ctx, previewURL, emailParseMaxPageBytes)

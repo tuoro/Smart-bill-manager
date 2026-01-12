@@ -49,6 +49,20 @@ func TestBestInvoicePreviewURLFromBody_HTMLAnchorAfterLabel(t *testing.T) {
 	}
 }
 
+func TestBestInvoicePreviewURLFromBody_PrefersNonTrackingLinkOverTrackingCTA(t *testing.T) {
+	body := `
+<div>
+  <a href="http://linktrace.triggerdelivery.com/u/o1/xxx">下载发票</a>
+  <div><span>点击链接查看发票：</span><a href="https://nnfp.jss.com.cn/8_CszRwjaw-FBnv">https://nnfp.jss.com.cn/8_CszRwjaw-FBnv</a></div>
+  <a href="https://nst.nuonuo.com/#/">诺税通</a>
+</div>
+`
+	got := bestInvoicePreviewURLFromBody(body)
+	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
+		t.Fatalf("unexpected preview url: %q", got)
+	}
+}
+
 func TestBestPreviewURLFromText_PrefersNuonuoParamListOverPortalRoot(t *testing.T) {
 	body := `
 Portal: https://fp.nuonuo.com/#/

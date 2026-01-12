@@ -4478,30 +4478,36 @@ func extractBuyerNameFromInlineBuyerBlock(parsedText string) (string, string, st
 			buyerText = buyerText[:cutFrom+idx]
 		}
 	}
+	// Only parse within the buyer section (after the "购买方" marker). The lookback window may
+	// include earlier seller lines containing "名称：", which would poison the buyer extraction.
+	buyerSection := buyerText
+	if cutFrom > 0 && cutFrom < len(buyerText) {
+		buyerSection = buyerText[cutFrom:]
+	}
 
 	// Prefer "名称:".
-	if m := regexp.MustCompile(`名称\s*[:：]\s*([^\n\r]{1,80})`).FindStringSubmatch(buyerText); len(m) > 1 {
+	if m := regexp.MustCompile(`名称\s*[:：]\s*([^\n\r]{1,80})`).FindStringSubmatch(buyerSection); len(m) > 1 {
 		val := cleanPartyNameFromInlineValue(m[1])
 		if val != "" && !isBadPartyNameCandidate(val) {
 			return val, "buyer_name_inline_block", truncateForEvidence(m[0], 120), 0.9
 		}
 	}
 	// Fallback: phone field sometimes contains "个人".
-	if mm := regexp.MustCompile(`电话\s*[:：]\s*([^\s\n\r]{1,20})`).FindStringSubmatch(buyerText); len(mm) > 1 {
+	if mm := regexp.MustCompile(`电话\s*[:：]\s*([^\s\n\r]{1,20})`).FindStringSubmatch(buyerSection); len(mm) > 1 {
 		val := cleanPartyNameFromInlineValue(mm[1])
 		if val != "" && !isBadPartyNameCandidate(val) {
 			return val, "buyer_phone_inline_block", truncateForEvidence(mm[0], 120), 0.75
 		}
 	}
 	// Bank field sometimes carries a personal name.
-	if ms := regexp.MustCompile(`(?m)开户行及账号\s*[:：]\s*([^\n\r]{1,60})`).FindAllStringSubmatch(buyerText, -1); len(ms) > 0 {
+	if ms := regexp.MustCompile(`(?m)开户行及账号\s*[:：]\s*([^\n\r]{1,60})`).FindAllStringSubmatch(buyerSection, -1); len(ms) > 0 {
 		val := cleanPartyNameFromInlineValue(ms[len(ms)-1][1])
 		if val != "" && !isBadPartyNameCandidate(val) {
 			return val, "buyer_bank_inline_block", truncateForEvidence(ms[len(ms)-1][0], 120), 0.78
 		}
 	}
 	// Merged-label buyer block: name appears after tax-id label.
-	for _, line := range strings.Split(buyerText, "\n") {
+	for _, line := range strings.Split(buyerSection, "\n") {
 		l := strings.TrimSpace(strings.TrimRight(line, "\r"))
 		if l == "" {
 			continue
@@ -4514,7 +4520,7 @@ func extractBuyerNameFromInlineBuyerBlock(parsedText string) (string, string, st
 		}
 	}
 	// Last resort: "个人".
-	if regexp.MustCompile(`(?s)购买方.{0,240}?电话\s*[:：]\s*个人`).MatchString(buyerText) {
+	if regexp.MustCompile(`(?s)购买方.{0,240}?电话\s*[:：]\s*个人`).MatchString(buyerSection) {
 		return "个人", "buyer_personal_inline_block", "购买方…电话:个人", 0.7
 	}
 	return "", "", "", 0

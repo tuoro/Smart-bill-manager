@@ -74,6 +74,13 @@ Invoice: https://nnfp.jss.com.cn/8_CszRwjaw-FBnv
 	}
 }
 
+func TestIsBadEmailPreviewURL_DoesNotDiscardTrackingLink(t *testing.T) {
+	u := "http://linktrace.triggerdelivery.com/u/o1/N132-XXX"
+	if isBadEmailPreviewURL(u) {
+		t.Fatalf("tracking links should not be hard-discarded; keep as last-resort candidates")
+	}
+}
+
 func TestBestPreviewURLFromText_PrefersNuonuoParamListOverPortalRoot(t *testing.T) {
 	body := `
 Portal: https://fp.nuonuo.com/#/

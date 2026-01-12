@@ -1597,9 +1597,6 @@ func isBadEmailPreviewURL(u string) bool {
 	if err != nil || pu == nil {
 		return false
 	}
-	if isTrackingRedirectHost(pu.Hostname()) {
-		return true
-	}
 	host := strings.ToLower(strings.TrimSpace(pu.Hostname()))
 	pathLower := strings.ToLower(strings.TrimSpace(pu.Path))
 

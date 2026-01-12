@@ -61,6 +61,7 @@ type EmailLog struct {
 	InvoiceXMLURL   *string   `json:"invoice_xml_url"`
 	InvoicePDFURL   *string   `json:"invoice_pdf_url"`
 	ParsedInvoiceID *string   `json:"parsed_invoice_id" gorm:"index"`
+	ParsedInvoiceIDs *string  `json:"parsed_invoice_ids"`
 	ParseError      *string   `json:"parse_error"`
 	Status          string    `json:"status" gorm:"default:received"` // received/parsed/error
 	CreatedAt       time.Time `json:"created_at" gorm:"autoCreateTime"`

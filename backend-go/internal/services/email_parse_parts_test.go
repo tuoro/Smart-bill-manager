@@ -148,6 +148,60 @@ func TestExtractInvoiceArtifactsFromEmail_PicksInvoicePDFAndKeepsItinerary(t *te
 	}
 }
 
+func TestExtractInvoiceArtifactsFromEmail_KeepsOtherPDFsAsExtra(t *testing.T) {
+	invoicePDF1 := []byte("%PDF-invoice1\n")
+	invoicePDF2 := []byte("%PDF-invoice2\n")
+	itineraryPDF := []byte("%PDF-itinerary\n")
+	invoice1B64 := base64.StdEncoding.EncodeToString(invoicePDF1)
+	invoice2B64 := base64.StdEncoding.EncodeToString(invoicePDF2)
+	itineraryB64 := base64.StdEncoding.EncodeToString(itineraryPDF)
+
+	raw := strings.Join([]string{
+		"From: test@example.com",
+		"To: you@example.com",
+		"Subject: test",
+		"MIME-Version: 1.0",
+		"Content-Type: multipart/mixed; boundary=\"b\"",
+		"",
+		"--b",
+		"Content-Type: application/pdf",
+		"Content-Disposition: attachment; filename=\"invoice_鐢靛瓙鍙戠エ_1.pdf\"",
+		"Content-Transfer-Encoding: base64",
+		"",
+		invoice1B64,
+		"--b",
+		"Content-Type: application/pdf",
+		"Content-Disposition: attachment; filename=\"invoice_鐢靛瓙鍙戠エ_2.pdf\"",
+		"Content-Transfer-Encoding: base64",
+		"",
+		invoice2B64,
+		"--b",
+		"Content-Type: application/pdf",
+		"Content-Disposition: attachment; filename=\"琛岀▼鍗?.pdf\"",
+		"Content-Transfer-Encoding: base64",
+		"",
+		itineraryB64,
+		"--b--",
+		"",
+	}, "\r\n")
+
+	mr, err := mail.CreateReader(strings.NewReader(raw))
+	if err != nil {
+		t.Fatalf("CreateReader: %v", err)
+	}
+
+	name, b, _, extra, _, err := extractInvoiceArtifactsFromEmail(mr)
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if strings.TrimSpace(name) == "" || len(b) == 0 {
+		t.Fatalf("expected primary pdf picked, got name=%q len=%d", name, len(b))
+	}
+	if len(extra) != 2 {
+		t.Fatalf("expected 2 extra pdfs, got %+v", extra)
+	}
+}
+
 func TestExtractInvoiceArtifactsFromEmail_MessageRfc822NestedPDF(t *testing.T) {
 	pdfRaw := []byte("%PDF-nested\n")
 	pdfB64 := base64.StdEncoding.EncodeToString(pdfRaw)

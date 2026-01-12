@@ -48,6 +48,7 @@ const (
 	emailParseMaxTextBytes = 512 * 1024
 	emailParseMaxPageBytes = 2 * 1024 * 1024
 	emailParseMaxEMLBytes  = 2 * 1024 * 1024
+	emailParseMaxPDFAttachmentsToProcess = 6
 )
 
 type emailHeaderLike interface {
@@ -213,7 +214,7 @@ func looksLikeTextBytes(b []byte) bool {
 	return nonText*100/len(sample) < 2
 }
 
-func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfBytes []byte, xmlBytes []byte, itineraryPDFs []emailBinaryAttachment, bodyText string, err error) {
+func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfBytes []byte, xmlBytes []byte, extraPDFs []emailBinaryAttachment, bodyText string, err error) {
 	if mr == nil {
 		return "", nil, nil, nil, "", fmt.Errorf("nil mail reader")
 	}
@@ -242,7 +243,7 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 			if strings.HasSuffix(strings.ToLower(strings.TrimSpace(filename)), ".eml") {
 				if emlBytes, err2 := readWithLimit(part.Body, emailParseMaxEMLBytes); err2 == nil && len(emlBytes) > 0 {
 					if inner, err3 := mail.CreateReader(bytes.NewReader(emlBytes)); err3 == nil {
-						name2, pdf2, xml2, itins2, text2, err4 := extractInvoiceArtifactsFromEmail(inner)
+						name2, pdf2, xml2, extra2, text2, err4 := extractInvoiceArtifactsFromEmail(inner)
 						if err4 != nil {
 							return "", nil, nil, nil, "", err4
 						}
@@ -252,8 +253,8 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 						if xmlBytes == nil && xml2 != nil {
 							xmlBytes = xml2
 						}
-						if len(itins2) > 0 {
-							itineraryPDFs = append(itineraryPDFs, itins2...)
+						if len(extra2) > 0 {
+							extraPDFs = append(extraPDFs, extra2...)
 						}
 						if strings.TrimSpace(text2) != "" && len(textParts) < 12 {
 							textParts = append(textParts, text2)
@@ -270,7 +271,7 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 		// Do not depend on header types; use parsed Content-Type.
 		if ct == "message/rfc822" {
 			if inner, err := mail.CreateReader(part.Body); err == nil {
-				name2, pdf2, xml2, itins2, text2, err2 := extractInvoiceArtifactsFromEmail(inner)
+				name2, pdf2, xml2, extra2, text2, err2 := extractInvoiceArtifactsFromEmail(inner)
 				if err2 != nil {
 					return "", nil, nil, nil, "", err2
 				}
@@ -280,8 +281,8 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 				if xmlBytes == nil && xml2 != nil {
 					xmlBytes = xml2
 				}
-				if len(itins2) > 0 {
-					itineraryPDFs = append(itineraryPDFs, itins2...)
+				if len(extra2) > 0 {
+					extraPDFs = append(extraPDFs, extra2...)
 				}
 				if strings.TrimSpace(text2) != "" && len(textParts) < 12 {
 					textParts = append(textParts, text2)
@@ -294,6 +295,9 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 
 			// Detect PDFs/XMLs regardless of disposition; some servers omit Content-Disposition.
 			if ok, hinted := isPDFEmailHeader(hl); ok {
+				if emailParseMaxPDFAttachmentsToProcess > 0 && len(pdfParts) >= emailParseMaxPDFAttachmentsToProcess {
+					continue
+				}
 				filename := bestEmailPartFilename(part.Header, hinted)
 				b, err := readWithLimit(part.Body, emailParseMaxPDFBytes)
 				if err != nil {
@@ -349,7 +353,7 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 		}
 	}
 
-	// Choose the best PDF as the actual invoice PDF; keep itinerary PDFs as extra attachments.
+	// Choose the best PDF as the primary invoice PDF; keep other PDFs for optional extra parsing.
 	if len(pdfParts) > 0 {
 		bestIdx := 0
 		bestScore := -9999
@@ -380,13 +384,11 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 			if i == bestIdx {
 				continue
 			}
-			if isItineraryPDFName(p.Filename) {
-				itineraryPDFs = append(itineraryPDFs, p)
-			}
+			extraPDFs = append(extraPDFs, p)
 		}
 	}
 
-	return pdfFilename, pdfBytes, xmlBytes, itineraryPDFs, strings.Join(textParts, "\n"), nil
+	return pdfFilename, pdfBytes, xmlBytes, extraPDFs, strings.Join(textParts, "\n"), nil
 }
 
 func (s *EmailService) ParseEmailLog(ownerUserID string, logID string) (*models.Invoice, error) {
@@ -549,10 +551,10 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 		pdfFilename string
 		pdfBytes    []byte
 		xmlBytes    []byte
-		itineraryPDFs []emailBinaryAttachment
+		extraPDFs []emailBinaryAttachment
 	)
 
-	pdfFilename, pdfBytes, xmlBytes, itineraryPDFs, bodyText, err := extractInvoiceArtifactsFromEmail(mr)
+	pdfFilename, pdfBytes, xmlBytes, extraPDFs, bodyText, err := extractInvoiceArtifactsFromEmail(mr)
 	if err != nil {
 		_ = s.repo.UpdateLog(logID, map[string]interface{}{
 			"status":      "error",
@@ -792,33 +794,79 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 		}
 	}
 
-	// Save extra itinerary PDFs (optional).
-	if len(itineraryPDFs) > 0 && s.invoiceService != nil && inv != nil {
-		for _, a := range itineraryPDFs {
+	createdInvoiceIDs := []string{}
+	if inv != nil && strings.TrimSpace(inv.ID) != "" {
+		createdInvoiceIDs = append(createdInvoiceIDs, strings.TrimSpace(inv.ID))
+	}
+
+	// Mixed/multi-invoice attachment handling:
+	// - Air ticket itineraries / railway e-tickets are valid invoice formats and should be parsed as invoices.
+	// - Some emails contain multiple invoice PDFs; create invoices for each.
+	if len(extraPDFs) > 0 && s.invoiceService != nil {
+		for _, a := range extraPDFs {
+			if len(a.Bytes) == 0 {
+				continue
+			}
 			name := strings.TrimSpace(a.Filename)
 			if name == "" {
-				name = "itinerary.pdf"
+				name = "attachment.pdf"
 			}
+			if !strings.HasSuffix(strings.ToLower(name), ".pdf") {
+				name += ".pdf"
+			}
+
 			saved, p, sz, sh, err2 := s.savePDFToUploads(strings.TrimSpace(logRow.OwnerUserID), name, a.Bytes)
 			if err2 != nil {
 				continue
 			}
-			_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), inv.ID, CreateInvoiceAttachmentInput{
-				Kind:         "itinerary",
+
+			// Try to parse as a standalone invoice.
+			inv2, err2 := s.invoiceService.Create(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
 				Filename:     saved,
 				OriginalName: name,
 				FilePath:     p,
-				FileSize:     &sz,
+				FileSize:     sz,
 				FileSHA256:   sh,
 				Source:       "email",
 			})
+			if err2 == nil && inv2 != nil && strings.TrimSpace(inv2.ID) != "" {
+				createdInvoiceIDs = append(createdInvoiceIDs, strings.TrimSpace(inv2.ID))
+				continue
+			}
+
+			// If it didn't parse as an invoice, attach it to the primary invoice for reference.
+			if inv != nil {
+				kind := "extra_pdf"
+				if isItineraryPDFName(name) {
+					kind = "itinerary"
+				}
+				_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), inv.ID, CreateInvoiceAttachmentInput{
+					Kind:         kind,
+					Filename:     saved,
+					OriginalName: name,
+					FilePath:     p,
+					FileSize:     &sz,
+					FileSHA256:   sh,
+					Source:       "email",
+				})
+			}
 		}
 	}
+
+	parsedInvoiceIDsJSON := func(ids []string) interface{} {
+		if len(ids) <= 1 {
+			return nil
+		}
+		b, _ := json.Marshal(ids)
+		s := string(b)
+		return s
+	}(createdInvoiceIDs)
 
 	_ = s.repo.UpdateLog(logID, map[string]interface{}{
 		"status":            "parsed",
 		"parse_error":       nil,
 		"parsed_invoice_id": inv.ID,
+		"parsed_invoice_ids": parsedInvoiceIDsJSON,
 		"invoice_xml_url": func() interface{} {
 			if xmlURL == nil {
 				return nil

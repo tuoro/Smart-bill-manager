@@ -1,6 +1,7 @@
 package services
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -43,6 +44,7 @@ func init() {
 const (
 	emailParseMaxPDFBytes  = 20 * 1024 * 1024
 	emailParseMaxXMLBytes  = 5 * 1024 * 1024
+	emailParseMaxXMLArchiveBytes = 20 * 1024 * 1024
 	emailParseMaxTextBytes = 512 * 1024
 	emailParseMaxPageBytes = 2 * 1024 * 1024
 	emailParseMaxEMLBytes  = 2 * 1024 * 1024
@@ -726,6 +728,9 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 	// Prefer XML for invoice fields/items if available.
 	var inv *models.Invoice
 	if xmlBytes != nil {
+		if normalized, _, err2 := normalizeInvoiceXMLBytes(xmlBytes); err2 == nil {
+			xmlBytes = normalized
+		}
 		if extracted, err2 := parseInvoiceXMLToExtracted(xmlBytes); err2 == nil {
 			inv, err = s.invoiceService.CreateFromExtracted(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
 				Filename:     savedFilename,
@@ -738,8 +743,8 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 		}
 	}
 	if inv == nil && xmlURL != nil && strings.TrimSpace(*xmlURL) != "" {
-		xmlBytes, err := downloadURLWithLimit(*xmlURL, emailParseMaxXMLBytes)
-		if err == nil {
+		xmlBytes, _, err := downloadInvoiceXMLFromURL(*xmlURL)
+		if err == nil && xmlBytes != nil {
 			if extracted, err2 := parseInvoiceXMLToExtracted(xmlBytes); err2 == nil {
 				inv, err = s.invoiceService.CreateFromExtracted(strings.TrimSpace(logRow.OwnerUserID), CreateInvoiceInput{
 					Filename:     savedFilename,
@@ -867,6 +872,112 @@ func readWithLimit(r io.Reader, limit int64) ([]byte, error) {
 
 func downloadURLWithLimit(rawURL string, limit int64) ([]byte, error) {
 	return downloadURLWithLimitCtx(context.Background(), rawURL, limit)
+}
+
+func isZipPayload(b []byte) bool {
+	if len(b) < 4 {
+		return false
+	}
+	// ZIP local file header / empty archive / spanned marker.
+	return bytes.HasPrefix(b, []byte("PK\x03\x04")) || bytes.HasPrefix(b, []byte("PK\x05\x06")) || bytes.HasPrefix(b, []byte("PK\x07\x08"))
+}
+
+func normalizeInvoiceXMLBytes(payload []byte) ([]byte, string, error) {
+	if len(payload) == 0 {
+		return nil, "", fmt.Errorf("empty xml payload")
+	}
+	// If it already looks like XML, keep it as-is.
+	trim := bytes.TrimSpace(payload)
+	if bytes.HasPrefix(trim, []byte("<?xml")) || bytes.HasPrefix(trim, []byte("<")) {
+		return payload, "", nil
+	}
+	if !isZipPayload(payload) {
+		return payload, "", nil
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		return nil, "", fmt.Errorf("open zip: %w", err)
+	}
+
+	type cand struct {
+		name string
+		size uint64
+	}
+	cands := make([]cand, 0, 8)
+	for _, f := range zr.File {
+		if f == nil {
+			continue
+		}
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		name := strings.TrimSpace(f.Name)
+		if name == "" {
+			continue
+		}
+		nl := strings.ToLower(name)
+		if strings.Contains(nl, "__macosx") {
+			continue
+		}
+		if strings.HasSuffix(nl, ".xml") {
+			// Guard against zip bombs.
+			if f.UncompressedSize64 == 0 || f.UncompressedSize64 > uint64(emailParseMaxXMLBytes) {
+				continue
+			}
+			cands = append(cands, cand{name: name, size: f.UncompressedSize64})
+		}
+	}
+	if len(cands) == 0 {
+		return nil, "", fmt.Errorf("zip contains no xml")
+	}
+
+	// Prefer the largest xml entry (usually the main invoice file), then shorter names.
+	best := cands[0]
+	for _, c := range cands[1:] {
+		if c.size > best.size || (c.size == best.size && len(c.name) < len(best.name)) {
+			best = c
+		}
+	}
+
+	var target *zip.File
+	for _, f := range zr.File {
+		if f != nil && f.Name == best.name {
+			target = f
+			break
+		}
+	}
+	if target == nil {
+		return nil, "", fmt.Errorf("zip xml entry not found")
+	}
+	rc, err := target.Open()
+	if err != nil {
+		return nil, "", fmt.Errorf("open zip entry: %w", err)
+	}
+	defer rc.Close()
+
+	b, err := readWithLimit(rc, emailParseMaxXMLBytes)
+	if err != nil {
+		return nil, "", fmt.Errorf("read zip xml entry: %w", err)
+	}
+	return b, best.name, nil
+}
+
+func downloadInvoiceXMLFromURL(rawURL string) ([]byte, string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, "", fmt.Errorf("empty url")
+	}
+	limit := int64(emailParseMaxXMLBytes)
+	l := strings.ToLower(rawURL)
+	if strings.Contains(l, ".zip") || strings.Contains(l, "/xml/") {
+		limit = int64(emailParseMaxXMLArchiveBytes)
+	}
+	b, err := downloadURLWithLimit(rawURL, limit)
+	if err != nil {
+		return nil, "", err
+	}
+	return normalizeInvoiceXMLBytes(b)
 }
 
 func downloadURLWithLimitCtx(ctx context.Context, rawURL string, limit int64) ([]byte, error) {

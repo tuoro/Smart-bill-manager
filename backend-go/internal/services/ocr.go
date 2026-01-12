@@ -4744,19 +4744,21 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 
 	looksLikeItemRow := func(r []spanItem) bool {
 		qtyRe := regexp.MustCompile(`^\d+(?:\.\d+)?$`)
-		unitSet := map[string]bool{
-			"\u4e2a": true, // 个
-			"\u74f6": true, // 瓶
-			"\u5305": true, // 包
-			"\u6b21": true, // 次
-			"\u5957": true, // 套
-			"\u7ec4": true, // 组
-			"\u5f20": true, // 张
-			"\u4ef6": true, // 件
-			"\u76d2": true, // 盒
-			"\u4efd": true, // 份
-			"\u53f0": true, // 台
-			"\u8f86": true, // 辆
+		isShortHanToken := func(s string) bool {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				return false
+			}
+			rs := []rune(s)
+			if len(rs) < 1 || len(rs) > 2 {
+				return false
+			}
+			for _, r := range rs {
+				if !unicode.Is(unicode.Han, r) {
+					return false
+				}
+			}
+			return true
 		}
 		hasQty := false
 		hasUnit := false
@@ -4765,7 +4767,8 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 			if t == "" {
 				continue
 			}
-			if len([]rune(t)) <= 2 && unitSet[t] && sp.X0 >= 0.55*pageW {
+			// A short Han token in the unit column area is a good signal for "单位".
+			if isShortHanToken(t) && sp.X0 >= 0.55*pageW {
 				hasUnit = true
 			}
 			if qtyRe.MatchString(t) && sp.X0 >= 0.62*pageW {
@@ -4792,6 +4795,7 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 
 	out := make([]InvoiceLineItem, 0, 8)
 	for i := start; i < len(rows); i++ {
+		sort.Slice(rows[i], func(a, b int) bool { return rows[i][a].X0 < rows[i][b].X0 })
 		txt := rowText(rows[i])
 		if txt == "" {
 			continue
@@ -4806,6 +4810,7 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 			"unit": {},
 			"qty":  {},
 		}
+		ordered := rows[i]
 		for _, sp := range rows[i] {
 			t := strings.TrimSpace(sp.T)
 			if t == "" {
@@ -4818,10 +4823,97 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 			cells[key] = append(cells[key], t)
 		}
 
-		name := strings.TrimSpace(strings.Join(cells["name"], " "))
-		spec := strings.TrimSpace(strings.Join(cells["spec"], " "))
-		unit := strings.TrimSpace(strings.Join(cells["unit"], " "))
+		nameParts := cells["name"]
+		specParts := cells["spec"]
+		unitParts := cells["unit"]
 		qty := parseQty(strings.Join(cells["qty"], " "))
+
+		isShortHanToken := func(s string) bool {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				return false
+			}
+			rs := []rune(s)
+			if len(rs) < 1 || len(rs) > 2 {
+				return false
+			}
+			for _, r := range rs {
+				if !unicode.Is(unicode.Han, r) {
+					return false
+				}
+			}
+			return true
+		}
+		// Coordinate-based fallback: when spec/unit columns fail to be captured (common when header row is merged),
+		// infer them from short Han tokens that appear between name and quantity.
+		inferSpecUnit := func() (specTok, unitTok string) {
+			if qty == nil {
+				return "", ""
+			}
+			qtyRe := regexp.MustCompile(`^\d+(?:\.\d+)?$`)
+			qtyX0 := math.MaxFloat64
+			for _, sp := range ordered {
+				t := strings.TrimSpace(sp.T)
+				if t == "" {
+					continue
+				}
+				if qtyRe.MatchString(t) && sp.X0 >= 0.45*pageW && sp.X0 < qtyX0 {
+					qtyX0 = sp.X0
+				}
+			}
+			if qtyX0 == math.MaxFloat64 {
+				return "", ""
+			}
+			type tok struct {
+				t  string
+				x0 float64
+			}
+			cands := make([]tok, 0, 4)
+			for _, sp := range ordered {
+				t := strings.TrimSpace(sp.T)
+				if t == "" {
+					continue
+				}
+				// Between name area and qty column.
+				if sp.X0 < 0.30*pageW || sp.X0 >= qtyX0 {
+					continue
+				}
+				if isShortHanToken(t) {
+					cands = append(cands, tok{t: t, x0: sp.X0})
+				}
+			}
+			if len(cands) == 0 {
+				return "", ""
+			}
+			sort.Slice(cands, func(i, j int) bool { return cands[i].x0 < cands[j].x0 })
+			unitTok = cands[len(cands)-1].t
+			if len(cands) >= 2 {
+				specTok = cands[len(cands)-2].t
+			}
+			return specTok, unitTok
+		}
+
+		name := strings.TrimSpace(strings.Join(nameParts, " "))
+		spec := strings.TrimSpace(strings.Join(specParts, " "))
+		unit := strings.TrimSpace(strings.Join(unitParts, " "))
+		if (spec == "" || unit == "") && qty != nil {
+			sTok, uTok := inferSpecUnit()
+			if unit == "" && uTok != "" {
+				unit = uTok
+				// Drop one trailing occurrence from nameParts if it leaked there.
+				if len(nameParts) > 0 && strings.TrimSpace(nameParts[len(nameParts)-1]) == uTok {
+					nameParts = nameParts[:len(nameParts)-1]
+					name = strings.TrimSpace(strings.Join(nameParts, " "))
+				}
+			}
+			if spec == "" && sTok != "" {
+				spec = sTok
+				if len(nameParts) > 0 && strings.TrimSpace(nameParts[len(nameParts)-1]) == sTok {
+					nameParts = nameParts[:len(nameParts)-1]
+					name = strings.TrimSpace(strings.Join(nameParts, " "))
+				}
+			}
+		}
 
 		normalizeCell := func(s string) string {
 			s = strings.TrimSpace(s)
@@ -4833,6 +4925,10 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 		name = normalizeCell(name)
 		spec = normalizeCell(spec)
 		unit = normalizeCell(unit)
+
+		// Some PDFs render spec/unit as short tokens (e.g. "项") and OCR/zone splitting may leak them into the name column.
+		// Best-effort: peel trailing unit/spec tokens from the name when spec/unit columns were not captured.
+		name, spec, unit = peelTrailingUnitSpecTokensFromItemName(name, spec, unit)
 
 		if name == "" {
 			continue
@@ -4874,6 +4970,83 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 		clean = append(clean, it)
 	}
 	return clean
+}
+
+func peelTrailingUnitSpecTokensFromItemName(name, spec, unit string) (string, string, string) {
+	name = strings.TrimSpace(name)
+	spec = strings.TrimSpace(spec)
+	unit = strings.TrimSpace(unit)
+	if name == "" {
+		return name, spec, unit
+	}
+
+	isUnitToken := func(s string) bool {
+		s = strings.TrimSpace(s)
+		switch s {
+		case "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "项", "米", "公斤", "千克", "克":
+			return true
+		default:
+			return false
+		}
+	}
+
+	// First try to peel by whitespace-separated tokens (more reliable when PDF extraction preserved spaces).
+	fields := strings.Fields(name)
+	if unit == "" && len(fields) >= 2 && isUnitToken(fields[len(fields)-1]) {
+		unit = fields[len(fields)-1]
+		fields = fields[:len(fields)-1]
+		name = strings.TrimSpace(strings.Join(fields, " "))
+	}
+	if spec == "" && len(fields) >= 2 && isUnitToken(fields[len(fields)-1]) {
+		spec = fields[len(fields)-1]
+		fields = fields[:len(fields)-1]
+		name = strings.TrimSpace(strings.Join(fields, " "))
+	}
+
+	// If the OCR removed spaces, the trailing unit/spec may be glued, e.g. "...项项".
+	// Only do this when we still have missing fields.
+	peelSuffix := func(tok string) bool {
+		if tok == "" {
+			return false
+		}
+		if !strings.HasSuffix(name, tok) {
+			return false
+		}
+		trimmed := strings.TrimSpace(strings.TrimSuffix(name, tok))
+		if trimmed == "" {
+			return false
+		}
+		name = trimmed
+		return true
+	}
+
+	if unit == "" || spec == "" {
+		// Prefer longer tokens first (e.g. "公斤").
+		candidates := []string{"公斤", "千克", "克", "米", "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "项"}
+		if unit == "" {
+			for _, tok := range candidates {
+				if peelSuffix(tok) {
+					unit = tok
+					break
+				}
+			}
+		}
+		if spec == "" {
+			for _, tok := range candidates {
+				if peelSuffix(tok) {
+					spec = tok
+					break
+				}
+			}
+		}
+	}
+
+	// Avoid returning empty names.
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return strings.TrimSpace(strings.Join(fields, " ")), strings.TrimSpace(spec), strings.TrimSpace(unit)
+	}
+	return name, strings.TrimSpace(spec), strings.TrimSpace(unit)
 }
 
 // removeChineseInlineSpaces removes *inline* spaces between Chinese characters in OCR/PDF text,
@@ -5774,7 +5947,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		}
 		// Avoid treating common unit-like tokens as item names/continuations.
 		switch s {
-		case "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "米", "公斤", "千克", "克", "元":
+		case "件", "个", "箱", "袋", "包", "瓶", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "项", "米", "公斤", "千克", "克", "元":
 			return true
 		default:
 			return false
@@ -6091,7 +6264,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 
 		// Units: if a single unit repeats N times, assume it's for each row (common for invoices).
 		units := make([]string, 0, len(names))
-		for _, u := range []string{"瓶", "件", "个", "箱", "袋", "包", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "米", "公斤", "千克", "克", "元"} {
+		for _, u := range []string{"瓶", "件", "个", "箱", "袋", "包", "罐", "盒", "组", "台", "次", "张", "套", "份", "支", "双", "只", "项", "米", "公斤", "千克", "克", "元"} {
 			c := strings.Count(tailPart, u)
 			if c >= len(names) {
 				for i := 0; i < len(names); i++ {
@@ -6143,6 +6316,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			if name == "" {
 				continue
 			}
+			name, spec, unit = peelTrailingUnitSpecTokensFromItemName(name, spec, unit)
 			out = append(out, InvoiceLineItem{Name: name, Spec: spec, Unit: unit, Quantity: qty})
 		}
 		if len(out) >= 2 {

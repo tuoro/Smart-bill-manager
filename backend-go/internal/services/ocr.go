@@ -4418,6 +4418,16 @@ func scorePartyCandidate(value, source string, conf float64, isSeller bool, othe
 	if strings.Contains(value, "（") || strings.Contains(value, "(") {
 		score += 10
 	}
+	// Personal buyer with explicit "(个人)" / "（个人）" should beat plain "个人".
+	if !isSeller && (strings.Contains(value, "（个人") || strings.Contains(value, "(个人")) {
+		score += 220
+	}
+	// Zones fallback that only says "个人" should be lower priority.
+	if !isSeller {
+		if src := strings.ToLower(source); strings.Contains(src, "buyer_personal") {
+			score -= 260
+		}
+	}
 
 	return score, ""
 }
@@ -4764,6 +4774,8 @@ func extractNameFromTaxIDLabelLine(line string) string {
 			val = strings.TrimSpace(val[:idx])
 		}
 	}
+	// Some merged lines look like "…识别号： 名称： 个人（个人）"; strip the leading "名称：" if present.
+	val = regexp.MustCompile(`^名称\s*[:：]\s*`).ReplaceAllString(strings.TrimSpace(val), "")
 	// Prefer cutting at a tax ID if present.
 	if loc := taxIDRegex.FindStringIndex(val); loc != nil && loc[0] > 0 {
 		val = strings.TrimSpace(val[:loc[0]])

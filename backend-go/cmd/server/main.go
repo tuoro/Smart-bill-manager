@@ -283,7 +283,8 @@ func main() {
 			"status":    "ok",
 			"timestamp": time.Now().Format(time.RFC3339),
 			// Bump this when shipping parsing fixes so deployments can be verified quickly.
-			"items_parser_rev": 3,
+			"items_parser_rev":   3,
+			"invoice_parser_rev": 1,
 		})
 	})
 

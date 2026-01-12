@@ -146,6 +146,28 @@ func isItineraryPDFName(name string) bool {
 	return false
 }
 
+func contentTypeLowerFromHeader(h interface{}) string {
+	if h == nil {
+		return ""
+	}
+	if hl, ok := h.(emailHeaderLike); ok {
+		ct, _, _ := hl.ContentType()
+		return strings.ToLower(strings.TrimSpace(ct))
+	}
+	// Fallback for header types that don't implement ContentType() but still provide raw access.
+	if gh, ok := h.(interface{ Get(string) string }); ok {
+		raw := strings.TrimSpace(gh.Get("Content-Type"))
+		if raw == "" {
+			return ""
+		}
+		if i := strings.Index(raw, ";"); i >= 0 {
+			raw = raw[:i]
+		}
+		return strings.ToLower(strings.TrimSpace(raw))
+	}
+	return ""
+}
+
 func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfBytes []byte, xmlBytes []byte, itineraryPDFs []emailBinaryAttachment, bodyText string, err error) {
 	if mr == nil {
 		return "", nil, nil, nil, "", fmt.Errorf("nil mail reader")
@@ -166,9 +188,8 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 		var (
 			ct string
 		)
+		ct = contentTypeLowerFromHeader(part.Header)
 		if hl, ok := part.Header.(emailHeaderLike); ok {
-			ct, _, _ = hl.ContentType()
-			ct = strings.ToLower(strings.TrimSpace(ct))
 
 			// Some providers embed the actual invoice email as a forwarded message/rfc822 part.
 			if ct == "message/rfc822" {
@@ -218,7 +239,7 @@ func extractInvoiceArtifactsFromEmail(mr *mail.Reader) (pdfFilename string, pdfB
 		}
 
 		// Collect body text for link parsing (xml/pdf download URLs).
-		if len(textParts) < 12 && (ct == "" || strings.HasPrefix(ct, "text/")) {
+		if len(textParts) < 12 && strings.HasPrefix(ct, "text/") {
 			if b, err := readWithLimit(part.Body, emailParseMaxTextBytes); err == nil {
 				s := strings.TrimSpace(string(b))
 				if s != "" {

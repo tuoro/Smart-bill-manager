@@ -1,6 +1,6 @@
 import api from './auth'
 import type { AxiosRequestConfig } from 'axios'
-import type { Invoice, Payment, ApiResponse, DedupHint } from '@/types'
+import type { Invoice, InvoiceAttachment, Payment, ApiResponse, DedupHint } from '@/types'
 
 type UploadInvoiceResult = {
   invoice: Invoice
@@ -103,4 +103,16 @@ export const invoiceApi = {
 
   getAttachmentBlob: (invoiceId: string, attachmentId: string, config?: AxiosRequestConfig) =>
     api.get<Blob>(`/invoices/${invoiceId}/attachments/${attachmentId}/download`, { responseType: 'blob', ...(config || {}) }),
+
+  uploadAttachment: (invoiceId: string, file: File, kind?: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (kind) formData.append('kind', kind)
+    return api.post<ApiResponse<{ attachment: InvoiceAttachment }>>(`/invoices/${invoiceId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  deleteAttachment: (invoiceId: string, attachmentId: string) =>
+    api.delete<ApiResponse<void>>(`/invoices/${invoiceId}/attachments/${attachmentId}`),
 }

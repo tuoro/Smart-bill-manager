@@ -579,6 +579,14 @@ func (s *InvoiceService) CreateAttachmentCtx(ctx context.Context, ownerUserID st
 			Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
 			Count(&cnt).Error
 		if cnt > 0 {
+			var existing models.InvoiceAttachment
+			if err := database.GetDB().WithContext(ctx).
+				Model(&models.InvoiceAttachment{}).
+				Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
+				Order("created_at ASC, id ASC").
+				First(&existing).Error; err == nil {
+				return &existing, nil
+			}
 			return a, nil
 		}
 	}
@@ -602,6 +610,43 @@ func (s *InvoiceService) GetAttachmentByIDCtx(ctx context.Context, ownerUserID s
 		return nil, gorm.ErrRecordNotFound
 	}
 	return s.attachRepo.FindByIDForOwnerCtx(ctx, ownerUserID, attachmentID)
+}
+
+func (s *InvoiceService) DeleteAttachmentCtx(ctx context.Context, ownerUserID string, invoiceID string, attachmentID string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	invoiceID = strings.TrimSpace(invoiceID)
+	attachmentID = strings.TrimSpace(attachmentID)
+	if ownerUserID == "" || invoiceID == "" || attachmentID == "" {
+		return gorm.ErrRecordNotFound
+	}
+	if s.attachRepo == nil {
+		return gorm.ErrRecordNotFound
+	}
+
+	row, err := s.attachRepo.FindByIDForOwnerCtx(ctx, ownerUserID, attachmentID)
+	if err != nil {
+		return err
+	}
+	if row == nil || strings.TrimSpace(row.InvoiceID) != invoiceID {
+		return gorm.ErrRecordNotFound
+	}
+
+	// Remove DB row first so it disappears from UI even if file deletion fails.
+	if _, err := s.attachRepo.DeleteByIDForOwnerCtx(ctx, ownerUserID, attachmentID); err != nil {
+		return err
+	}
+
+	p := strings.TrimSpace(row.FilePath)
+	if p != "" {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(s.uploadsDir, "..", p)
+		}
+		_ = os.Remove(p)
+	}
+	return nil
 }
 
 func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoiceInput) error {
@@ -860,8 +905,8 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 		Where("owner_user_id = ? AND parsed_invoice_id = ?", ownerUserID, id).
 		Updates(map[string]interface{}{
 			"parsed_invoice_id": nil,
-			"status":           "received",
-			"parse_error":      nil,
+			"status":            "received",
+			"parse_error":       nil,
 		}).Error
 
 	return recalcTripBadDebtLockedForTripIDs(affectedTrips)

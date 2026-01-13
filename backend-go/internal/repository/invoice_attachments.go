@@ -12,7 +12,9 @@ import (
 
 type InvoiceAttachmentRepository struct{}
 
-func NewInvoiceAttachmentRepository() *InvoiceAttachmentRepository { return &InvoiceAttachmentRepository{} }
+func NewInvoiceAttachmentRepository() *InvoiceAttachmentRepository {
+	return &InvoiceAttachmentRepository{}
+}
 
 func (r *InvoiceAttachmentRepository) CreateCtx(ctx context.Context, a *models.InvoiceAttachment) error {
 	if ctx == nil {
@@ -75,3 +77,17 @@ func (r *InvoiceAttachmentRepository) DeleteByInvoiceIDForOwnerCtx(ctx context.C
 	return res.RowsAffected, res.Error
 }
 
+func (r *InvoiceAttachmentRepository) DeleteByIDForOwnerCtx(ctx context.Context, ownerUserID string, id string) (deleted int64, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	id = strings.TrimSpace(id)
+	if ownerUserID == "" || id == "" {
+		return 0, nil
+	}
+	res := database.GetDB().WithContext(ctx).
+		Where("owner_user_id = ? AND id = ?", ownerUserID, id).
+		Delete(&models.InvoiceAttachment{})
+	return res.RowsAffected, res.Error
+}

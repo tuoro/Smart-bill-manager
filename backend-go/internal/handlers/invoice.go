@@ -62,6 +62,8 @@ func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/:id/file", h.GetFile)
 	r.GET("/:id/download", h.Download)
 	r.GET("/:id/attachments/:attachmentId/download", h.DownloadAttachment)
+	r.POST("/:id/attachments", h.UploadAttachment)
+	r.DELETE("/:id/attachments/:attachmentId", h.DeleteAttachment)
 	r.GET("/:id/linked-payments", h.GetLinkedPayments)
 	r.GET("/:id/suggest-payments", h.SuggestPayments)
 	r.GET("/payment/:paymentId", h.GetByPaymentID)
@@ -74,6 +76,122 @@ func (h *InvoiceHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.PUT("/:id", h.Update)
 	r.DELETE("/:id", h.Delete)
 	r.DELETE("/:id/unlink-payment", h.UnlinkPayment)
+}
+
+func (h *InvoiceHandler) UploadAttachment(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		utils.Error(c, 400, "missing invoice id", nil)
+		return
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		utils.Error(c, 400, "请上传附件文件", err)
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if !isAllowedInvoiceExt(ext) {
+		utils.Error(c, 400, "只支持 PDF 或图片格式（PNG/JPG）", nil)
+		return
+	}
+	if file.Size > 20*1024*1024 {
+		utils.Error(c, 400, "文件大小不能超过20MB", nil)
+		return
+	}
+
+	ownerUserID := strings.TrimSpace(middleware.GetEffectiveUserID(c))
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	// Ensure invoice exists and belongs to user.
+	inv, err := h.invoiceService.GetByIDCtx(ctx, ownerUserID, id)
+	if err != nil || inv == nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
+		utils.Error(c, 404, "发票不存在", nil)
+		return
+	}
+
+	targetDir := h.uploadsDir
+	if ownerUserID != "" {
+		targetDir = filepath.Join(h.uploadsDir, ownerUserID)
+	}
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		utils.Error(c, 500, "创建上传目录失败", err)
+		return
+	}
+
+	filename := utils.GenerateUUID() + ext
+	absPath := filepath.Join(targetDir, filename)
+	relPath := "uploads/" + ownerUserID + "/" + filename
+
+	src, err := file.Open()
+	if err != nil {
+		utils.Error(c, 500, "打开上传文件失败", err)
+		return
+	}
+	defer src.Close()
+
+	dst, err := os.Create(absPath)
+	if err != nil {
+		utils.Error(c, 500, "保存文件失败", err)
+		return
+	}
+	defer dst.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(dst, hasher), src); err != nil {
+		_ = os.Remove(absPath)
+		utils.Error(c, 500, "保存文件失败", err)
+		return
+	}
+	fileSHA := hex.EncodeToString(hasher.Sum(nil))
+	sz := file.Size
+
+	kind := strings.TrimSpace(c.PostForm("kind"))
+	att, err := h.invoiceService.CreateAttachmentCtx(ctx, ownerUserID, inv.ID, services.CreateInvoiceAttachmentInput{
+		Kind:         kind,
+		Filename:     filename,
+		OriginalName: file.Filename,
+		FilePath:     relPath,
+		FileSize:     &sz,
+		FileSHA256:   &fileSHA,
+		Source:       "manual",
+	})
+	if err != nil {
+		_ = os.Remove(absPath)
+		utils.Error(c, 500, "创建附件记录失败", err)
+		return
+	}
+
+	utils.Success(c, 201, "附件上传成功", gin.H{
+		"attachment": att,
+	})
+}
+
+func (h *InvoiceHandler) DeleteAttachment(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	attachmentID := strings.TrimSpace(c.Param("attachmentId"))
+	if id == "" || attachmentID == "" {
+		utils.Error(c, 400, "missing parameters", nil)
+		return
+	}
+
+	ctx, cancel := withReadTimeout(c)
+	defer cancel()
+
+	if err := h.invoiceService.DeleteAttachmentCtx(ctx, middleware.GetEffectiveUserID(c), id, attachmentID); err != nil {
+		if handleReadTimeoutError(c, err) {
+			return
+		}
+		utils.Error(c, 404, "附件不存在", nil)
+		return
+	}
+
+	utils.Success(c, 200, "附件删除成功", nil)
 }
 
 func (h *InvoiceHandler) GetAll(c *gin.Context) {

@@ -397,9 +397,30 @@
               </div>
             </div>
 
-            <div v-if="previewInvoice.attachments?.length" class="invoice-attachments">
+            <div v-if="previewInvoice" class="invoice-attachments">
               <div class="raw-title">附件</div>
               <div class="invoice-attachments-box">
+                <div v-if="invoiceDetailEditing" class="invoice-attachments-toolbar">
+                  <Button
+                    class="p-button-outlined p-button-sm"
+                    icon="pi pi-paperclip"
+                    :label="'添加附件'"
+                    :loading="uploadingInvoiceAttachment"
+                    :disabled="savingInvoiceDetail || uploadingInvoiceAttachment"
+                    @click="chooseInvoiceAttachmentFiles"
+                  />
+                  <input
+                    ref="invoiceAttachmentInput"
+                    class="sbm-file-input-hidden"
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg"
+                    multiple
+                    @change="onInvoiceAttachmentInputChange"
+                  />
+                </div>
+
+                <Message v-if="!previewInvoice.attachments?.length" severity="secondary" :closable="false">暂无附件</Message>
+
                 <div v-for="a in previewInvoice.attachments" :key="a.id" class="invoice-attachment-row">
                   <div class="invoice-attachment-name">
                     <i class="pi pi-paperclip" />
@@ -412,7 +433,17 @@
                       severity="secondary"
                       icon="pi pi-download"
                       :label="'下载'"
+                      :disabled="uploadingInvoiceAttachment"
                       @click="downloadAttachment(previewInvoice, a)"
+                    />
+                    <Button
+                      v-if="invoiceDetailEditing"
+                      class="p-button-text p-button-sm"
+                      severity="danger"
+                      icon="pi pi-trash"
+                      aria-label="Delete"
+                      :disabled="savingInvoiceDetail || uploadingInvoiceAttachment"
+                      @click="confirmDeleteAttachment(previewInvoice, a)"
                     />
                   </div>
                 </div>
@@ -912,6 +943,8 @@ const removeSelectedFile = async (idx: number) => {
 
 const previewVisible = ref(false)
 const previewInvoice = ref<Invoice | null>(null)
+const uploadingInvoiceAttachment = ref(false)
+const invoiceAttachmentInput = ref<HTMLInputElement | null>(null)
 
 watch(
   () => previewInvoice.value?.id,
@@ -1421,6 +1454,70 @@ const downloadAttachment = async (invoice: Invoice, attachment: InvoiceAttachmen
   } catch (err) {
     console.warn('Download invoice attachment failed:', err)
   }
+}
+
+const chooseInvoiceAttachmentFiles = () => {
+  invoiceAttachmentInput.value?.click()
+}
+
+const onInvoiceAttachmentInputChange = async (e: Event) => {
+  const input = e.target as HTMLInputElement | null
+  const inv = previewInvoice.value
+  if (!input || !inv?.id) return
+  const files = Array.from(input.files || [])
+  if (files.length === 0) return
+
+  uploadingInvoiceAttachment.value = true
+  try {
+    for (const f of files) {
+      const res = await invoiceApi.uploadAttachment(inv.id, f)
+      const att = res.data?.data?.attachment
+      if (res.data.success && att) {
+        if (!Array.isArray(inv.attachments)) inv.attachments = []
+        if (!inv.attachments.some((x) => x.id === att.id)) {
+          inv.attachments.push(att)
+        }
+        toast.add({ severity: 'success', summary: '附件已添加', life: 1800 })
+      } else {
+        toast.add({ severity: 'error', summary: res.data.message || '附件上传失败', life: 2500 })
+      }
+    }
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: err?.response?.data?.message || '附件上传失败', life: 2500 })
+  } finally {
+    uploadingInvoiceAttachment.value = false
+    input.value = ''
+  }
+}
+
+const confirmDeleteAttachment = async (invoice: Invoice, attachment: InvoiceAttachment) => {
+  if (!invoice?.id || !attachment?.id) return
+  confirm.require({
+    header: '删除附件',
+    message: `确认删除附件：${attachment.original_name || attachment.filename}？`,
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    accept: async () => {
+      uploadingInvoiceAttachment.value = true
+      try {
+        const res = await invoiceApi.deleteAttachment(invoice.id, attachment.id)
+        if (res.data.success) {
+          const inv = previewInvoice.value
+          if (inv?.attachments) {
+            inv.attachments = inv.attachments.filter((x) => x.id !== attachment.id)
+          }
+          toast.add({ severity: 'success', summary: '附件已删除', life: 1800 })
+        } else {
+          toast.add({ severity: 'error', summary: res.data.message || '删除失败', life: 2500 })
+        }
+      } catch (err: any) {
+        toast.add({ severity: 'error', summary: err?.response?.data?.message || '删除失败', life: 2500 })
+      } finally {
+        uploadingInvoiceAttachment.value = false
+      }
+    },
+  })
 }
 
 const enterInvoiceEditMode = () => {
@@ -2202,6 +2299,13 @@ onBeforeUnmount(() => {
   padding: 8px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.invoice-attachments-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   gap: 8px;
 }
 

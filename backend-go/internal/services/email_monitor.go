@@ -1162,6 +1162,20 @@ func (s *EmailService) ManualCheckWithOptions(ownerUserID string, configID strin
 		return false, "配置不存在", 0
 	}
 
+	// Auto-paging for full sync: when the caller does not specify beforeUid, continue syncing older messages
+	// based on the oldest UID already logged in DB. This avoids relying on the UI's limited log window.
+	if full {
+		needsAutoBefore := fullOpts == nil || fullOpts.BeforeUID == 0
+		if needsAutoBefore {
+			if minUID, err := s.repo.GetMinUIDForMailboxCtx(context.Background(), ownerUserID, configID, "INBOX"); err == nil && minUID > 0 {
+				if fullOpts == nil {
+					fullOpts = &FullSyncOptions{}
+				}
+				fullOpts.BeforeUID = minUID
+			}
+		}
+	}
+
 	addr := fmt.Sprintf("%s:%d", config.IMAPHost, config.IMAPPort)
 	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
 	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})

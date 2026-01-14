@@ -854,10 +854,8 @@ const runManualFullSync = async (id: string, stopAndResume: boolean) => {
       await loadMonitorStatus()
     }
 
-    const configLogs = (logs.value || []).filter((x) => x.email_config_id === id)
-    const uids = configLogs.map((x) => Number(x.message_uid || 0)).filter((x) => Number.isFinite(x) && x > 0)
-    const beforeUid = uids.length ? Math.min(...uids) : undefined
-    const res = await emailApi.manualFullSync(id, { beforeUid })
+    // Backend will auto-page older messages based on the oldest UID already logged.
+    const res = await emailApi.manualFullSync(id)
     if (res.data.success) {
       toast.add({ severity: 'success', summary: res.data.message || '全量同步完成', life: 2500 })
       const newEmails = res.data.data?.newEmails || 0

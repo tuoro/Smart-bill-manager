@@ -271,6 +271,36 @@ func (r *EmailRepository) GetMaxUIDForMailboxCtx(ctx context.Context, ownerUserI
 	return *v, nil
 }
 
+func (r *EmailRepository) GetMinUIDForMailboxCtx(ctx context.Context, ownerUserID string, configID string, mailbox string) (minUID uint32, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	configID = strings.TrimSpace(configID)
+	mailbox = strings.TrimSpace(mailbox)
+	if mailbox == "" {
+		mailbox = "INBOX"
+	}
+	if ownerUserID == "" || configID == "" {
+		return 0, nil
+	}
+
+	var v *uint32
+	if err := database.GetDB().WithContext(ctx).
+		Model(&models.EmailLog{}).
+		Select("MIN(message_uid)").
+		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ?", ownerUserID, configID, mailbox).
+		Where("status <> ?", "deleted").
+		Where("message_uid > 0").
+		Scan(&v).Error; err != nil {
+		return 0, err
+	}
+	if v == nil {
+		return 0, nil
+	}
+	return *v, nil
+}
+
 func (r *EmailRepository) MarkLogsDeletedByIDs(ids []string) (int64, error) {
 	var total int64
 	if len(ids) == 0 {

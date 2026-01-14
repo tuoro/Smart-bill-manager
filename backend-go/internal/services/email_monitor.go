@@ -637,7 +637,15 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 			if len(uids) == 0 {
 				_ = s.reconcileDeletedLogs(ownerUserID, configID, "INBOX", uids)
 			} else {
-				log.Printf("[Email Monitor] Full sync: %d messages (uid list size=%d)", len(uids), len(uids))
+				allMin := uids[0]
+				allMax := uids[len(uids)-1]
+				log.Printf(
+					"[Email Monitor] Full sync: search returned uidCount=%d uidMin=%d uidMax=%d (config=%s)",
+					len(uids),
+					allMin,
+					allMax,
+					configID,
+				)
 
 				uidsAll := uids
 
@@ -654,12 +662,25 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 					// UIDs are ascending; find first >= beforeUID, keep everything before it.
 					cut := sort.Search(len(uids), func(i int) bool { return uids[i] >= beforeUID })
 					uids = uids[:cut]
+					log.Printf(
+						"[Email Monitor] Full sync paging: beforeUID=%d cutIndex=%d remaining=%d (config=%s)",
+						beforeUID,
+						cut,
+						len(uids),
+						configID,
+					)
 				}
 
 				// Safety limit for huge mailboxes (QQ risk control).
 				if len(uids) > limit {
 					uids = uids[len(uids)-limit:]
 				}
+				if len(uids) == 0 {
+					log.Printf("[Email Monitor] Full sync: no UIDs to fetch after paging/limit (config=%s)", configID)
+					return newLogs, nil
+				}
+				winMin := uids[0]
+				winMax := uids[len(uids)-1]
 
 				// Rate-limited pipeline: fetch in small batches and sleep between batches to reduce IMAP bursts.
 				const batchSize = 20
@@ -667,12 +688,15 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 				const jitter = 250 * time.Millisecond
 				rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 				log.Printf(
-					"[Email Monitor] Full sync plan: limit=%d beforeUID=%d batchSize=%d delay=%s jitter=%s newestFirst=true",
+					"[Email Monitor] Full sync plan: fetchCount=%d uidMin=%d uidMax=%d beforeUID=%d batchSize=%d delay=%s jitter=%s newestFirst=true (config=%s)",
 					len(uids),
+					winMin,
+					winMax,
 					beforeUID,
 					batchSize,
 					baseDelay,
 					jitter,
+					configID,
 				)
 
 				for end := len(uids); end > 0; end -= batchSize {
@@ -682,6 +706,15 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 					}
 					seqSet := new(imap.SeqSet)
 					seqSet.AddNum(uids[start:end]...)
+					if end == len(uids) || start == 0 {
+						log.Printf(
+							"[Email Monitor] Full sync batch: uidMin=%d uidMax=%d count=%d (config=%s)",
+							uids[start],
+							uids[end-1],
+							end-start,
+							configID,
+						)
+					}
 					if err := fetchChunk(seqSet); err != nil {
 						log.Printf("[Email Monitor] UidFetch error: %v", err)
 						return newLogs, err
@@ -1172,6 +1205,7 @@ func (s *EmailService) ManualCheckWithOptions(ownerUserID string, configID strin
 					fullOpts = &FullSyncOptions{}
 				}
 				fullOpts.BeforeUID = minUID
+				log.Printf("[Email Monitor] Full sync auto-beforeUID=%d (config=%s)", minUID, configID)
 			}
 		}
 	}

@@ -24,6 +24,11 @@ import (
 	"smart-bill-manager/internal/utils"
 )
 
+func shouldLogEachEmailInSync() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_EMAIL_LOG_EACH")))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
 func formatIMAPLoginError(imapHost string, err error) string {
 	base := ""
 	if err != nil {
@@ -1011,7 +1016,9 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		}
 		_ = s.repo.CreateLog(emailLog)
 
-		log.Printf("[Email Monitor] Email logged: %s", subject)
+		if shouldLogEachEmailInSync() {
+			log.Printf("[Email Monitor] Email logged: %s", subject)
+		}
 		return true
 	}
 
@@ -1093,7 +1100,9 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 	}
 	s.repo.CreateLog(emailLog)
 
-	log.Printf("[Email Monitor] Email logged: %s", subject)
+	if shouldLogEachEmailInSync() {
+		log.Printf("[Email Monitor] Email logged: %s", subject)
+	}
 	return true
 }
 

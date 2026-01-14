@@ -576,7 +576,7 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 
 	// Only fetch metadata. The detailed email body is read later during "解析" to avoid
 	// slow/fragile full-sync behavior on some IMAP servers.
-	items := []imap.FetchItem{imap.FetchUid, imap.FetchEnvelope, imap.FetchBodyStructure}
+	items := []imap.FetchItem{imap.FetchUid, imap.FetchEnvelope, imap.FetchBodyStructure, imap.FetchInternalDate}
 
 	newLogs := 0
 	fetchChunk := func(seqSet *imap.SeqSet) error {
@@ -867,7 +867,11 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 			if len(envelope.From) > 0 {
 				from = formatIMAPAddress(envelope.From[0])
 			}
-			dateStr := envelope.Date.Format(time.RFC3339)
+			receivedAt := envelope.Date
+			if !msg.InternalDate.IsZero() {
+				receivedAt = msg.InternalDate
+			}
+			dateStr := receivedAt.Format(time.RFC3339)
 
 			if existing.Subject == nil || strings.TrimSpace(*existing.Subject) == "" {
 				updates["subject"] = subject
@@ -875,7 +879,8 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 			if existing.FromAddress == nil || strings.TrimSpace(*existing.FromAddress) == "" {
 				updates["from_address"] = from
 			}
-			if existing.ReceivedDate == nil || strings.TrimSpace(*existing.ReceivedDate) == "" {
+			// Always prefer INTERNALDATE for received_date (server receive time), override header Date when present.
+			if existing.ReceivedDate == nil || strings.TrimSpace(*existing.ReceivedDate) != dateStr {
 				updates["received_date"] = dateStr
 			}
 		}
@@ -899,6 +904,9 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		}
 
 		receivedDate := envelope.Date
+		if !msg.InternalDate.IsZero() {
+			receivedDate = msg.InternalDate
+		}
 		dateStr := receivedDate.Format(time.RFC3339)
 
 		hasAttachment, attachmentCount := countInvoiceAttachments(msg.BodyStructure)
@@ -955,7 +963,10 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 	if addrs, err := header.AddressList("From"); err == nil && len(addrs) > 0 {
 		from = addrs[0].String()
 	}
-	if d, err := header.Date(); err == nil {
+	// Prefer INTERNALDATE as the "received time" (server receive time), fall back to Date header.
+	if !msg.InternalDate.IsZero() {
+		receivedDate = msg.InternalDate
+	} else if d, err := header.Date(); err == nil {
 		receivedDate = d
 	}
 

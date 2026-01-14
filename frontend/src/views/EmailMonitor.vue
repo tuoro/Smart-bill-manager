@@ -108,6 +108,15 @@
 
                 <Button
                   size="small"
+                  class="p-button-outlined"
+                  icon="pi pi-history"
+                  :title="'回填历史邮件（继续补更老的）'"
+                  :loading="backfillLoading === row.id"
+                  @click="handleBackfill(row.id)"
+                />
+
+                <Button
+                  size="small"
                   severity="warning"
                   class="p-button-outlined"
                   icon="pi pi-eraser"
@@ -834,6 +843,7 @@ const handleManualCheck = async (id: string) => {
 }
 
 const fullSyncLoading = ref<string | null>(null)
+const backfillLoading = ref<string | null>(null)
 const clearLogsLoading = ref<string | null>(null)
 
 const isRequestTimeout = (err: any): boolean => {
@@ -904,6 +914,68 @@ const handleManualFullSync = async (id: string) => {
     return
   }
   await runManualFullSync(id, false)
+}
+
+const runBackfill = async (id: string, stopAndResume: boolean) => {
+  backfillLoading.value = id
+  try {
+    if (stopAndResume) {
+      try {
+        await emailApi.stopMonitoring(id)
+      } catch {
+        // ignore
+      }
+      await loadMonitorStatus()
+    }
+
+    const res = await emailApi.manualFullSync(id, { mode: 'backfill' })
+    if (res.data?.success) {
+      const newEmails = res.data.data?.newEmails || 0
+      notifications.add({
+        severity: newEmails > 0 ? 'success' : 'info',
+        title: '历史回填完成',
+        detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
+      })
+      await loadLogs()
+      await loadMonitorStatus()
+    } else {
+      toast.add({ severity: 'error', summary: res.data.message || '历史回填失败', life: 3500 })
+      notifications.add({ severity: 'error', title: '历史回填失败', detail: res.data.message || id })
+    }
+  } catch (e: any) {
+    if (isRequestTimeout(e)) {
+      toast.add({ severity: 'warn', summary: '历史回填请求超时：后台可能仍在继续，请稍后观察日志是否持续增加', life: 4500 })
+      notifications.add({ severity: 'info', title: '历史回填可能仍在进行中', detail: id })
+    } else {
+      toast.add({ severity: 'error', summary: '历史回填失败', life: 3500 })
+      notifications.add({ severity: 'error', title: '历史回填失败', detail: id })
+    }
+  } finally {
+    try {
+      if (stopAndResume) {
+        await emailApi.startMonitoring(id)
+        await loadMonitorStatus()
+      }
+    } catch {
+      // ignore
+    }
+    backfillLoading.value = null
+  }
+}
+
+const handleBackfill = async (id: string) => {
+  if (monitorStatus.value?.[id] === 'running') {
+    confirm.require({
+      message: '当前邮箱监控中，历史回填需要临时停止监控并重连，是否继续？',
+      header: '历史回填确认',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: '继续',
+      rejectLabel: '取消',
+      accept: () => void runBackfill(id, true),
+    })
+    return
+  }
+  await runBackfill(id, false)
 }
 
 const runClearLogs = async (id: string, stopAndResume: boolean) => {

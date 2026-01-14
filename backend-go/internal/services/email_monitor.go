@@ -792,6 +792,8 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 				const baseDelay = 350 * time.Millisecond
 				const jitter = 250 * time.Millisecond
 				rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+				progressEvery := 30 * time.Second
+				lastProgress := time.Now()
 				log.Printf(
 					"[Email Monitor] Full sync plan: mode=%s fetchCount=%d uidMin=%d uidMax=%d beforeUID=%d batchSize=%d delay=%s jitter=%s newestFirst=true (config=%s)",
 					mode,
@@ -824,6 +826,18 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 					if err := fetchChunk(seqSet); err != nil {
 						log.Printf("[Email Monitor] UidFetch error: %v", err)
 						return newLogs, err
+					}
+					if time.Since(lastProgress) >= progressEvery && start > 0 {
+						done := len(uids) - start
+						log.Printf(
+							"[Email Monitor] Full sync progress: mode=%s done=%d/%d nextOlderUID=%d (config=%s)",
+							mode,
+							done,
+							len(uids),
+							uids[start-1],
+							configID,
+						)
+						lastProgress = time.Now()
 					}
 					if start > 0 {
 						sleep := baseDelay

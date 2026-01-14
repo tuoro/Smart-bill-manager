@@ -99,13 +99,48 @@ const sourceOptions = computed(() =>
   })),
 )
 
+const normalizeCategory = (v: string): string =>
+  v.trim().toLowerCase().replace(/\s+/g, '_')
+
+const isTimingTag = (v: string): boolean =>
+  /^\d+(\.\d+)?(ns|us|µs|ms|s)$/.test(v)
+
+const isRowsTag = (v: string): boolean =>
+  /^rows:\d+$/i.test(v)
+
+const looksLikeSQL = (msg: string): boolean => {
+  const s = msg.toUpperCase()
+  if (!/(SELECT|INSERT|UPDATE|DELETE)\s/.test(s)) return false
+  // Common gorm log fragments: "[rows:0]" and statement verbs.
+  if (/\bROWS:\d+\b/i.test(msg)) return true
+  if (/INSERT\s+INTO\s/.test(s)) return true
+  if (/UPDATE\s+\S+\s+SET\s/.test(s)) return true
+  if (/DELETE\s+FROM\s/.test(s)) return true
+  if (/SELECT\s+.+\s+FROM\s/.test(s)) return true
+  return false
+}
+
 const inferCategory = (evt: LogEvent): string => {
   const msg = String(evt.message || '')
-  // Prefer bracket tags that we already use in backend logs, e.g. "[Email Monitor] ..."
-  const m = msg.match(/\[([^\]]+)\]/)
-  if (m?.[1]) {
-    return m[1].trim().toLowerCase().replace(/\s+/g, '_')
+
+  // Prefer known subsystem tags regardless of other bracket fragments.
+  if (msg.includes('[Email Monitor]')) return 'email_monitor'
+  if (msg.includes('[DB]')) return 'db'
+  if (msg.includes('[Regression]')) return 'regression'
+
+  // Parse bracket tags, skipping gorm timing/rows markers like "[0.013ms]" or "[rows:0]".
+  const re = /\[([^\]]+)\]/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(msg))) {
+    const raw = String(m?.[1] || '')
+    const norm = normalizeCategory(raw)
+    if (!norm) continue
+    if (isTimingTag(norm) || isRowsTag(norm)) continue
+    return norm
   }
+
+  if (looksLikeSQL(msg)) return 'db_sql'
+
   // Fall back to broad source-based categories.
   const src = String(evt.source || '').toLowerCase()
   if (src.includes('nginx')) return 'nginx'
@@ -114,14 +149,22 @@ const inferCategory = (evt: LogEvent): string => {
 }
 
 const categoryOptions = computed(() => {
-  const set = new Set<string>()
+  const pinned = ['email_monitor', 'db', 'db_sql', 'nginx', 'backend', 'other']
+  const set = new Set<string>(pinned)
   for (const l of logs.value) {
     if (l.type !== 'log') continue
     const cat = String(l.category || '').trim()
     if (cat) set.add(cat)
   }
   return Array.from(set)
-    .sort()
+    .sort((a, b) => {
+      const ai = pinned.indexOf(a)
+      const bi = pinned.indexOf(b)
+      if (ai >= 0 && bi >= 0) return ai - bi
+      if (ai >= 0) return -1
+      if (bi >= 0) return 1
+      return a.localeCompare(b)
+    })
     .map((c) => ({ name: c, label: c }))
 })
 

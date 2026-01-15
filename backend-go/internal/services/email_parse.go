@@ -1,4 +1,4 @@
-package services
+﻿package services
 
 import (
 	"archive/zip"
@@ -140,15 +140,10 @@ func isItineraryPDFName(name string) bool {
 	if n == "" {
 		return false
 	}
-	// Common wording in Chinese invoice emails.
-	if strings.Contains(n, "行程单") || strings.Contains(n, "电子行程单") || strings.Contains(n, "行程报销单") {
-		return true
-	}
-	// Some providers use English.
-	if strings.Contains(n, "itinerary") {
-		return true
-	}
-	return false
+	hasTrip := strings.Contains(n, "行程")
+	hasDidi := strings.Contains(n, "滴滴")
+	hasGaode := strings.Contains(n, "高德")
+	return (hasTrip && hasDidi) || (hasTrip && hasGaode)
 }
 
 // isAllowedInvoiceItineraryPDFName returns true when an itinerary-like PDF should be treated as an invoice.
@@ -848,6 +843,79 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 		createdInvoiceIDs = append(createdInvoiceIDs, strings.TrimSpace(inv.ID))
 	}
 
+	type invoiceTarget struct {
+		id   string
+		name string
+	}
+
+	pickName := func(candidates ...string) string {
+		for _, c := range candidates {
+			if s := strings.TrimSpace(c); s != "" {
+				return s
+			}
+		}
+		return ""
+	}
+
+	invoiceTargets := make([]invoiceTarget, 0, 4)
+	if inv != nil && strings.TrimSpace(inv.ID) != "" {
+		invoiceTargets = append(invoiceTargets, invoiceTarget{
+			id:   strings.TrimSpace(inv.ID),
+			name: pickName(pdfFilename, inv.OriginalName, inv.Filename),
+		})
+	}
+	itineraryAttachmentAssigned := make(map[string]bool)
+
+	normalizeNameForMatch := func(s string) string {
+		s = strings.ToLower(strings.TrimSpace(s))
+		if ext := strings.ToLower(path.Ext(s)); ext == ".pdf" {
+			s = strings.TrimSuffix(s, ext)
+		}
+		s = strings.ReplaceAll(s, "_", " ")
+		s = strings.ReplaceAll(s, "-", " ")
+		s = strings.Join(strings.Fields(s), " ")
+		return s
+	}
+
+	commonSubstringLen := func(a string, b string) int {
+		ar := []rune(a)
+		br := []rune(b)
+		max := 0
+		for i := range ar {
+			for j := range br {
+				l := 0
+				for i+l < len(ar) && j+l < len(br) && ar[i+l] == br[j+l] {
+					l++
+				}
+				if l > max {
+					max = l
+				}
+			}
+		}
+		return max
+	}
+
+	chooseAttachmentTarget := func(attName string) *invoiceTarget {
+		if len(invoiceTargets) == 0 {
+			return nil
+		}
+		normalizedAtt := normalizeNameForMatch(attName)
+		bestScore := -1
+		var best *invoiceTarget
+		for i := range invoiceTargets {
+			t := &invoiceTargets[i]
+			if itineraryAttachmentAssigned[t.id] {
+				continue
+			}
+			score := commonSubstringLen(normalizedAtt, normalizeNameForMatch(t.name))
+			if score > bestScore {
+				bestScore = score
+				best = t
+			}
+		}
+		return best
+	}
+
 	// Mixed/multi-invoice attachment handling:
 	// - Air ticket itineraries / railway e-tickets are valid invoice formats and should be parsed as invoices.
 	// - Some emails contain multiple invoice PDFs; create invoices for each.
@@ -872,8 +940,9 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 			// For itinerary-like PDFs, only parse as invoices when explicitly supported (air/rail).
 			// Other itinerary PDFs (e.g. Didi trip tables) should not become standalone invoices.
 			if !shouldParseExtraPDFAsInvoice(name) {
-				if inv != nil {
-					_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), inv.ID, CreateInvoiceAttachmentInput{
+				target := chooseAttachmentTarget(name)
+				if target != nil {
+					_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), target.id, CreateInvoiceAttachmentInput{
 						Kind:         "itinerary",
 						Filename:     saved,
 						OriginalName: name,
@@ -882,6 +951,7 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 						FileSHA256:   sh,
 						Source:       "email",
 					})
+					itineraryAttachmentAssigned[target.id] = true
 				}
 				continue
 			}
@@ -897,6 +967,10 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 			})
 			if err2 == nil && inv2 != nil && strings.TrimSpace(inv2.ID) != "" {
 				createdInvoiceIDs = append(createdInvoiceIDs, strings.TrimSpace(inv2.ID))
+				invoiceTargets = append(invoiceTargets, invoiceTarget{
+					id:   strings.TrimSpace(inv2.ID),
+					name: pickName(name, inv2.OriginalName, inv2.Filename),
+				})
 				continue
 			}
 
@@ -906,15 +980,26 @@ func (s *EmailService) ParseEmailLogCtx(ctx context.Context, ownerUserID string,
 				if isItineraryPDFName(name) {
 					kind = "itinerary"
 				}
-				_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), inv.ID, CreateInvoiceAttachmentInput{
-					Kind:         kind,
-					Filename:     saved,
-					OriginalName: name,
-					FilePath:     p,
-					FileSize:     &sz,
-					FileSHA256:   sh,
-					Source:       "email",
-				})
+				targetID := ""
+				if kind == "itinerary" {
+					if t := chooseAttachmentTarget(name); t != nil {
+						targetID = t.id
+						itineraryAttachmentAssigned[targetID] = true
+					}
+				} else {
+					targetID = inv.ID
+				}
+				if strings.TrimSpace(targetID) != "" {
+					_, _ = s.invoiceService.CreateAttachmentCtx(ctx, strings.TrimSpace(logRow.OwnerUserID), targetID, CreateInvoiceAttachmentInput{
+						Kind:         kind,
+						Filename:     saved,
+						OriginalName: name,
+						FilePath:     p,
+						FileSize:     &sz,
+						FileSHA256:   sh,
+						Source:       "email",
+					})
+				}
 			}
 		}
 	}

@@ -180,7 +180,9 @@ func isAllowedInvoiceItineraryPDFName(name string) bool {
 	// Railway related (high-speed rail / train).
 	if strings.Contains(n, "铁路") ||
 		strings.Contains(n, "高铁") ||
+		strings.Contains(n, "动车") ||
 		strings.Contains(n, "火车") ||
+		strings.Contains(n, "列车") ||
 		strings.Contains(n, "train") ||
 		strings.Contains(n, "rail") {
 		return true

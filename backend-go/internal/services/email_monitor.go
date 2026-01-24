@@ -35,6 +35,28 @@ func shouldEmailDiagSearch() bool {
 	return v == "1" || v == "true" || v == "yes" || v == "on"
 }
 
+func shouldIMAPInsecureSkipVerify() bool {
+	// Default: verify TLS certificates. Set to true only when you knowingly connect to a server
+	// with a self-signed / mismatched certificate (common in some enterprise IMAP servers).
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_EMAIL_INSECURE_SKIP_VERIFY")))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func imapTLSConfigForHost(host string) *tls.Config {
+	host = strings.TrimSpace(host)
+	cfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+	// Ensure SNI / verification uses the actual hostname.
+	if host != "" && !strings.Contains(host, ":") {
+		cfg.ServerName = host
+	}
+	if shouldIMAPInsecureSkipVerify() {
+		cfg.InsecureSkipVerify = true // #nosec G402 - explicitly configurable for self-signed enterprise IMAP.
+	}
+	return cfg
+}
+
 func formatIMAPLoginError(imapHost string, err error) string {
 	base := ""
 	if err != nil {
@@ -64,6 +86,9 @@ type EmailService struct {
 	invoiceService    *InvoiceService
 	uploadsDir        string
 	activeConnections map[string]*client.Client
+	// fullSyncRunning tracks in-flight manual full-sync jobs (per email config).
+	// It prevents accidental concurrent full syncs which can cause IMAP risk control.
+	fullSyncRunning map[string]struct{}
 	mu                sync.RWMutex
 }
 
@@ -303,7 +328,32 @@ func NewEmailService(uploadsDir string, invoiceService *InvoiceService) *EmailSe
 		invoiceService:    invoiceService,
 		uploadsDir:        uploadsDir,
 		activeConnections: make(map[string]*client.Client),
+		fullSyncRunning:   make(map[string]struct{}),
 	}
+}
+
+func (s *EmailService) tryBeginFullSync(configID string) bool {
+	configID = strings.TrimSpace(configID)
+	if configID == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.fullSyncRunning[configID]; ok {
+		return false
+	}
+	s.fullSyncRunning[configID] = struct{}{}
+	return true
+}
+
+func (s *EmailService) endFullSync(configID string) {
+	configID = strings.TrimSpace(configID)
+	if configID == "" {
+		return
+	}
+	s.mu.Lock()
+	delete(s.fullSyncRunning, configID)
+	s.mu.Unlock()
 }
 
 type CreateEmailConfigInput struct {
@@ -329,13 +379,18 @@ func (s *EmailService) CreateConfig(ownerUserID string, input CreateEmailConfigI
 		isActive = 1
 	}
 
+	encPwd, err := encryptEmailPassword(input.Password)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt email password: %w", err)
+	}
+
 	config := &models.EmailConfig{
 		ID:          utils.GenerateUUID(),
 		OwnerUserID: ownerUserID,
 		Email:       input.Email,
 		IMAPHost:    input.IMAPHost,
 		IMAPPort:    port,
-		Password:    input.Password,
+		Password:    encPwd,
 		IsActive:    isActive,
 	}
 
@@ -376,6 +431,12 @@ func (s *EmailService) UpdateConfig(ownerUserID string, id string, data map[stri
 	if pwd, ok := data["password"]; ok {
 		if pwd == "********" {
 			delete(data, "password")
+		} else if ps, ok := pwd.(string); ok {
+			enc, err := encryptEmailPassword(ps)
+			if err != nil {
+				return fmt.Errorf("encrypt email password: %w", err)
+			}
+			data["password"] = enc
 		}
 	}
 	return s.repo.UpdateConfigForOwner(ownerUserID, id, data)
@@ -436,8 +497,7 @@ func (s *EmailService) GetLogsCtx(ctx context.Context, ownerUserID string, confi
 func (s *EmailService) TestConnection(email, imapHost string, imapPort int, password string) (bool, string) {
 	addr := fmt.Sprintf("%s:%d", imapHost, imapPort)
 
-	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
-	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
+	c, err := client.DialTLS(addr, imapTLSConfigForHost(imapHost))
 	if err != nil {
 		return false, fmt.Sprintf("连接失败: %v", err)
 	}
@@ -461,14 +521,18 @@ func (s *EmailService) StartMonitoring(ownerUserID string, configID string) bool
 	s.StopMonitoring(configID)
 
 	addr := fmt.Sprintf("%s:%d", config.IMAPHost, config.IMAPPort)
-	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
-	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
+	c, err := client.DialTLS(addr, imapTLSConfigForHost(config.IMAPHost))
 	if err != nil {
 		log.Printf("[Email Monitor] Connection error for %s: %v", config.Email, err)
 		return false
 	}
 
-	if err := c.Login(config.Email, config.Password); err != nil {
+	pwd, derr := decryptEmailPassword(config.Password)
+	if derr != nil {
+		log.Printf("[Email Monitor] Password decrypt error for %s: %v", config.Email, derr)
+		return false
+	}
+	if err := c.Login(config.Email, pwd); err != nil {
 		log.Printf("[Email Monitor] Login error for %s: %v", config.Email, err)
 		c.Logout()
 		return false
@@ -612,6 +676,36 @@ func getFullSyncSafetyMaxUIDs() int {
 	return n
 }
 
+func getFullSyncLatestSinceDays() int {
+	// "latest" mode aims to give a correct "newest by time" window in one click.
+	// Some mailboxes have UIDs that no longer correlate with INTERNALDATE (e.g. imported old mails),
+	// which makes "last N UIDs" show years jumping (2026 -> 2021) and can completely miss 2025.
+	//
+	// We therefore prefer IMAP SEARCH SINCE (INTERNALDATE-based) to scope "latest".
+	// Set to 0 to disable and fall back to UID-based windowing.
+	const defaultDays = 730
+	const minDays = 30
+	const maxDays = 3650
+	v := strings.TrimSpace(os.Getenv("SBM_EMAIL_FULLSYNC_LATEST_SINCE_DAYS"))
+	if v == "" {
+		return defaultDays
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return defaultDays
+	}
+	if n <= 0 {
+		return 0
+	}
+	if n < minDays {
+		return minDays
+	}
+	if n > maxDays {
+		return maxDays
+	}
+	return n
+}
+
 func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *client.Client, full bool, fullOpts *FullSyncOptions) (int, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	configID = strings.TrimSpace(configID)
@@ -745,6 +839,36 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 					mode = "latest"
 				}
 				limit = clampFullSyncLimit(limit)
+
+				// For "latest" mode, prefer INTERNALDATE-based scoping (IMAP SEARCH SINCE) instead of
+				// "last N UIDs". Some mailboxes contain imported/reshuffled messages where UIDs no longer
+				// correlate with time, which can cause "2026 then 2021" jumps and miss entire years.
+				if mode == "latest" {
+					if days := getFullSyncLatestSinceDays(); days > 0 {
+						since := time.Now().AddDate(0, 0, -days)
+						crit := imap.NewSearchCriteria()
+						crit.Since = since
+						recentUIDs, rerr := c.UidSearch(crit)
+						if rerr != nil {
+							log.Printf("[Email Monitor] Full sync latest scope: UidSearch SINCE error: %v (days=%d, config=%s)", rerr, days, configID)
+						} else if len(recentUIDs) == 0 {
+							log.Printf("[Email Monitor] Full sync latest scope: no UIDs matched SINCE %s; falling back to ALL (config=%s)", since.Format("2006-01-02"), configID)
+						} else {
+							if len(recentUIDs) > 1 {
+								sort.Slice(recentUIDs, func(i, j int) bool { return recentUIDs[i] < recentUIDs[j] })
+							}
+							uids = recentUIDs
+							log.Printf(
+								"[Email Monitor] Full sync latest scope: since=%s uidCount=%d uidMin=%d uidMax=%d (config=%s)",
+								since.Format("2006-01-02"),
+								len(uids),
+								uids[0],
+								uids[len(uids)-1],
+								configID,
+							)
+						}
+					}
+				}
 
 				// If requested, only fetch UIDs older than beforeUID (paged full sync).
 				if beforeUID > 0 {
@@ -892,7 +1016,7 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 				baseline = uidNext - 1
 			}
 			if baseline > 0 {
-				_ = s.repo.CreateLog(&models.EmailLog{
+				if err := s.repo.CreateLog(&models.EmailLog{
 					ID:            utils.GenerateUUID(),
 					OwnerUserID:   strings.TrimSpace(ownerUserID),
 					EmailConfigID: configID,
@@ -900,7 +1024,9 @@ func (s *EmailService) fetchEmails(ownerUserID string, configID string, c *clien
 					MessageUID:    baseline,
 					HasAttachment: 0,
 					Status:        "deleted",
-				})
+				}); err != nil {
+					log.Printf("[Email Monitor] Baseline CreateLog failed: uid=%d err=%v (config=%s)", baseline, err, configID)
+				}
 			}
 			now := time.Now().Format(time.RFC3339)
 			_ = s.repo.UpdateLastCheckForOwner(ownerUserID, configID, now)
@@ -1090,7 +1216,9 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 			}
 		}
 		if len(updates) > 0 {
-			_ = s.repo.UpdateLog(existing.ID, updates)
+			if err := s.repo.UpdateLog(existing.ID, updates); err != nil {
+				log.Printf("[Email Monitor] UpdateLog failed: id=%s uid=%d err=%v", existing.ID, msg.Uid, err)
+			}
 		}
 		return false
 	}
@@ -1141,7 +1269,10 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 			InvoicePDFURL:   pdfURL,
 			Status:          "received",
 		}
-		_ = s.repo.CreateLog(emailLog)
+		if err := s.repo.CreateLog(emailLog); err != nil {
+			log.Printf("[Email Monitor] CreateLog failed: uid=%d err=%v", msg.Uid, err)
+			return false
+		}
 
 		if shouldLogEachEmailInSync() {
 			log.Printf("[Email Monitor] Email logged: %s", subject)
@@ -1225,7 +1356,10 @@ func (s *EmailService) processMessage(ownerUserID string, configID string, msg *
 		AttachmentCount: attachmentCount,
 		Status:          "processed",
 	}
-	s.repo.CreateLog(emailLog)
+	if err := s.repo.CreateLog(emailLog); err != nil {
+		log.Printf("[Email Monitor] CreateLog failed: uid=%d err=%v", msg.Uid, err)
+		return false
+	}
 
 	if shouldLogEachEmailInSync() {
 		log.Printf("[Email Monitor] Email logged: %s", subject)
@@ -1331,6 +1465,14 @@ func (s *EmailService) ManualCheckWithOptions(ownerUserID string, configID strin
 		return false, "配置不存在", 0
 	}
 
+	if full {
+		// Avoid concurrent full syncs for the same config; this can easily trigger IMAP risk control.
+		if !s.tryBeginFullSync(configID) {
+			return true, "全量同步进行中，请稍后再试", 0
+		}
+		defer s.endFullSync(configID)
+	}
+
 	// Auto-paging for full sync: when the caller does not specify beforeUid, continue syncing older messages
 	// based on the oldest UID already logged in DB. This avoids relying on the UI's limited log window.
 	if full {
@@ -1344,14 +1486,18 @@ func (s *EmailService) ManualCheckWithOptions(ownerUserID string, configID strin
 	}
 
 	addr := fmt.Sprintf("%s:%d", config.IMAPHost, config.IMAPPort)
-	// #nosec G402 - InsecureSkipVerify is intentional to support self-signed certs
-	c, err := client.DialTLS(addr, &tls.Config{InsecureSkipVerify: true})
+	c, err := client.DialTLS(addr, imapTLSConfigForHost(config.IMAPHost))
 	if err != nil {
 		return false, fmt.Sprintf("连接失败: %v", err), 0
 	}
 	defer c.Logout()
 
-	if err := c.Login(config.Email, config.Password); err != nil {
+	pwd, derr := decryptEmailPassword(config.Password)
+	if derr != nil {
+		return false, fmt.Sprintf("密码解密失败，请重新保存邮箱配置（%v）", derr), 0
+	}
+
+	if err := c.Login(config.Email, pwd); err != nil {
 		return false, fmt.Sprintf("登录失败: %s", formatIMAPLoginError(config.IMAPHost, err)), 0
 	}
 

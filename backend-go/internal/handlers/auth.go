@@ -45,35 +45,6 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 	utils.Error(c, 403, "系统已关闭公开注册，请使用邀请码注册", nil)
 	return
-
-	var input RegisterInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		utils.Error(c, 400, "用户名和密码不能为空", err)
-		return
-	}
-
-	if len(input.Username) < 3 || len(input.Username) > 50 {
-		utils.Error(c, 400, "用户名长度应为3-50个字符", nil)
-		return
-	}
-
-	if len(input.Password) < 6 {
-		utils.Error(c, 400, "密码长度至少6个字符", nil)
-		return
-	}
-
-	result, err := h.authService.Register(input.Username, input.Password, input.Email)
-	if err != nil {
-		utils.Error(c, 500, "注册失败，请稍后重试", err)
-		return
-	}
-
-	if !result.Success {
-		utils.Error(c, 400, result.Message, nil)
-		return
-	}
-
-	c.JSON(201, result)
 }
 
 type InviteRegisterInput struct {

@@ -115,6 +115,10 @@ var (
 		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`), // Large amounts like 1700.00 or -1700.00
 		regexp.MustCompile(`[¥￥]-?\d+\.?\d*`),    // Currency symbol with amount (any size)
 	}
+
+	// Used by item post-processing to strip leaked amount/unit-price tokens from item name/spec.
+	invoiceItemMoneyTokRe    = regexp.MustCompile(`^[¥￥]?-?\d+(?:,\d{3})*\.\d{1,2}$`)
+	invoiceItemMoneySuffixRe = regexp.MustCompile(`(?i)([¥￥]?-?\d+(?:,\d{3})*\.\d{1,2})$`)
 )
 
 var paymentInvisibleSpaceReplacer = strings.NewReplacer(
@@ -1778,9 +1782,38 @@ func parseInvoiceQRPayload(payload string) invoiceQRFields {
 
 	allDigits := regexp.MustCompile(`\d+`).FindAllString(payload, -1)
 	for _, d := range allDigits {
-		if fields.CheckCode == "" && len(d) == 20 {
-			fields.CheckCode = d
-			continue
+		// Some OCR/QR payloads carry a combined "code+number" identifier (12+8=20 digits, or 10+8=18 digits).
+		// Prefer splitting it into invoice code + invoice number when either is missing, otherwise treat it as check code.
+		if len(d) == 20 {
+			if fields.InvoiceCode == "" || fields.InvoiceNumber == "" {
+				code := d[:12]
+				num := d[12:]
+				if fields.InvoiceCode == "" && isDigitsLen(code, 12, 12) {
+					fields.InvoiceCode = code
+				}
+				if fields.InvoiceNumber == "" && isDigitsLen(num, 8, 8) {
+					fields.InvoiceNumber = num
+				}
+				// Do not consume as check code in this branch; a real check code may still appear later.
+				continue
+			}
+			if fields.CheckCode == "" {
+				fields.CheckCode = d
+				continue
+			}
+		}
+		if len(d) == 18 {
+			if fields.InvoiceCode == "" || fields.InvoiceNumber == "" {
+				code := d[:10]
+				num := d[10:]
+				if fields.InvoiceCode == "" && isDigitsLen(code, 10, 10) {
+					fields.InvoiceCode = code
+				}
+				if fields.InvoiceNumber == "" && isDigitsLen(num, 8, 8) {
+					fields.InvoiceNumber = num
+				}
+				continue
+			}
 		}
 		if fields.InvoiceDate == "" && len(d) == 8 && strings.HasPrefix(d, "20") {
 			fields.InvoiceDate = formatDateYYYYMMDD(d)
@@ -5578,6 +5611,56 @@ func peelTrailingUnitSpecTokensFromItemName(name, spec, unit string) (string, st
 	return name, strings.TrimSpace(spec), strings.TrimSpace(unit)
 }
 
+func stripTrailingMoneyTokensFromItemField(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+
+	// Strip whitespace-delimited trailing prices.
+	fields := strings.Fields(s)
+	for len(fields) > 0 {
+		last := strings.TrimSpace(fields[len(fields)-1])
+		if invoiceItemMoneyTokRe.MatchString(last) {
+			prefix := strings.TrimSpace(strings.Join(fields[:len(fields)-1], " "))
+			hasHanOrMark := false
+			for _, r := range prefix {
+				if unicode.Is(unicode.Han, r) || r == '*' {
+					hasHanOrMark = true
+					break
+				}
+			}
+			// Only strip when the prefix looks like a real item name (avoid stripping real specs/names like "iPhone 15.00").
+			if !hasHanOrMark {
+				break
+			}
+			fields = fields[:len(fields)-1]
+			continue
+		}
+		break
+	}
+	s = strings.TrimSpace(strings.Join(fields, " "))
+
+	// Strip glued suffix prices like "客运服务费68.34".
+	if loc := invoiceItemMoneySuffixRe.FindStringIndex(s); loc != nil && loc[0] > 0 {
+		prefix := strings.TrimSpace(s[:loc[0]])
+		if prefix != "" {
+			hasHanOrMark := false
+			for _, r := range prefix {
+				if unicode.Is(unicode.Han, r) || r == '*' {
+					hasHanOrMark = true
+					break
+				}
+			}
+			// Only apply when the prefix looks like a real item name (avoid stripping real specs like "3.5mm").
+			if hasHanOrMark {
+				s = prefix
+			}
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
 // removeChineseInlineSpaces removes *inline* spaces between Chinese characters in OCR/PDF text,
 // but keeps newlines intact (important for invoice section parsing).
 func removeChineseInlineSpaces(text string) string {
@@ -8986,6 +9069,9 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 				continue
 			}
 			n2, sp2, un2 := peelTrailingUnitSpecTokensFromItemName(n, data.Items[i].Spec, data.Items[i].Unit)
+			// Also strip leaked amount/unit-price tokens (common in Didi invoices: "*运输服务*客运服务费68.34 1").
+			n2 = stripTrailingMoneyTokensFromItemField(n2)
+			sp2 = stripTrailingMoneyTokensFromItemField(sp2)
 			data.Items[i].Name = strings.TrimSpace(n2)
 			data.Items[i].Spec = strings.TrimSpace(sp2)
 			data.Items[i].Unit = strings.TrimSpace(un2)

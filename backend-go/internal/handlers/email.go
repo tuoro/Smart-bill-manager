@@ -3,8 +3,11 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -309,7 +312,39 @@ func (h *EmailHandler) ManualCheck(c *gin.Context) {
 		fullOpts.BeforeUID = beforeUID
 	}
 
+	// Full sync can be slow and may exceed reverse proxy idle timeouts.
+	// Send small keep-alive bytes periodically so the connection is not considered idle.
+	var kaStop chan struct{}
+	var kaWG sync.WaitGroup
+	if full {
+		if flusher, ok := c.Writer.(http.Flusher); ok {
+			kaStop = make(chan struct{})
+			kaWG.Add(1)
+			go func() {
+				defer kaWG.Done()
+				ticker := time.NewTicker(15 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						_, _ = c.Writer.Write([]byte(" "))
+						flusher.Flush()
+					case <-kaStop:
+						return
+					case <-c.Request.Context().Done():
+						return
+					}
+				}
+			}()
+		}
+	}
+
 	success, message, newEmails := h.emailService.ManualCheckWithOptions(middleware.GetEffectiveUserID(c), id, full, fullOpts)
+
+	if kaStop != nil {
+		close(kaStop)
+		kaWG.Wait()
+	}
 
 	c.JSON(200, gin.H{
 		"success": success,

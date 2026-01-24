@@ -52,6 +52,10 @@ func main() {
 		log.Fatal("Failed to migrate database:", err)
 	}
 
+	// Best-effort data hygiene + index hardening for email_logs.
+	// This must NOT fail startup; it is safe to run repeatedly.
+	services.EnsureEmailLogUniqueIndex(db)
+
 	// Backward-compatible: if older builds created short column names, keep data by copying into new columns.
 	// Ignore errors because these legacy columns may not exist.
 	db.Exec("UPDATE payments SET trip_assignment_source = COALESCE(trip_assignment_source, trip_assign_src, 'auto')")

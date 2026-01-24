@@ -172,26 +172,27 @@
               @change="onScreenshotInputChange"
             />
 
-            <div v-if="selectedScreenshotName" class="file-row" @click.stop>
-              <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
-              <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
-                ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
-              </span>
-              <Button
-                class="file-row-remove p-button-text"
-                severity="secondary"
-                icon="pi pi-times"
-                aria-label="Remove"
-                @click="clearSelectedScreenshot"
-              />
-            </div>
-            <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
-          </div>
+             <div v-if="selectedScreenshotName" class="file-row" @click.stop>
+               <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
+               <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
+                 ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
+               </span>
+               <Button
+                 class="file-row-remove p-button-text"
+                 severity="secondary"
+                 icon="pi pi-times"
+                 aria-label="Remove"
+                 @click="clearSelectedScreenshot"
+               />
+             </div>
+             <small v-if="screenshotBatchTotal > 1" class="muted" @click.stop>已选择 {{ screenshotBatchTotal }} 张，保存后会自动继续下一张</small>
+             <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
+           </div>
 
-          <Message severity="info" :closable="false" style="margin-top: 12px">
-            &#35831;&#36873;&#25321;&#25130;&#22270;&#65292;&#28857;&#20987;&#8220;&#35782;&#21035;&#8221;&#29983;&#25104;&#24405;&#20837;&#24314;&#35758;&#12290;
-          </Message>
-        </div>
+           <Message severity="info" :closable="false" style="margin-top: 12px">
+             请选择截图，点击“识别”生成录入建议。支持多选（最多 50 张），批量模式下每张保存后会自动继续下一张。
+           </Message>
+         </div>
 
         <div v-else class="upload-screenshot-ocr">
           <div
@@ -217,21 +218,22 @@
               @change="onScreenshotInputChange"
             />
 
-            <div v-if="selectedScreenshotName" class="file-row" @click.stop>
-              <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
-              <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
-                ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
-              </span>
-              <Button
-                class="file-row-remove p-button-text"
-                severity="secondary"
-                icon="pi pi-times"
-                aria-label="Remove"
-                @click="clearSelectedScreenshot"
-              />
-            </div>
-            <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
-          </div>
+             <div v-if="selectedScreenshotName" class="file-row" @click.stop>
+               <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
+               <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
+                 ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
+               </span>
+               <Button
+                 class="file-row-remove p-button-text"
+                 severity="secondary"
+                 icon="pi pi-times"
+                 aria-label="Remove"
+                 @click="clearSelectedScreenshot"
+               />
+             </div>
+             <small v-if="screenshotBatchTotal > 1" class="muted" @click.stop>已选择 {{ screenshotBatchTotal }} 张，保存后会自动继续下一张</small>
+             <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
+           </div>
 
           <div class="upload-screenshot-layout">
             <div class="upload-screenshot-left">
@@ -337,19 +339,19 @@
       <template #footer>
         <div class="dialog-footer-center">
           <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="closeScreenshotModal" />
-          <Button
-            v-if="!ocrResult"
-            type="button"
-            :label="'\u8BC6\u522B'"
-            icon="pi pi-search"
-            :loading="uploadingScreenshot"
-            :disabled="!selectedScreenshotFile"
-            @click="handleScreenshotUpload"
-          />
-          <Button v-else type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="savingOcrResult" @click="handleSaveOcrResult" />
-        </div>
-      </template>
-    </Dialog>
+           <Button
+             v-if="!ocrResult"
+             type="button"
+             :label="'\u8BC6\u522B'"
+             icon="pi pi-search"
+             :loading="uploadingScreenshot"
+             :disabled="!selectedScreenshotFile"
+             @click="handleScreenshotUpload"
+           />
+           <Button v-else type="button" :label="screenshotQueue.length > 0 ? '保存并继续' : '保存'" icon="pi pi-check" :loading="savingOcrResult" @click="handleSaveOcrResult" />
+         </div>
+       </template>
+     </Dialog>
 
     <Dialog v-model:visible="linkedInvoicesModalVisible" modal :header="'\u5173\u8054\u7684\u53D1\u7968'" :style="{ width: '980px', maxWidth: '96vw' }">
       <div class="match-header">
@@ -1384,6 +1386,19 @@ const handleScreenshotUpload = async () => {
     const dup = data?.data as DedupHint | undefined
     if (resp?.status === 409 && dup?.kind === 'hash_duplicate') {
       toast.add({ severity: 'warn', summary: '\u6587\u4EF6\u5185\u5BB9\u91CD\u590D\uFF0C\u5DF2\u5B58\u5728\u8BB0\u5F55', life: 4500 })
+
+      // In batch mode, skip duplicates automatically so the queue can continue.
+      if (screenshotQueue.value.length > 0) {
+        const next = screenshotQueue.value.shift()
+        resetScreenshotUploadStateKeepModalOpen()
+        if (next) {
+          selectedScreenshotFile.value = next
+          selectedScreenshotName.value = next.name
+          void handleScreenshotUpload()
+        } else {
+          screenshotBatchTotal.value = 0
+        }
+      }
       return
     }
     const message = data?.message || '\u622A\u56FE\u8BC6\u522B\u5931\u8D25'

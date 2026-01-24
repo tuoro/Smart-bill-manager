@@ -140,10 +140,21 @@ func isItineraryPDFName(name string) bool {
 	if n == "" {
 		return false
 	}
-	hasTrip := strings.Contains(n, "行程")
-	hasDidi := strings.Contains(n, "滴滴")
-	hasGaode := strings.Contains(n, "高德")
-	return (hasTrip && hasDidi) || (hasTrip && hasGaode)
+	// Treat "itinerary-like" PDFs specially: only a subset (flight / high-speed rail)
+	// should be parsed as invoices, everything else should be ignored as non-invoice
+	// attachments (e.g., DiDi/Gaode ride receipts).
+	//
+	// We keep this broad (any 行程*单 / itinerary) and apply the strict whitelist
+	// in isAllowedInvoiceItineraryPDFName.
+	if strings.Contains(n, "itinerary") {
+		return true
+	}
+	// Common Chinese patterns: 行程单 / 电子行程单 / 行程报销单, etc.
+	if strings.Contains(n, "行程单") {
+		return true
+	}
+	// Fallback for variants like "行程报销单" where "行程" and "单" are separated.
+	return strings.Contains(n, "行程") && strings.Contains(n, "单")
 }
 
 // isAllowedInvoiceItineraryPDFName returns true when an itinerary-like PDF should be treated as an invoice.

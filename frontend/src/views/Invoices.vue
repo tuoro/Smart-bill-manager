@@ -149,7 +149,7 @@
           <div class="sbm-dropzone-hero">
             <i class="pi pi-cloud-upload" />
             <div class="sbm-dropzone-title">拖拽文件到此处，或者点击选择</div>
-            <div class="sbm-dropzone-sub">支持 PDF/PNG/JPG，最大 20MB</div>
+            <div class="sbm-dropzone-sub">支持 PDF/PNG/JPG，可多选（最多 10 个），最大 20MB</div>
             <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u6587\u4EF6'" :disabled="uploading || savingUploadOcr" @click.stop="chooseInvoiceFiles" />
           </div>
 

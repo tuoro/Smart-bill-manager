@@ -156,10 +156,10 @@
             @dragover.prevent
             @drop.prevent="onScreenshotDrop"
           >
-            <div class="sbm-dropzone-hero">
-              <i class="pi pi-cloud-upload" />
-              <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
+              <div class="sbm-dropzone-hero">
+                <i class="pi pi-cloud-upload" />
+                <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
+              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#21487;&#22810;&#36873;&#65292;&#26368;&#22823; 10MB</div>
               <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
             </div>
 
@@ -168,11 +168,15 @@
               class="sbm-file-input-hidden"
               type="file"
               accept="image/png,image/jpeg"
+              multiple
               @change="onScreenshotInputChange"
             />
 
             <div v-if="selectedScreenshotName" class="file-row" @click.stop>
               <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
+              <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
+                ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
+              </span>
               <Button
                 class="file-row-remove p-button-text"
                 severity="secondary"
@@ -200,7 +204,7 @@
             <div class="sbm-dropzone-hero">
               <i class="pi pi-cloud-upload" />
               <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#26368;&#22823; 10MB</div>
+              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#21487;&#22810;&#36873;&#65292;&#26368;&#22823; 10MB</div>
               <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
             </div>
 
@@ -209,11 +213,15 @@
               class="sbm-file-input-hidden"
               type="file"
               accept="image/png,image/jpeg"
+              multiple
               @change="onScreenshotInputChange"
             />
 
             <div v-if="selectedScreenshotName" class="file-row" @click.stop>
               <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
+              <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
+                ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
+              </span>
               <Button
                 class="file-row-remove p-button-text"
                 severity="secondary"
@@ -797,6 +805,8 @@ const ocrTaskId = ref<string | null>(null)
 const screenshotInput = ref<HTMLInputElement | null>(null)
 const screenshotUploadAttempt = ref(0)
 const selectedScreenshotPreviewUrl = ref<string | null>(null)
+const screenshotQueue = ref<File[]>([])
+const screenshotBatchTotal = ref(0)
 
 const screenshotPreviewSrc = computed(() => uploadedScreenshotBlobUrl.value || selectedScreenshotPreviewUrl.value)
 
@@ -897,6 +907,20 @@ const chooseScreenshotFile = () => {
   screenshotInput.value?.click()
 }
 
+const validateScreenshotFile = (file: File): string => {
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
+  if (!validTypes.includes(file.type)) {
+    return '\u53EA\u652F\u6301 JPG\u3001JPEG\u3001PNG \u683C\u5F0F\u7684\u56FE\u7247'
+  }
+
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    return '\u6587\u4EF6\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 10MB'
+  }
+
+  return ''
+}
+
 const setScreenshotFile = async (file?: File) => {
   screenshotError.value = ''
   if (screenshotInput.value) screenshotInput.value.value = ''
@@ -904,15 +928,9 @@ const setScreenshotFile = async (file?: File) => {
   // User canceled the file picker / no new file selected: keep current state.
   if (!file) return
 
-  const validTypes = ['image/jpeg', 'image/jpg', 'image/png']
-  if (!validTypes.includes(file.type)) {
-    screenshotError.value = '\u53EA\u652F\u6301 JPG\u3001JPEG\u3001PNG \u683C\u5F0F\u7684\u56FE\u7247'
-    return
-  }
-
-  const maxSize = 10 * 1024 * 1024
-  if (file.size > maxSize) {
-    screenshotError.value = '\u6587\u4EF6\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 10MB'
+  const err = validateScreenshotFile(file)
+  if (err) {
+    screenshotError.value = err
     return
   }
 
@@ -923,6 +941,41 @@ const setScreenshotFile = async (file?: File) => {
 
   selectedScreenshotFile.value = file
   selectedScreenshotName.value = file.name
+}
+
+const setScreenshotFiles = async (files: File[]) => {
+  const list = Array.isArray(files) ? files.filter(Boolean) : []
+  if (list.length === 0) return
+
+  let valid: File[] = []
+  let invalidCount = 0
+  for (const f of list) {
+    const err = validateScreenshotFile(f)
+    if (err) {
+      invalidCount += 1
+      continue
+    }
+    valid.push(f)
+  }
+
+  const maxBatch = 50
+  if (valid.length > maxBatch) {
+    toast.add({ severity: 'warn', summary: `\u6700\u591A\u4E00\u6B21\u9009\u62E9 ${maxBatch} \u5F20\u622A\u56FE`, life: 2500 })
+    valid = valid.slice(0, maxBatch)
+  }
+
+  if (valid.length === 0) {
+    screenshotError.value = validateScreenshotFile(list[0]) || '\u6587\u4EF6\u65E0\u6548'
+    return
+  }
+
+  if (invalidCount > 0) {
+    toast.add({ severity: 'warn', summary: `\u5DF2\u8DF3\u8FC7 ${invalidCount} \u4E2A\u65E0\u6548\u6587\u4EF6`, life: 2500 })
+  }
+
+  screenshotQueue.value = valid.slice(1)
+  screenshotBatchTotal.value = valid.length
+  await setScreenshotFile(valid[0])
 }
 
 const resetScreenshotUploadStateKeepModalOpen = () => {
@@ -964,18 +1017,23 @@ const cleanupCurrentScreenshotUpload = async () => {
 }
 
 const onScreenshotDrop = async (event: DragEvent) => {
-  const file = event.dataTransfer?.files?.[0]
-  await setScreenshotFile(file)
+  const list = event.dataTransfer?.files
+  if (!list || list.length === 0) return
+  await setScreenshotFiles(Array.from(list))
 }
 
 const onScreenshotInputChange = async (event: Event) => {
   const input = event.target as HTMLInputElement | null
-  const file = input?.files?.[0]
-  await setScreenshotFile(file)
+  const list = input?.files
+  if (list && list.length > 0) {
+    await setScreenshotFiles(Array.from(list))
+  }
   if (input) input.value = ''
 }
 
 const clearSelectedScreenshot = async () => {
+  screenshotQueue.value = []
+  screenshotBatchTotal.value = 0
   await cleanupCurrentScreenshotUpload()
   resetScreenshotUploadStateKeepModalOpen()
 }
@@ -1389,6 +1447,22 @@ const handleSaveOcrResult = async () => {
     }
 
     clearPendingPaymentDraft()
+
+    // Batch mode: if the user selected multiple screenshots, continue with the next one.
+    if (screenshotQueue.value.length > 0) {
+      const next = screenshotQueue.value.shift()
+      resetScreenshotUploadStateKeepModalOpen()
+      if (next) {
+        selectedScreenshotFile.value = next
+        selectedScreenshotName.value = next.name
+        // Auto-run OCR for the next screenshot to avoid extra clicks.
+        void handleScreenshotUpload()
+      } else {
+        screenshotBatchTotal.value = 0
+      }
+      return
+    }
+
     resetScreenshotUploadState()
     await loadPayments()
     await loadStats()
@@ -1400,6 +1474,8 @@ const handleSaveOcrResult = async () => {
 }
 
 const resetScreenshotUploadState = () => {
+  screenshotQueue.value = []
+  screenshotBatchTotal.value = 0
   screenshotUploadAttempt.value++
   uploadingScreenshot.value = false
   savingOcrResult.value = false
@@ -2261,6 +2337,13 @@ watch(
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.file-row-meta {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
 }
 
 .file-row-remove {

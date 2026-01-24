@@ -188,6 +188,37 @@
           检测到疑似重复发票（发票号码重复）。如果确认需要保留，可点击保存后选择“仍然保存”。
         </Message>
 
+        <div v-if="uploadedInvoiceId && uploadedInvoiceIds.length > 1" class="upload-batch-switcher" @click.stop>
+          <div class="upload-batch-title">批量预览（{{ uploadedInvoiceIds.length }} 个文件）</div>
+          <div class="upload-batch-controls">
+            <Button
+              class="p-button-text"
+              severity="secondary"
+              icon="pi pi-angle-left"
+              aria-label="Previous"
+              :disabled="uploading || savingUploadOcr || uploadedInvoiceIndex <= 0"
+              @click="selectPrevUploadedInvoice"
+            />
+            <Dropdown
+              v-model="uploadedInvoiceId"
+              :options="uploadedInvoiceOptions"
+              optionLabel="label"
+              optionValue="id"
+              :disabled="uploading || savingUploadOcr"
+              style="min-width: 360px"
+            />
+            <Button
+              class="p-button-text"
+              severity="secondary"
+              icon="pi pi-angle-right"
+              aria-label="Next"
+              :disabled="uploading || savingUploadOcr || uploadedInvoiceIndex < 0 || uploadedInvoiceIndex >= uploadedInvoiceIds.length - 1"
+              @click="selectNextUploadedInvoice"
+            />
+            <span class="upload-batch-counter">{{ uploadedInvoiceIndex + 1 }}/{{ uploadedInvoiceIds.length }}</span>
+          </div>
+        </div>
+
         <div v-if="uploadedInvoiceId" class="upload-invoice-layout">
           <div class="upload-invoice-left">
             <div class="invoice-file-preview">
@@ -319,7 +350,14 @@
             :disabled="uploading || selectedFiles.length === 0"
             @click="handleUpload"
           />
-          <Button v-else type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="savingUploadOcr" @click="handleSaveUploadedInvoice" />
+          <Button
+            v-else
+            type="button"
+            :label="uploadedInvoiceIds.length > 1 ? '保存全部' : '保存'"
+            icon="pi pi-check"
+            :loading="savingUploadOcr"
+            @click="handleSaveUploadedInvoice"
+          />
         </div>
       </template>
     </Dialog>
@@ -699,6 +737,7 @@ import DataTable from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Divider from 'primevue/divider'
 import DatePicker from 'primevue/datepicker'
+import Dropdown from 'primevue/dropdown'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Image from 'primevue/image'
@@ -875,6 +914,101 @@ const uploadOcrForm = reactive({
   seller_name: '',
   buyer_name: '',
 })
+
+type UploadInvoiceDraft = {
+  invoice_number: string
+  invoice_date: Date | null
+  amount: number | null
+  seller_name: string
+  buyer_name: string
+}
+
+const uploadedInvoicesById = ref<Record<string, Invoice>>({})
+const uploadedInvoiceDedupById = ref<Record<string, DedupHint | null>>({})
+const uploadOcrDraftById = ref<Record<string, UploadInvoiceDraft>>({})
+
+const uploadedInvoiceIndex = computed(() => {
+  const id = uploadedInvoiceId.value
+  if (!id) return -1
+  return uploadedInvoiceIds.value.indexOf(id)
+})
+
+const uploadedInvoiceOptions = computed(() =>
+  uploadedInvoiceIds.value.map((id, idx) => {
+    const inv = uploadedInvoicesById.value[id]
+    const name = inv?.original_name || `发票 ${idx + 1}`
+    const status = inv?.parse_status ? `（${getParseStatusLabel(inv.parse_status)}）` : ''
+    return { id, label: `${idx + 1}. ${name}${status}` }
+  }),
+)
+
+const saveUploadDraftFor = (id: string | null) => {
+  if (!id) return
+  uploadOcrDraftById.value[id] = {
+    invoice_number: uploadOcrForm.invoice_number,
+    invoice_date: uploadOcrForm.invoice_date,
+    amount: uploadOcrForm.amount,
+    seller_name: uploadOcrForm.seller_name,
+    buyer_name: uploadOcrForm.buyer_name,
+  }
+}
+
+const loadUploadFormFor = (id: string | null) => {
+  if (!id) {
+    uploadedInvoice.value = null
+    uploadOcrResult.value = null
+    uploadDedup.value = null
+    uploadOcrForm.invoice_number = ''
+    uploadOcrForm.invoice_date = null
+    uploadOcrForm.amount = null
+    uploadOcrForm.seller_name = ''
+    uploadOcrForm.buyer_name = ''
+    return
+  }
+
+  const inv = uploadedInvoicesById.value[id] || null
+  uploadedInvoice.value = inv
+  uploadDedup.value = uploadedInvoiceDedupById.value[id] || null
+  const extracted = getInvoiceExtracted(inv)
+  uploadOcrResult.value = extracted
+
+  const draft = uploadOcrDraftById.value[id]
+  if (draft) {
+    uploadOcrForm.invoice_number = draft.invoice_number
+    uploadOcrForm.invoice_date = draft.invoice_date
+    uploadOcrForm.amount = draft.amount
+    uploadOcrForm.seller_name = draft.seller_name
+    uploadOcrForm.buyer_name = draft.buyer_name
+    return
+  }
+
+  uploadOcrForm.invoice_number = extracted?.invoice_number || ''
+  uploadOcrForm.invoice_date = parseInvoiceDateToDate(extracted?.invoice_date)
+  uploadOcrForm.amount = extracted?.amount ?? null
+  uploadOcrForm.seller_name = extracted?.seller_name || ''
+  uploadOcrForm.buyer_name = extracted?.buyer_name || ''
+}
+
+watch(
+  () => uploadedInvoiceId.value,
+  (id, prev) => {
+    if (prev && prev !== id) saveUploadDraftFor(prev)
+    loadUploadFormFor(id)
+  },
+)
+
+const selectPrevUploadedInvoice = () => {
+  const idx = uploadedInvoiceIndex.value
+  if (idx <= 0) return
+  uploadedInvoiceId.value = uploadedInvoiceIds.value[idx - 1] || null
+}
+
+const selectNextUploadedInvoice = () => {
+  const idx = uploadedInvoiceIndex.value
+  if (idx < 0) return
+  if (idx >= uploadedInvoiceIds.value.length - 1) return
+  uploadedInvoiceId.value = uploadedInvoiceIds.value[idx + 1] || null
+}
 
 const PENDING_INVOICE_DRAFT_KEY = 'sbm_pending_invoice_upload_draft'
 
@@ -1112,6 +1246,9 @@ const openUploadModal = () => {
   uploadedInvoiceIds.value = []
   uploadedInvoiceId.value = null
   uploadedInvoice.value = null
+  uploadedInvoicesById.value = {}
+  uploadedInvoiceDedupById.value = {}
+  uploadOcrDraftById.value = {}
   uploadOcrResult.value = null
   uploadDedup.value = null
   uploadConfirmed.value = false
@@ -1129,6 +1266,9 @@ const resetUploadDraftState = () => {
   uploadedInvoiceIds.value = []
   uploadedInvoiceId.value = null
   uploadedInvoice.value = null
+  uploadedInvoicesById.value = {}
+  uploadedInvoiceDedupById.value = {}
+  uploadOcrDraftById.value = {}
   uploadOcrResult.value = null
   uploadConfirmed.value = false
   uploadOcrForm.invoice_number = ''
@@ -1142,12 +1282,26 @@ const resetUploadDraftState = () => {
 const discardUploadedInvoices = async () => {
   const ids = uploadedInvoiceIds.value.filter(Boolean)
   if (ids.length === 0) return
-  const results = await Promise.allSettled(ids.map(id => invoiceApi.delete(id)))
+
+  // Only delete drafts; confirmed invoices should never be auto-deleted.
+  const draftIds: string[] = []
+  for (const id of ids) {
+    try {
+      const res = await invoiceApi.getById(id)
+      const inv = res.data?.data as any
+      if (inv?.is_draft) draftIds.push(id)
+    } catch {
+      // ignore per-item
+    }
+  }
+  if (draftIds.length === 0) return
+
+  const results = await Promise.allSettled(draftIds.map(id => invoiceApi.delete(id)))
   const failed = results.filter(r => r.status === 'rejected').length
   if (failed === 0) {
-    toast.add({ severity: 'info', summary: '已取消并删除本次上传的发票', life: 2200 })
+    toast.add({ severity: 'info', summary: '已取消并删除本次上传的草稿发票', life: 2200 })
   } else {
-    toast.add({ severity: 'warn', summary: `已取消，但有 ${failed} 条上传记录删除失败（可在列表中手动删除）`, life: 4000 })
+    toast.add({ severity: 'warn', summary: `已取消，但有 ${failed} 条草稿删除失败（可在列表中手动删除）`, life: 4000 })
   }
   await loadInvoices()
   await loadStats()
@@ -1217,6 +1371,10 @@ const handleUpload = async () => {
   uploading.value = true
   try {
     let createdInvoice: Invoice | null = null
+    uploadedInvoicesById.value = {}
+    uploadedInvoiceDedupById.value = {}
+    uploadOcrDraftById.value = {}
+    uploadDedup.value = null
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
     const waitForTask = async (taskId: string, opts?: { timeoutMs?: number }) => {
       const timeoutMs = opts?.timeoutMs ?? 180000
@@ -1238,6 +1396,9 @@ const handleUpload = async () => {
       const draftInvoice = payload?.invoice as Invoice
       createdInvoice = draftInvoice || null
       uploadedInvoiceIds.value = createdInvoice ? [createdInvoice.id] : []
+      if (createdInvoice) {
+        uploadedInvoicesById.value = { [createdInvoice.id]: createdInvoice }
+      }
 
       if (taskId) {
         const task = await waitForTask(taskId)
@@ -1245,15 +1406,19 @@ const handleUpload = async () => {
         if (task.status === 'canceled') throw new Error('识别已取消')
         const result = task.result as any
         createdInvoice = result?.invoice || createdInvoice
-        uploadDedup.value = (result?.dedup as any) || null
+        const dedup = (result?.dedup as any) || null
+        if (createdInvoice) {
+          uploadedInvoicesById.value = { ...uploadedInvoicesById.value, [createdInvoice.id]: createdInvoice }
+          uploadedInvoiceDedupById.value = { ...uploadedInvoiceDedupById.value, [createdInvoice.id]: dedup }
+        }
       }
     } else {
       const res = await invoiceApi.uploadMultipleAsync(selectedFiles.value)
       const items = (res.data?.data || []) as Array<{ taskId: string; invoice: Invoice }>
-      const createdList = items.map(it => it.invoice)
+      const createdList = items.map(it => it.invoice).filter(Boolean)
       createdInvoice = createdList.length > 0 ? createdList[0] : null
       uploadedInvoiceIds.value = createdList.map(it => it.id)
-      uploadDedup.value = null
+      uploadedInvoicesById.value = Object.fromEntries(createdList.map(inv => [inv.id, inv]))
 
       // Wait until all invoices are parsed before allowing confirm-all.
       for (let i = 0; i < items.length; i++) {
@@ -1262,23 +1427,20 @@ const handleUpload = async () => {
         const task = await waitForTask(it.taskId)
         if (task.status === 'failed') throw new Error(task?.error || '识别失败')
         if (task.status === 'canceled') throw new Error('识别已取消')
-        if (i === 0) {
-          const result = task.result as any
-          createdInvoice = result?.invoice || createdInvoice
-          uploadDedup.value = (result?.dedup as any) || null
+        const result = task.result as any
+        const invoice = (result?.invoice as Invoice) || it.invoice
+        const dedup = (result?.dedup as any) || null
+        if (invoice?.id) {
+          uploadedInvoicesById.value = { ...uploadedInvoicesById.value, [invoice.id]: invoice }
+          if (dedup) {
+            uploadedInvoiceDedupById.value = { ...uploadedInvoiceDedupById.value, [invoice.id]: dedup }
+          }
         }
       }
     }
-    if (createdInvoice) {
-      uploadedInvoiceId.value = createdInvoice.id
-      uploadedInvoice.value = createdInvoice
-      const extracted = getInvoiceExtracted(createdInvoice)
-      uploadOcrResult.value = extracted
-      uploadOcrForm.invoice_number = extracted?.invoice_number || ''
-      uploadOcrForm.invoice_date = parseInvoiceDateToDate(extracted?.invoice_date)
-      uploadOcrForm.amount = extracted?.amount ?? null
-      uploadOcrForm.seller_name = extracted?.seller_name || ''
-      uploadOcrForm.buyer_name = extracted?.buyer_name || ''
+    const firstId = uploadedInvoiceIds.value[0] || createdInvoice?.id || null
+    if (firstId) {
+      uploadedInvoiceId.value = firstId
     }
     rememberPendingInvoiceDraft(uploadedInvoiceIds.value)
     toast.add({ severity: 'success', summary: '\u4E0A\u4F20\u6210\u529F\uFF0C\u8BF7\u786E\u8BA4\u8BC6\u522B\u7ED3\u679C', life: 2200 })
@@ -1310,47 +1472,46 @@ const handleSaveUploadedInvoice = async () => {
   }
   savingUploadOcr.value = true
   try {
-    const payload: Partial<Invoice> = {
-      invoice_number: uploadOcrForm.invoice_number || undefined,
-      invoice_date: uploadOcrForm.invoice_date ? dayjs(uploadOcrForm.invoice_date).format('YYYY-MM-DD') : undefined,
-      amount: uploadOcrForm.amount === null ? undefined : Number(uploadOcrForm.amount),
-      seller_name: uploadOcrForm.seller_name || undefined,
-      buyer_name: uploadOcrForm.buyer_name || undefined,
-    }
-    const saveCurrent = async (force: boolean) => {
-      await invoiceApi.update(uploadedInvoiceId.value as string, {
-        ...payload,
-        confirm: true,
-        force_duplicate_save: force ? true : undefined,
-      })
-    }
-    try {
-      await saveCurrent(false)
-    } catch (error: unknown) {
-      const err = error as any
-      const resp = err?.response
-      const dup = resp?.data?.data as DedupHint | undefined
-      if (resp?.status === 409 && dup?.kind === 'suspected_duplicate') {
-        const ok = await confirmForceSave('检测到疑似重复发票（发票号码重复），是否仍然保存？')
-        if (!ok) return
-        await saveCurrent(true)
-      } else {
-        throw error
+    // Persist the current draft before saving (switching invoices already does this).
+    saveUploadDraftFor(uploadedInvoiceId.value)
+
+    const uniqIds = Array.from(new Set(uploadedInvoiceIds.value.filter(Boolean)))
+    if (uniqIds.length === 0 && uploadedInvoiceId.value) uniqIds.push(uploadedInvoiceId.value)
+
+    const buildPayload = (draft: UploadInvoiceDraft): Partial<Invoice> => ({
+      invoice_number: draft.invoice_number || undefined,
+      invoice_date: draft.invoice_date ? dayjs(draft.invoice_date).format('YYYY-MM-DD') : undefined,
+      amount: draft.amount === null ? undefined : Number(draft.amount),
+      seller_name: draft.seller_name || undefined,
+      buyer_name: draft.buyer_name || undefined,
+    })
+
+    for (const id of uniqIds) {
+      const draft = uploadOcrDraftById.value[id]
+      const payload = draft ? buildPayload(draft) : {}
+      const saveOne = async (force: boolean) =>
+        invoiceApi.update(id, {
+          ...payload,
+          confirm: true,
+          force_duplicate_save: force ? true : undefined,
+        })
+
+      try {
+        await saveOne(false)
+      } catch (error: unknown) {
+        const err = error as any
+        const resp = err?.response
+        const dup = resp?.data?.data as DedupHint | undefined
+        if (resp?.status === 409 && dup?.kind === 'suspected_duplicate') {
+          const ok = await confirmForceSave('检测到疑似重复发票（发票号码重复），是否仍然保存？')
+          if (!ok) return
+          await saveOne(true)
+        } else {
+          throw error
+        }
       }
     }
 
-    const restIds = uploadedInvoiceIds.value.filter(id => id && id !== uploadedInvoiceId.value)
-    if (restIds.length > 0) {
-      const results = await Promise.allSettled(restIds.map(id => invoiceApi.update(id, { confirm: true })))
-      const failed = results.filter(r => r.status === 'rejected').length
-      if (failed > 0) {
-        toast.add({
-          severity: 'warn',
-          summary: `已保存，但有 ${failed} 个发票确认失败（可在列表中重新编辑/保存）`,
-          life: 4500,
-        })
-      }
-    }
     clearPendingInvoiceDraft()
     toast.add({ severity: 'success', summary: '\u53D1\u7968\u4FE1\u606F\u5DF2\u66F4\u65B0', life: 2000 })
     uploadConfirmed.value = true
@@ -1994,6 +2155,39 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.upload-batch-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.upload-batch-title {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.upload-batch-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.upload-batch-counter {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 
 .upload-invoice-layout {

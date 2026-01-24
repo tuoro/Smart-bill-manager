@@ -31,12 +31,6 @@
           <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
         </div>
 
-        <div class="field">
-          <label class="sbm-field-label" for="email">邮箱 (可选)</label>
-          <InputText id="email" v-model.trim="form.email" autocomplete="email" />
-          <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
-        </div>
-
         <Button type="submit" class="submit-btn" :label="'注册并登录'" :loading="loading" />
       </form>
 
@@ -66,7 +60,6 @@ const form = reactive({
   username: '',
   password: '',
   confirmPassword: '',
-  email: '',
 })
 
 const errors = reactive({
@@ -74,7 +67,6 @@ const errors = reactive({
   username: '',
   password: '',
   confirmPassword: '',
-  email: '',
 })
 
 const validate = () => {
@@ -82,7 +74,6 @@ const validate = () => {
   errors.username = ''
   errors.password = ''
   errors.confirmPassword = ''
-  errors.email = ''
 
   if (!form.inviteCode.trim()) errors.inviteCode = '请输入邀请码'
 
@@ -104,11 +95,7 @@ const validate = () => {
     errors.confirmPassword = '两次输入的密码不一致'
   }
 
-  if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    errors.email = '请输入有效的邮箱地址'
-  }
-
-  return !errors.inviteCode && !errors.username && !errors.password && !errors.confirmPassword && !errors.email
+  return !errors.inviteCode && !errors.username && !errors.password && !errors.confirmPassword
 }
 
 const handleRegister = async () => {
@@ -116,7 +103,7 @@ const handleRegister = async () => {
 
   loading.value = true
   try {
-    const res = await authApi.inviteRegister(form.inviteCode, form.username, form.password, form.email || undefined)
+    const res = await authApi.inviteRegister(form.inviteCode, form.username, form.password)
     if (res.data.success) {
       if (res.data.token) setToken(res.data.token)
       if (res.data.user) setStoredUser(res.data.user)

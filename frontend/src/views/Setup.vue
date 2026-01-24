@@ -44,12 +44,6 @@
           <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
         </div>
 
-        <div class="field">
-          <label class="sbm-field-label" for="email">&#37038;&#31665; (&#21487;&#36873;)</label>
-          <InputText id="email" v-model.trim="form.email" autocomplete="email" />
-          <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
-        </div>
-
         <Button type="submit" class="submit-btn" :label="'\u521B\u5EFA\u7BA1\u7406\u5458\u8D26\u6237'" :loading="loading" />
       </form>
     </div>
@@ -76,14 +70,12 @@ const form = reactive({
   username: '',
   password: '',
   confirmPassword: '',
-  email: '',
 })
 
 const errors = reactive({
   username: '',
   password: '',
   confirmPassword: '',
-  email: '',
 })
 
 const passwordStrength = ref<PasswordStrength>({
@@ -99,7 +91,6 @@ const validate = () => {
   errors.username = ''
   errors.password = ''
   errors.confirmPassword = ''
-  errors.email = ''
 
   if (!form.username) {
     errors.username = '\u8BF7\u8F93\u5165\u7528\u6237\u540D'
@@ -119,11 +110,7 @@ const validate = () => {
     errors.confirmPassword = '\u4E24\u6B21\u8F93\u5165\u7684\u5BC6\u7801\u4E0D\u4E00\u81F4'
   }
 
-  if (form.email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)) {
-    errors.email = '\u8BF7\u8F93\u5165\u6709\u6548\u7684\u90AE\u7BB1\u5730\u5740'
-  }
-
-  return !errors.username && !errors.password && !errors.confirmPassword && !errors.email
+  return !errors.username && !errors.password && !errors.confirmPassword
 }
 
 const handleSetup = async () => {
@@ -131,7 +118,7 @@ const handleSetup = async () => {
 
   loading.value = true
   try {
-    const response = await authApi.setup(form.username, form.password, form.email || undefined)
+    const response = await authApi.setup(form.username, form.password)
     if (response.data.success) {
       if (response.data.token && response.data.user) {
         authStore.setSession(response.data.user, response.data.token)

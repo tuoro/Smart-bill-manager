@@ -143,183 +143,180 @@
       v-model:visible="uploadScreenshotModalVisible"
       modal
       :header="'\u4E0A\u4F20\u652F\u4ED8\u622A\u56FE'"
-      :style="{ width: ocrResult ? '1060px' : '880px', maxWidth: '96vw' }"
+      :style="{ width: uploadedPaymentId ? '1060px' : '880px', maxWidth: '96vw' }"
       :closable="!uploadingScreenshot && !savingOcrResult"
-      @hide="cancelScreenshotUpload"
+      :closeOnEscape="!uploadingScreenshot && !savingOcrResult"
     >
       <div class="upload-screenshot-body">
-        <div v-if="!ocrResult">
-          <div
-            class="upload-box sbm-dropzone"
-            @click="triggerScreenshotChoose"
-            @dragenter.prevent
-            @dragover.prevent
-            @drop.prevent="onScreenshotDrop"
-          >
-              <div class="sbm-dropzone-hero">
-                <i class="pi pi-cloud-upload" />
-                <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#21487;&#22810;&#36873;&#65292;&#26368;&#22823; 10MB</div>
-              <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
-            </div>
-
-            <input
-              ref="screenshotInput"
-              class="sbm-file-input-hidden"
-              type="file"
-              accept="image/png,image/jpeg"
-              multiple
-              @change="onScreenshotInputChange"
+        <div
+          class="upload-box sbm-dropzone"
+          @click="triggerScreenshotChoose"
+          @dragenter.prevent
+          @dragover.prevent
+          @drop.prevent="onScreenshotDrop"
+        >
+          <div class="sbm-dropzone-hero">
+            <i class="pi pi-cloud-upload" />
+            <div class="sbm-dropzone-title">拖拽图片到此处，或者点击选择</div>
+            <div class="sbm-dropzone-sub">支持 PNG/JPG，可多选（最多 50 张），最大 10MB</div>
+            <Button
+              type="button"
+              icon="pi pi-plus"
+              :label="'选择截图'"
+              :disabled="uploadingScreenshot || savingOcrResult"
+              @click.stop="chooseScreenshotFile"
             />
+          </div>
 
-             <div v-if="selectedScreenshotName" class="file-row" @click.stop>
-               <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
-               <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
-                 ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
-               </span>
-               <Button
-                 class="file-row-remove p-button-text"
-                 severity="secondary"
-                 icon="pi pi-times"
-                 aria-label="Remove"
-                 @click="clearSelectedScreenshot"
-               />
-             </div>
-             <small v-if="screenshotBatchTotal > 1" class="muted" @click.stop>已选择 {{ screenshotBatchTotal }} 张，保存后会自动继续下一张</small>
-             <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
-           </div>
+          <input
+            ref="screenshotInput"
+            class="sbm-file-input-hidden"
+            type="file"
+            accept="image/png,image/jpeg"
+            multiple
+            @change="onScreenshotInputChange"
+          />
 
-           <Message severity="info" :closable="false" style="margin-top: 12px">
-             请选择截图，点击“识别”生成录入建议。支持多选（最多 50 张），批量模式下每张保存后会自动继续下一张。
-           </Message>
-         </div>
-
-        <div v-else class="upload-screenshot-ocr">
-          <div
-            class="upload-box sbm-dropzone"
-            @click="triggerScreenshotChoose"
-            @dragenter.prevent
-            @dragover.prevent
-            @drop.prevent="onScreenshotDrop"
-          >
-            <div class="sbm-dropzone-hero">
-              <i class="pi pi-cloud-upload" />
-              <div class="sbm-dropzone-title">&#25299;&#25321;&#22270;&#29255;&#21040;&#27492;&#22788;&#65292;&#25110;&#28857;&#20987;&#36873;&#25321;</div>
-              <div class="sbm-dropzone-sub">&#25903;&#25345; PNG/JPG&#65292;&#21487;&#22810;&#36873;&#65292;&#26368;&#22823; 10MB</div>
-              <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u622A\u56FE'" @click.stop="chooseScreenshotFile" />
+          <div v-if="selectedScreenshotFiles.length > 0" class="file-list" @click.stop>
+            <div v-for="(f, idx) in selectedScreenshotFiles" :key="`${f.name}-${f.size}-${idx}`" class="file-row">
+              <span class="file-row-name" :title="f.name">{{ f.name }}</span>
+              <Button
+                class="file-row-remove p-button-text"
+                severity="secondary"
+                icon="pi pi-times"
+                aria-label="Remove"
+                :disabled="uploadingScreenshot || savingOcrResult"
+                @click="removeSelectedScreenshot(idx)"
+              />
             </div>
+            <div class="file-hint">已选择 {{ selectedScreenshotFiles.length }} 个文件</div>
+          </div>
 
-            <input
-              ref="screenshotInput"
-              class="sbm-file-input-hidden"
-              type="file"
-              accept="image/png,image/jpeg"
-              multiple
-              @change="onScreenshotInputChange"
+          <small v-if="screenshotError" class="p-error" @click.stop>{{ screenshotError }}</small>
+        </div>
+
+        <Message v-if="!uploadedPaymentId" severity="info" :closable="false" style="margin-top: 12px">
+          请选择截图，点击“识别”生成录入建议。
+        </Message>
+        <Message v-else-if="uploadedPaymentId && !ocrResult" severity="warn" :closable="false" style="margin-top: 12px">
+          已上传，但未解析出可用的 OCR 摘要（可能仍在解析中或解析失败）。你仍可手动填写后保存。
+        </Message>
+
+        <div v-if="uploadedPaymentId && uploadedPaymentIds.length > 1" class="upload-batch-switcher" @click.stop>
+          <div class="upload-batch-title">批量预览（{{ uploadedPaymentIds.length }} 个文件）</div>
+          <div class="upload-batch-controls">
+            <Button
+              class="p-button-text"
+              severity="secondary"
+              icon="pi pi-angle-left"
+              aria-label="Previous"
+              :disabled="uploadingScreenshot || savingOcrResult || uploadedPaymentIndex <= 0"
+              @click="selectPrevUploadedPayment"
             />
+            <Dropdown
+              v-model="uploadedPaymentId"
+              :options="uploadedPaymentOptions"
+              optionLabel="label"
+              optionValue="id"
+              :disabled="uploadingScreenshot || savingOcrResult"
+              style="min-width: 360px"
+            />
+            <Button
+              class="p-button-text"
+              severity="secondary"
+              icon="pi pi-angle-right"
+              aria-label="Next"
+              :disabled="uploadingScreenshot || savingOcrResult || uploadedPaymentIndex < 0 || uploadedPaymentIndex >= uploadedPaymentIds.length - 1"
+              @click="selectNextUploadedPayment"
+            />
+            <span class="upload-batch-counter">{{ uploadedPaymentIndex + 1 }}/{{ uploadedPaymentIds.length }}</span>
+          </div>
+        </div>
 
-             <div v-if="selectedScreenshotName" class="file-row" @click.stop>
-               <span class="file-row-name" :title="selectedScreenshotName">{{ selectedScreenshotName }}</span>
-               <span v-if="screenshotBatchTotal > 1" class="file-row-meta">
-                 ({{ screenshotBatchTotal - screenshotQueue.length }}/{{ screenshotBatchTotal }})
-               </span>
-               <Button
-                 class="file-row-remove p-button-text"
-                 severity="secondary"
-                 icon="pi pi-times"
-                 aria-label="Remove"
-                 @click="clearSelectedScreenshot"
-               />
-             </div>
-             <small v-if="screenshotBatchTotal > 1" class="muted" @click.stop>已选择 {{ screenshotBatchTotal }} 张，保存后会自动继续下一张</small>
-             <small v-if="screenshotError" class="p-error">{{ screenshotError }}</small>
-           </div>
-
-          <div class="upload-screenshot-layout">
-            <div class="upload-screenshot-left">
-              <div v-if="screenshotPreviewSrc" class="raw raw-screenshot">
-                <div class="raw-title">支付截图</div>
-                <div class="screenshot-wrap">
-                  <Image class="screenshot" :src="screenshotPreviewSrc" preview :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }" />
-                </div>
+        <div v-if="uploadedPaymentId" class="upload-screenshot-layout">
+          <div class="upload-screenshot-left">
+            <div v-if="screenshotPreviewSrc" class="raw raw-screenshot">
+              <div class="raw-title">支付截图</div>
+              <div class="screenshot-wrap">
+                <Image class="screenshot" :src="screenshotPreviewSrc" preview :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }" />
               </div>
-              <Message v-else severity="secondary" :closable="false">暂无截图预览</Message>
             </div>
+            <Message v-else severity="secondary" :closable="false">暂无截图预览</Message>
+          </div>
 
-            <div class="upload-screenshot-right">
+          <div class="upload-screenshot-right">
             <form class="p-fluid" @submit.prevent="handleSaveOcrResult">
               <Message v-if="uploadDedup?.kind === 'suspected_duplicate'" severity="warn" :closable="false">
                 检测到疑似重复支付记录（金额 + 时间接近）。如果确认需要保留，可点击保存后选择“仍然保存”。
               </Message>
               <div class="grid">
-            <div class="col-12 md:col-6 field">
-              <label for="ocr_amount">&#37329;&#39069;</label>
-              <InputNumber
-                id="ocr_amount"
-                v-model="ocrForm.amount"
-                :minFractionDigits="2"
-                :maxFractionDigits="2"
-                :min="0"
-                :useGrouping="false"
-              />
-              <small
-                v-if="isAdmin && (ocrResult?.amount_source || ocrResult?.amount_confidence)"
-                class="sbm-ocr-hint"
-                :class="confidenceClass(ocrResult?.amount_confidence)"
-              >
-                &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.amount_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.amount_confidence">（置信度：{{ confidenceLabel(ocrResult?.amount_confidence) }}）</span>
-              </small>
-              <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
-            </div>
+                <div class="col-12 md:col-6 field">
+                  <label for="ocr_amount">&#37329;&#39069;</label>
+                  <InputNumber
+                    id="ocr_amount"
+                    v-model="ocrForm.amount"
+                    :minFractionDigits="2"
+                    :maxFractionDigits="2"
+                    :min="0"
+                    :useGrouping="false"
+                  />
+                  <small
+                    v-if="isAdmin && (ocrResult?.amount_source || ocrResult?.amount_confidence)"
+                    class="sbm-ocr-hint"
+                    :class="confidenceClass(ocrResult?.amount_confidence)"
+                  >
+                    &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.amount_source) || '未识别' }}
+                    <span v-if="ocrResult?.amount_confidence">（置信度：{{ confidenceLabel(ocrResult?.amount_confidence) }}）</span>
+                  </small>
+                  <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
+                </div>
 
-            <div class="col-12 md:col-6 field">
-              <label for="ocr_merchant">&#21830;&#23478;</label>
-              <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
-              <small
-                v-if="isAdmin && (ocrResult?.merchant_source || ocrResult?.merchant_confidence)"
-                class="sbm-ocr-hint"
-                :class="confidenceClass(ocrResult?.merchant_confidence)"
-              >
-                &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.merchant_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.merchant_confidence">（置信度：{{ confidenceLabel(ocrResult?.merchant_confidence) }}）</span>
-              </small>
-            </div>
+                <div class="col-12 md:col-6 field">
+                  <label for="ocr_merchant">&#21830;&#23478;</label>
+                  <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
+                  <small
+                    v-if="isAdmin && (ocrResult?.merchant_source || ocrResult?.merchant_confidence)"
+                    class="sbm-ocr-hint"
+                    :class="confidenceClass(ocrResult?.merchant_confidence)"
+                  >
+                    &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.merchant_source) || '未识别' }}
+                    <span v-if="ocrResult?.merchant_confidence">（置信度：{{ confidenceLabel(ocrResult?.merchant_confidence) }}）</span>
+                  </small>
+                </div>
 
-            <div class="col-12 md:col-6 field">
-              <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
-              <InputText id="ocr_method" v-model.trim="ocrForm.payment_method" />
-              <small
-                v-if="isAdmin && (ocrResult?.payment_method_source || ocrResult?.payment_method_confidence)"
-                class="sbm-ocr-hint"
-                :class="confidenceClass(ocrResult?.payment_method_confidence)"
-              >
-                &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.payment_method_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.payment_method_confidence">（置信度：{{ confidenceLabel(ocrResult?.payment_method_confidence) }}）</span>
-              </small>
-            </div>
+                <div class="col-12 md:col-6 field">
+                  <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
+                  <InputText id="ocr_method" v-model.trim="ocrForm.payment_method" />
+                  <small
+                    v-if="isAdmin && (ocrResult?.payment_method_source || ocrResult?.payment_method_confidence)"
+                    class="sbm-ocr-hint"
+                    :class="confidenceClass(ocrResult?.payment_method_confidence)"
+                  >
+                    &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.payment_method_source) || '未识别' }}
+                    <span v-if="ocrResult?.payment_method_confidence">（置信度：{{ confidenceLabel(ocrResult?.payment_method_confidence) }}）</span>
+                  </small>
+                </div>
 
-            <div class="col-12 md:col-6 field">
-              <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
-              <DatePicker id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
-              <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
-              <small
-                v-if="isAdmin && (ocrResult?.transaction_time_source || ocrResult?.transaction_time_confidence)"
-                class="sbm-ocr-hint"
-                :class="confidenceClass(ocrResult?.transaction_time_confidence)"
-              >
-                &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.transaction_time_source) || '\u672a\u8bc6\u522b' }}
-                <span v-if="ocrResult?.transaction_time_confidence">（置信度：{{ confidenceLabel(ocrResult?.transaction_time_confidence) }}）</span>
-              </small>
-            </div>
+                <div class="col-12 md:col-6 field">
+                  <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
+                  <DatePicker id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
+                  <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
+                  <small
+                    v-if="isAdmin && (ocrResult?.transaction_time_source || ocrResult?.transaction_time_confidence)"
+                    class="sbm-ocr-hint"
+                    :class="confidenceClass(ocrResult?.transaction_time_confidence)"
+                  >
+                    &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.transaction_time_source) || '未识别' }}
+                    <span v-if="ocrResult?.transaction_time_confidence">（置信度：{{ confidenceLabel(ocrResult?.transaction_time_confidence) }}）</span>
+                  </small>
+                </div>
 
-            <div class="col-12 field">
-              <label for="ocr_desc">&#22791;&#27880;</label>
-              <Textarea id="ocr_desc" v-model="ocrForm.description" autoResize rows="3" />
-            </div>
-          </div>
+                <div class="col-12 field">
+                  <label for="ocr_desc">&#22791;&#27880;</label>
+                  <Textarea id="ocr_desc" v-model="ocrForm.description" autoResize rows="3" />
+                </div>
+              </div>
             </form>
-            </div>
           </div>
         </div>
 
@@ -338,20 +335,34 @@
 
       <template #footer>
         <div class="dialog-footer-center">
-          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="closeScreenshotModal" />
-           <Button
-             v-if="!ocrResult"
-             type="button"
-             :label="'\u8BC6\u522B'"
-             icon="pi pi-search"
-             :loading="uploadingScreenshot"
-             :disabled="!selectedScreenshotFile"
-             @click="handleScreenshotUpload"
-           />
-           <Button v-else type="button" :label="screenshotQueue.length > 0 ? '保存并继续' : '保存'" icon="pi pi-check" :loading="savingOcrResult" @click="handleSaveOcrResult" />
-         </div>
-       </template>
-     </Dialog>
+          <Button
+            type="button"
+            class="p-button-outlined"
+            severity="secondary"
+            :label="'\u53D6\u6D88'"
+            :disabled="uploadingScreenshot || savingOcrResult"
+            @click="closeScreenshotModal"
+          />
+          <Button
+            v-if="!uploadedPaymentId"
+            type="button"
+            :label="'\u8BC6\u522B'"
+            icon="pi pi-search"
+            :loading="uploadingScreenshot"
+            :disabled="uploadingScreenshot || selectedScreenshotFiles.length === 0"
+            @click="handleScreenshotUpload"
+          />
+          <Button
+            v-else
+            type="button"
+            :label="uploadedPaymentIds.length > 1 ? '\u4FDD\u5B58\u5168\u90E8' : '\u4FDD\u5B58'"
+            icon="pi pi-check"
+            :loading="savingOcrResult"
+            @click="handleSaveOcrResult"
+          />
+        </div>
+      </template>
+    </Dialog>
 
     <Dialog v-model:visible="linkedInvoicesModalVisible" modal :header="'\u5173\u8054\u7684\u53D1\u7968'" :style="{ width: '980px', maxWidth: '96vw' }">
       <div class="match-header">
@@ -692,6 +703,7 @@ import Column from 'primevue/column'
 import DataTable from 'primevue/datatable'
 import DatePicker from 'primevue/datepicker'
 import Dialog from 'primevue/dialog'
+import Dropdown from 'primevue/dropdown'
 import Image from 'primevue/image'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
@@ -792,81 +804,87 @@ const avgAmount = computed(() => {
 })
 
 // Screenshot upload + OCR
+type UploadPaymentDraft = {
+  amount: number
+  merchant: string
+  payment_method: string
+  description: string
+  transaction_time: Date | null
+}
+
 const uploadScreenshotModalVisible = ref(false)
 const uploadingScreenshot = ref(false)
 const savingOcrResult = ref(false)
-const selectedScreenshotFile = ref<File | null>(null)
-const selectedScreenshotName = ref('')
+const uploadConfirmed = ref(false)
+
+const selectedScreenshotFiles = ref<File[]>([])
 const screenshotError = ref('')
 const ocrResult = ref<OcrExtractedData | null>(null)
 const uploadDedup = ref<DedupHint | null>(null)
+const uploadedPaymentIds = ref<string[]>([])
 const uploadedPaymentId = ref<string | null>(null)
-const uploadedScreenshotPath = ref<string | null>(null)
-const uploadedScreenshotBlobUrl = ref<string | null>(null)
-const ocrTaskId = ref<string | null>(null)
 const screenshotInput = ref<HTMLInputElement | null>(null)
 const screenshotUploadAttempt = ref(0)
-const selectedScreenshotPreviewUrl = ref<string | null>(null)
-const screenshotQueue = ref<File[]>([])
-const screenshotBatchTotal = ref(0)
 
-const screenshotPreviewSrc = computed(() => uploadedScreenshotBlobUrl.value || selectedScreenshotPreviewUrl.value)
+const uploadedExtractedById = ref<Record<string, OcrExtractedData | null>>({})
+const uploadedPaymentDedupById = ref<Record<string, DedupHint | null>>({})
+const uploadedPaymentFilenameById = ref<Record<string, string>>({})
+const uploadOcrDraftById = ref<Record<string, UploadPaymentDraft>>({})
 
-const loadUploadedScreenshotBlob = async () => {
+// Local preview urls for each uploaded payment (created from the selected File object).
+const uploadedScreenshotPreviewUrlById = ref<Record<string, string>>({})
+
+const revokeUploadedPreviewUrls = () => {
   if (typeof window === 'undefined') return
-  if (uploadedScreenshotBlobUrl.value) {
-    URL.revokeObjectURL(uploadedScreenshotBlobUrl.value)
-    uploadedScreenshotBlobUrl.value = null
+  const urls = Object.values(uploadedScreenshotPreviewUrlById.value)
+  for (const url of urls) {
+    try {
+      URL.revokeObjectURL(url)
+    } catch {
+      // ignore
+    }
   }
-  if (!uploadedPaymentId.value) return
-  try {
-    const res = await paymentApi.getScreenshotBlob(uploadedPaymentId.value)
-    uploadedScreenshotBlobUrl.value = URL.createObjectURL(res.data as Blob)
-  } catch (err) {
-    console.warn('Load uploaded screenshot blob failed:', err)
-  }
+  uploadedScreenshotPreviewUrlById.value = {}
 }
 
-watch(
-  selectedScreenshotFile,
-  (file) => {
-    if (typeof window === 'undefined') return
-    if (selectedScreenshotPreviewUrl.value) {
-      URL.revokeObjectURL(selectedScreenshotPreviewUrl.value)
-      selectedScreenshotPreviewUrl.value = null
-    }
-    if (file) {
-      selectedScreenshotPreviewUrl.value = URL.createObjectURL(file)
-    }
-  },
-  { immediate: true },
+const screenshotPreviewSrc = computed(() => {
+  const id = uploadedPaymentId.value
+  if (!id) return ''
+  return uploadedScreenshotPreviewUrlById.value[id] || ''
+})
+
+const uploadedPaymentIndex = computed(() => {
+  const id = uploadedPaymentId.value
+  if (!id) return -1
+  return uploadedPaymentIds.value.indexOf(id)
+})
+
+const uploadedPaymentOptions = computed(() =>
+  uploadedPaymentIds.value.map((id, idx) => ({
+    id,
+    label: `${idx + 1}. ${uploadedPaymentFilenameById.value[id] || id}`,
+  })),
 )
 
-watch(uploadedScreenshotPath, (path) => {
-  if (!path) return
-  if (typeof window === 'undefined') return
-  if (selectedScreenshotPreviewUrl.value) {
-    URL.revokeObjectURL(selectedScreenshotPreviewUrl.value)
-    selectedScreenshotPreviewUrl.value = null
-  }
-})
+const selectPrevUploadedPayment = () => {
+  const idx = uploadedPaymentIndex.value
+  if (idx <= 0) return
+  uploadedPaymentId.value = uploadedPaymentIds.value[idx - 1] || null
+}
 
-watch(uploadedPaymentId, () => {
-  void loadUploadedScreenshotBlob()
-})
+const selectNextUploadedPayment = () => {
+  const idx = uploadedPaymentIndex.value
+  if (idx < 0) return
+  if (idx >= uploadedPaymentIds.value.length - 1) return
+  uploadedPaymentId.value = uploadedPaymentIds.value[idx + 1] || null
+}
 
 const PENDING_PAYMENT_DRAFT_KEY = 'sbm_pending_payment_upload_draft'
 
-const rememberPendingPaymentDraft = (draft: { paymentId?: string | null; screenshotPath?: string | null }) => {
+const rememberPendingPaymentDraft = (ids: string[]) => {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(
-    PENDING_PAYMENT_DRAFT_KEY,
-    JSON.stringify({
-      paymentId: draft.paymentId || null,
-      screenshotPath: draft.screenshotPath || null,
-      ts: Date.now(),
-    }),
-  )
+  const uniq = Array.from(new Set(ids.filter(Boolean)))
+  window.localStorage.setItem(PENDING_PAYMENT_DRAFT_KEY, JSON.stringify({ ids: uniq, ts: Date.now() }))
 }
 
 const clearPendingPaymentDraft = () => {
@@ -879,23 +897,93 @@ const cleanupPendingPaymentDraftOnLoad = async () => {
   const raw = window.localStorage.getItem(PENDING_PAYMENT_DRAFT_KEY)
   if (!raw) return
   try {
-    const parsed = JSON.parse(raw) as { paymentId?: string | null; screenshotPath?: string | null }
+    const parsed = JSON.parse(raw) as any
+    const ids = Array.isArray(parsed?.ids) ? (parsed.ids as unknown[]) : []
     const paymentId = typeof parsed?.paymentId === 'string' ? parsed.paymentId : ''
     const screenshotPath = typeof parsed?.screenshotPath === 'string' ? parsed.screenshotPath : ''
-    if (paymentId) {
-      const res = await paymentApi.getById(paymentId)
-      const p = res.data?.data as any
-      if (p?.is_draft) {
-        await paymentApi.delete(paymentId)
+
+    const targetIds: string[] = []
+    for (const v of ids) {
+      if (typeof v !== 'string' || !v) continue
+      targetIds.push(v)
+    }
+    if (paymentId) targetIds.push(paymentId)
+
+    if (targetIds.length > 0) {
+      for (const id of Array.from(new Set(targetIds))) {
+        try {
+          const res = await paymentApi.getById(id)
+          const p = res.data?.data as any
+          if (p?.is_draft) await paymentApi.delete(id)
+        } catch {
+          // ignore per-item
+        }
       }
     } else if (screenshotPath) {
-      await paymentApi.cancelUploadScreenshot(screenshotPath)
+      // Backward compat: old payload stored screenshot_path when no paymentId was available.
+      await paymentApi.cancelUploadScreenshot(screenshotPath).catch(() => undefined)
     }
   } catch {
     // ignore
   } finally {
     clearPendingPaymentDraft()
   }
+}
+
+const resetScreenshotUploadState = () => {
+  screenshotUploadAttempt.value += 1
+  uploadingScreenshot.value = false
+  savingOcrResult.value = false
+  uploadConfirmed.value = false
+  selectedScreenshotFiles.value = []
+  if (screenshotInput.value) screenshotInput.value.value = ''
+  screenshotError.value = ''
+  uploadedPaymentIds.value = []
+  uploadedPaymentId.value = null
+  uploadedExtractedById.value = {}
+  uploadedPaymentDedupById.value = {}
+  uploadedPaymentFilenameById.value = {}
+  uploadOcrDraftById.value = {}
+  ocrResult.value = null
+  uploadDedup.value = null
+  revokeUploadedPreviewUrls()
+  clearPendingPaymentDraft()
+
+  ocrForm.amount = 0
+  ocrForm.merchant = ''
+  ocrForm.payment_method = ''
+  ocrForm.description = ''
+  ocrForm.transaction_time = null
+  ocrErrors.amount = ''
+  ocrErrors.transaction_time = ''
+}
+
+const discardUploadedPayments = async () => {
+  const ids = uploadedPaymentIds.value.filter(Boolean)
+  if (ids.length === 0) return
+
+  // Only delete drafts; confirmed payments should never be auto-deleted.
+  const draftIds: string[] = []
+  for (const id of ids) {
+    try {
+      const res = await paymentApi.getById(id)
+      const p = res.data?.data as any
+      if (p?.is_draft) draftIds.push(id)
+    } catch {
+      // ignore per-item
+    }
+  }
+  if (draftIds.length === 0) return
+
+  const results = await Promise.allSettled(draftIds.map(id => paymentApi.delete(id)))
+  const failed = results.filter(r => r.status === 'rejected').length
+  if (failed === 0) {
+    toast.add({ severity: 'info', summary: '已取消并删除本次上传的草稿支付记录', life: 2200 })
+  } else {
+    toast.add({ severity: 'warn', summary: `已取消，但有 ${failed} 条草稿删除失败（可在列表中手动删除）`, life: 4000 })
+  }
+  await loadPayments()
+  await loadStats()
 }
 
 const triggerScreenshotChoose = (event: MouseEvent) => {
@@ -923,33 +1011,12 @@ const validateScreenshotFile = (file: File): string => {
   return ''
 }
 
-const setScreenshotFile = async (file?: File) => {
+const addScreenshotFiles = (files: File[], opts?: { replace?: boolean }) => {
   screenshotError.value = ''
-  if (screenshotInput.value) screenshotInput.value.value = ''
-
-  // User canceled the file picker / no new file selected: keep current state.
-  if (!file) return
-
-  const err = validateScreenshotFile(file)
-  if (err) {
-    screenshotError.value = err
-    return
-  }
-
-  // Replacing an existing uploaded/recognized draft should clean it up first,
-  // otherwise re-uploading the same file will be considered a hash duplicate.
-  await cleanupCurrentScreenshotUpload()
-  resetScreenshotUploadStateKeepModalOpen()
-
-  selectedScreenshotFile.value = file
-  selectedScreenshotName.value = file.name
-}
-
-const setScreenshotFiles = async (files: File[]) => {
   const list = Array.isArray(files) ? files.filter(Boolean) : []
   if (list.length === 0) return
 
-  let valid: File[] = []
+  const incoming: File[] = []
   let invalidCount = 0
   for (const f of list) {
     const err = validateScreenshotFile(f)
@@ -957,16 +1024,11 @@ const setScreenshotFiles = async (files: File[]) => {
       invalidCount += 1
       continue
     }
-    valid.push(f)
+    incoming.push(f)
   }
 
   const maxBatch = 50
-  if (valid.length > maxBatch) {
-    toast.add({ severity: 'warn', summary: `\u6700\u591A\u4E00\u6B21\u9009\u62E9 ${maxBatch} \u5F20\u622A\u56FE`, life: 2500 })
-    valid = valid.slice(0, maxBatch)
-  }
-
-  if (valid.length === 0) {
+  if (incoming.length === 0) {
     screenshotError.value = validateScreenshotFile(list[0]) || '\u6587\u4EF6\u65E0\u6548'
     return
   }
@@ -975,69 +1037,57 @@ const setScreenshotFiles = async (files: File[]) => {
     toast.add({ severity: 'warn', summary: `\u5DF2\u8DF3\u8FC7 ${invalidCount} \u4E2A\u65E0\u6548\u6587\u4EF6`, life: 2500 })
   }
 
-  screenshotQueue.value = valid.slice(1)
-  screenshotBatchTotal.value = valid.length
-  await setScreenshotFile(valid[0])
-}
-
-const resetScreenshotUploadStateKeepModalOpen = () => {
-  screenshotUploadAttempt.value++
-  uploadingScreenshot.value = false
-  savingOcrResult.value = false
-  uploadedPaymentId.value = null
-  uploadedScreenshotPath.value = null
-  ocrTaskId.value = null
-  selectedScreenshotFile.value = null
-  selectedScreenshotName.value = ''
-  screenshotError.value = ''
-  ocrResult.value = null
-  uploadDedup.value = null
-  ocrForm.amount = 0
-  ocrForm.merchant = ''
-  ocrForm.payment_method = ''
-  ocrForm.description = ''
-  ocrForm.transaction_time = null
-  if (screenshotInput.value) screenshotInput.value.value = ''
-}
-
-const cleanupCurrentScreenshotUpload = async () => {
-  const taskId = ocrTaskId.value
-  const paymentId = uploadedPaymentId.value
-  const screenshotPath = uploadedScreenshotPath.value
-
-  // Stop any in-flight waitForTask loop.
-  screenshotUploadAttempt.value++
-  uploadingScreenshot.value = false
-
-  if (taskId) tasksApi.cancel(taskId).catch(() => undefined)
-  if (paymentId) {
-    await paymentApi.delete(paymentId).catch((error) => console.error('Failed to delete payment record:', error))
-  } else if (screenshotPath) {
-    await paymentApi.cancelUploadScreenshot(screenshotPath).catch((error) => console.error('Failed to delete screenshot file:', error))
+  const base = opts?.replace ? [] : selectedScreenshotFiles.value
+  const merged = [...base]
+  const seen = new Set(base.map(f => `${f.name}-${f.size}-${f.type}`))
+  for (const f of incoming) {
+    const key = `${f.name}-${f.size}-${f.type}`
+    if (seen.has(key)) continue
+    merged.push(f)
+    seen.add(key)
+    if (merged.length >= maxBatch) break
   }
-  clearPendingPaymentDraft()
+
+  if (merged.length >= maxBatch && base.length + incoming.length > maxBatch) {
+    toast.add({ severity: 'warn', summary: `\u6700\u591A\u4E00\u6B21\u9009\u62E9 ${maxBatch} \u5F20\u622A\u56FE`, life: 2500 })
+  }
+
+  selectedScreenshotFiles.value = merged.slice(0, maxBatch)
+}
+
+const removeSelectedScreenshot = (idx: number) => {
+  const list = [...selectedScreenshotFiles.value]
+  list.splice(idx, 1)
+  selectedScreenshotFiles.value = list
 }
 
 const onScreenshotDrop = async (event: DragEvent) => {
+  if (uploadingScreenshot.value || savingOcrResult.value) return
   const list = event.dataTransfer?.files
   if (!list || list.length === 0) return
-  await setScreenshotFiles(Array.from(list))
+
+  // If user drags new files after an upload/parse, discard the previous draft(s) first.
+  if (uploadedPaymentIds.value.length > 0 || uploadedPaymentId.value) {
+    await discardUploadedPayments()
+    resetScreenshotUploadState()
+  }
+
+  addScreenshotFiles(Array.from(list), { replace: false })
 }
 
 const onScreenshotInputChange = async (event: Event) => {
+  if (uploadingScreenshot.value || savingOcrResult.value) return
   const input = event.target as HTMLInputElement | null
-  const list = input?.files
-  if (list && list.length > 0) {
-    await setScreenshotFiles(Array.from(list))
-  }
-  if (input) input.value = ''
-}
+  const files = input?.files ? Array.from(input.files) : []
 
-const clearSelectedScreenshot = async () => {
-  screenshotQueue.value = []
-  screenshotBatchTotal.value = 0
-  await cleanupCurrentScreenshotUpload()
-  resetScreenshotUploadStateKeepModalOpen()
+  // If user selects new files after an upload/parse, discard the previous draft(s) first.
+  if (uploadedPaymentIds.value.length > 0 || uploadedPaymentId.value) {
+    await discardUploadedPayments()
+    resetScreenshotUploadState()
+  }
+
+  addScreenshotFiles(files, { replace: true })
+  if (input) input.value = ''
 }
 
 const ocrForm = reactive({
@@ -1277,6 +1327,87 @@ const closeScreenshotModal = () => {
   uploadScreenshotModalVisible.value = false
 }
 
+const saveUploadDraftFor = (paymentId: string) => {
+  if (!paymentId) return
+  uploadOcrDraftById.value = {
+    ...uploadOcrDraftById.value,
+    [paymentId]: {
+      amount: Number(ocrForm.amount || 0),
+      merchant: ocrForm.merchant || '',
+      payment_method: ocrForm.payment_method || '',
+      description: ocrForm.description || '',
+      transaction_time: ocrForm.transaction_time,
+    },
+  }
+}
+
+const loadUploadFormFor = (paymentId: string | null) => {
+  ocrErrors.amount = ''
+  ocrErrors.transaction_time = ''
+
+  if (!paymentId) {
+    ocrResult.value = null
+    uploadDedup.value = null
+    ocrForm.amount = 0
+    ocrForm.merchant = ''
+    ocrForm.payment_method = ''
+    ocrForm.description = ''
+    ocrForm.transaction_time = null
+    return
+  }
+
+  const extracted = uploadedExtractedById.value[paymentId] || null
+  const dedup = uploadedPaymentDedupById.value[paymentId] || null
+  ocrResult.value = extracted
+  uploadDedup.value = dedup
+
+  const draft = uploadOcrDraftById.value[paymentId]
+  if (draft) {
+    ocrForm.amount = Number(draft.amount || 0)
+    ocrForm.merchant = draft.merchant || ''
+    ocrForm.payment_method = draft.payment_method || ''
+    ocrForm.description = draft.description || ''
+    ocrForm.transaction_time = draft.transaction_time
+    return
+  }
+
+  ocrForm.amount = extracted?.amount || 0
+  ocrForm.merchant = extracted?.merchant || ''
+  ocrForm.payment_method = normalizePaymentMethodText(extracted?.payment_method || '')
+  ocrForm.description = ''
+  if (extracted?.transaction_time) {
+    const t = dayjs(extracted.transaction_time)
+    ocrForm.transaction_time = t.isValid() ? t.toDate() : null
+  } else {
+    ocrForm.transaction_time = null
+  }
+}
+
+watch(
+  () => uploadedPaymentId.value,
+  (id, prev) => {
+    // When clearing selection (e.g. reset/close), do not persist any draft.
+    if (!id) {
+      loadUploadFormFor(null)
+      return
+    }
+    if (prev && prev !== id) saveUploadDraftFor(prev)
+    loadUploadFormFor(id)
+  },
+)
+
+watch(
+  () => uploadScreenshotModalVisible.value,
+  async (visible) => {
+    if (visible) return
+    if (uploadingScreenshot.value) return
+    if (!uploadConfirmed.value) {
+      await discardUploadedPayments()
+    }
+    resetScreenshotUploadState()
+  },
+)
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const waitForTask = async (taskId: string, opts?: { timeoutMs?: number; shouldStop?: () => boolean }) => {
@@ -1294,7 +1425,7 @@ const waitForTask = async (taskId: string, opts?: { timeoutMs?: number; shouldSt
 }
 
 const handleScreenshotUpload = async () => {
-  if (!selectedScreenshotFile.value) {
+  if (selectedScreenshotFiles.value.length === 0) {
     toast.add({ severity: 'warn', summary: '\u8BF7\u9009\u62E9\u6587\u4EF6', life: 2200 })
     return
   }
@@ -1302,183 +1433,186 @@ const handleScreenshotUpload = async () => {
   const attemptId = ++screenshotUploadAttempt.value
   uploadingScreenshot.value = true
   try {
-    const uploadRes = await paymentApi.uploadScreenshotAsync(selectedScreenshotFile.value)
-    if (uploadRes.data.success && uploadRes.data.data) {
-      const { taskId, payment, screenshot_path } = uploadRes.data.data as any
-      if (attemptId !== screenshotUploadAttempt.value) {
-        tasksApi.cancel(taskId).catch(() => undefined)
-        const draftPaymentId = payment?.id as string | undefined
-        if (draftPaymentId) {
-          paymentApi.delete(draftPaymentId).catch(() => undefined)
-        } else if (screenshot_path) {
-          paymentApi.cancelUploadScreenshot(screenshot_path).catch(() => undefined)
-        }
-        return
-      }
+    // Reset previous results.
+    uploadedPaymentIds.value = []
+    uploadedPaymentId.value = null
+    uploadedExtractedById.value = {}
+    uploadedPaymentDedupById.value = {}
+    uploadedPaymentFilenameById.value = {}
+    uploadOcrDraftById.value = {}
+    ocrResult.value = null
+    uploadDedup.value = null
+    revokeUploadedPreviewUrls()
 
-      uploadedPaymentId.value = payment?.id || null
-      uploadedScreenshotPath.value = screenshot_path || null
-      ocrTaskId.value = taskId || null
-      rememberPendingPaymentDraft({ paymentId: uploadedPaymentId.value, screenshotPath: uploadedScreenshotPath.value })
+    let dupSkipped = 0
+    let failedCount = 0
 
-      toast.add({ severity: 'info', summary: '截图已上传，正在识别…', life: 2000 })
-
-      const task = await waitForTask(taskId, { shouldStop: () => attemptId !== screenshotUploadAttempt.value })
-      if (task.status === 'failed') {
-        toast.add({ severity: 'error', summary: task?.error || '识别失败', life: 5000 })
-        return
-      }
-      if (task.status === 'canceled') {
-        toast.add({ severity: 'warn', summary: '识别已取消', life: 2500 })
-        return
-      }
+    for (const file of selectedScreenshotFiles.value) {
       if (attemptId !== screenshotUploadAttempt.value) return
+      if (!file) continue
 
-      const payload = task.result as any
-      const { extracted, ocr_error, dedup } = payload || {}
-      const nextPayment = payload?.payment || payment || null
-      uploadedPaymentId.value = nextPayment?.id || uploadedPaymentId.value
-      ocrResult.value = extracted
-      uploadDedup.value = (dedup as DedupHint) || null
+      try {
+        const res = await paymentApi.uploadScreenshotAsync(file)
+        const payload = res.data?.data as any
+        const taskId = payload?.taskId as string
+        const payment = payload?.payment as Payment | null
+        const paymentId = payment?.id as string | undefined
 
-      ocrForm.amount = extracted?.amount || 0
-      ocrForm.merchant = extracted?.merchant || ''
-      ocrForm.payment_method = normalizePaymentMethodText(extracted?.payment_method || '')
-      if (extracted?.transaction_time) {
-        const t = dayjs(extracted.transaction_time)
-        ocrForm.transaction_time = t.isValid() ? t.toDate() : null
-      } else {
-        ocrForm.transaction_time = null
-      }
-      ocrForm.description = ''
+        if (!paymentId) {
+          failedCount += 1
+          continue
+        }
 
-      if (ocr_error) {
-        const hasTime = !!(extracted?.transaction_time && dayjs(extracted.transaction_time).isValid())
-        toast.add({
-          severity: 'warn',
-          summary: hasTime
-            ? `截图上传成功，但 OCR 识别不完整：${ocr_error}`
-            : '截图上传成功，但未识别到交易时间，请手动选择交易时间',
-          life: 5000,
-        })
-        notifications.add({
-          severity: 'warn',
-          title: hasTime ? '支付截图已识别（需校对）' : '支付截图已识别（需补全）',
-          detail: selectedScreenshotName.value || undefined,
-        })
-      } else {
-        toast.add({
-          severity: 'success',
-          summary: '截图识别成功，请确认或修改识别结果',
-          life: 2500,
-        })
-        notifications.add({
-          severity: 'success',
-          title: '支付截图已识别',
-          detail: selectedScreenshotName.value || undefined,
-        })
+        uploadedPaymentIds.value = [...uploadedPaymentIds.value, paymentId]
+        uploadedPaymentFilenameById.value = { ...uploadedPaymentFilenameById.value, [paymentId]: file.name }
+        if (typeof window !== 'undefined') {
+          try {
+            uploadedScreenshotPreviewUrlById.value = { ...uploadedScreenshotPreviewUrlById.value, [paymentId]: URL.createObjectURL(file) }
+          } catch {
+            // ignore preview failures
+          }
+        }
+
+        if (taskId) {
+          const task = await waitForTask(taskId, { shouldStop: () => attemptId !== screenshotUploadAttempt.value })
+          if (task.status === 'failed') {
+            failedCount += 1
+            continue
+          }
+          if (task.status === 'canceled') {
+            failedCount += 1
+            continue
+          }
+          if (attemptId !== screenshotUploadAttempt.value) return
+
+          const result = task.result as any
+          const extracted = (result?.extracted as OcrExtractedData) || null
+          const dedup = (result?.dedup as DedupHint) || null
+
+          uploadedExtractedById.value = { ...uploadedExtractedById.value, [paymentId]: extracted }
+          if (dedup) {
+            uploadedPaymentDedupById.value = { ...uploadedPaymentDedupById.value, [paymentId]: dedup }
+          }
+        }
+
+        // Small delay to avoid hammering OCR in a tight loop.
+        await sleep(120)
+      } catch (error: unknown) {
+        const err = error as any
+        const resp = err?.response
+        const data = resp?.data
+        const dup = data?.data as DedupHint | undefined
+        if (resp?.status === 409 && dup?.kind === 'hash_duplicate') {
+          dupSkipped += 1
+          continue
+        }
+        console.warn('Upload screenshot failed:', getApiErrorMessage(error, '上传失败'))
+        failedCount += 1
       }
     }
-  } catch (error: unknown) {
-    const err = error as any
-    const resp = err?.response
-    const data = resp?.data
-    const dup = data?.data as DedupHint | undefined
-    if (resp?.status === 409 && dup?.kind === 'hash_duplicate') {
-      toast.add({ severity: 'warn', summary: '\u6587\u4EF6\u5185\u5BB9\u91CD\u590D\uFF0C\u5DF2\u5B58\u5728\u8BB0\u5F55', life: 4500 })
 
-      // In batch mode, skip duplicates automatically so the queue can continue.
-      if (screenshotQueue.value.length > 0) {
-        const next = screenshotQueue.value.shift()
-        resetScreenshotUploadStateKeepModalOpen()
-        if (next) {
-          selectedScreenshotFile.value = next
-          selectedScreenshotName.value = next.name
-          void handleScreenshotUpload()
-        } else {
-          screenshotBatchTotal.value = 0
-        }
-      }
+    const uniqIds = Array.from(new Set(uploadedPaymentIds.value.filter(Boolean)))
+    uploadedPaymentIds.value = uniqIds
+
+    if (uniqIds.length === 0) {
+      const hint = dupSkipped > 0 ? '（全部为重复文件）' : ''
+      toast.add({ severity: 'warn', summary: `没有成功识别任何截图${hint}`, life: 3200 })
       return
     }
-    const message = data?.message || '\u622A\u56FE\u8BC6\u522B\u5931\u8D25'
-    const detail = data?.error
-    toast.add({ severity: 'error', summary: detail ? `${message}\uFF1A${detail}` : message, life: 5000 })
+
+    uploadedPaymentId.value = uniqIds[0] || null
+    rememberPendingPaymentDraft(uniqIds)
+
+    toast.add({ severity: 'success', summary: '截图识别完成，请确认或修改识别结果', life: 2200 })
+    if (dupSkipped > 0 || failedCount > 0) {
+      toast.add({
+        severity: 'warn',
+        summary: `本次：成功 ${uniqIds.length}；重复跳过 ${dupSkipped}；失败 ${failedCount}`,
+        life: 4200,
+      })
+    }
   } finally {
     if (attemptId === screenshotUploadAttempt.value) uploadingScreenshot.value = false
   }
 }
 
 const handleSaveOcrResult = async () => {
-  if (!validateOcrForm()) return
+  if (!uploadedPaymentId.value) {
+    uploadScreenshotModalVisible.value = false
+    return
+  }
+
   savingOcrResult.value = true
   try {
-    const payload: any = {
-      amount: Number(ocrForm.amount),
-      merchant: ocrForm.merchant,
-      payment_method: normalizePaymentMethodText(ocrForm.payment_method),
-      description: ocrForm.description,
-      transaction_time: dayjs(ocrForm.transaction_time as Date).toISOString(),
+    // Persist the current draft before saving (switching payments already does this).
+    saveUploadDraftFor(uploadedPaymentId.value)
+
+    const uniqIds = Array.from(new Set(uploadedPaymentIds.value.filter(Boolean)))
+    if (uniqIds.length === 0 && uploadedPaymentId.value) uniqIds.push(uploadedPaymentId.value)
+
+    const buildDraftFromExtracted = (id: string): UploadPaymentDraft => {
+      const extracted = uploadedExtractedById.value[id] || null
+      const t = extracted?.transaction_time ? dayjs(extracted.transaction_time) : null
+      return {
+        amount: extracted?.amount || 0,
+        merchant: extracted?.merchant || '',
+        payment_method: normalizePaymentMethodText(extracted?.payment_method || ''),
+        description: '',
+        transaction_time: t && t.isValid() ? t.toDate() : null,
+      }
     }
 
-    if (uploadedPaymentId.value) {
-      const saveCurrent = async (force: boolean) => {
-        await paymentApi.update(uploadedPaymentId.value as string, {
+    const buildPayload = (draft: UploadPaymentDraft) => ({
+      amount: Number(draft.amount || 0),
+      merchant: draft.merchant || '',
+      payment_method: normalizePaymentMethodText(draft.payment_method || ''),
+      description: draft.description || '',
+      transaction_time: draft.transaction_time ? dayjs(draft.transaction_time).toISOString() : '',
+    })
+
+    for (const id of uniqIds) {
+      if (!uploadOcrDraftById.value[id]) {
+        uploadOcrDraftById.value = { ...uploadOcrDraftById.value, [id]: buildDraftFromExtracted(id) }
+      }
+      const draft = uploadOcrDraftById.value[id]
+      if (!draft || !draft.transaction_time || Number(draft.amount || 0) <= 0) {
+        // Jump to the problematic item so the user can fix it.
+        uploadedPaymentId.value = id
+        await nextTick()
+        validateOcrForm()
+        toast.add({ severity: 'warn', summary: '请补全金额与交易时间后再保存', life: 2600 })
+        return
+      }
+
+      const payload = buildPayload(draft)
+      const saveOne = async (force: boolean) =>
+        paymentApi.update(id, {
           ...payload,
           confirm: true,
           force_duplicate_save: force ? true : undefined,
         })
-      }
+
       try {
-        await saveCurrent(false)
+        await saveOne(false)
       } catch (error: unknown) {
         const err = error as any
         const resp = err?.response
         const dup = resp?.data?.data as DedupHint | undefined
         if (resp?.status === 409 && dup?.kind === 'suspected_duplicate') {
+          uploadedPaymentId.value = id
           const ok = await confirmForceSave('检测到疑似重复支付记录（金额 + 时间接近），是否仍然保存？')
           if (!ok) return
-          await saveCurrent(true)
+          await saveOne(true)
         } else {
           throw error
         }
       }
-      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u66F4\u65B0\u6210\u529F', life: 2000 })
-      notifications.add({
-        severity: 'success',
-        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u4FDD\u5B58',
-        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
-      })
-    } else {
-      if (uploadedScreenshotPath.value) payload.screenshot_path = uploadedScreenshotPath.value
-      if (ocrResult.value) payload.extracted_data = JSON.stringify(ocrResult.value)
-      await paymentApi.create(payload)
-      toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u521B\u5EFA\u6210\u529F', life: 2000 })
-      notifications.add({
-        severity: 'success',
-        title: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u4FDD\u5B58',
-        detail: `${formatMoney(payload.amount)} ${payload.merchant || ''}`.trim(),
-      })
     }
 
     clearPendingPaymentDraft()
-
-    // Batch mode: if the user selected multiple screenshots, continue with the next one.
-    if (screenshotQueue.value.length > 0) {
-      const next = screenshotQueue.value.shift()
-      resetScreenshotUploadStateKeepModalOpen()
-      if (next) {
-        selectedScreenshotFile.value = next
-        selectedScreenshotName.value = next.name
-        // Auto-run OCR for the next screenshot to avoid extra clicks.
-        void handleScreenshotUpload()
-      } else {
-        screenshotBatchTotal.value = 0
-      }
-      return
-    }
-
-    resetScreenshotUploadState()
+    toast.add({ severity: 'success', summary: '\u652F\u4ED8\u8BB0\u5F55\u5DF2\u4FDD\u5B58', life: 2000 })
+    uploadConfirmed.value = true
+    uploadScreenshotModalVisible.value = false
     await loadPayments()
     await loadStats()
   } catch {
@@ -1486,41 +1620,6 @@ const handleSaveOcrResult = async () => {
   } finally {
     savingOcrResult.value = false
   }
-}
-
-const resetScreenshotUploadState = () => {
-  screenshotQueue.value = []
-  screenshotBatchTotal.value = 0
-  screenshotUploadAttempt.value++
-  uploadingScreenshot.value = false
-  savingOcrResult.value = false
-  uploadedPaymentId.value = null
-  uploadedScreenshotPath.value = null
-  ocrTaskId.value = null
-  selectedScreenshotFile.value = null
-  selectedScreenshotName.value = ''
-  screenshotError.value = ''
-  ocrResult.value = null
-  uploadDedup.value = null
-  ocrForm.amount = 0
-  ocrForm.merchant = ''
-  ocrForm.payment_method = ''
-  ocrForm.description = ''
-  ocrForm.transaction_time = null
-  if (screenshotInput.value) screenshotInput.value.value = ''
-  uploadScreenshotModalVisible.value = false
-}
-
-const cancelScreenshotUpload = () => {
-  const taskId = ocrTaskId.value
-  if (taskId) tasksApi.cancel(taskId).catch(() => undefined)
-  if (uploadedPaymentId.value) {
-    paymentApi.delete(uploadedPaymentId.value).catch((error) => console.error('Failed to delete payment record:', error))
-  } else if (uploadedScreenshotPath.value) {
-    paymentApi.cancelUploadScreenshot(uploadedScreenshotPath.value).catch((error) => console.error('Failed to delete screenshot file:', error))
-  }
-  clearPendingPaymentDraft()
-  resetScreenshotUploadState()
 }
 
 const formatSourceLabel = (src?: string) => {
@@ -2066,10 +2165,7 @@ onBeforeUnmount(() => {
   reloadDebounced.cancel()
   paymentsAbort.value?.abort()
   statsAbort.value?.abort()
-  if (typeof window !== 'undefined' && selectedScreenshotPreviewUrl.value) {
-    URL.revokeObjectURL(selectedScreenshotPreviewUrl.value)
-    selectedScreenshotPreviewUrl.value = null
-  }
+  revokeUploadedPreviewUrls()
   if (typeof window === 'undefined') return
   window.removeEventListener('resize', handlePaymentTimeViewportChange as any)
   window.removeEventListener('orientationchange', handlePaymentTimeViewportChange as any)
@@ -2263,6 +2359,39 @@ watch(
   gap: 12px;
 }
 
+.upload-batch-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.upload-batch-title {
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.upload-batch-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.upload-batch-counter {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
 .upload-screenshot-ocr {
   display: flex;
   flex-direction: column;
@@ -2333,6 +2462,12 @@ watch(
   gap: 10px;
 }
 
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .file-row {
   display: flex;
   align-items: center;
@@ -2363,6 +2498,11 @@ watch(
 
 .file-row-remove {
   flex: 0 0 auto;
+}
+
+.file-hint {
+  color: var(--color-text-secondary);
+  font-weight: 700;
 }
 
 .raw-title {

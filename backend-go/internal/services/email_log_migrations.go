@@ -56,13 +56,14 @@ func EnsureEmailLogUniqueIndex(db *gorm.DB) {
 			score := func(r models.EmailLog) (int, int64) {
 				s := 0
 				st := strings.ToLower(strings.TrimSpace(r.Status))
-				if st == "parsed" {
+				switch st {
+				case "parsed":
 					s += 200
-				} else if st == "parsing" {
+				case "parsing":
 					s += 80
-				} else if st == "error" {
+				case "error":
 					s += 20
-				} else if st == "received" {
+				case "received":
 					s += 10
 				}
 				if r.ParsedInvoiceID != nil && strings.TrimSpace(*r.ParsedInvoiceID) != "" {
@@ -195,4 +196,3 @@ func EnsureEmailLogUniqueIndex(db *gorm.DB) {
 		log.Printf("[Email Monitor] create unique index failed (ignored): %v", err)
 	}
 }
-

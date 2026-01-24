@@ -9,16 +9,85 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const emailPasswordEncPrefix = "enc:v1:"
+const emailPasswordKeyFileName = "email_password.key"
+
+var (
+	emailPasswordKeyOnce sync.Once
+	emailPasswordKey     []byte
+	emailPasswordKeyErr  error
+)
 
 func getEmailPasswordKey() ([]byte, error) {
-	raw := strings.TrimSpace(os.Getenv("SBM_EMAIL_PASSWORD_KEY"))
+	emailPasswordKeyOnce.Do(func() {
+		emailPasswordKey, emailPasswordKeyErr = loadEmailPasswordKey()
+	})
+	return emailPasswordKey, emailPasswordKeyErr
+}
+
+func loadEmailPasswordKey() ([]byte, error) {
+	// 1) Explicit key
+	if raw := strings.TrimSpace(os.Getenv("SBM_EMAIL_PASSWORD_KEY")); raw != "" {
+		k, err := parseEmailPasswordKey(raw)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("[Email Monitor] email password encryption key: using SBM_EMAIL_PASSWORD_KEY")
+		return k, nil
+	}
+
+	// 2) Local key file in DATA_DIR (default ./data). This keeps encryption always-on without extra env.
+	keyPath := emailPasswordKeyFilePath()
+	if b, err := os.ReadFile(keyPath); err == nil {
+		k, err := parseEmailPasswordKey(string(b))
+		if err != nil {
+			return nil, fmt.Errorf("parse email password key file %s: %w", keyPath, err)
+		}
+		log.Printf("[Email Monitor] email password encryption key: using local key file (%s)", keyPath)
+		return k, nil
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read email password key file %s: %w", keyPath, err)
+	}
+
+	// Generate + persist a new key.
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o755); err != nil {
+		return nil, fmt.Errorf("ensure key dir: %w", err)
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("generate email password key: %w", err)
+	}
+	encoded := base64.RawStdEncoding.EncodeToString(key)
+	if err := os.WriteFile(keyPath, []byte(encoded), 0o600); err != nil {
+		return nil, fmt.Errorf("write email password key file %s: %w", keyPath, err)
+	}
+	log.Printf("[Email Monitor] email password encryption key: generated local key file (%s) - keep it with your DB backups", keyPath)
+	return key, nil
+}
+
+func emailPasswordKeyFilePath() string {
+	// Allow overriding the path (e.g. in Docker secrets).
+	if p := strings.TrimSpace(os.Getenv("SBM_EMAIL_PASSWORD_KEY_FILE")); p != "" {
+		return p
+	}
+	dataDir := strings.TrimSpace(os.Getenv("DATA_DIR"))
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	return filepath.Join(dataDir, emailPasswordKeyFileName)
+}
+
+func parseEmailPasswordKey(raw string) ([]byte, error) {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return nil, nil
+		return nil, errors.New("empty key")
 	}
 
 	// Support "hex:" prefix, raw hex, or base64.
@@ -31,7 +100,7 @@ func getEmailPasswordKey() ([]byte, error) {
 			return nil, err
 		}
 		if len(b) != 32 {
-			return nil, fmt.Errorf("SBM_EMAIL_PASSWORD_KEY must be 32 bytes (got %d)", len(b))
+			return nil, fmt.Errorf("email password key must be 32 bytes (got %d)", len(b))
 		}
 		return b, nil
 	}
@@ -42,10 +111,10 @@ func getEmailPasswordKey() ([]byte, error) {
 		b, err = base64.RawStdEncoding.DecodeString(raw)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("SBM_EMAIL_PASSWORD_KEY must be base64 or hex: %w", err)
+		return nil, fmt.Errorf("email password key must be base64 or hex: %w", err)
 	}
 	if len(b) != 32 {
-		return nil, fmt.Errorf("SBM_EMAIL_PASSWORD_KEY must be 32 bytes (got %d)", len(b))
+		return nil, fmt.Errorf("email password key must be 32 bytes (got %d)", len(b))
 	}
 	return b, nil
 }
@@ -80,9 +149,8 @@ func encryptEmailPassword(plain string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Backward compatible: no key configured -> store plaintext.
 	if len(key) == 0 {
-		return plain, nil
+		return "", errors.New("email password encryption key is not configured")
 	}
 
 	block, err := aes.NewCipher(key)
@@ -108,7 +176,8 @@ func decryptEmailPassword(stored string) (string, error) {
 		return "", nil
 	}
 	if !strings.HasPrefix(stored, emailPasswordEncPrefix) {
-		return stored, nil
+		// Forced: refuse using plaintext storage (legacy DBs should be migrated on startup).
+		return "", errors.New("email password is stored in plaintext; please restart to migrate or re-save the email config")
 	}
 
 	key, err := getEmailPasswordKey()
@@ -116,7 +185,7 @@ func decryptEmailPassword(stored string) (string, error) {
 		return "", err
 	}
 	if len(key) == 0 {
-		return "", errors.New("email password is encrypted but SBM_EMAIL_PASSWORD_KEY is not set")
+		return "", errors.New("email password encryption key is not configured")
 	}
 
 	enc := strings.TrimSpace(strings.TrimPrefix(stored, emailPasswordEncPrefix))
@@ -144,4 +213,3 @@ func decryptEmailPassword(stored string) (string, error) {
 	}
 	return string(plain), nil
 }
-

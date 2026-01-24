@@ -56,6 +56,11 @@ func main() {
 	// This must NOT fail startup; it is safe to run repeatedly.
 	services.EnsureEmailLogUniqueIndex(db)
 
+	// Forced security: never keep IMAP passwords in plaintext in the DB.
+	if err := services.EnsureEmailConfigPasswordsEncrypted(db); err != nil {
+		log.Fatal("Failed to enforce email password encryption:", err)
+	}
+
 	// Backward-compatible: if older builds created short column names, keep data by copying into new columns.
 	// Ignore errors because these legacy columns may not exist.
 	db.Exec("UPDATE payments SET trip_assignment_source = COALESCE(trip_assignment_source, trip_assign_src, 'auto')")

@@ -476,6 +476,7 @@ const pollInFlight = ref(false)
 const pollErrorStreak = ref(0)
 const BASE_POLL_MS = 4000
 const MAX_POLL_MS = 30000
+const POLL_LOG_LIMIT = 50
 
 const onConfigPage = (e: any) => {
   configPageSize.value = e?.rows || configPageSize.value
@@ -560,7 +561,9 @@ const loadLogs = async (): Promise<boolean> => {
   const controller = new AbortController()
   logsAbort.value = controller
   try {
-    const res = await emailApi.getLogs(undefined, 500, { signal: controller.signal })
+    // Keep the log table window aligned with the user's "sync latest N" setting.
+    const displayLimit = Math.max(1, Math.floor(getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500))
+    const res = await emailApi.getLogs(undefined, displayLimit, { signal: controller.signal })
     if (res.data.success && res.data.data) {
       logs.value = res.data.data
 
@@ -593,6 +596,74 @@ const loadLogs = async (): Promise<boolean> => {
     return false
   } finally {
     if (logsAbort.value === controller) logsAbort.value = null
+  }
+}
+
+const mergePolledLogs = (incoming: EmailLog[]) => {
+  if (!incoming.length) return
+
+  const byId = new Map<string, EmailLog>()
+  for (const row of logs.value) {
+    if (row?.id) byId.set(row.id, row)
+  }
+
+  for (const row of incoming) {
+    if (!row?.id) continue
+    const existing = byId.get(row.id)
+    if (!existing) {
+      logs.value.push(row)
+      continue
+    }
+    Object.assign(existing, row)
+  }
+
+  logs.value.sort((a, b) => {
+    const rd = parseTs(b.received_date) - parseTs(a.received_date)
+    if (rd !== 0) return rd
+    return parseTs(b.created_at) - parseTs(a.created_at)
+  })
+
+  const displayLimit = Math.max(1, Math.floor(getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500))
+  if (logs.value.length > displayLimit) {
+    logs.value.splice(displayLimit)
+  }
+}
+
+const pollLogs = async (): Promise<boolean> => {
+  try {
+    const res = await emailApi.getLogs(undefined, POLL_LOG_LIMIT)
+    if (!res.data.success || !res.data.data) return Boolean(res.data.success)
+
+    const polled = res.data.data
+    mergePolledLogs(polled)
+
+    const lastTs = getStoredTs(EMAIL_LOG_TS_KEY)
+    const maxTs = Math.max(0, ...polled.map((x) => parseTs(x.created_at)))
+    if (lastTs === 0) {
+      if (maxTs > 0) setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
+      return true
+    }
+    if (maxTs <= lastTs) return true
+
+    const newLogs = polled
+      .filter((x) => parseTs(x.created_at) > lastTs)
+      .sort((a, b) => parseTs(b.created_at) - parseTs(a.created_at))
+      .slice(0, 3)
+
+    for (const item of newLogs) {
+      const subject = item.subject || '（无主题）'
+      const detail = item.has_attachment
+        ? `${subject}（附件${item.attachment_count || 0}个）`
+        : subject
+      notifications.add({ severity: 'info', title: '邮箱收到新邮件', detail })
+    }
+
+    setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
+    return true
+  } catch (e: any) {
+    if (isRequestCanceled(e)) return false
+    console.error('Poll logs failed:', e)
+    return false
   }
 }
 
@@ -1196,7 +1267,7 @@ const pollTick = async () => {
   if (pollInFlight.value) return
   pollInFlight.value = true
   try {
-    const [okLogs, okStatus] = await Promise.all([loadLogs(), loadMonitorStatus()])
+    const [okLogs, okStatus] = await Promise.all([pollLogs(), loadMonitorStatus()])
     if (okLogs && okStatus) pollErrorStreak.value = 0
     else pollErrorStreak.value = Math.min(6, pollErrorStreak.value + 1)
   } finally {

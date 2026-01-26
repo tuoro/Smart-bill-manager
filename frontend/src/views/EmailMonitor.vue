@@ -100,19 +100,10 @@
                 <Button
                   size="small"
                   class="p-button-outlined"
-                  icon="pi pi-download"
-                  :title="'同步最新邮件（最近500封）'"
-                  :loading="fullSyncLoading === row.id"
-                  @click="handleManualFullSync(row.id)"
-                />
-
-                <Button
-                  size="small"
-                  class="p-button-outlined"
-                  icon="pi pi-history"
-                  :title="'回填历史邮件（继续补更老的）'"
-                  :loading="backfillLoading === row.id"
-                  @click="handleBackfill(row.id)"
+                  icon="pi pi-sliders-h"
+                  :title="'同步设置'"
+                  :loading="syncLoading === row.id"
+                  @click="openSyncModal(row)"
                 />
 
                 <Button
@@ -250,6 +241,56 @@
       </template>
     </Card>
 
+    <Dialog v-model:visible="syncModalVisible" modal :header="'邮件同步'" :style="{ width: '560px', maxWidth: '92vw' }">
+      <div class="p-fluid">
+        <div class="field">
+          <label>邮箱</label>
+          <InputText :modelValue="syncTarget?.email || ''" disabled />
+        </div>
+
+        <div class="grid-form">
+          <div class="field">
+            <label for="syncMode">模式</label>
+            <Dropdown
+              id="syncMode"
+              v-model="syncForm.mode"
+              :options="SYNC_MODE_OPTIONS"
+              optionLabel="label"
+              optionValue="value"
+              :showClear="false"
+            />
+          </div>
+
+          <div class="field">
+            <label for="syncLimit">数量</label>
+            <InputNumber id="syncLimit" v-model="syncForm.limit" :min="1" :useGrouping="false" />
+          </div>
+        </div>
+
+        <div class="quick-limits">
+          <Button size="small" class="p-button-outlined" label="100" @click="setSyncLimit(100)" />
+          <Button size="small" class="p-button-outlined" label="500" @click="setSyncLimit(500)" />
+          <Button size="small" class="p-button-outlined" label="1000" @click="setSyncLimit(1000)" />
+          <Button size="small" class="p-button-outlined" label="2000" @click="setSyncLimit(2000)" />
+          <Button size="small" class="p-button-outlined" label="5000" @click="setSyncLimit(5000)" />
+        </div>
+
+        <small class="muted">{{ syncHint }}</small>
+
+        <div class="footer sync-footer">
+          <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="syncModalVisible = false" />
+          <Button
+            type="button"
+            :label="'开始'"
+            icon="pi pi-play"
+            :loading="syncLoading === (syncTarget?.id || '')"
+            :disabled="!syncTarget?.id"
+            @click="handleRunSync"
+          />
+        </div>
+      </div>
+    </Dialog>
+
     <Dialog v-model:visible="modalVisible" modal :header="modalTitle" :style="{ width: '620px', maxWidth: '92vw' }">
       <form class="p-fluid" @submit.prevent="handleSubmit">
         <div class="grid-form">
@@ -343,6 +384,11 @@ const notifications = useNotificationStore()
 const confirm = useConfirm()
 
 const EMAIL_LOG_TS_KEY = 'sbm.email.lastLogTs.v1'
+const EMAIL_SYNC_LIMIT_KEY = 'sbm.email.sync.limit.v1'
+const EMAIL_SYNC_MODE_KEY = 'sbm.email.sync.mode.v1'
+
+type SyncMode = 'latest' | 'backfill'
+
 const getStoredTs = (key: string) => {
   try {
     return Number(window.localStorage.getItem(key) || 0) || 0
@@ -354,6 +400,22 @@ const getStoredTs = (key: string) => {
 const setStoredTs = (key: string, value: number) => {
   try {
     window.localStorage.setItem(key, String(value))
+  } catch {
+    // ignore
+  }
+}
+
+const getStoredString = (key: string) => {
+  try {
+    return String(window.localStorage.getItem(key) || '')
+  } catch {
+    return ''
+  }
+}
+
+const setStoredString = (key: string, value: string) => {
+  try {
+    window.localStorage.setItem(key, String(value || ''))
   } catch {
     // ignore
   }
@@ -386,6 +448,23 @@ const modalTitle = computed(() => (isEditing.value ? '编辑邮箱' : '添加邮
 const testLoading = ref(false)
 const checkLoading = ref<string | null>(null)
 const parseLoading = ref<string | null>(null)
+const syncLoading = ref<string | null>(null)
+const syncModalVisible = ref(false)
+const syncTarget = ref<EmailConfig | null>(null)
+const SYNC_MODE_OPTIONS: { label: string; value: SyncMode }[] = [
+  { label: '同步最新（最近 N 封）', value: 'latest' },
+  { label: '回填历史（继续往更老）', value: 'backfill' },
+]
+const syncForm = reactive<{ mode: SyncMode; limit: number }>({
+  mode: 'latest',
+  limit: 500,
+})
+const syncHint = computed(() => {
+  if (syncForm.mode === 'backfill') {
+    return '回填历史会从当前已同步的最早邮件开始继续往更老补齐。每次按“数量”拉取，可多次执行。'
+  }
+  return '同步最新会拉取最近一段邮件用于日常更新。若你的邮箱邮件量很大，建议从 500 开始。'
+})
 const selectedPreset = ref<string | null>(null)
 const pollTimer = ref<number | null>(null)
 const configPageSize = ref(10)
@@ -942,8 +1021,6 @@ const handleManualCheck = async (id: string) => {
   }
 }
 
-const fullSyncLoading = ref<string | null>(null)
-const backfillLoading = ref<string | null>(null)
 const clearLogsLoading = ref<string | null>(null)
 
 const isRequestTimeout = (err: any): boolean => {
@@ -952,8 +1029,30 @@ const isRequestTimeout = (err: any): boolean => {
   return code === 'ECONNABORTED' || code === 'ETIMEDOUT' || msg.includes('timeout')
 }
 
-const runManualFullSync = async (id: string, stopAndResume: boolean) => {
-  fullSyncLoading.value = id
+const normalizeSyncLimit = (v: any) => {
+  let n = Number(v || 0)
+  if (!Number.isFinite(n)) {
+    n = 0
+  }
+  n = Math.floor(n)
+  if (n <= 0) return 500
+  return n
+}
+
+const setSyncLimit = (v: number) => {
+  syncForm.limit = normalizeSyncLimit(v)
+}
+
+const openSyncModal = (row: EmailConfig) => {
+  syncTarget.value = row
+  const mode = getStoredString(EMAIL_SYNC_MODE_KEY).trim().toLowerCase()
+  syncForm.mode = mode === 'backfill' ? 'backfill' : 'latest'
+  syncForm.limit = normalizeSyncLimit(getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500)
+  syncModalVisible.value = true
+}
+
+const runSync = async (id: string, stopAndResume: boolean, mode: SyncMode, limit: number) => {
+  syncLoading.value = id
   try {
     if (stopAndResume) {
       try {
@@ -964,91 +1063,31 @@ const runManualFullSync = async (id: string, stopAndResume: boolean) => {
       await loadMonitorStatus()
     }
 
-    // Backend will auto-page older messages based on the oldest UID already logged.
-    const res = await emailApi.manualFullSync(id, { mode: 'latest' })
-    if (res.data.success) {
-      toast.add({ severity: 'success', summary: res.data.message || '全量同步完成', life: 2500 })
-      const newEmails = res.data.data?.newEmails || 0
-      notifications.add({
-        severity: newEmails > 0 ? 'success' : 'info',
-        title: '邮箱全量同步完成',
-        detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
-      })
-      await loadLogs()
-      await loadMonitorStatus()
-    } else {
-      toast.add({ severity: 'error', summary: res.data.message || '全量同步失败', life: 3500 })
-      notifications.add({ severity: 'error', title: '邮箱全量同步失败', detail: res.data.message || id })
-    }
-  } catch (e: any) {
-    if (isRequestTimeout(e)) {
-      toast.add({ severity: 'warn', summary: '全量同步请求超时：后台可能仍在继续，请稍后观察日志是否持续增加', life: 4500 })
-      notifications.add({ severity: 'info', title: '全量同步仍可能进行中', detail: id })
-    } else {
-      toast.add({ severity: 'error', summary: '全量同步失败', life: 3500 })
-      notifications.add({ severity: 'error', title: '邮箱全量同步失败', detail: id })
-    }
-  } finally {
-    try {
-      if (stopAndResume) {
-        await emailApi.startMonitoring(id)
-        await loadMonitorStatus()
-      }
-    } catch {
-      // ignore
-    }
-    fullSyncLoading.value = null
-  }
-}
-
-const handleManualFullSync = async (id: string) => {
-  if (monitorStatus.value?.[id] === 'running') {
-    confirm.require({
-      message: '\u5F53\u524D\u90AE\u7BB1\u76D1\u63A7\u4E2D\uFF0C\u5168\u91CF\u540C\u6B65\u9700\u8981\u4E34\u65F6\u505C\u6B62\u76D1\u63A7\u5E76\u91CD\u8FDE\uFF0C\u662F\u5426\u7EE7\u7EED\uFF1F',
-      header: '\u5168\u91CF\u540C\u6B65\u786E\u8BA4',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '\u7EE7\u7EED',
-      rejectLabel: '\u53D6\u6D88',
-      accept: () => void runManualFullSync(id, true),
-    })
-    return
-  }
-  await runManualFullSync(id, false)
-}
-
-const runBackfill = async (id: string, stopAndResume: boolean) => {
-  backfillLoading.value = id
-  try {
-    if (stopAndResume) {
-      try {
-        await emailApi.stopMonitoring(id)
-      } catch {
-        // ignore
-      }
-      await loadMonitorStatus()
-    }
-
-    const res = await emailApi.manualFullSync(id, { mode: 'backfill' })
+    const res = await emailApi.manualFullSync(id, { mode, limit })
     if (res.data?.success) {
       const newEmails = res.data.data?.newEmails || 0
+      const title = mode === 'backfill' ? '历史回填完成' : '邮件同步完成'
+      toast.add({ severity: 'success', summary: res.data.message || title, life: 2500 })
       notifications.add({
         severity: newEmails > 0 ? 'success' : 'info',
-        title: '历史回填完成',
+        title,
         detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
       })
       await loadLogs()
       await loadMonitorStatus()
     } else {
-      toast.add({ severity: 'error', summary: res.data.message || '历史回填失败', life: 3500 })
-      notifications.add({ severity: 'error', title: '历史回填失败', detail: res.data.message || id })
+      const title = mode === 'backfill' ? '历史回填失败' : '邮件同步失败'
+      toast.add({ severity: 'error', summary: res.data?.message || title, life: 3500 })
+      notifications.add({ severity: 'error', title, detail: res.data?.message || id })
     }
   } catch (e: any) {
+    const title = mode === 'backfill' ? '历史回填失败' : '邮件同步失败'
     if (isRequestTimeout(e)) {
-      toast.add({ severity: 'warn', summary: '历史回填请求超时：后台可能仍在继续，请稍后观察日志是否持续增加', life: 4500 })
-      notifications.add({ severity: 'info', title: '历史回填可能仍在进行中', detail: id })
+      toast.add({ severity: 'warn', summary: `${title}请求超时：后台可能仍在继续，请稍后观察日志是否持续增加`, life: 4500 })
+      notifications.add({ severity: 'info', title: `${title}可能仍在进行中`, detail: id })
     } else {
-      toast.add({ severity: 'error', summary: '历史回填失败', life: 3500 })
-      notifications.add({ severity: 'error', title: '历史回填失败', detail: id })
+      toast.add({ severity: 'error', summary: title, life: 3500 })
+      notifications.add({ severity: 'error', title, detail: id })
     }
   } finally {
     try {
@@ -1059,24 +1098,41 @@ const runBackfill = async (id: string, stopAndResume: boolean) => {
     } catch {
       // ignore
     }
-    backfillLoading.value = null
+    syncLoading.value = null
   }
 }
 
-const handleBackfill = async (id: string) => {
+const handleRunSync = async () => {
+  const id = syncTarget.value?.id
+  if (!id) return
+
+  const mode = syncForm.mode
+  const limit = normalizeSyncLimit(syncForm.limit)
+  syncForm.limit = limit
+
+  setStoredTs(EMAIL_SYNC_LIMIT_KEY, limit)
+  setStoredString(EMAIL_SYNC_MODE_KEY, mode)
+
   if (monitorStatus.value?.[id] === 'running') {
+    const header = mode === 'backfill' ? '历史回填确认' : '同步确认'
+    const message = mode === 'backfill' ? '当前邮箱监控中，历史回填需要临时停止监控并重连，是否继续？' : '当前邮箱监控中，同步需要临时停止监控并重连，是否继续？'
     confirm.require({
-      message: '当前邮箱监控中，历史回填需要临时停止监控并重连，是否继续？',
-      header: '历史回填确认',
+      message,
+      header,
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '继续',
       rejectLabel: '取消',
-      accept: () => void runBackfill(id, true),
+      accept: () => void runSync(id, true, mode, limit),
     })
     return
   }
-  await runBackfill(id, false)
+
+  await runSync(id, false, mode, limit)
 }
+
+watch(syncModalVisible, (v) => {
+  if (!v) syncTarget.value = null
+})
 
 const runClearLogs = async (id: string, stopAndResume: boolean) => {
   clearLogsLoading.value = id
@@ -1334,6 +1390,18 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.quick-limits {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sync-footer {
+  justify-content: flex-end;
 }
 
 @media (max-width: 540px) {

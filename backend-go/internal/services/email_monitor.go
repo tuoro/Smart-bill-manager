@@ -89,7 +89,7 @@ type EmailService struct {
 	// fullSyncRunning tracks in-flight manual full-sync jobs (per email config).
 	// It prevents accidental concurrent full syncs which can cause IMAP risk control.
 	fullSyncRunning map[string]struct{}
-	mu                sync.RWMutex
+	mu              sync.RWMutex
 }
 
 func formatIMAPAddress(a *imap.Address) string {
@@ -651,10 +651,12 @@ type FullSyncOptions struct {
 
 func clampFullSyncLimit(v int) int {
 	const defaultLimit = 500
-	const maxLimit = 5000
 	if v <= 0 {
 		return defaultLimit
 	}
+	// Avoid unbounded "limit" values that could run for hours; reuse the same safety cap
+	// as "mode=all" so operators can override via SBM_EMAIL_FULLSYNC_MAX_UIDS when needed.
+	maxLimit := getFullSyncSafetyMaxUIDs()
 	if v > maxLimit {
 		return maxLimit
 	}

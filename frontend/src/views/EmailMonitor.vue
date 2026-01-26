@@ -92,7 +92,7 @@
                   size="small"
                   class="p-button-outlined"
                   icon="pi pi-bolt"
-                  :title="'同步设置'"
+                  :title="'同步'"
                   :loading="syncLoading === row.id"
                   @click="openSyncModal(row)"
                 />
@@ -234,12 +234,12 @@
 
     <Dialog v-model:visible="syncModalVisible" modal :header="'邮件同步'" :style="{ width: '560px', maxWidth: '92vw' }">
       <div class="p-fluid">
-        <div class="field">
-          <label>邮箱</label>
-          <InputText :modelValue="syncTarget?.email || ''" disabled />
-        </div>
-
         <div class="grid-form">
+          <div class="field col-span-2">
+            <label>邮箱</label>
+            <InputText :modelValue="syncTarget?.email || ''" disabled />
+          </div>
+
           <div class="field">
             <label for="syncMode">模式</label>
             <Dropdown

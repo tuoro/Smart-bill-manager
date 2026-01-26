@@ -92,15 +92,6 @@
                   size="small"
                   class="p-button-outlined"
                   icon="pi pi-bolt"
-                  :title="'检查未读邮件'"
-                  :loading="checkLoading === row.id"
-                  @click="handleManualCheck(row.id)"
-                />
-
-                <Button
-                  size="small"
-                  class="p-button-outlined"
-                  icon="pi pi-sliders-h"
                   :title="'同步设置'"
                   :loading="syncLoading === row.id"
                   @click="openSyncModal(row)"
@@ -387,6 +378,7 @@ const EMAIL_LOG_TS_KEY = 'sbm.email.lastLogTs.v1'
 const EMAIL_SYNC_LIMIT_KEY = 'sbm.email.sync.limit.v1'
 const EMAIL_SYNC_MODE_KEY = 'sbm.email.sync.mode.v1'
 const EMAIL_LOG_LIMIT_KEY = 'sbm.email.log.limit.v1'
+const EMAIL_LATEST_WINDOW_KEY = 'sbm.email.latest.window.v1'
 
 type SyncMode = 'latest' | 'backfill'
 
@@ -447,13 +439,12 @@ const editingOriginal = ref<EmailConfig | null>(null)
 const isEditing = computed(() => Boolean(editingId.value))
 const modalTitle = computed(() => (isEditing.value ? '编辑邮箱' : '添加邮箱'))
 const testLoading = ref(false)
-const checkLoading = ref<string | null>(null)
 const parseLoading = ref<string | null>(null)
 const syncLoading = ref<string | null>(null)
 const syncModalVisible = ref(false)
 const syncTarget = ref<EmailConfig | null>(null)
 const SYNC_MODE_OPTIONS: { label: string; value: SyncMode }[] = [
-  { label: '同步最新（最近 N 封）', value: 'latest' },
+  { label: '同步最新（首次 N 封，后续增量）', value: 'latest' },
   { label: '回填历史（继续往更老）', value: 'backfill' },
 ]
 const syncForm = reactive<{ mode: SyncMode; limit: number }>({
@@ -464,7 +455,7 @@ const syncHint = computed(() => {
   if (syncForm.mode === 'backfill') {
     return '回填历史会从当前已同步的最早邮件开始继续往更老补齐。完成后会自动扩大日志显示范围，便于看到新增的更老邮件。每次按“数量”追加回填，可多次执行。'
   }
-  return '同步最新会拉取最近一段邮件用于日常更新。若你的邮箱邮件量很大，建议从 500 开始。'
+  return '同步最新首次会拉取最近 N 封用于初始化；之后默认只拉取新增邮件（增量）以降低风控。若要重新拉取更大的“最新窗口”，把数量调大后再点开始。'
 })
 const selectedPreset = ref<string | null>(null)
 const pollTimer = ref<number | null>(null)
@@ -1072,33 +1063,6 @@ const handleStopMonitor = async (id: string) => {
   }
 }
 
-const handleManualCheck = async (id: string) => {
-  checkLoading.value = id
-  try {
-    const res = await emailApi.manualCheck(id)
-    if (res.data.success) {
-      toast.add({ severity: 'success', summary: res.data.message || '\u68C0\u67E5\u5B8C\u6210', life: 2200 })
-      const newEmails = res.data.data?.newEmails || 0
-      notifications.add({
-        severity: newEmails > 0 ? 'success' : 'info',
-        title: '邮箱检查完成',
-        detail: newEmails > 0 ? `新邮件 ${newEmails} 封（已尝试下载附件）` : '暂无新邮件',
-      })
-      if (res.data.data && res.data.data.newEmails > 0) {
-        await loadLogs()
-      }
-    } else {
-      toast.add({ severity: 'error', summary: res.data.message || '\u68C0\u67E5\u5931\u8D25', life: 3500 })
-      notifications.add({ severity: 'error', title: '邮箱检查失败', detail: res.data.message || id })
-    }
-  } catch {
-    toast.add({ severity: 'error', summary: '\u68C0\u67E5\u90AE\u4EF6\u5931\u8D25', life: 3500 })
-    notifications.add({ severity: 'error', title: '邮箱检查失败', detail: id })
-  } finally {
-    checkLoading.value = null
-  }
-}
-
 const clearLogsLoading = ref<string | null>(null)
 
 const isRequestTimeout = (err: any): boolean => {
@@ -1129,6 +1093,41 @@ const openSyncModal = (row: EmailConfig) => {
   syncModalVisible.value = true
 }
 
+const hasAnyVisibleLogs = async (configId: string): Promise<boolean> => {
+  try {
+    const res = await emailApi.getLogs(configId, 1)
+    return Boolean(res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0)
+  } catch {
+    return false
+  }
+}
+
+const runIncrementalSync = async (id: string) => {
+  syncLoading.value = id
+  try {
+    const res = await emailApi.manualCheck(id)
+    if (res.data?.success) {
+      const newEmails = res.data.data?.newEmails || 0
+      toast.add({ severity: 'success', summary: res.data.message || '同步完成', life: 2200 })
+      notifications.add({
+        severity: newEmails > 0 ? 'success' : 'info',
+        title: '邮件同步完成',
+        detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
+      })
+      await loadLogs()
+      await loadMonitorStatus()
+    } else {
+      toast.add({ severity: 'error', summary: res.data?.message || '同步失败', life: 3500 })
+      notifications.add({ severity: 'error', title: '邮件同步失败', detail: res.data?.message || id })
+    }
+  } catch {
+    toast.add({ severity: 'error', summary: '同步失败', life: 3500 })
+    notifications.add({ severity: 'error', title: '邮件同步失败', detail: id })
+  } finally {
+    syncLoading.value = null
+  }
+}
+
 const runSync = async (id: string, stopAndResume: boolean, mode: SyncMode, limit: number) => {
   syncLoading.value = id
   try {
@@ -1151,6 +1150,11 @@ const runSync = async (id: string, stopAndResume: boolean, mode: SyncMode, limit
         title,
         detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
       })
+
+      if (mode === 'latest') {
+        const prev = getStoredTs(EMAIL_LATEST_WINDOW_KEY)
+        if (limit > prev) setStoredTs(EMAIL_LATEST_WINDOW_KEY, limit)
+      }
 
       // Backfill typically adds older records that are outside of the "latest N" window.
       // Expand the log list window so users can immediately see the additional history.
@@ -1199,10 +1203,27 @@ const handleRunSync = async () => {
   const limit = normalizeSyncLimit(syncForm.limit)
   syncForm.limit = limit
 
+  const latestWindow = getStoredTs(EMAIL_LATEST_WINDOW_KEY)
+
   setStoredTs(EMAIL_SYNC_LIMIT_KEY, limit)
   setStoredString(EMAIL_SYNC_MODE_KEY, mode)
   if (mode === 'latest') {
     setStoredTs(EMAIL_LOG_LIMIT_KEY, limit)
+  }
+
+  // "同步最新" is smart:
+  // - First time (no visible logs): do a full latest sync to initialize.
+  // - Subsequent runs: only do incremental fetch (new UIDs) to reduce IMAP risk control.
+  // - If the user increases the limit beyond the latest window, run full latest again to expand the window.
+  if (mode === 'latest') {
+    const hasLogs = await hasAnyVisibleLogs(id)
+    const forceFull = !hasLogs || limit > latestWindow
+    if (hasLogs && !forceFull) {
+      syncModalVisible.value = false
+      toast.add({ severity: 'info', summary: '已开始后台同步（增量），请稍后查看日志', life: 2200 })
+      void runIncrementalSync(id)
+      return
+    }
   }
 
   if (monitorStatus.value?.[id] === 'running') {

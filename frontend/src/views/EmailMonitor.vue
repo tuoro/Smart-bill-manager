@@ -34,7 +34,7 @@
           :paginator="true"
           :rows="configPageSize"
           :rowsPerPageOptions="[10, 20, 50, 100]"
-          :tableStyle="{ minWidth: '980px', tableLayout: 'fixed' }"
+          :tableStyle="{ minWidth: '1120px', tableLayout: 'fixed' }"
           emptyMessage="暂无邮箱配置"
           responsiveLayout="scroll"
           @page="onConfigPage"
@@ -66,7 +66,7 @@
               {{ row.last_check ? formatDateTime(row.last_check) : '-' }}
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '200px' }">
+          <Column :header="'\u64CD\u4F5C'" :style="{ width: '260px' }">
             <template #body="{ data: row }">
               <div class="actions">
                 <Button
@@ -123,6 +123,14 @@
                   :title="'清空日志'"
                   :loading="clearLogsLoading === row.id"
                   @click="handleClearLogs(row.id)"
+                />
+
+                <Button
+                  size="small"
+                  class="p-button-outlined"
+                  icon="pi pi-pencil"
+                  :title="'修改配置'"
+                  @click="openEditModal(row)"
                 />
 
                 <Button
@@ -242,7 +250,7 @@
       </template>
     </Card>
 
-    <Dialog v-model:visible="modalVisible" modal :header="'\u6DFB\u52A0\u90AE\u7BB1'" :style="{ width: '620px', maxWidth: '92vw' }">
+    <Dialog v-model:visible="modalVisible" modal :header="modalTitle" :style="{ width: '620px', maxWidth: '92vw' }">
       <form class="p-fluid" @submit.prevent="handleSubmit">
         <div class="grid-form">
           <div class="field col-span-2">
@@ -310,7 +318,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
@@ -371,6 +379,10 @@ const configs = ref<EmailConfig[]>([])
 const logs = ref<EmailLog[]>([])
 const monitorStatus = ref<Record<string, string>>({})
 const modalVisible = ref(false)
+const editingId = ref<string | null>(null)
+const editingOriginal = ref<EmailConfig | null>(null)
+const isEditing = computed(() => Boolean(editingId.value))
+const modalTitle = computed(() => (isEditing.value ? '编辑邮箱' : '添加邮箱'))
 const testLoading = ref(false)
 const checkLoading = ref<string | null>(null)
 const parseLoading = ref<string | null>(null)
@@ -409,6 +421,11 @@ const errors = reactive({
   password: '',
 })
 
+const isMaskedPassword = (v: string) => {
+  const s = String(v || '').trim()
+  return s === '' || s === '********'
+}
+
 const resetForm = () => {
   form.email = ''
   form.imap_host = ''
@@ -435,7 +452,7 @@ const validate = () => {
   }
   if (!form.imap_host) errors.imap_host = '\u8BF7\u8F93\u5165 IMAP \u670D\u52A1\u5668\u5730\u5740'
   if (!form.imap_port || form.imap_port < 1) errors.imap_port = '\u8BF7\u8F93\u5165\u7AEF\u53E3\u53F7'
-  if (!form.password) errors.password = '\u8BF7\u8F93\u5165\u6388\u6743\u7801\u6216\u5BC6\u7801'
+  if (!isEditing.value && !form.password) errors.password = '\u8BF7\u8F93\u5165\u6388\u6743\u7801\u6216\u5BC6\u7801'
 
   return !errors.email && !errors.imap_host && !errors.imap_port && !errors.password
 }
@@ -685,7 +702,22 @@ const handleCopyRawEmail = async (id: string) => {
 }
 
 const openModal = () => {
+  editingId.value = null
+  editingOriginal.value = null
   resetForm()
+  modalVisible.value = true
+}
+
+const openEditModal = (row: EmailConfig) => {
+  editingId.value = row.id
+  editingOriginal.value = { ...row }
+  resetForm()
+  form.email = row.email
+  form.imap_host = row.imap_host
+  form.imap_port = row.imap_port || 993
+  form.password = row.password || '********'
+  form.is_active = row.is_active === 1
+  selectedPreset.value = EMAIL_PRESETS.find((p) => p.host === row.imap_host && p.port === (row.imap_port || 993))?.name || null
   modalVisible.value = true
 }
 
@@ -701,6 +733,10 @@ const handlePresetSelect = () => {
 
 const handleTest = async () => {
   if (!validate()) return
+  if (isEditing.value && isMaskedPassword(form.password)) {
+    errors.password = '编辑配置时测试连接需要重新输入授权码'
+    return
+  }
   testLoading.value = true
   try {
     const res = await emailApi.testConnection({
@@ -728,33 +764,97 @@ const handleSubmit = async () => {
   if (!validate()) return
   saving.value = true
   try {
-    await emailApi.createConfig({
-      email: form.email,
-      imap_host: form.imap_host,
-      imap_port: form.imap_port,
-      password: form.password,
-      is_active: form.is_active ? 1 : 0,
-    })
-    toast.add({ severity: 'success', summary: '\u90AE\u7BB1\u914D\u7F6E\u521B\u5EFA\u6210\u529F', life: 2200 })
-    notifications.add({ severity: 'success', title: '邮箱配置已创建', detail: form.email })
-    modalVisible.value = false
-    await loadAll()
+    if (editingId.value) {
+      const id = editingId.value
+      const wasRunning = monitorStatus.value?.[id] === 'running'
+      const original = editingOriginal.value
+      const pwd = String(form.password || '').trim()
+
+      const payload: Partial<EmailConfig> = {
+        email: form.email,
+        imap_host: form.imap_host,
+        imap_port: form.imap_port,
+        is_active: form.is_active ? 1 : 0,
+      }
+
+      // Keep existing password when masked/blank; otherwise update to the new value.
+      if (pwd === '********') {
+        payload.password = '********'
+      } else if (pwd !== '') {
+        payload.password = pwd
+      }
+
+      await emailApi.updateConfig(id, payload)
+
+      // Apply changes to the running monitor when needed.
+      const changedConn =
+        Boolean(original) &&
+        (original!.email !== form.email ||
+          original!.imap_host !== form.imap_host ||
+          (original!.imap_port || 993) !== (form.imap_port || 993) ||
+          (pwd !== '' && pwd !== '********'))
+
+      if (wasRunning) {
+        if (!form.is_active) {
+          try {
+            await emailApi.stopMonitoring(id)
+          } catch {
+            // ignore
+          }
+        } else if (changedConn) {
+          try {
+            await emailApi.stopMonitoring(id)
+          } catch {
+            // ignore
+          }
+          try {
+            await emailApi.startMonitoring(id)
+          } catch {
+            toast.add({ severity: 'warn', summary: '配置已更新，但监控重启失败（请手动启动）', life: 4500 })
+          }
+        }
+      }
+
+      toast.add({ severity: 'success', summary: '邮箱配置已更新', life: 2200 })
+      notifications.add({ severity: 'success', title: '邮箱配置已更新', detail: form.email })
+      modalVisible.value = false
+      await loadAll()
+    } else {
+      await emailApi.createConfig({
+        email: form.email,
+        imap_host: form.imap_host,
+        imap_port: form.imap_port,
+        password: form.password,
+        is_active: form.is_active ? 1 : 0,
+      })
+      toast.add({ severity: 'success', summary: '\u90AE\u7BB1\u914D\u7F6E\u521B\u5EFA\u6210\u529F', life: 2200 })
+      notifications.add({ severity: 'success', title: '邮箱配置已创建', detail: form.email })
+      modalVisible.value = false
+      await loadAll()
+    }
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } }
     toast.add({
       severity: 'error',
-      summary: err.response?.data?.message || '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25',
+      summary: err.response?.data?.message || (editingId.value ? '\u66F4\u65B0\u914D\u7F6E\u5931\u8D25' : '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25'),
       life: 3500,
     })
     notifications.add({
       severity: 'error',
-      title: '邮箱配置创建失败',
+      title: editingId.value ? '邮箱配置更新失败' : '邮箱配置创建失败',
       detail: err.response?.data?.message || form.email,
     })
   } finally {
     saving.value = false
   }
 }
+
+watch(modalVisible, (v) => {
+  if (!v) {
+    editingId.value = null
+    editingOriginal.value = null
+  }
+})
 
 const confirmDelete = (id: string) => {
   confirm.require({

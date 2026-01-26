@@ -386,6 +386,7 @@ const confirm = useConfirm()
 const EMAIL_LOG_TS_KEY = 'sbm.email.lastLogTs.v1'
 const EMAIL_SYNC_LIMIT_KEY = 'sbm.email.sync.limit.v1'
 const EMAIL_SYNC_MODE_KEY = 'sbm.email.sync.mode.v1'
+const EMAIL_LOG_LIMIT_KEY = 'sbm.email.log.limit.v1'
 
 type SyncMode = 'latest' | 'backfill'
 
@@ -461,7 +462,7 @@ const syncForm = reactive<{ mode: SyncMode; limit: number }>({
 })
 const syncHint = computed(() => {
   if (syncForm.mode === 'backfill') {
-    return '回填历史会从当前已同步的最早邮件开始继续往更老补齐。每次按“数量”拉取，可多次执行。'
+    return '回填历史会从当前已同步的最早邮件开始继续往更老补齐。完成后会自动扩大日志显示范围，便于看到新增的更老邮件。每次按“数量”追加回填，可多次执行。'
   }
   return '同步最新会拉取最近一段邮件用于日常更新。若你的邮箱邮件量很大，建议从 500 开始。'
 })
@@ -562,7 +563,10 @@ const loadLogs = async (): Promise<boolean> => {
   logsAbort.value = controller
   try {
     // Keep the log table window aligned with the user's "sync latest N" setting.
-    const displayLimit = Math.max(1, Math.floor(getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500))
+    const displayLimit = Math.max(
+      1,
+      Math.floor(getStoredTs(EMAIL_LOG_LIMIT_KEY) || getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500),
+    )
     const res = await emailApi.getLogs(undefined, displayLimit, { signal: controller.signal })
     if (res.data.success && res.data.data) {
       logs.value = res.data.data
@@ -623,7 +627,10 @@ const mergePolledLogs = (incoming: EmailLog[]) => {
     return parseTs(b.created_at) - parseTs(a.created_at)
   })
 
-  const displayLimit = Math.max(1, Math.floor(getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500))
+  const displayLimit = Math.max(
+    1,
+    Math.floor(getStoredTs(EMAIL_LOG_LIMIT_KEY) || getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500),
+  )
   if (logs.value.length > displayLimit) {
     logs.value.splice(displayLimit)
   }
@@ -1144,6 +1151,17 @@ const runSync = async (id: string, stopAndResume: boolean, mode: SyncMode, limit
         title,
         detail: newEmails > 0 ? `新增记录 ${newEmails} 封` : '没有新增记录',
       })
+
+      // Backfill typically adds older records that are outside of the "latest N" window.
+      // Expand the log list window so users can immediately see the additional history.
+      if (mode === 'backfill' && newEmails > 0) {
+        const cur = Math.max(
+          1,
+          Math.floor(getStoredTs(EMAIL_LOG_LIMIT_KEY) || getStoredTs(EMAIL_SYNC_LIMIT_KEY) || 500),
+        )
+        setStoredTs(EMAIL_LOG_LIMIT_KEY, cur + newEmails)
+      }
+
       await loadLogs()
       await loadMonitorStatus()
     } else {
@@ -1183,6 +1201,9 @@ const handleRunSync = async () => {
 
   setStoredTs(EMAIL_SYNC_LIMIT_KEY, limit)
   setStoredString(EMAIL_SYNC_MODE_KEY, mode)
+  if (mode === 'latest') {
+    setStoredTs(EMAIL_LOG_LIMIT_KEY, limit)
+  }
 
   if (monitorStatus.value?.[id] === 'running') {
     const header = mode === 'backfill' ? '历史回填确认' : '同步确认'
@@ -1193,12 +1214,18 @@ const handleRunSync = async () => {
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '继续',
       rejectLabel: '取消',
-      accept: () => void runSync(id, true, mode, limit),
+      accept: () => {
+        syncModalVisible.value = false
+        toast.add({ severity: 'info', summary: '已开始后台同步，请稍后查看日志', life: 2200 })
+        void runSync(id, true, mode, limit)
+      },
     })
     return
   }
 
-  await runSync(id, false, mode, limit)
+  syncModalVisible.value = false
+  toast.add({ severity: 'info', summary: '已开始后台同步，请稍后查看日志', life: 2200 })
+  void runSync(id, false, mode, limit)
 }
 
 watch(syncModalVisible, (v) => {

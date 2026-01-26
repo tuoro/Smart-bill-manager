@@ -1121,6 +1121,28 @@ func TestIsGarbledText(t *testing.T) {
 	t.Logf("Edge case (50%% valid) detected as garbled: %v", result)
 }
 
+func TestIsLikelyUsefulInvoicePDFText_IncludesItineraries(t *testing.T) {
+	service := NewOCRService()
+
+	// Airline itinerary markers (short text that would normally fail the minChars heuristic).
+	air := "航空运输电子客票行程单\n电子客票号码: 7812 3456 7890\n旅客姓名: 张三\n填开日期: 2025年01月01日"
+	if !service.isLikelyUsefulInvoicePDFText(air) {
+		t.Error("Air ticket itinerary text should be treated as useful PDF text")
+	}
+
+	// Airline variant without the full title.
+	air2 := "航空运输电子客票\n电子客票号码: 781234567890\n填开日期: 2025年01月01日"
+	if !service.isLikelyUsefulInvoicePDFText(air2) {
+		t.Error("Air ticket itinerary (no full title) should be treated as useful PDF text")
+	}
+
+	// Railway e-ticket markers.
+	rail := "电子发票（铁路电子客票）\n票价: 123.00\n开票日期: 2025年01月01日"
+	if !service.isLikelyUsefulInvoicePDFText(rail) {
+		t.Error("Railway e-ticket text should be treated as useful PDF text")
+	}
+}
+
 func TestPdfToImageOCR_ErrorHandling(t *testing.T) {
 	service := NewOCRService()
 

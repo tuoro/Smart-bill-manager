@@ -714,8 +714,17 @@ func (s *OCRService) isLikelyUsefulInvoicePDFText(text string) bool {
 	if text == "" {
 		return false
 	}
-	if s.isGarbledText(text) {
-		return false
+	// Normalize common PyMuPDF spacing/label issues so the keyword checks also work for
+	// itinerary PDFs (air/rail) whose "invoice-like" markers may otherwise be split by spaces.
+	normalized := normalizeInvoiceTextForParsing(text)
+
+	// Strong markers first: if these exist, treat extracted text as useful even if it's short.
+	// This avoids unnecessary pdf->image->OCR fallback for text-based itinerary PDFs.
+	if strings.Contains(normalized, "航空运输电子客票行程单") ||
+		(strings.Contains(normalized, "航空运输电子客票") && strings.Contains(normalized, "电子客票号码")) ||
+		strings.Contains(normalized, "铁路电子客票") ||
+		(strings.Contains(normalized, "电子发票") && strings.Contains(normalized, "铁路") && strings.Contains(normalized, "客票")) {
+		return true
 	}
 
 	minChars := 160
@@ -732,15 +741,26 @@ func (s *OCRService) isLikelyUsefulInvoicePDFText(text string) bool {
 		}
 	}
 
-	if len([]rune(text)) >= minChars && s.getChineseCharRatio(text) >= minHanRatio {
+	if s.isGarbledText(normalized) {
+		return false
+	}
+
+	if len([]rune(normalized)) >= minChars && s.getChineseCharRatio(normalized) >= minHanRatio {
 		return true
 	}
 
 	keywords := []string{
+		// VAT invoice markers.
 		"发票代码", "发票号码", "开票日期", "校验码", "价税合计", "合计金额", "购买方", "销售方",
+		// Transport invoice markers (common wording in some providers).
+		"旅客运输服务电子发票", "旅客运输服务 电子发票",
+		// Airline itinerary markers (may appear without the full title).
+		"电子客票号码", "旅客姓名", "填开日期",
+		// Railway e-ticket markers.
+		"票价",
 	}
 	for _, k := range keywords {
-		if strings.Contains(text, k) {
+		if strings.Contains(normalized, k) {
 			return true
 		}
 	}

@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +15,20 @@ import (
 
 	"gorm.io/gorm"
 )
+
+type paymentDraftCleanupRow struct {
+	ID             string
+	ScreenshotPath *string
+}
+
+type invoiceDraftCleanupRow struct {
+	ID       string
+	FilePath string
+}
+
+type attachmentDraftCleanupRow struct {
+	FilePath string
+}
 
 func StartDraftCleanup(ctx context.Context, db *gorm.DB, uploadsDir string) <-chan struct{} {
 	done := make(chan struct{})
@@ -37,7 +53,10 @@ func StartDraftCleanup(ctx context.Context, db *gorm.DB, uploadsDir string) <-ch
 
 	cleanupOnce := func() {
 		cutoff := time.Now().Add(-ttl)
-		payDeleted, invDeleted, fileDeleted := cleanupDraftsOnce(ctx, db, uploadsDir, cutoff)
+		payDeleted, invDeleted, fileDeleted, err := cleanupDraftsOnce(ctx, db, uploadsDir, cutoff)
+		if err != nil {
+			log.Printf("[DraftCleanup] cleanup failed: %v", err)
+		}
 		if payDeleted > 0 || invDeleted > 0 || fileDeleted > 0 {
 			log.Printf("[DraftCleanup] removed payments=%d invoices=%d files=%d (cutoff=%s)", payDeleted, invDeleted, fileDeleted, cutoff.Format(time.RFC3339))
 		}
@@ -78,87 +97,149 @@ func envInt(key string, fallback int) int {
 	return n
 }
 
-func cleanupDraftsOnce(ctx context.Context, db *gorm.DB, uploadsDir string, cutoff time.Time) (paymentsDeleted int, invoicesDeleted int, filesDeleted int) {
-	type payRow struct {
-		ID             string
-		ScreenshotPath *string
-	}
-	var payRows []payRow
-	_ = db.WithContext(ctx).Model(&models.Payment{}).
-		Select("id, screenshot_path").
-		Where("is_draft = 1 AND created_at < ?", cutoff).
-		Scan(&payRows).Error
-
-	type invRow struct {
-		ID       string
-		FilePath string
-	}
-	var invRows []invRow
-	_ = db.WithContext(ctx).Model(&models.Invoice{}).
-		Select("id, file_path").
-		Where("is_draft = 1 AND created_at < ?", cutoff).
-		Scan(&invRows).Error
-
-	payIDs := make([]string, 0, len(payRows))
-	for _, r := range payRows {
-		if ctx.Err() != nil {
-			return paymentsDeleted, invoicesDeleted, filesDeleted
-		}
-		payIDs = append(payIDs, strings.TrimSpace(r.ID))
-		if r.ScreenshotPath == nil || strings.TrimSpace(*r.ScreenshotPath) == "" {
-			continue
-		}
-		if removeStoredFile(uploadsDir, strings.TrimSpace(*r.ScreenshotPath)) {
-			filesDeleted++
-		}
+func cleanupDraftsOnce(ctx context.Context, db *gorm.DB, uploadsDir string, cutoff time.Time) (paymentsDeleted int, invoicesDeleted int, filesDeleted int, err error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
-	invIDs := make([]string, 0, len(invRows))
-	for _, r := range invRows {
-		if ctx.Err() != nil {
-			return paymentsDeleted, invoicesDeleted, filesDeleted
-		}
-		invIDs = append(invIDs, strings.TrimSpace(r.ID))
-		if strings.TrimSpace(r.FilePath) == "" {
-			continue
-		}
-		if removeStoredFile(uploadsDir, strings.TrimSpace(r.FilePath)) {
-			filesDeleted++
-		}
-	}
+	var payRows []paymentDraftCleanupRow
+	var invRows []invoiceDraftCleanupRow
+	var attachmentRows []attachmentDraftCleanupRow
 
-	_ = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.Payment{}).
+			Select("id, screenshot_path").
+			Where("is_draft = 1 AND created_at < ?", cutoff).
+			Scan(&payRows).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&models.Invoice{}).
+			Select("id, file_path").
+			Where("is_draft = 1 AND created_at < ?", cutoff).
+			Scan(&invRows).Error; err != nil {
+			return err
+		}
+
+		payIDs := nonEmptyPaymentDraftIDs(payRows)
+		invIDs := nonEmptyInvoiceDraftIDs(invRows)
 		if len(payIDs) > 0 {
-			tx.Where("payment_id IN ?", payIDs).Delete(&models.InvoicePaymentLink{})
-			if err := tx.Where("id IN ?", payIDs).Delete(&models.Payment{}).Error; err == nil {
-				paymentsDeleted = len(payIDs)
+			if err := tx.Where("payment_id IN ?", payIDs).Delete(&models.InvoicePaymentLink{}).Error; err != nil {
+				return err
 			}
+			if err := tx.Where("payment_id IN ?", payIDs).Delete(&models.PaymentOCRBlob{}).Error; err != nil {
+				return err
+			}
+			res := tx.Where("id IN ? AND is_draft = 1 AND created_at < ?", payIDs, cutoff).Delete(&models.Payment{})
+			if res.Error != nil {
+				return res.Error
+			}
+			paymentsDeleted = int(res.RowsAffected)
 		}
 		if len(invIDs) > 0 {
-			tx.Where("invoice_id IN ?", invIDs).Delete(&models.InvoicePaymentLink{})
-			if err := tx.Where("id IN ?", invIDs).Delete(&models.Invoice{}).Error; err == nil {
-				invoicesDeleted = len(invIDs)
+			if err := tx.Model(&models.InvoiceAttachment{}).
+				Select("file_path").
+				Where("invoice_id IN ?", invIDs).
+				Scan(&attachmentRows).Error; err != nil {
+				return err
 			}
+			if err := tx.Where("invoice_id IN ?", invIDs).Delete(&models.InvoicePaymentLink{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("invoice_id IN ?", invIDs).Delete(&models.InvoiceAttachment{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("invoice_id IN ?", invIDs).Delete(&models.InvoiceOCRBlob{}).Error; err != nil {
+				return err
+			}
+			res := tx.Where("id IN ? AND is_draft = 1 AND created_at < ?", invIDs, cutoff).Delete(&models.Invoice{})
+			if res.Error != nil {
+				return res.Error
+			}
+			invoicesDeleted = int(res.RowsAffected)
 		}
 		return nil
 	})
+	if err != nil {
+		return 0, 0, 0, err
+	}
 
-	return paymentsDeleted, invoicesDeleted, filesDeleted
+	var fileErrors []error
+	for _, row := range payRows {
+		if row.ScreenshotPath == nil || strings.TrimSpace(*row.ScreenshotPath) == "" {
+			continue
+		}
+		deleted, removeErr := removeStoredFile(uploadsDir, *row.ScreenshotPath)
+		if deleted {
+			filesDeleted++
+		}
+		if removeErr != nil {
+			fileErrors = append(fileErrors, removeErr)
+		}
+	}
+	for _, row := range invRows {
+		if strings.TrimSpace(row.FilePath) == "" {
+			continue
+		}
+		deleted, removeErr := removeStoredFile(uploadsDir, row.FilePath)
+		if deleted {
+			filesDeleted++
+		}
+		if removeErr != nil {
+			fileErrors = append(fileErrors, removeErr)
+		}
+	}
+	for _, row := range attachmentRows {
+		if strings.TrimSpace(row.FilePath) == "" {
+			continue
+		}
+		deleted, removeErr := removeStoredFile(uploadsDir, row.FilePath)
+		if deleted {
+			filesDeleted++
+		}
+		if removeErr != nil {
+			fileErrors = append(fileErrors, removeErr)
+		}
+	}
+
+	return paymentsDeleted, invoicesDeleted, filesDeleted, errors.Join(fileErrors...)
 }
 
-func removeStoredFile(uploadsDir string, storedPath string) bool {
+func nonEmptyPaymentDraftIDs(rows []paymentDraftCleanupRow) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if id := strings.TrimSpace(row.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func nonEmptyInvoiceDraftIDs(rows []invoiceDraftCleanupRow) []string {
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if id := strings.TrimSpace(row.ID); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func removeStoredFile(uploadsDir string, storedPath string) (bool, error) {
 	p := strings.TrimSpace(storedPath)
 	if p == "" {
-		return false
+		return false, nil
 	}
 	abs := resolveUploadsPathAbs(uploadsDir, p)
 	if abs == "" {
-		return false
+		return false, fmt.Errorf("无效的存储路径: %s", p)
 	}
-	if err := os.Remove(abs); err == nil {
-		return true
+	if err := os.Remove(abs); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("删除草稿文件 %s 失败: %w", abs, err)
 	}
-	return false
+	return true, nil
 }
 
 func resolveUploadsPathAbs(uploadsDir, storedPath string) string {
@@ -168,17 +249,27 @@ func resolveUploadsPathAbs(uploadsDir, storedPath string) string {
 		return ""
 	}
 
-	// Normalize separators for prefix handling.
-	p := strings.ReplaceAll(storedPath, "\\", "/")
-	p = strings.TrimPrefix(p, "/")
-	p = strings.TrimPrefix(p, "uploads/")
-
-	cleanRel := filepath.Clean(p)
-	if cleanRel == "." || cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(os.PathSeparator)) {
+	root, err := filepath.Abs(uploadsDir)
+	if err != nil {
 		return ""
 	}
+	root = filepath.Clean(root)
 
-	abs := filepath.Join(uploadsDir, cleanRel)
-	abs = filepath.Clean(abs)
-	return abs
+	var candidate string
+	if filepath.IsAbs(storedPath) {
+		candidate = filepath.Clean(storedPath)
+	} else {
+		// 数据库存储通常以 uploads/ 开头，落盘时相对于上传目录解析。
+		p := strings.ReplaceAll(storedPath, "\\", "/")
+		p = strings.TrimPrefix(p, "/")
+		p = strings.TrimPrefix(p, "uploads/")
+		candidate = filepath.Join(root, filepath.FromSlash(p))
+		candidate = filepath.Clean(candidate)
+	}
+
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return ""
+	}
+	return candidate
 }

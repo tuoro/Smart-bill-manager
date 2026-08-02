@@ -168,38 +168,3 @@ func findInvoiceCandidatesByInvoiceNumberForOwner(db *gorm.DB, ownerUserID strin
 	}
 	return out, nil
 }
-
-func findInvoiceCandidatesByInvoiceNumber(db *gorm.DB, invoiceNumber string, excludeID string, limit int) ([]DedupCandidate, error) {
-	invoiceNumber = strings.TrimSpace(invoiceNumber)
-	if invoiceNumber == "" {
-		return nil, nil
-	}
-	if limit <= 0 {
-		limit = 5
-	}
-
-	var rows []models.Invoice
-	q := db.Model(&models.Invoice{}).
-		Where("is_draft = 0").
-		Where("invoice_number = ?", invoiceNumber)
-	if strings.TrimSpace(excludeID) != "" {
-		q = q.Where("id <> ?", strings.TrimSpace(excludeID))
-	}
-	if err := q.Order("created_at DESC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	out := make([]DedupCandidate, 0, len(rows))
-	for _, inv := range rows {
-		out = append(out, DedupCandidate{
-			ID:            inv.ID,
-			IsDraft:       inv.IsDraft,
-			Amount:        inv.Amount,
-			InvoiceNumber: inv.InvoiceNumber,
-			InvoiceDate:   inv.InvoiceDate,
-			SellerName:    inv.SellerName,
-			CreatedAt:     inv.CreatedAt,
-		})
-	}
-	return out, nil
-}

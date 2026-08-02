@@ -48,7 +48,7 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 	authService := services.NewAuthService(db, tokenManager)
 	paymentService := services.NewPaymentService(db, uploadsDir)
 	invoiceService := services.NewInvoiceService(db, uploadsDir)
-	emailService := services.NewEmailService(uploadsDir, invoiceService)
+	emailService := services.NewEmailService(db, uploadsDir, invoiceService)
 	tripService := services.NewTripService(db, uploadsDir)
 	taskService := services.NewTaskService(db, paymentService, invoiceService)
 

@@ -1,274 +1,184 @@
 # 智能账单管理系统 (Smart Bill Manager)
 
-一个现代化的账单管理系统：支持支付记录与发票管理（OCR 自动填充）、行程日历归属、邮箱 IMAP 监控与解析。支持多用户隔离账本，管理员可查看全量并代操作（带强制确认）。
+Smart Bill Manager 是一个面向个人与小团队的自托管账单系统，统一管理支付记录、电子发票、差旅行程和邮箱票据。系统支持 OCR 自动提取、多用户账本隔离、管理员代操作和异步任务处理。
 
-## 功能特性
+当前稳定版本：`v0.2.0`。本版本完成了数据正确性、后端分层、前端状态与请求层、测试门禁的渐进式重构，升级说明见 [CHANGELOG.md](CHANGELOG.md)，设计边界见 [架构说明](docs/architecture.md)。
 
-### 认证与用户体系
-- 首次启动：通过 `/setup` 创建管理员账户
-- 关闭公开注册：新增用户通过邀请码注册（管理员创建邀请码）
-- JWT Bearer Token（默认有效期 7 天，可配置）
+## 主要能力
 
-### 多用户（隔离账本 + Admin 可看全量）
-- 数据按 `owner_user_id` 隔离（支付/发票/行程/邮箱配置与日志/OCR 任务等）
-- Admin 可在前端进入“用户”页面进行代操作（act-as）
-- 代操作写请求强制二次确认：后端要求 `X-Act-As-Confirmed: 1`，前端会弹窗确认后自动重试
-- 升级/迁移：旧数据会回填归属到“最早创建的用户”（通常是管理员），避免出现“无 owner”数据
-
-### 文件存储与访问（绝对隔离）
-- 上传文件按用户分目录存储：`uploads/<ownerUserID>/...`
-- 不公开暴露 `/uploads` 静态目录：预览/下载必须走鉴权 API
-  - 支付截图预览：`GET /api/payments/:id/screenshot`
-  - 发票文件预览：`GET /api/invoices/:id/file`
-  - 发票文件下载：`GET /api/invoices/:id/download`
-
-### 支付记录管理
-- 支付记录增删改查、筛选与统计
-- 支付截图上传 + OCR 自动抽取（金额/商家/交易时间/支付方式）
-- 上传先生成草稿（`is_draft=true`），点击保存才进入正式列表/统计
-
-### 发票管理
-- PDF/图片发票上传（支持批量）
-- OCR 自动抽取：发票号码/日期/金额/税额/购销方等
-- 支付与发票关联：
-  - 一张发票最多关联一笔支付
-  - 一笔支付可关联多张发票
-- 智能匹配建议（金额与日期窗口）
-
-### 行程日历（差旅归属）
-- 行程创建、变更、删除（变更后自动重算归属）
-- 自动归属：支付时间唯一命中行程 → 自动归属
-- 行程重叠/不确定：进入“待处理/待分配”，由用户手动分配
-
-### 邮箱监控与解析
-- IMAP 实时监控、手动检查
-- 解析邮件发票：支持 PDF 附件；无附件时会尝试从正文链接提取 **XML/PDF 下载链接**
-- 若 XML 可获取：优先用 XML 抽取字段（通常更完整/更准），并保存 PDF 供预览
+- 支付截图上传、OCR 识别、分类、筛选和统计
+- PDF/图片发票批量上传、字段提取、去重和支付匹配
+- IMAP 邮箱监控、附件及正文票据链接解析
+- 差旅行程归属、待分配处理、报销与坏账状态管理
+- 邀请码注册、多用户数据隔离、管理员代操作二次确认
+- 异步 OCR 任务、任务取消、回归样本管理
+- 鉴权文件预览和下载，上传文件按用户目录隔离
 
 ## 技术栈
 
-### 后端
-- Go 1.24 + Gin
-- SQLite + GORM
-- JWT（Bearer Token）+ bcrypt
-- IMAP：emersion/go-imap + go-message
-- OCR：RapidOCR v3（Python + onnxruntime CPU）
-- PDF：PyMuPDF / poppler-utils（`pdftotext`/`pdftoppm`）
-
-### 前端
-- Vue 3 + TypeScript + Vite
-- PrimeVue + PrimeFlex + PrimeIcons
-- Pinia + Vue Router + Axios
-- ECharts / Vue-ECharts
+- 后端：Go 1.24、Gin、GORM、SQLite、JWT、emersion/go-imap
+- 前端：Vue 3、TypeScript、Vite、Pinia、PrimeVue、Axios、ECharts
+- OCR/PDF：RapidOCR v3、ONNX Runtime、PyMuPDF、Poppler
+- 部署：Nginx、Supervisor、Docker Compose、GitHub Actions、GHCR
 
 ## 快速开始
 
-### 方式一：Docker Compose（推荐）
+### Docker Compose
 
-使用仓库自带的 `docker-compose.yml`：
+首次部署先创建环境文件，并为 `JWT_SECRET` 填写至少 32 个字符的持久密钥：
 
 ```bash
+cp .env.example .env
+openssl rand -hex 32
 docker compose up -d --build
 ```
 
-访问 http://localhost。
+Windows PowerShell 可使用 `Copy-Item .env.example .env`。启动后访问 <http://localhost>，首次进入 `/setup` 创建管理员账户。
 
-数据默认持久化到两个卷：
-- `app-data`：数据库与 OCR 缓存（如 RapidOCR 模型）
-- `app-uploads`：上传文件（按用户隔离目录）
+默认持久化卷：
 
-### 方式二：预构建镜像
+- `app-data`：SQLite 数据库、邮箱密码加密密钥和 OCR 模型缓存
+- `app-uploads`：支付截图、发票和邮件附件
+
+查看运行状态：
 
 ```bash
-docker pull ghcr.io/tuoro/smart-bill-manager:latest
+docker compose ps
+docker compose logs -f smart-bill-manager
+```
+
+### 预构建镜像
+
+```bash
+docker pull ghcr.io/tuoro/smart-bill-manager:0.2.0
 docker run -d --name smart-bill-manager -p 80:80 \
   -e NODE_ENV=production \
-  -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e JWT_SECRET="replace-with-a-persistent-32-char-secret" \
   -e SBM_OCR_DATA_DIR=/app/backend/data \
   -e SBM_OCR_WORKER=1 \
   -e SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
-  ghcr.io/tuoro/smart-bill-manager:latest
+  ghcr.io/tuoro/smart-bill-manager:0.2.0
 ```
 
-### 首次初始化与新增用户
+生产环境必须持久保存 `JWT_SECRET`，不要在每次启动时重新生成，否则已有登录会话会全部失效。
 
-1. 首次打开会进入 Setup 页面：创建管理员账号
-2. 管理员登录后，在“邀请码管理”创建邀请码
-3. 新用户使用邀请码在注册页完成注册（系统不开放公开注册）
+## 从 v0.1.0 升级
 
-## 环境变量（常用）
+升级前先备份两个持久卷，至少应保存 `bills.db`、`email_password.key` 和整个上传目录。Compose 会为卷名添加项目名前缀，最稳妥的方式是停止服务后从现有容器复制数据：
 
-### 服务与路径
-- `PORT=3001`：后端端口（容器内由 Nginx 反代到 80）
-- `NODE_ENV=production|development`
-- `DATA_DIR=./data`：SQLite 数据目录
-- `UPLOADS_DIR=./uploads`：上传目录
+```bash
+docker compose stop
+mkdir -p backup-v0.1.0
+docker cp smart-bill-manager:/app/backend/data ./backup-v0.1.0/data
+docker cp smart-bill-manager:/app/backend/uploads ./backup-v0.1.0/uploads
+```
 
-### JWT
-- `JWT_SECRET`：JWT 签名密钥，至少 32 个字符；生产环境必填，开发环境缺省时会生成临时密钥
-- `JWT_EXPIRES_IN=168h`：token 有效期（默认 7 天）
-- `CORS_ALLOWED_ORIGINS`：跨域来源白名单，多个来源用英文逗号分隔；同源部署无需配置
+然后拉取并重建：
 
-### 草稿清理
-- `SBM_DRAFT_TTL_HOURS=6`
-- `SBM_DRAFT_CLEANUP_INTERVAL_MINUTES=15`
+```bash
+git pull --ff-only
+docker compose up -d --build
+```
 
-### OCR（RapidOCR v3，CPU）
-- `SBM_OCR_ENGINE=rapidocr`（默认）
-- `SBM_OCR_WORKER=1`（推荐：保持常驻 worker，避免每次启动 Python）
-- `SBM_OCR_DATA_DIR=/app/backend/data`（推荐：持久化 RapidOCR 模型缓存到 `$SBM_OCR_DATA_DIR/rapidocr-models/`）
-- `SBM_PDF_TEXT_EXTRACTOR=pymupdf|off`（默认 `pymupdf`）
-- `SBM_PDF_TEXT_LAYOUT=zones|ordered|raw`（默认 `zones`，仅对 PyMuPDF 提取生效）
-- `SBM_PDF_OCR_DPI=220`（可选，建议 `120-450`）
-- `SBM_INVOICE_PARTY_ROI=auto|true|false`（默认 `auto`）
-- `SBM_INVOICE_TOTAL_ROI=auto|true|false`（默认 `auto`，仅当价税合计/税额缺失时做 ROI 补充识别）
-- `SBM_OCR_DEBUG=true`（可选）
+服务启动时会自动执行版本化迁移：
 
-### 异步 OCR 任务（Task Worker）
-- `SBM_TASK_PROCESSING_TTL_SECONDS=3600`
-- `SBM_TASK_REAPER_INTERVAL_SECONDS=30`
-- `SBM_TASK_IDLE_MIN_MS=200`
-- `SBM_TASK_IDLE_MAX_MS=5000`
+1. 创建并校验 `schema_migrations` 记录；
+2. 回填旧数据所有者、时间索引字段和 OCR 拆分数据；
+3. 将金额转换并校验为整数分字段；
+4. 每个数据迁移在独立事务内执行，失败时服务拒绝启动。
 
-### 回归样本
-- `SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression`
+迁移不会自动创建外部备份。新旧金额字段在 v0.2.0 中继续双写以保留兼容窗口，但正式回退前仍必须恢复已验证的备份。
 
-## 去重与疑似重复
+## 常用配置
 
-- 强去重：上传时对文件计算 `SHA-256`；若哈希重复，接口返回 `409`
-- 疑似重复：保存时提示，可在确认后强制保存
-  - `PUT /api/invoices/:id` / `PUT /api/payments/:id`：`confirm=true` 且 `force_duplicate_save=true`
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `PORT` | `3001` | 后端监听端口 |
+| `NODE_ENV` | `development` | 生产环境必须设为 `production` |
+| `JWT_SECRET` | 无 | 生产环境必填，至少 32 个字符 |
+| `JWT_EXPIRES_IN` | `168h` | JWT 有效期 |
+| `CORS_ALLOWED_ORIGINS` | 开发地址 | 跨域来源白名单，生产环境禁止 `*` |
+| `DATA_DIR` | `./data` | SQLite 和本地密钥目录 |
+| `UPLOADS_DIR` | `./uploads` | 上传文件根目录 |
+| `SBM_OCR_WORKER` | `0` | 设为 `1` 启用常驻 OCR worker |
+| `SBM_OCR_DATA_DIR` | 无 | OCR 模型缓存目录 |
+| `SBM_PDF_TEXT_EXTRACTOR` | `pymupdf` | PDF 文本提取器，可设为 `off` |
+| `SBM_DRAFT_TTL_HOURS` | `6` | 草稿保留时间，`0` 表示禁用清理 |
+| `SBM_DRAFT_CLEANUP_INTERVAL_MINUTES` | `15` | 草稿清理周期 |
+| `SBM_TASK_PROCESSING_TTL_SECONDS` | `3600` | 处理中任务超时 |
+
+邮箱密码默认使用 `DATA_DIR/email_password.key` 加密。也可通过 `SBM_EMAIL_PASSWORD_KEY` 或 `SBM_EMAIL_PASSWORD_KEY_FILE` 提供稳定密钥；更换或丢失密钥会导致已保存的邮箱密码无法解密。
 
 ## 本地开发
 
-环境要求：Go >= 1.21、Node.js >= 18、Python 3（RapidOCR）。
+环境要求：Go 1.24、Node.js 24、npm、Python 3；完整 SQLite 测试还需要 C 编译器，因为驱动依赖 CGO。
+
+后端：
 
 ```bash
 cd backend-go
 go mod download
 go run ./cmd/server
+```
 
-cd ../frontend
+前端会把 `/api` 代理到 `http://localhost:3001`：
+
+```bash
+cd frontend
 npm ci
 npm run dev
 ```
 
-前端开发地址：http://localhost:5173
+访问 <http://localhost:5173>。
 
-## QQ 邮箱配置说明
+## 质量检查
 
-1. 登录 QQ 邮箱网页版
-2. 「设置」→「账户」→ 开启「IMAP/SMTP 服务」
-3. 生成授权码
-4. 在系统中添加邮箱配置：
-   - IMAP：`imap.qq.com`
-   - 端口：`993`
-   - 密码：使用授权码（不是 QQ 密码）
+```bash
+cd backend-go
+CGO_ENABLED=1 go test -count=1 -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out
+go vet ./...
+
+cd ../frontend
+npm run lint:ci
+npm run test:run
+npm run build
+```
+
+CI 要求前端 ESLint 零警告、后端整体覆盖率不低于 25%，并完成统一 Docker 镜像构建。v0.2.0 的后端整体语句覆盖率为 35.8%；处理器层覆盖仍偏低，不能将整体数字理解为所有接口都已充分覆盖。
 
 ## 项目结构
 
-```
+```text
 Smart-bill-manager/
-├── backend-go/                  # Go 后端
-│   ├── cmd/server/main.go       # 应用入口
-│   ├── internal/
-│   │   ├── config/              # 配置
-│   │   ├── models/              # 数据模型
-│   │   ├── handlers/            # HTTP 接口
-│   │   ├── services/            # 业务逻辑（OCR/支付/发票/行程等）
-│   │   ├── middleware/          # 中间件
-│   │   ├── repository/          # 数据访问
-│   │   └── utils/               # 工具
-│   ├── pkg/database/            # 数据库连接
-│   └── ...
-├── frontend/                    # Vue 前端
-│   ├── src/
-│   │   ├── router/              # 路由
-│   │   ├── stores/              # Pinia
-│   │   ├── views/               # 页面
-│   │   ├── components/          # 复用组件
-│   │   ├── api/                 # API 封装
-│   │   └── types/               # TS 类型
-│   └── ...
-├── scripts/                     # 辅助脚本
-│   ├── ocr_cli.py               # 调用 RapidOCR（含模型自动下载/校验）
-│   ├── ocr_worker.py            # 常驻 OCR worker（可选）
-│   └── pdf_text_cli.py          # PDF 文本提取调试
-├── default_models.yaml          # RapidOCR 默认模型列表（含哈希校验）
-├── Dockerfile                   # 前后端统一镜像
-├── docker-compose.yml           # Compose 部署
-├── nginx.conf                   # 统一 Nginx 配置
-├── supervisord.conf             # 进程管理配置
-└── README.md
+|- backend-go/
+|  |- cmd/                 # 服务与辅助命令入口
+|  |- internal/app/        # 应用装配和生命周期
+|  |- internal/handlers/   # HTTP 适配层
+|  |- internal/services/   # 业务与事务编排
+|  |- internal/repository/ # 数据访问
+|  |- internal/migrations/ # 版本化迁移
+|  `- pkg/database/        # SQLite 连接
+|- frontend/src/
+|  |- api/                 # 请求客户端、存储和领域 API
+|  |- stores/              # 跨页面会话状态
+|  |- composables/         # 可复用异步流程
+|  |- components/          # 领域组件
+|  `- views/               # 路由页面
+|- docs/architecture.md
+|- Dockerfile
+`- docker-compose.yml
 ```
 
-## API 接口（概览）
+## 安全边界
 
-### 支付记录
-- `GET /api/payments`
-- `GET /api/payments/stats`
-- `GET /api/payments/:id`
-- `GET /api/payments/:id/screenshot`
-- `GET /api/payments/:id/invoices`
-- `GET /api/payments/:id/suggest-invoices`
-- `POST /api/payments`
-- `POST /api/payments/upload-screenshot`
-- `POST /api/payments/upload-screenshot-async`
-- `POST /api/payments/upload-screenshot/cancel`
-- `POST /api/payments/:id/reparse`
-- `PUT /api/payments/:id`
-- `DELETE /api/payments/:id`
-
-### 发票管理
-- `GET /api/invoices`
-- `GET /api/invoices/stats`
-- `GET /api/invoices/unlinked`
-- `GET /api/invoices/:id`
-- `GET /api/invoices/:id/file`
-- `GET /api/invoices/:id/download`
-- `GET /api/invoices/:id/linked-payments`
-- `GET /api/invoices/:id/suggest-payments`
-- `POST /api/invoices/upload`
-- `POST /api/invoices/upload-async`
-- `POST /api/invoices/upload-multiple`
-- `POST /api/invoices/upload-multiple-async`
-- `POST /api/invoices/:id/link-payment`
-- `DELETE /api/invoices/:id/unlink-payment`
-- `POST /api/invoices/:id/parse`
-- `PUT /api/invoices/:id`
-- `DELETE /api/invoices/:id`
-
-### 邮箱
-- `GET /api/email/configs`
-- `POST /api/email/configs`
-- `PUT /api/email/configs/:id`
-- `DELETE /api/email/configs/:id`
-- `GET /api/email/logs`
-- `POST /api/email/logs/:id/parse`
-- `POST /api/email/test`
-- `POST /api/email/monitor/start/:id`
-- `POST /api/email/monitor/stop/:id`
-- `GET /api/email/monitor/status`
-- `POST /api/email/check/:id`
-
-### 行程
-- `GET /api/trips`
-- `POST /api/trips`
-- `PUT /api/trips/:id`
-- `DELETE /api/trips/:id`
-
-### 任务（异步 OCR）
-- `GET /api/tasks/:id`
-- `POST /api/tasks/:id/cancel`
-
-### 管理员
-- `GET /api/admin/users`
-- `GET/POST/DELETE /api/admin/invites`
-- `GET/POST /api/admin/regression-samples/...`
-- `GET /api/logs` / `GET /api/logs/stream`
+- 所有业务数据按 `owner_user_id` 查询，管理员代操作写请求必须二次确认。
+- 上传目录不作为公开静态目录；预览和下载必须经过鉴权接口。
+- API 的 5xx 响应不返回内部错误详情，完整原因只写服务端日志。
+- 生产环境拒绝空或过短的 JWT 密钥，也拒绝通配 CORS。
 
 ## License
 
-MIT License - 详见 [LICENSE](LICENSE)
+MIT License，详见 [LICENSE](LICENSE)。

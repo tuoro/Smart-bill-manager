@@ -45,7 +45,7 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 		return nil, fmt.Errorf("初始化 JWT 管理器失败: %w", err)
 	}
 
-	authService := services.NewAuthService(tokenManager)
+	authService := services.NewAuthService(db, tokenManager)
 	paymentService := services.NewPaymentService(uploadsDir)
 	invoiceService := services.NewInvoiceService(uploadsDir)
 	emailService := services.NewEmailService(uploadsDir, invoiceService)

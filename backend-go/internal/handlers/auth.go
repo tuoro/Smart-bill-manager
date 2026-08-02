@@ -81,7 +81,7 @@ func (h *AuthHandler) InviteRegister(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.RegisterWithInvite(input.InviteCode, input.Username, input.Password, input.Email)
+	result, err := h.authService.RegisterWithInviteCtx(c.Request.Context(), input.InviteCode, input.Username, input.Password, input.Email)
 	if err != nil {
 		utils.Error(c, 500, "注册失败，请稍后重试", err)
 		return
@@ -106,7 +106,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.Login(input.Username, input.Password)
+	result, err := h.authService.LoginCtx(c.Request.Context(), input.Username, input.Password)
 	if err != nil {
 		utils.Error(c, 500, "登录失败，请稍后重试", err)
 		return
@@ -181,7 +181,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.UpdatePassword(userID, input.OldPassword, input.NewPassword)
+	result, err := h.authService.UpdatePasswordCtx(c.Request.Context(), userID, input.OldPassword, input.NewPassword)
 	if err != nil {
 		utils.Error(c, 500, "修改密码失败，请稍后重试", err)
 		return
@@ -234,7 +234,7 @@ func (h *AuthHandler) SetupAdmin(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.CreateInitialAdmin(input.Username, input.Password, input.Email)
+	result, err := h.authService.CreateInitialAdminCtx(c.Request.Context(), input.Username, input.Password, input.Email)
 	if err != nil {
 		utils.Error(c, 500, "初始化失败，请稍后重试", err)
 		return

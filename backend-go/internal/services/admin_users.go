@@ -10,7 +10,6 @@ import (
 	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 var (
@@ -132,7 +131,7 @@ func (s *AuthService) DeleteUserCtx(ctx context.Context, actorUserID, targetUser
 	}
 
 	out := &DeleteUserResult{UserID: targetUserID}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		// Links must be deleted first.
 		res := tx.Exec(

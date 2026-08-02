@@ -2,30 +2,58 @@
   <div class="sbm-auth-bg">
     <div class="sbm-auth-card sbm-surface">
       <div class="header">
-        <h2 class="sbm-auth-title">&#128176; &#21021;&#22987;&#21270;&#35774;&#32622;</h2>
-        <p class="subtitle">&#27426;&#36814;&#20351;&#29992;&#26234;&#33021;&#36134;&#21333;&#31649;&#29702;&#31995;&#32479;</p>
-        <p class="desc">&#35831;&#21019;&#24314;&#31649;&#29702;&#21592;&#36134;&#25143;&#20197;&#24320;&#22987;&#20351;&#29992;</p>
+        <h2 class="sbm-auth-title">
+          &#128176; &#21021;&#22987;&#21270;&#35774;&#32622;
+        </h2>
+        <p class="subtitle">
+          &#27426;&#36814;&#20351;&#29992;&#26234;&#33021;&#36134;&#21333;&#31649;&#29702;&#31995;&#32479;
+        </p>
+        <p class="desc">
+          &#35831;&#21019;&#24314;&#31649;&#29702;&#21592;&#36134;&#25143;&#20197;&#24320;&#22987;&#20351;&#29992;
+        </p>
       </div>
 
-      <form class="p-fluid" @submit.prevent="handleSetup">
+      <form
+        class="p-fluid"
+        @submit.prevent="handleSetup"
+      >
         <div class="field">
-          <label class="sbm-field-label" for="username">&#29992;&#25143;&#21517;</label>
-          <InputText id="username" v-model.trim="form.username" autocomplete="username" />
-          <small v-if="errors.username" class="p-error">{{ errors.username }}</small>
+          <label
+            class="sbm-field-label"
+            for="username"
+          >&#29992;&#25143;&#21517;</label>
+          <InputText
+            id="username"
+            v-model.trim="form.username"
+            autocomplete="username"
+          />
+          <small
+            v-if="errors.username"
+            class="p-error"
+          >{{ errors.username }}</small>
         </div>
 
         <div class="field">
-          <label class="sbm-field-label" for="password">&#23494;&#30721;</label>
+          <label
+            class="sbm-field-label"
+            for="password"
+          >&#23494;&#30721;</label>
           <Password
             id="password"
             v-model="form.password"
-            toggleMask
+            toggle-mask
             :feedback="false"
             autocomplete="new-password"
             @input="updatePasswordStrength"
           />
-          <small v-if="errors.password" class="p-error">{{ errors.password }}</small>
-          <div v-if="form.password" class="password-strength">
+          <small
+            v-if="errors.password"
+            class="p-error"
+          >{{ errors.password }}</small>
+          <div
+            v-if="form.password"
+            class="password-strength"
+          >
             <span :class="['strength-indicator', passwordStrength.level]">
               &#23494;&#30721;&#24378;&#24230;: {{ passwordStrength.text }}
             </span>
@@ -33,18 +61,29 @@
         </div>
 
         <div class="field">
-          <label class="sbm-field-label" for="confirmPassword">&#30830;&#35748;&#23494;&#30721;</label>
+          <label
+            class="sbm-field-label"
+            for="confirmPassword"
+          >&#30830;&#35748;&#23494;&#30721;</label>
           <Password
             id="confirmPassword"
             v-model="form.confirmPassword"
-            toggleMask
+            toggle-mask
             :feedback="false"
             autocomplete="new-password"
           />
-          <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
+          <small
+            v-if="errors.confirmPassword"
+            class="p-error"
+          >{{ errors.confirmPassword }}</small>
         </div>
 
-        <Button type="submit" class="submit-btn" :label="'\u521B\u5EFA\u7BA1\u7406\u5458\u8D26\u6237'" :loading="authStore.loading" />
+        <Button
+          type="submit"
+          class="submit-btn"
+          :label="'\u521B\u5EFA\u7BA1\u7406\u5458\u8D26\u6237'"
+          :loading="authStore.loading"
+        />
       </form>
     </div>
   </div>

@@ -30,71 +30,154 @@
               :disabled="loading || !selectMode || selected.length === 0"
               @click="onDeleteSelectedClick"
             />
-            <Button class="p-button-outlined" icon="pi pi-refresh" label="刷新" :disabled="loading" @click="reload" />
+            <Button
+              class="p-button-outlined"
+              icon="pi pi-refresh"
+              label="刷新"
+              :disabled="loading"
+              @click="reload"
+            />
           </div>
         </div>
       </template>
       <template #content>
-        <Message v-if="!isAdmin" severity="warn" :closable="false">仅管理员可访问</Message>
+        <Message
+          v-if="!isAdmin"
+          severity="warn"
+          :closable="false"
+        >
+          仅管理员可访问
+        </Message>
 
-        <div v-else class="content">
+        <div
+          v-else
+          class="content"
+        >
           <div class="list-toolbar">
-            <SelectButton v-model="kindFilter" :options="kindOptions" optionLabel="label" optionValue="value" />
-            <SelectButton v-model="originFilter" :options="originOptions" optionLabel="label" optionValue="value" />
+            <SelectButton
+              v-model="kindFilter"
+              :options="kindOptions"
+              option-label="label"
+              option-value="value"
+            />
+            <SelectButton
+              v-model="originFilter"
+              :options="originOptions"
+              option-label="label"
+              option-value="value"
+            />
             <span class="spacer" />
           </div>
 
           <DataTable
+            v-model:selection="selected"
             class="samples-table sbm-dt-fixed"
             :value="items"
             :loading="loading"
-            responsiveLayout="scroll"
-            :tableStyle="samplesTableStyle"
+            responsive-layout="scroll"
+            :table-style="samplesTableStyle"
             :paginator="true"
             :rows="limit"
             :first="offset"
-            :rowsPerPageOptions="[10, 20, 50, 100]"
-            paginatorTemplate="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
-            currentPageReportTemplate="共 {totalRecords} 条"
-            :totalRecords="total"
+            :rows-per-page-options="[10, 20, 50, 100]"
+            paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+            current-page-report-template="共 {totalRecords} 条"
+            :total-records="total"
             lazy
-            dataKey="id"
-            v-model:selection="selected"
+            data-key="id"
             @page="onPage"
           >
-            <Column v-if="selectMode" selectionMode="multiple" :style="{ width: '48px' }" />
-            <Column field="origin" header="来源" :style="{ width: '10%', minWidth: '90px' }">
+            <Column
+              v-if="selectMode"
+              selection-mode="multiple"
+              :style="{ width: '48px' }"
+            />
+            <Column
+              field="origin"
+              header="来源"
+              :style="{ width: '10%', minWidth: '90px' }"
+            >
               <template #body="{ data: row }">
                 <span class="dt-nowrap">
-                  <Tag v-if="row.origin === 'repo'" severity="secondary" value="云端" />
-                  <Tag v-else severity="info" value="本地" />
+                  <Tag
+                    v-if="row.origin === 'repo'"
+                    severity="secondary"
+                    value="云端"
+                  />
+                  <Tag
+                    v-else
+                    severity="info"
+                    value="本地"
+                  />
                 </span>
               </template>
             </Column>
-            <Column field="kind" header="类型" :style="{ width: '12%', minWidth: '120px' }">
+            <Column
+              field="kind"
+              header="类型"
+              :style="{ width: '12%', minWidth: '120px' }"
+            >
               <template #body="{ data: row }">
                 <span class="dt-nowrap">
-                  <Tag v-if="row.kind === 'payment_screenshot'" severity="info" value="支付截图" />
-                  <Tag v-else-if="row.kind === 'invoice'" severity="success" value="发票" />
-                  <Tag v-else severity="secondary" :value="row.kind" />
+                  <Tag
+                    v-if="row.kind === 'payment_screenshot'"
+                    severity="info"
+                    value="支付截图"
+                  />
+                  <Tag
+                    v-else-if="row.kind === 'invoice'"
+                    severity="success"
+                    value="发票"
+                  />
+                  <Tag
+                    v-else
+                    severity="secondary"
+                    :value="row.kind"
+                  />
                 </span>
               </template>
             </Column>
-            <Column field="name" header="名称" :style="{ width: '20%', minWidth: '200px' }">
+            <Column
+              field="name"
+              header="名称"
+              :style="{ width: '20%', minWidth: '200px' }"
+            >
               <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.name">{{ row.name }}</span>
+                <span
+                  class="sbm-ellipsis"
+                  :title="row.name"
+                >{{ row.name }}</span>
               </template>
             </Column>
-            <Column field="source_id" header="来源ID" :style="{ width: '26%', minWidth: '240px' }">
+            <Column
+              field="source_id"
+              header="来源ID"
+              :style="{ width: '26%', minWidth: '240px' }"
+            >
               <template #body="{ data: row }">
-                <span class="mono sbm-ellipsis" :title="String(row?.source_id || '')">{{ displaySourceId(row) }}</span>
+                <span
+                  class="mono sbm-ellipsis"
+                  :title="String(row?.source_id || '')"
+                >{{ displaySourceId(row) }}</span>
               </template>
             </Column>
-            <Column field="created_at" header="创建时间" :style="{ width: '16%', minWidth: '170px' }">
-              <template #body="{ data: row }"><span class="dt-nowrap">{{ formatDateTime(row.created_at) }}</span></template>
+            <Column
+              field="created_at"
+              header="创建时间"
+              :style="{ width: '16%', minWidth: '170px' }"
+            >
+              <template #body="{ data: row }">
+                <span class="dt-nowrap">{{ formatDateTime(row.created_at) }}</span>
+              </template>
             </Column>
-            <Column field="updated_at" header="更新时间" :style="{ width: '16%', minWidth: '170px' }">
-              <template #body="{ data: row }"><span class="dt-nowrap">{{ formatDateTime(row.updated_at) }}</span></template>
+            <Column
+              field="updated_at"
+              header="更新时间"
+              :style="{ width: '16%', minWidth: '170px' }"
+            >
+              <template #body="{ data: row }">
+                <span class="dt-nowrap">{{ formatDateTime(row.updated_at) }}</span>
+              </template>
             </Column>
           </DataTable>
         </div>

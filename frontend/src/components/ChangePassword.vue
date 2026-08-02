@@ -5,20 +5,26 @@
     :header="'\u4FEE\u6539\u5BC6\u7801'"
     :style="{ width: '520px', maxWidth: '92vw' }"
     :closable="!loading"
-    :closeOnEscape="!loading"
+    :close-on-escape="!loading"
     @hide="handleClose"
   >
-    <form class="p-fluid" @submit.prevent="handleSubmit">
+    <form
+      class="p-fluid"
+      @submit.prevent="handleSubmit"
+    >
       <div class="field">
         <label for="oldPassword">&#21407;&#23494;&#30721;</label>
         <Password
           id="oldPassword"
           v-model="form.oldPassword"
-          toggleMask
+          toggle-mask
           :feedback="false"
           autocomplete="current-password"
         />
-        <small v-if="errors.oldPassword" class="p-error">{{ errors.oldPassword }}</small>
+        <small
+          v-if="errors.oldPassword"
+          class="p-error"
+        >{{ errors.oldPassword }}</small>
       </div>
 
       <div class="field">
@@ -26,13 +32,19 @@
         <Password
           id="newPassword"
           v-model="form.newPassword"
-          toggleMask
+          toggle-mask
           :feedback="false"
           autocomplete="new-password"
           @input="updatePasswordStrength"
         />
-        <small v-if="errors.newPassword" class="p-error">{{ errors.newPassword }}</small>
-        <div v-if="form.newPassword" class="password-strength">
+        <small
+          v-if="errors.newPassword"
+          class="p-error"
+        >{{ errors.newPassword }}</small>
+        <div
+          v-if="form.newPassword"
+          class="password-strength"
+        >
           <span :class="['strength-indicator', passwordStrength.level]">
             &#23494;&#30721;&#24378;&#24230;: {{ passwordStrength.text }}
           </span>
@@ -44,11 +56,14 @@
         <Password
           id="confirmPassword"
           v-model="form.confirmPassword"
-          toggleMask
+          toggle-mask
           :feedback="false"
           autocomplete="new-password"
         />
-        <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
+        <small
+          v-if="errors.confirmPassword"
+          class="p-error"
+        >{{ errors.confirmPassword }}</small>
       </div>
 
       <div class="footer">
@@ -60,7 +75,11 @@
           :disabled="loading"
           @click="handleClose"
         />
-        <Button type="submit" :label="'\u786E\u5B9A\u4FEE\u6539'" :loading="loading" />
+        <Button
+          type="submit"
+          :label="'\u786E\u5B9A\u4FEE\u6539'"
+          :loading="loading"
+        />
       </div>
     </form>
   </Dialog>

@@ -22,15 +22,26 @@
       <template #content>
         <Tabs v-model:value="activeTab">
           <TabList>
-            <Tab value="trips">按行程</Tab>
-            <Tab value="pending">待分配</Tab>
-            <Tab value="calendar">日历</Tab>
+            <Tab value="trips">
+              按行程
+            </Tab>
+            <Tab value="pending">
+              待分配
+            </Tab>
+            <Tab value="calendar">
+              日历
+            </Tab>
           </TabList>
 
           <TabPanels>
             <TabPanel value="trips">
-              <div v-if="trips.length === 0" class="empty">
-                <div class="empty-title">暂无行程</div>
+              <div
+                v-if="trips.length === 0"
+                class="empty"
+              >
+                <div class="empty-title">
+                  暂无行程
+                </div>
                 <div class="empty-sub">
                   创建一个行程后，系统会自动归属该时间段的支付记录；如遇行程重叠会进入“待分配”。
                 </div>
@@ -41,15 +52,18 @@
                 />
               </div>
 
-              <div v-else class="trip-list">
+              <div
+                v-else
+                class="trip-list"
+              >
                 <div class="trip-list-toolbar">
                   <small class="muted">共 {{ tripListTotal }} 个行程</small>
                   <div class="trip-list-toolbar-actions">
                     <Dropdown
                       v-model="exportTripSelection"
                       :options="tripExportOptions"
-                      optionLabel="label"
-                      optionValue="value"
+                      option-label="label"
+                      option-value="value"
                       placeholder="选择行程"
                       filter
                       class="trip-export-dropdown"
@@ -71,7 +85,10 @@
                   @tab-open="handleTripOpen"
                   @tab-close="handleTripClose"
                 >
-                  <AccordionTab v-for="trip in pagedTrips" :key="trip.id">
+                  <AccordionTab
+                    v-for="trip in pagedTrips"
+                    :key="trip.id"
+                  >
                     <template #header>
                       <div class="trip-header">
                         <div class="trip-title">
@@ -184,16 +201,19 @@
                       <DataTable
                         :value="tripOrders[trip.id]?.ordered || tripPayments[trip.id] || []"
                         :loading="loadingPaymentsTripId === trip.id"
-                        responsiveLayout="scroll"
+                        responsive-layout="scroll"
                         :paginator="true"
                         :rows="tripTableRows"
-                        :rowsPerPageOptions="[10, 20, 50]"
+                        :rows-per-page-options="[10, 20, 50]"
                         class="trip-table"
                         :pt="tableScrollPt"
-                        :tableStyle="tripTableStyle"
+                        :table-style="tripTableStyle"
                         @page="onTripTablePage"
                       >
-                        <Column header="序号" :style="{ width: '84px' }">
+                        <Column
+                          header="序号"
+                          :style="{ width: '84px' }"
+                        >
                           <template #body="{ data: row }">
                             <span class="sbm-mono">{{
                               getPaymentSeq(trip.id, row.id) || "-"
@@ -216,17 +236,18 @@
                             <span
                               class="sbm-ellipsis"
                               :title="row.merchant || '-'"
-                              >{{ row.merchant || "-" }}</span
-                            >
+                            >{{ row.merchant || "-" }}</span>
                           </template>
                         </Column>
-                        <Column header="支付方式" :style="{ width: '180px' }">
+                        <Column
+                          header="支付方式"
+                          :style="{ width: '180px' }"
+                        >
                           <template #body="{ data: row }">
                             <span
                               class="sbm-ellipsis"
                               :title="row.payment_method || '-'"
-                              >{{ row.payment_method || "-" }}</span
-                            >
+                            >{{ row.payment_method || "-" }}</span>
                           </template>
                         </Column>
                         <Column
@@ -238,7 +259,10 @@
                             {{ formatDateTime(row.transaction_time) }}
                           </template>
                         </Column>
-                        <Column header="坏账" :style="{ width: '84px' }">
+                        <Column
+                          header="坏账"
+                          :style="{ width: '84px' }"
+                        >
                           <template #body="{ data: row }">
                             <Button
                               size="small"
@@ -289,12 +313,14 @@
                                   !row.invoices || row.invoices.length === 0
                                 "
                                 class="muted"
-                                >-</span
-                              >
+                              >-</span>
                             </div>
                           </template>
                         </Column>
-                        <Column header="操作" :style="{ width: '220px' }">
+                        <Column
+                          header="操作"
+                          :style="{ width: '220px' }"
+                        >
                           <template #body="{ data: row }">
                             <div class="row-actions">
                               <Button
@@ -323,8 +349,8 @@
                 <Paginator
                   :first="tripListFirst"
                   :rows="tripListRows"
-                  :totalRecords="tripListTotal"
-                  :rowsPerPageOptions="[5, 10, 20, 50]"
+                  :total-records="tripListTotal"
+                  :rows-per-page-options="[5, 10, 20, 50]"
                   @page="onTripListPage"
                 />
               </div>
@@ -341,26 +367,37 @@
                   />
                 </div>
 
-                <div v-if="pendingPayments.length === 0" class="empty">
-                  <div class="empty-title">暂无待分配</div>
+                <div
+                  v-if="pendingPayments.length === 0"
+                  class="empty"
+                >
+                  <div class="empty-title">
+                    暂无待分配
+                  </div>
                   <div class="empty-sub">
                     当支付时间同时命中多个行程，或你手动将支付记录从行程中移除时，会出现在这里等待你选择归属。
                   </div>
                 </div>
 
-                <div v-else class="sbm-dt-hscroll">
+                <div
+                  v-else
+                  class="sbm-dt-hscroll"
+                >
                   <DataTable
                     :value="pendingPayments"
-                    responsiveLayout="scroll"
+                    responsive-layout="scroll"
                     :paginator="true"
                     :rows="pendingTableRows"
-                    :rowsPerPageOptions="[10, 20, 50]"
+                    :rows-per-page-options="[10, 20, 50]"
                     class="pending-table"
                     :pt="tableScrollPt"
-                    :tableStyle="tripTableStyle"
+                    :table-style="tripTableStyle"
                     @page="onPendingTablePage"
                   >
-                    <Column header="金额" :style="{ width: '120px' }">
+                    <Column
+                      header="金额"
+                      :style="{ width: '120px' }"
+                    >
                       <template #body="{ data: row }">
                         <span class="amount">{{
                           formatMoney(row.payment.amount)
@@ -372,16 +409,23 @@
                         <span
                           class="sbm-ellipsis"
                           :title="row.payment.merchant || '-'"
-                          >{{ row.payment.merchant || "-" }}</span
-                        >
+                        >{{ row.payment.merchant || "-" }}</span>
                       </template>
                     </Column>
-                    <Column header="支付时间" :style="{ width: '180px' }">
-                      <template #body="{ data: row }">{{
-                        formatDateTime(row.payment.transaction_time)
-                      }}</template>
+                    <Column
+                      header="支付时间"
+                      :style="{ width: '180px' }"
+                    >
+                      <template #body="{ data: row }">
+                        {{
+                          formatDateTime(row.payment.transaction_time)
+                        }}
+                      </template>
                     </Column>
-                    <Column header="候选行程" :style="{ width: '320px' }">
+                    <Column
+                      header="候选行程"
+                      :style="{ width: '320px' }"
+                    >
                       <template #body="{ data: row }">
                         <Dropdown
                           v-model="pendingSelection[row.payment.id]"
@@ -391,15 +435,18 @@
                               value: t.id,
                             }))
                           "
-                          optionLabel="label"
-                          optionValue="value"
+                          option-label="label"
+                          option-value="value"
                           placeholder="请选择归属行程"
                           filter
                           class="pending-dropdown"
                         />
                       </template>
                     </Column>
-                    <Column header="操作" :style="{ width: '220px' }">
+                    <Column
+                      header="操作"
+                      :style="{ width: '220px' }"
+                    >
                       <template #body="{ data: row }">
                         <div class="row-actions">
                           <Button
@@ -434,8 +481,8 @@
                     <Dropdown
                       v-model="calendarTripFilter"
                       :options="calendarTripOptions"
-                      optionLabel="label"
-                      optionValue="value"
+                      option-label="label"
+                      option-value="value"
                       placeholder="按行程筛选"
                       class="calendar-dropdown"
                     />
@@ -450,9 +497,9 @@
                     :key="calendarPickerKey"
                     v-model="calendarSelectedDate"
                     inline
-                    :manualInput="false"
-                    :minDate="calendarMinDate"
-                    :maxDate="calendarMaxDate"
+                    :manual-input="false"
+                    :min-date="calendarMinDate"
+                    :max-date="calendarMaxDate"
                     @month-change="handleCalendarMonthChange"
                     @year-change="handleCalendarMonthChange"
                   >
@@ -461,7 +508,9 @@
                         class="date-cell"
                         :class="calendarDateCellClass(date)"
                       >
-                        <div class="date-day">{{ date.day }}</div>
+                        <div class="date-day">
+                          {{ date.day }}
+                        </div>
                       </div>
                     </template>
                   </DatePicker>
@@ -476,8 +525,7 @@
                           <small
                             v-if="calendarRightRangeLabel"
                             class="panel-title-sub"
-                            >{{ calendarRightRangeLabel }}</small
-                          >
+                          >{{ calendarRightRangeLabel }}</small>
                         </div>
                       </div>
                     </template>
@@ -485,13 +533,13 @@
                       <div class="sbm-dt-hscroll">
                         <DataTable
                           :value="calendarDisplayPayments"
-                          responsiveLayout="scroll"
+                          responsive-layout="scroll"
                           :paginator="true"
                           :rows="calendarTableRows"
-                          :rowsPerPageOptions="[10, 20, 50]"
+                          :rows-per-page-options="[10, 20, 50]"
                           class="calendar-table"
                           :pt="tableScrollPt"
-                          :tableStyle="calendarTableStyle"
+                          :table-style="calendarTableStyle"
                           @page="onCalendarTablePage"
                         >
                           <Column
@@ -517,8 +565,7 @@
                               <span
                                 class="sbm-ellipsis"
                                 :title="row.merchant || '-'"
-                                >{{ row.merchant || "-" }}</span
-                              >
+                              >{{ row.merchant || "-" }}</span>
                             </template>
                           </Column>
                           <Column
@@ -528,9 +575,11 @@
                               width: calendarTripFilter ? '40%' : '26%',
                             }"
                           >
-                            <template #body="{ data: row }">{{
-                              formatDateTime(row.transaction_time)
-                            }}</template>
+                            <template #body="{ data: row }">
+                              {{
+                                formatDateTime(row.transaction_time)
+                              }}
+                            </template>
                           </Column>
                           <Column
                             v-if="!calendarTripFilter"
@@ -545,14 +594,15 @@
                                 :value="tripNameById[row.trip_id]"
                                 :title="tripNameById[row.trip_id]"
                               />
-                              <span v-else class="muted">-</span>
+                              <span
+                                v-else
+                                class="muted"
+                              >-</span>
                             </template>
                           </Column>
                         </DataTable>
                       </div>
-                      <small class="muted"
-                        >日历视图按支付时间统计；关联发票请在“按行程”中查看。</small
-                      >
+                      <small class="muted">日历视图按支付时间统计；关联发票请在“按行程”中查看。</small>
                     </template>
                   </Card>
                 </div>
@@ -569,12 +619,21 @@
       :header="editingTrip ? '编辑行程' : '新增行程'"
       :style="{ width: '760px', maxWidth: '96vw' }"
     >
-      <form class="p-fluid" @submit.prevent="handleSaveTrip">
+      <form
+        class="p-fluid"
+        @submit.prevent="handleSaveTrip"
+      >
         <div class="grid">
           <div class="col-12 field">
             <label for="trip_name">行程名称</label>
-            <InputText id="trip_name" v-model.trim="tripForm.name" />
-            <small v-if="tripErrors.name" class="p-error">{{
+            <InputText
+              id="trip_name"
+              v-model.trim="tripForm.name"
+            />
+            <small
+              v-if="tripErrors.name"
+              class="p-error"
+            >{{
               tripErrors.name
             }}</small>
           </div>
@@ -584,8 +643,8 @@
               id="trip_start"
               ref="tripStartPicker"
               v-model="tripForm.start"
-              dateFormat="yy-mm-dd"
-              :manualInput="false"
+              date-format="yy-mm-dd"
+              :manual-input="false"
               @show="() => onPickerShow(tripStartPicker)"
               @hide="() => onPickerHide(tripStartPicker)"
             >
@@ -600,7 +659,10 @@
                 </div>
               </template>
             </DatePicker>
-            <small v-if="tripErrors.start" class="p-error">{{
+            <small
+              v-if="tripErrors.start"
+              class="p-error"
+            >{{
               tripErrors.start
             }}</small>
           </div>
@@ -610,8 +672,8 @@
               id="trip_end"
               ref="tripEndPicker"
               v-model="tripForm.end"
-              dateFormat="yy-mm-dd"
-              :manualInput="false"
+              date-format="yy-mm-dd"
+              :manual-input="false"
               @show="() => onPickerShow(tripEndPicker)"
               @hide="() => onPickerHide(tripEndPicker)"
             >
@@ -626,7 +688,10 @@
                 </div>
               </template>
             </DatePicker>
-            <small v-if="tripErrors.end" class="p-error">{{
+            <small
+              v-if="tripErrors.end"
+              class="p-error"
+            >{{
               tripErrors.end
             }}</small>
           </div>
@@ -636,8 +701,8 @@
               id="trip_reimburse_status"
               v-model="tripForm.reimburse_status"
               :options="reimburseStatusOptions"
-              optionLabel="label"
-              optionValue="value"
+              option-label="label"
+              option-value="value"
               placeholder="请选择"
             />
           </div>
@@ -647,10 +712,10 @@
               id="trip_timezone"
               v-model="tripForm.timezone"
               :options="timezoneOptions"
-              optionLabel="label"
-              optionValue="value"
+              option-label="label"
+              option-value="value"
               filter
-              :virtualScrollerOptions="{ itemSize: 38 }"
+              :virtual-scroller-options="{ itemSize: 38 }"
               placeholder="请选择时区"
             />
           </div>
@@ -659,7 +724,7 @@
             <Textarea
               id="trip_note"
               v-model.trim="tripForm.note"
-              autoResize
+              auto-resize
               rows="2"
             />
           </div>
@@ -694,8 +759,8 @@
         <Dropdown
           v-model="movePaymentTargetTripId"
           :options="moveTargetOptions"
-          optionLabel="label"
-          optionValue="value"
+          option-label="label"
+          option-value="value"
           placeholder="请选择行程"
         />
       </div>
@@ -725,24 +790,37 @@
       :style="{ width: '560px', maxWidth: '92vw' }"
     >
       <div v-if="deleteTripTarget && deleteTripPreview">
-        <div class="muted" style="margin-bottom: 12px">
+        <div
+          class="muted"
+          style="margin-bottom: 12px"
+        >
           {{ deleteTripTarget.name }}：关联支付 {{ deleteTripPreview.payments }} 条，关联发票
           {{ deleteTripPreview.invoices }} 张。
         </div>
 
-        <div class="field-checkbox" style="margin-bottom: 10px">
+        <div
+          class="field-checkbox"
+          style="margin-bottom: 10px"
+        >
           <Checkbox
             v-model="deleteTripOptions.deletePayments"
-            inputId="delete_trip_payments"
+            input-id="delete_trip_payments"
             binary
           />
           <label for="delete_trip_payments">同时删除支付记录 + 可删除的发票</label>
         </div>
 
-        <small class="muted" v-if="!deleteTripOptions.deletePayments">
+        <small
+          v-if="!deleteTripOptions.deletePayments"
+          class="muted"
+        >
           默认：只删除行程，保留支付/发票（支付会进入“待分配”）。
         </small>
-        <div v-else class="muted" style="font-size: 12px">
+        <div
+          v-else
+          class="muted"
+          style="font-size: 12px"
+        >
           <div v-if="deleteTripPreview.unlinked_only > 0">
             将删除该行程下的支付记录 {{ deleteTripPreview.payments }} 条，发票 {{
               deleteTripPreview.unlinked_only

@@ -1,15 +1,25 @@
 <template>
   <div class="page">
-    <div v-if="loading" class="loading">
+    <div
+      v-if="loading"
+      class="loading"
+    >
       <ProgressSpinner />
-      <div class="loading-text">&#21152;&#36733;&#20013;...</div>
+      <div class="loading-text">
+        &#21152;&#36733;&#20013;...
+      </div>
     </div>
 
-    <Card v-else-if="!data" class="empty-card sbm-surface">
+    <Card
+      v-else-if="!data"
+      class="empty-card sbm-surface"
+    >
       <template #content>
         <div class="empty">
           <i class="pi pi-inbox empty-icon" />
-          <div class="empty-title">&#26242;&#26080;&#25968;&#25454;</div>
+          <div class="empty-title">
+            &#26242;&#26080;&#25968;&#25454;
+          </div>
         </div>
       </template>
     </Card>
@@ -17,8 +27,12 @@
     <template v-else>
       <div class="hero sbm-surface">
         <div class="hero-left">
-          <div class="hero-kicker">&#26234;&#33021;&#36134;&#21333;&#31649;&#29702;</div>
-          <div class="hero-title">Smart Bill Manager</div>
+          <div class="hero-kicker">
+            &#26234;&#33021;&#36134;&#21333;&#31649;&#29702;
+          </div>
+          <div class="hero-title">
+            Smart Bill Manager
+          </div>
           <div class="hero-subtitle">
             &#21457;&#31080;&#19982;&#25903;&#20184;&#35760;&#24405;&#33258;&#21160;&#35782;&#21035;&#65292;&#26234;&#33021;&#25512;&#33616;&#20851;&#32852;&#65292;&#21482;&#20570;&#20320;&#30495;&#27491;&#38656;&#35201;&#30340;&#20107;&#12290;
           </div>
@@ -46,12 +60,20 @@
         </div>
         <div class="hero-right">
           <div class="hero-chip">
-            <div class="chip-label">&#26412;&#26376;&#25903;&#20986;</div>
-            <div class="chip-value">{{ formatMoney(data.payments.totalThisMonth) }}</div>
+            <div class="chip-label">
+              &#26412;&#26376;&#25903;&#20986;
+            </div>
+            <div class="chip-value">
+              {{ formatMoney(data.payments.totalThisMonth) }}
+            </div>
           </div>
           <div class="hero-chip">
-            <div class="chip-label">&#21457;&#31080;&#24635;&#25968;</div>
-            <div class="chip-value">{{ data.invoices.totalCount }}</div>
+            <div class="chip-label">
+              &#21457;&#31080;&#24635;&#25968;
+            </div>
+            <div class="chip-value">
+              {{ data.invoices.totalCount }}
+            </div>
           </div>
         </div>
       </div>
@@ -64,8 +86,12 @@
           <template #content>
             <div class="stat">
               <div class="stat-left">
-                <div class="stat-title">&#26412;&#26376;&#25903;&#20986;</div>
-                <div class="stat-value">{{ formatMoney(data.payments.totalThisMonth) }}</div>
+                <div class="stat-title">
+                  &#26412;&#26376;&#25903;&#20986;
+                </div>
+                <div class="stat-value">
+                  {{ formatMoney(data.payments.totalThisMonth) }}
+                </div>
               </div>
               <div class="stat-icon">
                 <i class="pi pi-wallet" />
@@ -81,8 +107,12 @@
           <template #content>
             <div class="stat">
               <div class="stat-left">
-                <div class="stat-title">&#25903;&#20184;&#31508;&#25968;</div>
-                <div class="stat-value">{{ data.payments.countThisMonth }}</div>
+                <div class="stat-title">
+                  &#25903;&#20184;&#31508;&#25968;
+                </div>
+                <div class="stat-value">
+                  {{ data.payments.countThisMonth }}
+                </div>
               </div>
               <div class="stat-icon">
                 <i class="pi pi-chart-line" />
@@ -98,8 +128,12 @@
           <template #content>
             <div class="stat">
               <div class="stat-left">
-                <div class="stat-title">&#21457;&#31080;&#24635;&#25968;</div>
-                <div class="stat-value">{{ data.invoices.totalCount }}</div>
+                <div class="stat-title">
+                  &#21457;&#31080;&#24635;&#25968;
+                </div>
+                <div class="stat-value">
+                  {{ data.invoices.totalCount }}
+                </div>
               </div>
               <div class="stat-icon">
                 <i class="pi pi-file" />
@@ -115,8 +149,12 @@
           <template #content>
             <div class="stat">
               <div class="stat-left">
-                <div class="stat-title">&#21457;&#31080;&#37329;&#39069;</div>
-                <div class="stat-value">{{ formatMoney(data.invoices.totalAmount) }}</div>
+                <div class="stat-title">
+                  &#21457;&#31080;&#37329;&#39069;
+                </div>
+                <div class="stat-value">
+                  {{ formatMoney(data.invoices.totalAmount) }}
+                </div>
               </div>
               <div class="stat-icon">
                 <i class="pi pi-receipt" />
@@ -140,10 +178,18 @@
             </div>
           </template>
           <template #content>
-            <div v-if="dailyData.length > 0" class="chart">
+            <div
+              v-if="dailyData.length > 0"
+              class="chart"
+            >
               <DailySpendLine :option="lineChartOption" />
             </div>
-            <div v-else class="empty-mini">&#26242;&#26080;&#25968;&#25454;</div>
+            <div
+              v-else
+              class="empty-mini"
+            >
+              &#26242;&#26080;&#25968;&#25454;
+            </div>
           </template>
         </Card>
 
@@ -157,21 +203,25 @@
                   severity="warn"
                   :value="`\u672A\u5173\u8054 ${unlinkedRecentCount}`"
                 />
-                <Tag v-else severity="success" :value="'\u5168\u90E8\u5DF2\u5173\u8054'" />
+                <Tag
+                  v-else
+                  severity="success"
+                  :value="'\u5168\u90E8\u5DF2\u5173\u8054'"
+                />
               </div>
-            <div class="match-actions">
-              <Button
-                class="p-button-text"
-                severity="secondary"
-                icon="pi pi-refresh"
-                :label="'\u5237\u65B0'"
-                :loading="recentPaymentsLoading"
-                @click="refreshRecentPayments"
-              />
-              <Button
-                class="p-button-outlined"
-                severity="secondary"
-                icon="pi pi-external-link"
+              <div class="match-actions">
+                <Button
+                  class="p-button-text"
+                  severity="secondary"
+                  icon="pi pi-refresh"
+                  :label="'\u5237\u65B0'"
+                  :loading="recentPaymentsLoading"
+                  @click="refreshRecentPayments"
+                />
+                <Button
+                  class="p-button-outlined"
+                  severity="secondary"
+                  icon="pi pi-external-link"
                   :label="'\u53BB\u652F\u4ED8\u8BB0\u5F55'"
                   @click="router.push('/payments')"
                 />
@@ -179,36 +229,74 @@
             </div>
           </template>
           <template #content>
-            <div v-if="recentPaymentsLoading" class="loading-mini">
+            <div
+              v-if="recentPaymentsLoading"
+              class="loading-mini"
+            >
               <ProgressSpinner style="width: 26px; height: 26px" />
-              <div class="loading-text-mini">&#21152;&#36733;&#20013;...</div>
+              <div class="loading-text-mini">
+                &#21152;&#36733;&#20013;...
+              </div>
             </div>
-            <div v-else-if="recentPayments.length === 0" class="empty-mini">&#26242;&#26080;&#25903;&#20184;&#35760;&#24405;</div>
-            <DataTable v-else :value="recentPaymentRows" size="small" responsiveLayout="scroll" :rows="6" :paginator="false">
-              <Column :header="'\u4EA4\u6613\u65F6\u95F4'" :style="{ width: '160px' }">
-                <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+            <div
+              v-else-if="recentPayments.length === 0"
+              class="empty-mini"
+            >
+              &#26242;&#26080;&#25903;&#20184;&#35760;&#24405;
+            </div>
+            <DataTable
+              v-else
+              :value="recentPaymentRows"
+              size="small"
+              responsive-layout="scroll"
+              :rows="6"
+              :paginator="false"
+            >
+              <Column
+                :header="'\u4EA4\u6613\u65F6\u95F4'"
+                :style="{ width: '160px' }"
+              >
+                <template #body="{ data: row }">
+                  {{ formatDateTime(row.transaction_time) }}
+                </template>
               </Column>
               <Column :header="'\u5546\u5BB6'">
                 <template #body="{ data: row }">
-                  <span class="sbm-ellipsis" :title="normalizeInlineText(row.merchant)">{{ normalizeInlineText(row.merchant) || '-' }}</span>
+                  <span
+                    class="sbm-ellipsis"
+                    :title="normalizeInlineText(row.merchant)"
+                  >{{ normalizeInlineText(row.merchant) || '-' }}</span>
                 </template>
               </Column>
-              <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+              <Column
+                :header="'\u91D1\u989D'"
+                :style="{ width: '120px' }"
+              >
                 <template #body="{ data: row }">
                   <span class="money">{{ formatMoney(row.amount || 0) }}</span>
                 </template>
               </Column>
-              <Column :header="'\u53D1\u7968'" :style="{ width: '140px' }">
+              <Column
+                :header="'\u53D1\u7968'"
+                :style="{ width: '140px' }"
+              >
                 <template #body="{ data: row }">
                   <Tag
                     v-if="row.invoiceCount > 0"
                     severity="success"
                     :value="`\u5DF2\u5173\u8054 ${row.invoiceCount}`"
                   />
-                  <Tag v-else severity="warn" :value="'\u672A\u5173\u8054'" />
+                  <Tag
+                    v-else
+                    severity="warn"
+                    :value="'\u672A\u5173\u8054'"
+                  />
                 </template>
               </Column>
-              <Column :header="'\u64CD\u4F5C'" :style="{ width: '120px' }">
+              <Column
+                :header="'\u64CD\u4F5C'"
+                :style="{ width: '120px' }"
+              >
                 <template #body="{ data: row }">
                   <Button
                     class="p-button-text"
@@ -233,30 +321,52 @@
               :value="data.email.recentLogs"
               size="small"
               :rows="5"
-              responsiveLayout="scroll"
-              :tableStyle="{ width: '100%', tableLayout: 'fixed' }"
+              responsive-layout="scroll"
+              :table-style="{ width: '100%', tableLayout: 'fixed' }"
             >
-              <Column :header="'\u4E3B\u9898'" :style="{ width: '44%' }">
+              <Column
+                :header="'\u4E3B\u9898'"
+                :style="{ width: '44%' }"
+              >
                 <template #body="{ data: row }">
-                  <span class="sbm-ellipsis" :title="row.subject || ''">{{ row.subject || '-' }}</span>
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.subject || ''"
+                  >{{ row.subject || '-' }}</span>
                 </template>
               </Column>
-              <Column :header="'\u53D1\u4EF6\u4EBA'" :style="{ width: '32%' }">
+              <Column
+                :header="'\u53D1\u4EF6\u4EBA'"
+                :style="{ width: '32%' }"
+              >
                 <template #body="{ data: row }">
-                  <span class="sbm-ellipsis" :title="row.from_address || ''">{{ row.from_address || '-' }}</span>
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.from_address || ''"
+                  >{{ row.from_address || '-' }}</span>
                 </template>
               </Column>
-              <Column :header="'\u9644\u4EF6'" :style="{ width: '90px' }">
+              <Column
+                :header="'\u9644\u4EF6'"
+                :style="{ width: '90px' }"
+              >
                 <template #body="{ data: row }">
                   <Tag
                     v-if="row.has_attachment"
                     severity="info"
                     :value="`${row.attachment_count}\u4E2A`"
                   />
-                  <Tag v-else severity="secondary" :value="'\u65E0'" />
+                  <Tag
+                    v-else
+                    severity="secondary"
+                    :value="'\u65E0'"
+                  />
                 </template>
               </Column>
-              <Column :header="'\u65F6\u95F4'" :style="{ width: '140px' }">
+              <Column
+                :header="'\u65F6\u95F4'"
+                :style="{ width: '140px' }"
+              >
                 <template #body="{ data: row }">
                   <span class="dt-nowrap">{{ row.received_date ? formatDate(row.received_date) : '-' }}</span>
                 </template>
@@ -270,7 +380,10 @@
             <span>&#21457;&#31080;&#26469;&#28304;&#20998;&#24067;</span>
           </template>
           <template #content>
-            <div v-if="Object.keys(data.invoices.bySource || {}).length > 0" class="source-grid">
+            <div
+              v-if="Object.keys(data.invoices.bySource || {}).length > 0"
+              class="source-grid"
+            >
               <Card
                 v-for="(count, source, index) in data.invoices.bySource"
                 :key="source"
@@ -278,12 +391,21 @@
                 :style="{ '--sbm-accent': COLORS[index % COLORS.length] }"
               >
                 <template #content>
-                  <div class="source-title">{{ getSourceLabel(source as string) }}</div>
-                  <div class="source-value">{{ count }}</div>
+                  <div class="source-title">
+                    {{ getSourceLabel(source as string) }}
+                  </div>
+                  <div class="source-value">
+                    {{ count }}
+                  </div>
                 </template>
               </Card>
             </div>
-            <div v-else class="empty-mini">&#26242;&#26080;&#21457;&#31080;</div>
+            <div
+              v-else
+              class="empty-mini"
+            >
+              &#26242;&#26080;&#21457;&#31080;
+            </div>
           </template>
         </Card>
       </div>
@@ -294,10 +416,19 @@
             <span><i class="pi pi-envelope" /> &#37038;&#31665;&#30417;&#25511;&#29366;&#24577;</span>
           </template>
           <template #content>
-            <div v-if="data.email.monitoringStatus.length > 0" class="monitor-list">
-              <div v-for="(item, index) in data.email.monitoringStatus" :key="item.configId || index" class="monitor-item">
+            <div
+              v-if="data.email.monitoringStatus.length > 0"
+              class="monitor-list"
+            >
+              <div
+                v-for="(item, index) in data.email.monitoringStatus"
+                :key="item.configId || index"
+                class="monitor-item"
+              >
                 <div class="monitor-left">
-                  <div class="monitor-label">&#37038;&#31665; {{ index + 1 }}</div>
+                  <div class="monitor-label">
+                    &#37038;&#31665; {{ index + 1 }}
+                  </div>
                   <Tag
                     :severity="item.status === 'running' ? 'success' : 'info'"
                     :value="item.status === 'running' ? '\u8FD0\u884C\u4E2D' : '\u5DF2\u505C\u6B62'"
@@ -305,12 +436,17 @@
                 </div>
                 <ProgressBar
                   :value="item.status === 'running' ? 100 : 0"
-                  :showValue="false"
+                  :show-value="false"
                   style="height: 10px"
                 />
               </div>
             </div>
-            <div v-else class="empty-mini">&#26242;&#26080;&#37197;&#32622;&#37038;&#31665;</div>
+            <div
+              v-else
+              class="empty-mini"
+            >
+              &#26242;&#26080;&#37197;&#32622;&#37038;&#31665;
+            </div>
           </template>
         </Card>
       </div>

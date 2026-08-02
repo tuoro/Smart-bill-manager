@@ -6,8 +6,12 @@
           <template #content>
             <div class="stat">
               <div>
-                <div class="stat-title">&#21457;&#31080;&#24635;&#25968;</div>
-                <div class="stat-value">{{ displayStats.totalCount }}</div>
+                <div class="stat-title">
+                  &#21457;&#31080;&#24635;&#25968;
+                </div>
+                <div class="stat-value">
+                  {{ displayStats.totalCount }}
+                </div>
               </div>
               <i class="pi pi-file stat-icon info" />
             </div>
@@ -19,8 +23,12 @@
           <template #content>
             <div class="stat">
               <div>
-                <div class="stat-title">&#21457;&#31080;&#24635;&#37329;&#39069;</div>
-                <div class="stat-value">{{ `\u00A5${displayStats.totalAmount.toFixed(2)}` }}</div>
+                <div class="stat-title">
+                  &#21457;&#31080;&#24635;&#37329;&#39069;
+                </div>
+                <div class="stat-value">
+                  {{ `\u00A5${displayStats.totalAmount.toFixed(2)}` }}
+                </div>
               </div>
               <i class="pi pi-receipt stat-icon success" />
             </div>
@@ -32,15 +40,26 @@
           <template #content>
             <div class="stat">
               <div>
-                <div class="stat-title">&#26469;&#28304;&#20998;&#24067;</div>
+                <div class="stat-title">
+                  &#26469;&#28304;&#20998;&#24067;
+                </div>
                 <div class="source-row">
-                  <Tag severity="success" :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`" />
-                  <Tag severity="info" :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`" />
-                  <Tag severity="secondary" :value="`\u5176\u4ED6 ${otherSourceCount}`" />
+                  <Tag
+                    severity="success"
+                    :value="`\u4E0A\u4F20 ${sourceStats.upload || 0}`"
+                  />
+                  <Tag
+                    severity="info"
+                    :value="`\u90AE\u4EF6 ${sourceStats.email || 0}`"
+                  />
+                  <Tag
+                    severity="secondary"
+                    :value="`\u5176\u4ED6 ${otherSourceCount}`"
+                  />
                 </div>
-                </div>
-                <i class="pi pi-chart-pie stat-icon secondary" />
               </div>
+              <i class="pi pi-chart-pie stat-icon secondary" />
+            </div>
           </template>
         </Card>
       </div>
@@ -66,18 +85,23 @@
             />
             <DatePicker
               v-model="dateRange"
-              selectionMode="range"
-              :manualInput="false"
-              dateFormat="yy-mm-dd"
+              selection-mode="range"
+              :manual-input="false"
+              date-format="yy-mm-dd"
               :placeholder="'开票日期范围'"
-              @update:modelValue="handleDateChange"
+              @update:model-value="handleDateChange"
             />
-            <Button :label="'\u4E0A\u4F20\u53D1\u7968'" icon="pi pi-upload" @click="openUploadModal" />
+            <Button
+              :label="'\u4E0A\u4F20\u53D1\u7968'"
+              icon="pi pi-upload"
+              @click="openUploadModal"
+            />
           </div>
         </div>
       </template>
       <template #content>
         <DataTable
+          v-model:selection="selectedInvoices"
           class="invoices-table sbm-dt-fixed"
           :value="invoices"
           :loading="loading"
@@ -85,51 +109,110 @@
           :lazy="true"
           :rows="pageSize"
           :first="first"
-          :totalRecords="totalRecords"
-          :rowsPerPageOptions="[10, 20, 50, 100]"
-          responsiveLayout="scroll"
-          sortField="created_at"
-          :sortOrder="-1"
-          dataKey="id"
-          v-model:selection="selectedInvoices"
+          :total-records="totalRecords"
+          :rows-per-page-options="[10, 20, 50, 100]"
+          responsive-layout="scroll"
+          sort-field="created_at"
+          :sort-order="-1"
+          data-key="id"
           @page="onPage"
         >
-          <Column v-if="batchDeleteMode" selectionMode="multiple" :style="{ width: '4%' }" />
-          <Column field="original_name" :header="'\u6587\u4EF6\u540D'" :style="{ width: '16%' }">
+          <Column
+            v-if="batchDeleteMode"
+            selection-mode="multiple"
+            :style="{ width: '4%' }"
+          />
+          <Column
+            field="original_name"
+            :header="'\u6587\u4EF6\u540D'"
+            :style="{ width: '16%' }"
+          >
             <template #body="{ data: row }">
               <div class="filecell">
                 <i class="pi pi-file" />
-                <span class="filecell-name sbm-ellipsis" :title="row.original_name">{{ row.original_name }}</span>
+                <span
+                  class="filecell-name sbm-ellipsis"
+                  :title="row.original_name"
+                >{{ row.original_name }}</span>
               </div>
             </template>
           </Column>
-          <Column field="invoice_number" :header="'\u53D1\u7968\u53F7'" :style="{ width: '16%' }">
-            <template #body="{ data: row }">{{ row.invoice_number || '-' }}</template>
-          </Column>
-          <Column field="invoice_date" :header="'\u5F00\u7968\u65F6\u95F4'" sortable :style="{ width: '10%' }">
-            <template #body="{ data: row }">{{ formatInvoiceDate(row.invoice_date) }}</template>
-          </Column>
-          <Column :header="'\u91D1\u989D'" :style="{ width: '10%' }">
-            <template #body="{ data: row }">{{ row.amount ? `\u00A5${row.amount.toFixed(2)}` : '-' }}</template>
-          </Column>
-          <Column field="seller_name" :header="'\u9500\u552E\u65B9'" :style="{ width: '18%' }">
+          <Column
+            field="invoice_number"
+            :header="'\u53D1\u7968\u53F7'"
+            :style="{ width: '16%' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="row.seller_name || ''">{{ row.seller_name || '-' }}</span>
+              {{ row.invoice_number || '-' }}
             </template>
           </Column>
-          <Column :header="'\u6765\u6E90'" :style="{ width: '8%' }">
+          <Column
+            field="invoice_date"
+            :header="'\u5F00\u7968\u65F6\u95F4'"
+            sortable
+            :style="{ width: '10%' }"
+          >
             <template #body="{ data: row }">
-              <Tag :severity="getSourceSeverity(row.source)" :value="getSourceLabel(row.source)" />
+              {{ formatInvoiceDate(row.invoice_date) }}
             </template>
           </Column>
-          <Column field="created_at" :header="'\u4E0A\u4F20\u65F6\u95F4'" sortable :style="{ width: '10%' }">
-            <template #body="{ data: row }">{{ formatDateTime(row.created_at) }}</template>
+          <Column
+            :header="'\u91D1\u989D'"
+            :style="{ width: '10%' }"
+          >
+            <template #body="{ data: row }">
+              {{ row.amount ? `\u00A5${row.amount.toFixed(2)}` : '-' }}
+            </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '8%' }">
+          <Column
+            field="seller_name"
+            :header="'\u9500\u552E\u65B9'"
+            :style="{ width: '18%' }"
+          >
+            <template #body="{ data: row }">
+              <span
+                class="sbm-ellipsis"
+                :title="row.seller_name || ''"
+              >{{ row.seller_name || '-' }}</span>
+            </template>
+          </Column>
+          <Column
+            :header="'\u6765\u6E90'"
+            :style="{ width: '8%' }"
+          >
+            <template #body="{ data: row }">
+              <Tag
+                :severity="getSourceSeverity(row.source)"
+                :value="getSourceLabel(row.source)"
+              />
+            </template>
+          </Column>
+          <Column
+            field="created_at"
+            :header="'\u4E0A\u4F20\u65F6\u95F4'"
+            sortable
+            :style="{ width: '10%' }"
+          >
+            <template #body="{ data: row }">
+              {{ formatDateTime(row.created_at) }}
+            </template>
+          </Column>
+          <Column
+            :header="'\u64CD\u4F5C'"
+            :style="{ width: '8%' }"
+          >
             <template #body="{ data: row }">
               <div class="row-actions">
-                <Button class="p-button-text" icon="pi pi-eye" @click="openPreview(row)" />
-                <Button class="p-button-text p-button-danger" icon="pi pi-trash" @click="confirmDelete(row.id)" />
+                <Button
+                  class="p-button-text"
+                  icon="pi pi-eye"
+                  @click="openPreview(row)"
+                />
+                <Button
+                  class="p-button-text p-button-danger"
+                  icon="pi pi-trash"
+                  @click="confirmDelete(row.id)"
+                />
               </div>
             </template>
           </Column>
@@ -145,12 +228,28 @@
       :closable="!uploading && !savingUploadOcr"
     >
       <div class="upload-screenshot-layout">
-        <div class="upload-box sbm-dropzone" @click="triggerInvoiceChoose" @dragenter.prevent @dragover.prevent @drop.prevent="onInvoiceDrop">
+        <div
+          class="upload-box sbm-dropzone"
+          @click="triggerInvoiceChoose"
+          @dragenter.prevent
+          @dragover.prevent
+          @drop.prevent="onInvoiceDrop"
+        >
           <div class="sbm-dropzone-hero">
             <i class="pi pi-cloud-upload" />
-            <div class="sbm-dropzone-title">拖拽文件到此处，或者点击选择</div>
-            <div class="sbm-dropzone-sub">支持 PDF/PNG/JPG，可多选（最多 10 个），最大 20MB</div>
-            <Button type="button" icon="pi pi-plus" :label="'\u9009\u62E9\u6587\u4EF6'" :disabled="uploading || savingUploadOcr" @click.stop="chooseInvoiceFiles" />
+            <div class="sbm-dropzone-title">
+              拖拽文件到此处，或者点击选择
+            </div>
+            <div class="sbm-dropzone-sub">
+              支持 PDF/PNG/JPG，可多选（最多 10 个），最大 20MB
+            </div>
+            <Button
+              type="button"
+              icon="pi pi-plus"
+              :label="'\u9009\u62E9\u6587\u4EF6'"
+              :disabled="uploading || savingUploadOcr"
+              @click.stop="chooseInvoiceFiles"
+            />
           </div>
 
           <input
@@ -160,10 +259,21 @@
             accept="application/pdf,image/png,image/jpeg"
             multiple
             @change="onInvoiceInputChange"
-          />
-          <div v-if="selectedFiles.length > 0" class="file-list" @click.stop>
-            <div v-for="(f, idx) in selectedFiles" :key="`${f.name}-${f.size}-${idx}`" class="file-row">
-              <span class="file-row-name" :title="f.name">{{ f.name }}</span>
+          >
+          <div
+            v-if="selectedFiles.length > 0"
+            class="file-list"
+            @click.stop
+          >
+            <div
+              v-for="(f, idx) in selectedFiles"
+              :key="`${f.name}-${f.size}-${idx}`"
+              class="file-row"
+            >
+              <span
+                class="file-row-name"
+                :title="f.name"
+              >{{ f.name }}</span>
               <Button
                 class="file-row-remove p-button-text"
                 severity="secondary"
@@ -173,23 +283,43 @@
                 @click="removeSelectedFile(idx)"
               />
             </div>
-            <div class="file-hint">已选择 {{ selectedFiles.length }} 个文件</div>
+            <div class="file-hint">
+              已选择 {{ selectedFiles.length }} 个文件
+            </div>
           </div>
         </div>
 
-        <Message v-if="!uploadedInvoiceId" severity="info" :closable="false">
+        <Message
+          v-if="!uploadedInvoiceId"
+          severity="info"
+          :closable="false"
+        >
           请选择文件，点击“上传”解析后可在下方修改识别结果。
         </Message>
-        <Message v-else-if="uploadedInvoiceId && !uploadOcrResult" severity="warn" :closable="false">
+        <Message
+          v-else-if="uploadedInvoiceId && !uploadOcrResult"
+          severity="warn"
+          :closable="false"
+        >
           已上传，但未解析出可用的 OCR 摘要（可能仍在解析中或解析失败）。你仍可手动填写后保存，也可以稍后在发票详情里点击“重新解析”。
         </Message>
         
-        <Message v-if="uploadDedup?.kind === 'suspected_duplicate'" severity="warn" :closable="false">
+        <Message
+          v-if="uploadDedup?.kind === 'suspected_duplicate'"
+          severity="warn"
+          :closable="false"
+        >
           检测到疑似重复发票（发票号码重复）。如果确认需要保留，可点击保存后选择“仍然保存”。
         </Message>
 
-        <div v-if="uploadedInvoiceId && uploadedInvoiceIds.length > 1" class="upload-batch-switcher" @click.stop>
-          <div class="upload-batch-title">批量预览（{{ uploadedInvoiceIds.length }} 个文件）</div>
+        <div
+          v-if="uploadedInvoiceId && uploadedInvoiceIds.length > 1"
+          class="upload-batch-switcher"
+          @click.stop
+        >
+          <div class="upload-batch-title">
+            批量预览（{{ uploadedInvoiceIds.length }} 个文件）
+          </div>
           <div class="upload-batch-controls">
             <Button
               class="p-button-text"
@@ -202,8 +332,8 @@
             <Dropdown
               v-model="uploadedInvoiceId"
               :options="uploadedInvoiceOptions"
-              optionLabel="label"
-              optionValue="id"
+              option-label="label"
+              option-value="id"
               :disabled="uploading || savingUploadOcr"
               style="min-width: 360px"
             />
@@ -219,10 +349,15 @@
           </div>
         </div>
 
-        <div v-if="uploadedInvoiceId" class="upload-invoice-layout">
+        <div
+          v-if="uploadedInvoiceId"
+          class="upload-invoice-layout"
+        >
           <div class="upload-invoice-left">
             <div class="invoice-file-preview">
-              <div class="raw-title">发票预览</div>
+              <div class="raw-title">
+                发票预览
+              </div>
               <div class="invoice-file-box">
                 <template v-if="uploadedInvoice?.file_path && uploadedInvoiceFileSrc">
                   <Image
@@ -230,7 +365,7 @@
                     class="invoice-image"
                     :src="uploadedInvoiceFileSrc"
                     preview
-                    :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+                    :image-style="{ width: '100%', maxWidth: '100%', height: 'auto' }"
                   />
                   <iframe
                     v-else-if="isInvoicePdfFile(uploadedInvoice.file_path)"
@@ -239,19 +374,37 @@
                     loading="lazy"
                     title="Invoice PDF Preview"
                   />
-                  <Message v-else severity="secondary" :closable="false">该文件暂不支持预览，请点击“查看原文件”。</Message>
+                  <Message
+                    v-else
+                    severity="secondary"
+                    :closable="false"
+                  >
+                    该文件暂不支持预览，请点击“查看原文件”。
+                  </Message>
                 </template>
-                <Message v-else severity="secondary" :closable="false">暂无可预览的发票文件。</Message>
+                <Message
+                  v-else
+                  severity="secondary"
+                  :closable="false"
+                >
+                  暂无可预览的发票文件。
+                </Message>
               </div>
             </div>
           </div>
 
           <div class="upload-invoice-right">
-            <form class="p-fluid ocr-form" @submit.prevent="handleSaveUploadedInvoice">
+            <form
+              class="p-fluid ocr-form"
+              @submit.prevent="handleSaveUploadedInvoice"
+            >
               <div class="grid">
                 <div class="col-12 md:col-6 field">
                   <label for="inv_num">发票号码</label>
-                  <InputText id="inv_num" v-model.trim="uploadOcrForm.invoice_number" />
+                  <InputText
+                    id="inv_num"
+                    v-model.trim="uploadOcrForm.invoice_number"
+                  />
                   <small
                     v-if="isAdmin && (uploadOcrResult?.invoice_number_source || uploadOcrResult?.invoice_number_confidence)"
                     class="ocr-hint"
@@ -263,7 +416,13 @@
                 </div>
                 <div class="col-12 md:col-6 field">
                   <label for="inv_date">开票日期</label>
-                  <DatePicker id="inv_date" v-model="uploadOcrForm.invoice_date" :manualInput="false" dateFormat="yy-mm-dd" :placeholder="'开票日期'" />
+                  <DatePicker
+                    id="inv_date"
+                    v-model="uploadOcrForm.invoice_date"
+                    :manual-input="false"
+                    date-format="yy-mm-dd"
+                    :placeholder="'开票日期'"
+                  />
                   <small
                     v-if="isAdmin && (uploadOcrResult?.invoice_date_source || uploadOcrResult?.invoice_date_confidence)"
                     class="ocr-hint"
@@ -276,7 +435,14 @@
 
                 <div class="col-12 md:col-6 field">
                   <label for="inv_amount">价税合计</label>
-                  <InputNumber id="inv_amount" v-model="uploadOcrForm.amount" :minFractionDigits="2" :maxFractionDigits="2" :min="0" :useGrouping="false" />
+                  <InputNumber
+                    id="inv_amount"
+                    v-model="uploadOcrForm.amount"
+                    :min-fraction-digits="2"
+                    :max-fraction-digits="2"
+                    :min="0"
+                    :use-grouping="false"
+                  />
                   <small
                     v-if="isAdmin && (uploadOcrResult?.amount_source || uploadOcrResult?.amount_confidence)"
                     class="ocr-hint"
@@ -288,7 +454,10 @@
                 </div>
                 <div class="col-12 md:col-6 field">
                   <label for="inv_seller">销售方</label>
-                  <InputText id="inv_seller" v-model.trim="uploadOcrForm.seller_name" />
+                  <InputText
+                    id="inv_seller"
+                    v-model.trim="uploadOcrForm.seller_name"
+                  />
                   <small
                     v-if="isAdmin && (uploadOcrResult?.seller_name_source || uploadOcrResult?.seller_name_confidence)"
                     class="ocr-hint"
@@ -300,7 +469,10 @@
                 </div>
                 <div class="col-12 md:col-6 field">
                   <label for="inv_buyer">购买方</label>
-                  <InputText id="inv_buyer" v-model.trim="uploadOcrForm.buyer_name" />
+                  <InputText
+                    id="inv_buyer"
+                    v-model.trim="uploadOcrForm.buyer_name"
+                  />
                   <small
                     v-if="isAdmin && (uploadOcrResult?.buyer_name_source || uploadOcrResult?.buyer_name_confidence)"
                     class="ocr-hint"
@@ -315,16 +487,28 @@
           </div>
         </div>
 
-        <div v-if="isAdmin && uploadedInvoice && (getInvoiceRawText(uploadedInvoice) || getInvoicePrettyText(uploadedInvoice))" class="raw-section">
+        <div
+          v-if="isAdmin && uploadedInvoice && (getInvoiceRawText(uploadedInvoice) || getInvoicePrettyText(uploadedInvoice))"
+          class="raw-section"
+        >
           <div class="raw-title">
             OCR 文本
-            <span v-if="getInvoiceRawTextSource(uploadedInvoice)" class="raw-source">（来源：{{ getInvoiceRawTextSource(uploadedInvoice) }}）</span>
+            <span
+              v-if="getInvoiceRawTextSource(uploadedInvoice)"
+              class="raw-source"
+            >（来源：{{ getInvoiceRawTextSource(uploadedInvoice) }}）</span>
           </div>
           <Accordion>
-            <AccordionTab v-if="getInvoicePrettyText(uploadedInvoice)" :header="'点击查看 OCR 整理版文本'">
+            <AccordionTab
+              v-if="getInvoicePrettyText(uploadedInvoice)"
+              :header="'点击查看 OCR 整理版文本'"
+            >
               <pre class="raw-text">{{ getInvoicePrettyText(uploadedInvoice) }}</pre>
             </AccordionTab>
-            <AccordionTab v-if="getInvoiceRawText(uploadedInvoice)" :header="'点击查看 OCR 原始文本'">
+            <AccordionTab
+              v-if="getInvoiceRawText(uploadedInvoice)"
+              :header="'点击查看 OCR 原始文本'"
+            >
               <pre class="raw-text">{{ getInvoiceRawText(uploadedInvoice) }}</pre>
             </AccordionTab>
           </Accordion>
@@ -368,11 +552,14 @@
       :header="'\u53D1\u7968\u8BE6\u60C5'"
       :style="{ width: previewInvoice?.file_path ? '1060px' : '860px', maxWidth: '94vw' }"
       :breakpoints="{ '960px': '94vw', '640px': '96vw' }"
-      :contentStyle="{ padding: '14px 16px' }"
+      :content-style="{ padding: '14px 16px' }"
       :closable="!invoiceDetailEditing && !savingInvoiceDetail"
-      :closeOnEscape="!invoiceDetailEditing && !savingInvoiceDetail"
+      :close-on-escape="!invoiceDetailEditing && !savingInvoiceDetail"
     >
-      <div v-if="previewInvoice" class="preview">
+      <div
+        v-if="previewInvoice"
+        class="preview"
+      >
         <div class="header-row">
           <div class="title">
             <i class="pi pi-file" />
@@ -396,7 +583,13 @@
               :label="'\u7F16\u8F91'"
               @click="enterInvoiceEditMode"
             />
-            <Button class="p-button-outlined" severity="secondary" icon="pi pi-external-link" :label="'\u67E5\u770B\u539F\u6587\u4EF6'" @click="downloadFile(previewInvoice)" />
+            <Button
+              class="p-button-outlined"
+              severity="secondary"
+              icon="pi pi-external-link"
+              :label="'\u67E5\u770B\u539F\u6587\u4EF6'"
+              @click="downloadFile(previewInvoice)"
+            />
             <Button
               class="p-button-outlined"
               severity="secondary"
@@ -412,7 +605,9 @@
         <div class="invoice-detail-layout">
           <div class="invoice-detail-left">
             <div class="invoice-file-preview">
-              <div class="raw-title">发票原件</div>
+              <div class="raw-title">
+                发票原件
+              </div>
               <div class="invoice-file-box">
                 <template v-if="previewInvoice.file_path && previewInvoiceFileSrc">
                   <Image
@@ -420,7 +615,7 @@
                     class="invoice-image"
                     :src="previewInvoiceFileSrc"
                     preview
-                    :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+                    :image-style="{ width: '100%', maxWidth: '100%', height: 'auto' }"
                   />
                   <iframe
                     v-else-if="isInvoicePdfFile(previewInvoice.file_path)"
@@ -429,16 +624,36 @@
                     loading="lazy"
                     title="Invoice PDF Preview"
                   />
-                  <Message v-else severity="secondary" :closable="false">该文件暂不支持预览，请点击“查看原文件”。</Message>
+                  <Message
+                    v-else
+                    severity="secondary"
+                    :closable="false"
+                  >
+                    该文件暂不支持预览，请点击“查看原文件”。
+                  </Message>
                 </template>
-                <Message v-else severity="secondary" :closable="false">暂无可预览的发票文件。</Message>
+                <Message
+                  v-else
+                  severity="secondary"
+                  :closable="false"
+                >
+                  暂无可预览的发票文件。
+                </Message>
               </div>
             </div>
 
-            <div v-if="previewInvoice" class="invoice-attachments">
-              <div class="raw-title">附件</div>
+            <div
+              v-if="previewInvoice"
+              class="invoice-attachments"
+            >
+              <div class="raw-title">
+                附件
+              </div>
               <div class="invoice-attachments-box">
-                <div v-if="invoiceDetailEditing" class="invoice-attachments-toolbar">
+                <div
+                  v-if="invoiceDetailEditing"
+                  class="invoice-attachments-toolbar"
+                >
                   <Button
                     class="p-button-outlined p-button-sm"
                     icon="pi pi-paperclip"
@@ -454,18 +669,35 @@
                     accept="application/pdf,image/png,image/jpeg"
                     multiple
                     @change="onInvoiceAttachmentInputChange"
-                  />
+                  >
                 </div>
 
-                <Message v-if="!previewInvoice.attachments?.length" severity="secondary" :closable="false">暂无附件</Message>
+                <Message
+                  v-if="!previewInvoice.attachments?.length"
+                  severity="secondary"
+                  :closable="false"
+                >
+                  暂无附件
+                </Message>
 
-                <div v-for="a in previewInvoice.attachments" :key="a.id" class="invoice-attachment-row">
+                <div
+                  v-for="a in previewInvoice.attachments"
+                  :key="a.id"
+                  class="invoice-attachment-row"
+                >
                   <div class="invoice-attachment-name">
                     <i class="pi pi-paperclip" />
-                    <span class="sbm-ellipsis" :title="a.original_name || a.filename">{{ a.original_name || a.filename }}</span>
+                    <span
+                      class="sbm-ellipsis"
+                      :title="a.original_name || a.filename"
+                    >{{ a.original_name || a.filename }}</span>
                   </div>
                   <div class="invoice-attachment-actions">
-                    <Tag v-if="a.kind" severity="secondary" :value="formatAttachmentKind(a.kind)" />
+                    <Tag
+                      v-if="a.kind"
+                      severity="secondary"
+                      :value="formatAttachmentKind(a.kind)"
+                    />
                     <Button
                       class="p-button-outlined p-button-sm"
                       severity="secondary"
@@ -491,94 +723,166 @@
 
           <div class="invoice-detail-right">
             <div class="grid sbm-grid-tight">
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">发票号</div>
-              <div class="v">
-                <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.invoice_number" />
-                <template v-else>{{ previewInvoice.invoice_number || '-' }}</template>
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">
+                    发票号
+                  </div>
+                  <div class="v">
+                    <InputText
+                      v-if="invoiceDetailEditing"
+                      v-model.trim="invoiceDetailForm.invoice_number"
+                    />
+                    <template v-else>
+                      {{ previewInvoice.invoice_number || '-' }}
+                    </template>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">开票时间</div>
-              <div class="v">
-                <DatePicker
-                  v-if="invoiceDetailEditing"
-                  v-model="invoiceDetailForm.invoice_date"
-                  :manualInput="false"
-                  dateFormat="yy-mm-dd"
-                  :placeholder="'开票日期'"
-                />
-                <template v-else>{{ formatInvoiceDate(previewInvoice.invoice_date) }}</template>
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">
+                    开票时间
+                  </div>
+                  <div class="v">
+                    <DatePicker
+                      v-if="invoiceDetailEditing"
+                      v-model="invoiceDetailForm.invoice_date"
+                      :manual-input="false"
+                      date-format="yy-mm-dd"
+                      :placeholder="'开票日期'"
+                    />
+                    <template v-else>
+                      {{ formatInvoiceDate(previewInvoice.invoice_date) }}
+                    </template>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">金额</div>
-              <div class="v" :class="{ money: !invoiceDetailEditing }">
-                <InputNumber
-                  v-if="invoiceDetailEditing"
-                  v-model="invoiceDetailForm.amount"
-                  :minFractionDigits="2"
-                  :maxFractionDigits="2"
-                  :min="0"
-                  :useGrouping="false"
-                />
-                <template v-else>{{ previewInvoice.amount ? `\u00A5${previewInvoice.amount.toFixed(2)}` : '-' }}</template>
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">
+                    金额
+                  </div>
+                  <div
+                    class="v"
+                    :class="{ money: !invoiceDetailEditing }"
+                  >
+                    <InputNumber
+                      v-if="invoiceDetailEditing"
+                      v-model="invoiceDetailForm.amount"
+                      :min-fraction-digits="2"
+                      :max-fraction-digits="2"
+                      :min="0"
+                      :use-grouping="false"
+                    />
+                    <template v-else>
+                      {{ previewInvoice.amount ? `\u00A5${previewInvoice.amount.toFixed(2)}` : '-' }}
+                    </template>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div class="col-12 md:col-6">
-            <div class="kv">
-              <div class="k">&#35299;&#26512;&#29366;&#24577;</div>
-              <div class="v">
-                <Tag :severity="getParseStatusSeverity(previewInvoice.parse_status)" :value="getParseStatusLabel(previewInvoice.parse_status)" />
+              <div class="col-12 md:col-6">
+                <div class="kv">
+                  <div class="k">
+                    &#35299;&#26512;&#29366;&#24577;
+                  </div>
+                  <div class="v">
+                    <Tag
+                      :severity="getParseStatusSeverity(previewInvoice.parse_status)"
+                      :value="getParseStatusLabel(previewInvoice.parse_status)"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div class="col-12">
-            <div class="kv">
-              <div class="k">销售方</div>
-              <div class="v">
-                <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.seller_name" />
-                <template v-else>{{ previewInvoice.seller_name || '-' }}</template>
+              <div class="col-12">
+                <div class="kv">
+                  <div class="k">
+                    销售方
+                  </div>
+                  <div class="v">
+                    <InputText
+                      v-if="invoiceDetailEditing"
+                      v-model.trim="invoiceDetailForm.seller_name"
+                    />
+                    <template v-else>
+                      {{ previewInvoice.seller_name || '-' }}
+                    </template>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div class="col-12">
-            <div class="kv">
-              <div class="k">购买方</div>
-              <div class="v">
-                <InputText v-if="invoiceDetailEditing" v-model.trim="invoiceDetailForm.buyer_name" />
-                <template v-else>{{ previewInvoice.buyer_name || '-' }}</template>
+              <div class="col-12">
+                <div class="kv">
+                  <div class="k">
+                    购买方
+                  </div>
+                  <div class="v">
+                    <InputText
+                      v-if="invoiceDetailEditing"
+                      v-model.trim="invoiceDetailForm.buyer_name"
+                    />
+                    <template v-else>
+                      {{ previewInvoice.buyer_name || '-' }}
+                    </template>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
             </div>
           </div>
         </div>
 
-        <div v-if="getInvoiceItems(previewInvoice).length" class="items-section">
-          <div class="items-title">&#21830;&#21697;&#26126;&#32454;</div>
-          <DataTable class="items-table" :value="getInvoiceItems(previewInvoice)" responsiveLayout="scroll">
-            <Column field="name" :header="'\u5546\u54C1\u540D\u79F0'" :style="{ width: '48%' }">
+        <div
+          v-if="getInvoiceItems(previewInvoice).length"
+          class="items-section"
+        >
+          <div class="items-title">
+            &#21830;&#21697;&#26126;&#32454;
+          </div>
+          <DataTable
+            class="items-table"
+            :value="getInvoiceItems(previewInvoice)"
+            responsive-layout="scroll"
+          >
+            <Column
+              field="name"
+              :header="'\u5546\u54C1\u540D\u79F0'"
+              :style="{ width: '48%' }"
+            >
               <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.name">{{ row.name }}</span>
+                <span
+                  class="sbm-ellipsis"
+                  :title="row.name"
+                >{{ row.name }}</span>
               </template>
             </Column>
-            <Column field="spec" :header="'\u89C4\u683C\u578B\u53F7'" :style="{ width: '32%' }">
+            <Column
+              field="spec"
+              :header="'\u89C4\u683C\u578B\u53F7'"
+              :style="{ width: '32%' }"
+            >
               <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.spec || '-'">{{ row.spec || '-' }}</span>
+                <span
+                  class="sbm-ellipsis"
+                  :title="row.spec || '-'"
+                >{{ row.spec || '-' }}</span>
               </template>
             </Column>
-            <Column field="unit" :header="'\u5355\u4F4D'" :style="{ width: '10%' }">
-              <template #body="{ data: row }">{{ row.unit || '-' }}</template>
+            <Column
+              field="unit"
+              :header="'\u5355\u4F4D'"
+              :style="{ width: '10%' }"
+            >
+              <template #body="{ data: row }">
+                {{ row.unit || '-' }}
+              </template>
             </Column>
-            <Column field="quantity" :header="'\u6570\u91CF'" :style="{ width: '10%' }">
-              <template #body="{ data: row }">{{ formatItemQuantity(row.quantity) }}</template>
+            <Column
+              field="quantity"
+              :header="'\u6570\u91CF'"
+              :style="{ width: '10%' }"
+            >
+              <template #body="{ data: row }">
+                {{ formatItemQuantity(row.quantity) }}
+              </template>
             </Column>
           </DataTable>
         </div>
@@ -586,34 +890,63 @@
         <Divider />
 
         <div class="match-header">
-          <div class="match-title">已关联支付记录 ({{ linkedPayments.length }})</div>
+          <div class="match-title">
+            已关联支付记录 ({{ linkedPayments.length }})
+          </div>
           <small class="muted">关联/取消关联请在支付记录页面操作</small>
         </div>
 
-        <DataTable class="match-table" :value="linkedPayments" :loading="loadingLinkedPayments" scrollHeight="320px" :scrollable="true" responsiveLayout="scroll">
-          <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
+        <DataTable
+          class="match-table"
+          :value="linkedPayments"
+          :loading="loadingLinkedPayments"
+          scroll-height="320px"
+          :scrollable="true"
+          responsive-layout="scroll"
+        >
+          <Column
+            :header="'\u91D1\u989D'"
+            :style="{ width: '120px' }"
+          >
             <template #body="{ data: row }">
               <span class="money">{{ `\u00A5${row.amount.toFixed(2)}` }}</span>
             </template>
           </Column>
-          <Column :header="'\u5546\u5BB6'" :style="{ width: '260px' }">
+          <Column
+            :header="'\u5546\u5BB6'"
+            :style="{ width: '260px' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="row.merchant || '-'">{{ row.merchant || '-' }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="row.merchant || '-'"
+              >{{ row.merchant || '-' }}</span>
             </template>
           </Column>
-          <Column :header="'\u4EA4\u6613\u65F6\u95F4'" :style="{ width: '170px' }">
-            <template #body="{ data: row }">{{ formatDateTime(row.transaction_time) }}</template>
+          <Column
+            :header="'\u4EA4\u6613\u65F6\u95F4'"
+            :style="{ width: '170px' }"
+          >
+            <template #body="{ data: row }">
+              {{ formatDateTime(row.transaction_time) }}
+            </template>
           </Column>
         </DataTable>
 
-        <div v-if="!loadingLinkedPayments && linkedPayments.length === 0" class="no-data">
+        <div
+          v-if="!loadingLinkedPayments && linkedPayments.length === 0"
+          class="no-data"
+        >
           <i class="pi pi-info-circle" />
           <span>暂无关联</span>
         </div>
 
         <Divider />
 
-        <Accordion v-if="getInvoiceExtracted(previewInvoice)" class="ocr-fields">
+        <Accordion
+          v-if="getInvoiceExtracted(previewInvoice)"
+          class="ocr-fields"
+        >
           <AccordionTab header="OCR 摘要">
             <div class="field-row">
               <span>发票号码</span>
@@ -698,16 +1031,28 @@
           </AccordionTab>
         </Accordion>
 
-        <div v-if="getInvoiceRawText(previewInvoice) || getInvoicePrettyText(previewInvoice)" class="raw-section">
+        <div
+          v-if="getInvoiceRawText(previewInvoice) || getInvoicePrettyText(previewInvoice)"
+          class="raw-section"
+        >
           <div class="raw-title">
             OCR &#25991;&#26412;
-            <span v-if="getInvoiceRawTextSource(previewInvoice)" class="raw-source">（&#26469;&#28304;&#65306;{{ getInvoiceRawTextSource(previewInvoice) }}）</span>
+            <span
+              v-if="getInvoiceRawTextSource(previewInvoice)"
+              class="raw-source"
+            >（&#26469;&#28304;&#65306;{{ getInvoiceRawTextSource(previewInvoice) }}）</span>
           </div>
           <Accordion>
-            <AccordionTab v-if="getInvoicePrettyText(previewInvoice)" :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'">
+            <AccordionTab
+              v-if="getInvoicePrettyText(previewInvoice)"
+              :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'"
+            >
               <pre class="raw-text">{{ getInvoicePrettyText(previewInvoice) }}</pre>
             </AccordionTab>
-            <AccordionTab v-if="getInvoiceRawText(previewInvoice)" :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
+            <AccordionTab
+              v-if="getInvoiceRawText(previewInvoice)"
+              :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'"
+            >
               <pre class="raw-text">{{ getInvoiceRawText(previewInvoice) }}</pre>
             </AccordionTab>
           </Accordion>
@@ -715,11 +1060,34 @@
       </div>
 
       <template #footer>
-        <div v-if="invoiceDetailEditing" class="dialog-footer-center">
-          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" :disabled="savingInvoiceDetail" @click="cancelInvoiceEditMode" />
-          <Button type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="savingInvoiceDetail" @click="saveInvoiceEditMode" />
+        <div
+          v-if="invoiceDetailEditing"
+          class="dialog-footer-center"
+        >
+          <Button
+            type="button"
+            class="p-button-outlined"
+            severity="secondary"
+            :label="'\u53D6\u6D88'"
+            :disabled="savingInvoiceDetail"
+            @click="cancelInvoiceEditMode"
+          />
+          <Button
+            type="button"
+            :label="'\u4FDD\u5B58'"
+            icon="pi pi-check"
+            :loading="savingInvoiceDetail"
+            @click="saveInvoiceEditMode"
+          />
         </div>
-        <Button v-else type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="previewVisible = false" />
+        <Button
+          v-else
+          type="button"
+          class="p-button-outlined"
+          severity="secondary"
+          :label="'\u5173\u95ED'"
+          @click="previewVisible = false"
+        />
       </template>
     </Dialog>
   </div>

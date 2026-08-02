@@ -7,7 +7,7 @@ export type TaskDTO = {
   status: string
   target_id: string
   error?: string | null
-  result?: any
+  result?: unknown
   created_at?: string
   updated_at?: string
 }

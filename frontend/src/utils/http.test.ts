@@ -23,4 +23,14 @@ describe('getApiErrorMessage', () => {
   it('在没有详细错误时返回默认信息', () => {
     expect(getApiErrorMessage({}, '默认错误')).toBe('默认错误')
   })
+
+  it('依次回退到接口 error 和原生错误消息', () => {
+    expect(getApiErrorMessage({ response: { data: { error: '详细错误' } } }, '默认错误')).toBe('详细错误')
+    expect(getApiErrorMessage(new Error('网络错误'), '默认错误')).toBe('网络错误')
+  })
+
+  it('忽略非结构化对象并安全返回默认信息', () => {
+    expect(getApiErrorMessage('invalid', '默认错误')).toBe('默认错误')
+    expect(getApiErrorMessage(null, '默认错误')).toBe('默认错误')
+  })
 })

@@ -519,175 +519,12 @@
       </template>
     </Dialog>
 
-    <Dialog
+    <PaymentDetailDialog
       v-model:visible="paymentDetailVisible"
-      modal
-      :header="'\u652F\u4ED8\u8BB0\u5F55\u8BE6\u60C5'"
-      :style="{ width: detailPayment?.screenshot_path ? '1060px' : '740px', maxWidth: '94vw' }"
-      :breakpoints="{ '960px': '94vw', '640px': '96vw' }"
-      :contentStyle="{ padding: '14px 16px' }"
-      :closable="!paymentDetailEditing && !savingPaymentDetail"
-      :closeOnEscape="!paymentDetailEditing && !savingPaymentDetail"
-      @hide="onPaymentDetailHide"
-    >
-      <div v-if="detailPayment" class="detail">
-        <div class="header-row">
-          <div class="title">
-            <i class="pi pi-image" />
-            <span class="sbm-ellipsis" :title="getPaymentScreenshotTitle(detailPayment)">{{ getPaymentScreenshotTitle(detailPayment) }}</span>
-          </div>
-          <div class="actions">
-            <Button
-              v-if="isAdmin && !paymentDetailEditing"
-              class="p-button-outlined"
-              severity="secondary"
-              icon="pi pi-verified"
-              :label="'\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c'"
-              :loading="markingRegressionSample"
-              @click="markPaymentRegressionSample(detailPayment.id)"
-            />
-            <Button
-              v-if="!paymentDetailEditing"
-              class="p-button-outlined"
-              severity="secondary"
-              icon="pi pi-pencil"
-              :label="'\u7F16\u8F91'"
-              @click="enterPaymentEditMode"
-            />
-            <Button
-              class="p-button-outlined"
-              severity="secondary"
-              icon="pi pi-refresh"
-              :label="'\u91CD\u65B0\u89E3\u6790'"
-              :loading="reparsingOcr"
-              :disabled="paymentDetailEditing || savingPaymentDetail || !detailPayment.screenshot_path"
-              @click="handleReparseOcr(detailPayment.id)"
-            />
-          </div>
-        </div>
-
-        <div class="payment-detail-layout">
-          <div class="payment-detail-left">
-            <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
-            <div v-if="detailPayment.screenshot_path && detailScreenshotSrc" class="screenshot-wrap">
-              <Image
-                class="screenshot"
-                :src="detailScreenshotSrc"
-                preview
-                :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
-              />
-            </div>
-            <Message v-else severity="secondary" :closable="false">&#26242;&#26080;&#25903;&#20184;&#25130;&#22270;</Message>
-          </div>
-
-          <div class="payment-detail-right">
-            <div class="grid sbm-grid-tight">
-              <div class="col-12 md:col-6">
-                <div class="kv">
-                  <div class="k">&#37329;&#39069;</div>
-                  <div class="v" :class="{ amount: !paymentDetailEditing }">
-                    <InputNumber
-                      v-if="paymentDetailEditing"
-                      v-model="paymentDetailForm.amount"
-                      :minFractionDigits="2"
-                      :maxFractionDigits="2"
-                      :min="0"
-                      :useGrouping="false"
-                    />
-                    <template v-else>{{ formatMoney(detailPayment.amount || 0) }}</template>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 md:col-6">
-                <div class="kv">
-                  <div class="k">&#21830;&#23478;</div>
-                  <div class="v" :title="normalizeInlineText(detailPayment.merchant)">
-                    <InputText v-if="paymentDetailEditing" v-model.trim="paymentDetailForm.merchant" />
-                    <template v-else>{{ normalizeInlineText(detailPayment.merchant) || '-' }}</template>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 md:col-6">
-                <div class="kv">
-                  <div class="k">&#25903;&#20184;&#26041;&#24335;</div>
-                  <div class="v">
-                    <InputText v-if="paymentDetailEditing" v-model.trim="paymentDetailForm.payment_method" />
-                    <template v-else>
-                      <Tag
-                        v-if="detailPayment.payment_method"
-                        class="sbm-tag-ellipsis"
-                        severity="success"
-                        :value="normalizePaymentMethodText(detailPayment.payment_method)"
-                        :title="normalizePaymentMethodText(detailPayment.payment_method)"
-                      />
-                      <span v-else>-</span>
-                    </template>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 md:col-6">
-                <div class="kv">
-                  <div class="k">&#20132;&#26131;&#26102;&#38388;</div>
-                  <div class="v">
-                    <template v-if="paymentDetailEditing">
-                      <InputText
-                        :modelValue="formatDateTimeDraft(paymentDetailForm.transaction_time)"
-                        readonly
-                        :placeholder="'请选择交易时间'"
-                        @click="togglePaymentTimePanel"
-                      />
-                      <OverlayPanel
-                        ref="paymentTimePanel"
-                        :dismissable="true"
-                        :showCloseIcon="false"
-                        class="payment-time-panel"
-                        @show="onPaymentTimePanelShow"
-                        @hide="onPaymentTimePanelHide"
-                      >
-                        <DatePicker v-model="paymentDetailTimeDraft" inline showTime :manualInput="false" />
-                        <div class="payment-time-panel-footer">
-                          <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="cancelPaymentTimePanel" />
-                          <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmPaymentTimePanel" />
-                        </div>
-                      </OverlayPanel>
-                    </template>
-                    <template v-else>{{ formatDateTime(detailPayment.transaction_time) }}</template>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12">
-                <div class="kv">
-                  <div class="k">&#22791;&#27880;</div>
-                  <div class="v">
-                    <Textarea v-if="paymentDetailEditing" v-model="paymentDetailForm.description" autoResize rows="3" />
-                    <template v-else>{{ detailPayment.description || '-' }}</template>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="detailPayment.extracted_data" class="section">
-          <div class="section-title">OCR &#25991;&#26412;</div>
-          <Accordion>
-            <AccordionTab v-if="getExtractedPrettyText(detailPayment.extracted_data || null)" :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'">
-              <pre class="raw-text">{{ getExtractedPrettyText(detailPayment.extracted_data || null) }}</pre>
-            </AccordionTab>
-            <AccordionTab :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
-              <pre class="raw-text">{{ getExtractedRawText(detailPayment.extracted_data || null) }}</pre>
-            </AccordionTab>
-          </Accordion>
-        </div>
-      </div>
-      <template #footer>
-        <div v-if="paymentDetailEditing" class="dialog-footer-center">
-          <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" :disabled="savingPaymentDetail" @click="cancelPaymentEditMode" />
-          <Button type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="savingPaymentDetail" @click="savePaymentEditMode" />
-        </div>
-        <Button v-else type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="paymentDetailVisible = false" />
-      </template>
-    </Dialog>
+      :payment="detailPayment"
+      :is-admin="isAdmin"
+      @changed="handlePaymentDetailChanged"
+    />
   </div>
 </template>
 
@@ -708,7 +545,6 @@ import Image from 'primevue/image'
 import InputNumber from 'primevue/inputnumber'
 import InputText from 'primevue/inputtext'
 import Message from 'primevue/message'
-import OverlayPanel from 'primevue/overlaypanel'
 import Tab from 'primevue/tab'
 import TabList from 'primevue/tablist'
 import TabPanel from 'primevue/tabpanel'
@@ -718,7 +554,8 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { invoiceApi, paymentApi, regressionSamplesApi } from '@/api'
+import { invoiceApi, paymentApi } from '@/api'
+import PaymentDetailDialog from '@/components/payments/PaymentDetailDialog.vue'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useTaskPolling } from '@/composables/useTaskPolling'
 import { useNotificationStore } from '@/stores/notifications'
@@ -760,30 +597,6 @@ const confirmForceSave = (message: string) =>
       message,
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '\u4ecd\u7136\u4fdd\u5b58',
-      rejectLabel: '\u53d6\u6d88',
-      accept: () => resolve(true),
-      reject: () => resolve(false),
-    })
-  })
-
-const summarizeSampleIssues = (issues: any[]) => {
-  const items = Array.isArray(issues) ? issues : []
-  const parts = items.slice(0, 6).map((it: any) => {
-    const level = String(it?.level || '').toLowerCase()
-    const label = level === 'error' ? '\u9519\u8bef' : '\u8b66\u544a'
-    return `${label}\uff1a${it?.message || it?.code || '\u672a\u77e5\u95ee\u9898'}`
-  })
-  const suffix = items.length > 6 ? '\u2026' : ''
-  return parts.join('\uff1b') + suffix
-}
-
-const confirmForceMarkRegressionSample = (issues: any[]) =>
-  new Promise<boolean>(resolve => {
-    confirm.require({
-      header: '\u6837\u672c\u8d28\u91cf\u63d0\u793a',
-      message: `\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u53d1\u73b0\uff1a${summarizeSampleIssues(issues)}\n\u4ecd\u7136\u8981\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c\u5417\uff1f`,
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '\u4ecd\u7136\u6807\u8bb0',
       rejectLabel: '\u53d6\u6d88',
       accept: () => resolve(true),
       reject: () => resolve(false),
@@ -1140,44 +953,8 @@ const linkingInvoiceToPayment = ref(false)
 const unlinkingInvoiceFromPayment = ref(false)
 const invoiceMatchTab = ref<'linked' | 'suggested'>('linked')
 
-// Detail dialog
 const paymentDetailVisible = ref(false)
 const detailPayment = ref<Payment | null>(null)
-const detailScreenshotBlobUrl = ref<string | null>(null)
-const detailScreenshotSrc = computed(() => detailScreenshotBlobUrl.value || '')
-const reparsingOcr = ref(false)
-const paymentDetailEditing = ref(false)
-const savingPaymentDetail = ref(false)
-const markingRegressionSample = ref(false)
-const paymentTimePanel = ref<InstanceType<typeof OverlayPanel> | null>(null)
-const paymentTimeLastTarget = ref<HTMLElement | null>(null)
-const paymentDetailTimeDraft = ref<Date | null>(null)
-const paymentDetailForm = reactive({
-  amount: 0,
-  merchant: '',
-  payment_method: '',
-  description: '',
-  transaction_time: null as Date | null,
-})
-
-watch(
-  () => detailPayment.value?.id,
-  async (id) => {
-    if (typeof window === 'undefined') return
-    if (detailScreenshotBlobUrl.value) {
-      URL.revokeObjectURL(detailScreenshotBlobUrl.value)
-      detailScreenshotBlobUrl.value = null
-    }
-    if (!id) return
-    if (!detailPayment.value?.screenshot_path) return
-    try {
-      const res = await paymentApi.getScreenshotBlob(id)
-      detailScreenshotBlobUrl.value = URL.createObjectURL(res.data as Blob)
-    } catch (err) {
-      console.warn('Load payment screenshot failed:', err)
-    }
-  },
-)
 
 const validateOcrForm = () => {
   ocrErrors.amount = ''
@@ -1784,311 +1561,14 @@ const handleUnlinkInvoiceFromPayment = async (invoiceId: string) => {
   }
 }
 
-const openPaymentDetail = async (payment: Payment) => {
-  let full = payment
-  if (payment?.id && !payment?.extracted_data) {
-    try {
-      const res = await paymentApi.getById(payment.id)
-      if (res.data?.success && res.data?.data) full = res.data.data
-    } catch {
-      // ignore, fallback to list item
-    }
-  }
-  detailPayment.value = full
-  paymentDetailEditing.value = false
-  savingPaymentDetail.value = false
-  paymentTimePanel.value?.hide?.()
-  paymentTimeLastTarget.value = null
-  paymentDetailTimeDraft.value = null
-  paymentDetailForm.amount = Number(full.amount || 0)
-  paymentDetailForm.merchant = full.merchant || ''
-  paymentDetailForm.payment_method = normalizePaymentMethodText(full.payment_method || '')
-  paymentDetailForm.description = full.description || ''
-  paymentDetailForm.transaction_time = full.transaction_time ? new Date(full.transaction_time) : new Date()
+const openPaymentDetail = (payment: Payment) => {
+  detailPayment.value = payment
   paymentDetailVisible.value = true
 }
 
-const formatDateTimeDraft = (date: Date | null) => {
-  if (!date) return ''
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
-}
-
-const isPaymentTimePanelOpen = () => {
-  const p = paymentTimePanel.value as any
-  return !!p?.visible
-}
-
-const getPaymentTimeOverlayEl = (): HTMLElement | null => {
-  const p = paymentTimePanel.value as any
-  const container = p?.container as HTMLElement | undefined
-  if (container) return container
-  return (
-    (document.querySelector('.p-popover.payment-time-panel') as HTMLElement | null) ||
-    (document.querySelector('.p-overlaypanel.payment-time-panel') as HTMLElement | null)
-  )
-}
-
-const forcePaymentTimeBelow = () => {
-  if (typeof window === 'undefined') return
-  const target = paymentTimeLastTarget.value
-  if (!target) return
-
-  const overlay = getPaymentTimeOverlayEl()
-  if (!overlay) return
-
-  const rect = target.getBoundingClientRect()
-  const scrollX = window.scrollX || document.documentElement.scrollLeft || 0
-  const scrollY = window.scrollY || document.documentElement.scrollTop || 0
-  const gap = 6
-  const top = rect.bottom + scrollY + gap
-
-  const w = overlay.getBoundingClientRect().width || overlay.offsetWidth
-  const minLeft = scrollX + 8
-  const maxLeft = scrollX + window.innerWidth - w - 8
-  const desiredLeft = rect.left + scrollX
-  const left = Number.isFinite(w) && w > 0 ? Math.max(minLeft, Math.min(desiredLeft, maxLeft)) : desiredLeft
-
-  overlay.style.top = ''
-  overlay.style.bottom = ''
-  overlay.style.left = ''
-  overlay.style.right = ''
-  overlay.style.insetBlockStart = `${top}px`
-  overlay.style.insetBlockEnd = 'auto'
-  overlay.style.insetInlineStart = `${left}px`
-  overlay.style.insetInlineEnd = 'auto'
-
-  const available = window.innerHeight - rect.bottom - gap - 16
-  const content =
-    (overlay.querySelector('.p-popover-content') as HTMLElement | null) ||
-    (overlay.querySelector('.p-overlaypanel-content') as HTMLElement | null)
-  if (content) {
-    const maxH = Math.max(240, Math.floor(available))
-    content.style.maxHeight = `${maxH}px`
-    content.style.overflow = 'auto'
-  }
-}
-
-const realignPaymentTimePanel = async () => {
-  await nextTick()
-  const p = paymentTimePanel.value
-  if (!p) return
-  if (!isPaymentTimePanelOpen()) return
-
-  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(() => {
-      p.alignOverlay()
-      forcePaymentTimeBelow()
-    })
-    return
-  }
-  p.alignOverlay()
-  forcePaymentTimeBelow()
-}
-
-const togglePaymentTimePanel = (event: MouseEvent) => {
-  if (!paymentDetailEditing.value) return
-  paymentTimeLastTarget.value = event.currentTarget as HTMLElement | null
-  paymentDetailTimeDraft.value = paymentDetailForm.transaction_time ? new Date(paymentDetailForm.transaction_time) : new Date()
-  paymentTimePanel.value?.toggle(event)
-  void realignPaymentTimePanel()
-}
-
-const onPaymentTimePanelShow = async () => {
-  await realignPaymentTimePanel()
-  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(() => forcePaymentTimeBelow())
-  } else {
-    forcePaymentTimeBelow()
-  }
-}
-
-const onPaymentTimePanelHide = () => {
-  paymentTimeLastTarget.value = null
-}
-
-const cancelPaymentTimePanel = () => {
-  paymentDetailTimeDraft.value = paymentDetailForm.transaction_time ? new Date(paymentDetailForm.transaction_time) : new Date()
-  paymentTimePanel.value?.hide?.()
-}
-
-const confirmPaymentTimePanel = () => {
-  if (!paymentDetailTimeDraft.value) return
-  paymentDetailForm.transaction_time = new Date(paymentDetailTimeDraft.value)
-  paymentTimePanel.value?.hide?.()
-}
-
-const onPaymentDetailHide = () => {
-  paymentTimePanel.value?.hide?.()
-  paymentTimeLastTarget.value = null
-  paymentDetailTimeDraft.value = null
-}
-
-const markPaymentRegressionSample = async (id: string) => {
-  if (!isAdmin.value) return
-  if (!id) return
-  markingRegressionSample.value = true
-  try {
-    const res = await regressionSamplesApi.markPayment(id)
-    if (res.data.success) {
-      const issues = (res.data as any)?.data?.issues as any[] | undefined
-      const warnIssues = (Array.isArray(issues) ? issues : []).filter((it) => String(it?.level || '').toLowerCase() === 'warn')
-      const nonPiiWarnIssues = warnIssues.filter((it) => !String(it?.code || '').toLowerCase().startsWith('pii_'))
-      const hasWarn = nonPiiWarnIssues.length > 0
-      const hasOnlyPiiWarn = warnIssues.length > 0 && nonPiiWarnIssues.length === 0
-      toast.add({
-        severity: hasWarn ? 'warn' : hasOnlyPiiWarn ? 'info' : 'success',
-        summary: hasWarn
-          ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u6709\u8b66\u544a\uff09'
-          : hasOnlyPiiWarn
-            ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u542b\u9690\u79c1\u5b57\u6bb5\u63d0\u793a\uff09'
-            : '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c',
-        life: 2500,
-      })
-      return
-    }
-    toast.add({ severity: 'error', summary: res.data.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
-  } catch (e: any) {
-    if (e?.response?.status === 422) {
-      const issues = e?.response?.data?.data?.issues as any[] | undefined
-      const ok = await confirmForceMarkRegressionSample(issues || [])
-      if (!ok) return
-      const res = await regressionSamplesApi.markPayment(id, { force: true })
-      if (res.data.success) {
-        toast.add({ severity: 'success', summary: '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c', life: 2500 })
-        return
-      }
-    }
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
-  } finally {
-    markingRegressionSample.value = false
-  }
-}
-
-const handlePaymentTimeViewportChange = () => {
-  if (!isPaymentTimePanelOpen()) return
-  void realignPaymentTimePanel()
-}
-
-const enterPaymentEditMode = () => {
-  if (!detailPayment.value) return
-  paymentDetailEditing.value = true
-  paymentTimePanel.value?.hide?.()
-  paymentTimeLastTarget.value = null
-  paymentDetailTimeDraft.value = null
-  paymentDetailForm.amount = Number(detailPayment.value.amount || 0)
-  paymentDetailForm.merchant = detailPayment.value.merchant || ''
-  paymentDetailForm.payment_method = normalizePaymentMethodText(detailPayment.value.payment_method || '')
-  paymentDetailForm.description = detailPayment.value.description || ''
-  paymentDetailForm.transaction_time = detailPayment.value.transaction_time ? new Date(detailPayment.value.transaction_time) : new Date()
-}
-
-const cancelPaymentEditMode = () => {
-  if (!detailPayment.value) {
-    paymentDetailEditing.value = false
-    return
-  }
-  paymentTimePanel.value?.hide?.()
-  paymentTimeLastTarget.value = null
-  paymentDetailTimeDraft.value = null
-  paymentDetailForm.amount = Number(detailPayment.value.amount || 0)
-  paymentDetailForm.merchant = detailPayment.value.merchant || ''
-  paymentDetailForm.payment_method = normalizePaymentMethodText(detailPayment.value.payment_method || '')
-  paymentDetailForm.description = detailPayment.value.description || ''
-  paymentDetailForm.transaction_time = detailPayment.value.transaction_time ? new Date(detailPayment.value.transaction_time) : new Date()
-  paymentDetailEditing.value = false
-}
-
-const savePaymentEditMode = async () => {
-  if (!detailPayment.value) return
-  if (paymentDetailForm.amount === null || Number.isNaN(Number(paymentDetailForm.amount)) || Number(paymentDetailForm.amount) <= 0) {
-    toast.add({ severity: 'warn', summary: '请填写金额', life: 2200 })
-    return
-  }
-  if (!paymentDetailForm.transaction_time) {
-    toast.add({ severity: 'warn', summary: '请选择交易时间', life: 2200 })
-    return
-  }
-
-  savingPaymentDetail.value = true
-  try {
-    paymentTimePanel.value?.hide?.()
-    const payload = {
-      amount: Number(paymentDetailForm.amount),
-      merchant: paymentDetailForm.merchant,
-      payment_method: normalizePaymentMethodText(paymentDetailForm.payment_method),
-      description: paymentDetailForm.description,
-      transaction_time: dayjs(paymentDetailForm.transaction_time).toISOString(),
-    }
-    await paymentApi.update(detailPayment.value.id, payload)
-    const refreshed = await paymentApi.getById(detailPayment.value.id)
-    if (refreshed.data.success && refreshed.data.data) {
-      detailPayment.value = refreshed.data.data
-    } else {
-      detailPayment.value = { ...detailPayment.value, ...payload } as Payment
-    }
-    toast.add({ severity: 'success', summary: '已保存', life: 2000 })
-    paymentDetailEditing.value = false
-    await loadPayments()
-    await loadStats()
-  } catch {
-    toast.add({ severity: 'error', summary: '保存失败', life: 3000 })
-  } finally {
-    savingPaymentDetail.value = false
-  }
-}
-
-const getExtractedRawText = (extractedData: string | null): string => {
-  if (!extractedData) return ''
-  try {
-    const data = JSON.parse(extractedData)
-    return data.raw_text || ''
-  } catch {
-    return extractedData
-  }
-}
-
-const getExtractedPrettyText = (extractedData: string | null): string => {
-  if (!extractedData) return ''
-  try {
-    const data = JSON.parse(extractedData)
-    return data.pretty_text || ''
-  } catch {
-    return ''
-  }
-}
-
-const getPaymentScreenshotTitle = (payment: Payment) => {
-  const path = payment.screenshot_path || ''
-  if (path) {
-    const parts = path.split('/')
-    return parts[parts.length - 1] || path
-  }
-  return normalizeInlineText(payment.merchant) || payment.id
-}
-
-const handleReparseOcr = async (paymentId: string) => {
-  reparsingOcr.value = true
-  try {
-    const res = await paymentApi.reparseScreenshot(paymentId)
-    if (res.data.success) {
-      toast.add({ severity: 'success', summary: '重新解析成功', life: 2000 })
-      notifications.add({ severity: 'success', title: '支付截图已重新解析', detail: paymentId })
-      const detailRes = await paymentApi.getById(paymentId)
-      if (detailRes.data.success && detailRes.data.data) {
-        // 刷新当前详情数据，避免重新打开才能看到最新字段
-        detailPayment.value = detailRes.data.data
-      }
-      await loadPayments()
-    }
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string; error?: string } } }
-    const message = err.response?.data?.message || '重新解析失败'
-    const detail = err.response?.data?.error
-    toast.add({ severity: 'error', summary: detail ? `${message}：${detail}` : message, life: 5000 })
-    notifications.add({ severity: 'error', title: '支付截图重新解析失败', detail: detail || message })
-  } finally {
-    reparsingOcr.value = false
-  }
+const handlePaymentDetailChanged = () => {
+  void loadPayments()
+  void loadStats()
 }
 
 const tryOpenMatchFromRoute = async () => {
@@ -2112,11 +1592,6 @@ const tryOpenMatchFromRoute = async () => {
 }
 
 onMounted(() => {
-  if (typeof window !== 'undefined') {
-    window.addEventListener('resize', handlePaymentTimeViewportChange, { passive: true })
-    window.addEventListener('orientationchange', handlePaymentTimeViewportChange, { passive: true } as any)
-    window.addEventListener('scroll', handlePaymentTimeViewportChange, true)
-  }
   void (async () => {
     await cleanupPendingPaymentDraftOnLoad()
     await loadPayments()
@@ -2129,10 +1604,6 @@ onBeforeUnmount(() => {
   reloadDebounced.cancel()
   statsAbort.value?.abort()
   revokeUploadedPreviewUrls()
-  if (typeof window === 'undefined') return
-  window.removeEventListener('resize', handlePaymentTimeViewportChange as any)
-  window.removeEventListener('orientationchange', handlePaymentTimeViewportChange as any)
-  window.removeEventListener('scroll', handlePaymentTimeViewportChange as any, true)
 })
 
 watch(
@@ -2561,121 +2032,6 @@ watch(
   margin-top: 6px;
 }
 
-.kv {
-  border: 1px solid color-mix(in srgb, var(--p-surface-200), transparent 35%);
-  background: color-mix(in srgb, var(--p-surface-0), transparent 10%);
-  border-radius: var(--radius-md);
-  padding: 8px 10px;
-}
-
-.kv :deep(.p-inputtext),
-.kv :deep(.p-inputnumber),
-.kv :deep(.p-datepicker),
-.kv :deep(.p-textarea),
-.kv :deep(.p-inputtextarea) {
-  width: 100%;
-}
-
-.kv :deep(.p-datepicker-input) {
-  width: 100%;
-}
-
-.header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.detail .sbm-grid-tight {
-  margin: 0;
-}
-
-.detail .sbm-grid-tight > [class*='col-'] {
-  padding: 0.35rem;
-}
-
-.detail :deep(.p-divider.p-divider-horizontal) {
-  margin: 10px 0;
-}
-
-.title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 900;
-  color: var(--color-text-primary);
-  min-width: 0;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.k {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--color-text-tertiary);
-  display: flex;
-  align-items: center;
-  min-height: 18px;
-  line-height: 1.6;
-  padding-top: 0;
-  padding-bottom: 1px;
-}
-
-.v {
-  margin-top: 6px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  line-height: 1.6;
-}
-
-.section {
-  margin-top: 10px;
-}
-
-.section-title {
-  font-weight: 900;
-  color: var(--color-text-primary);
-  margin-bottom: 6px;
-}
-
-.section-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.payment-detail-layout {
-  display: grid;
-  grid-template-columns: minmax(320px, 38%) 1fr;
-  gap: 14px;
-  align-items: start;
-}
-
-.payment-detail-left,
-.payment-detail-right {
-  min-width: 0;
-}
-
-.payment-detail-left .section-title {
-  margin-bottom: 8px;
-}
-
-@media (max-width: 900px) {
-  .payment-detail-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
 .screenshot-wrap {
   width: 100%;
   max-width: 100%;
@@ -2707,75 +2063,6 @@ watch(
   color: var(--color-text-secondary);
 }
 
-:global(.p-popover.payment-time-panel),
-:global(.p-overlaypanel.payment-time-panel) {
-  width: auto;
-  max-width: calc(100vw - 16px);
-  border-radius: 16px;
-  box-shadow: var(--shadow-xl);
-  overflow: hidden;
-}
-
-:global(.p-popover.payment-time-panel .p-popover-arrow),
-:global(.p-overlaypanel.payment-time-panel .p-overlaypanel-arrow) {
-  display: none;
-}
-
-:global(.p-popover.payment-time-panel .p-popover-content),
-:global(.p-overlaypanel.payment-time-panel .p-overlaypanel-content) {
-  padding: 10px 12px 8px;
-}
-
-:global(.payment-time-panel .p-datepicker) {
-  display: inline-block;
-  font-size: 0.92rem;
-}
-
-:global(.payment-time-panel .p-datepicker),
-:global(.payment-time-panel .p-datepicker-panel) {
-  width: auto !important;
-}
-
-:global(.payment-time-panel .p-datepicker-panel-inline) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-:global(.payment-time-panel .p-datepicker-calendar-container) {
-  padding: 0 0.4rem;
-}
-
-:global(.payment-time-panel .p-datepicker-header) {
-  padding: 0.55rem 0.65rem;
-}
-
-:global(.payment-time-panel .p-datepicker-time-picker) {
-  padding: 0.55rem 0.65rem;
-  /* PrimeVue 默认会给 time picker 加一条上边框；横向布局时会变成你截图里的“黑线” */
-  border-block-start: 0 none !important;
-  border-top: 0 none !important;
-  border-left: 0 none !important;
-}
-
-@media (max-width: 640px) {
-  :global(.payment-time-panel .p-datepicker-panel-inline) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  :global(.payment-time-panel .p-datepicker-time-picker) {
-    border-left: 0;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
-  }
-}
-
-.payment-time-panel-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding-top: 10px;
-}
 </style>
 
 

@@ -38,7 +38,7 @@ func TestRunMigratesLegacyDataIdempotently(t *testing.T) {
 			id, owner_user_id, is_draft, trip_assignment_source, trip_assignment_state,
 			amount, transaction_time, transaction_time_ts, extracted_data, dedup_status,
 			created_at, trip_assign_src, trip_assign_state
-		) VALUES (?, '', 0, '', '', 12.34, ?, 0, ?, 'ok', ?, 'manual', 'assigned')
+		) VALUES (?, '', 0, '', '', 12.345, ?, 0, ?, 'ok', ?, 'manual', 'assigned')
 	`, "payment-1", "2026-01-02 03:04:05", `{"amount":12.34}`, createdAt).Error; err != nil {
 		t.Fatalf("写入旧支付失败: %v", err)
 	}
@@ -70,8 +70,8 @@ func TestRunMigratesLegacyDataIdempotently(t *testing.T) {
 	if err := db.Model(&schemaMigration{}).Count(&migrationCount).Error; err != nil {
 		t.Fatalf("读取迁移记录失败: %v", err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("迁移记录应只有 1 条，实际为 %d", migrationCount)
+	if migrationCount != int64(len(registeredMigrations)) {
+		t.Fatalf("迁移记录应有 %d 条，实际为 %d", len(registeredMigrations), migrationCount)
 	}
 
 	var payment models.Payment
@@ -80,6 +80,9 @@ func TestRunMigratesLegacyDataIdempotently(t *testing.T) {
 	}
 	if payment.OwnerUserID != "user-1" || payment.TransactionTimeTs == 0 {
 		t.Fatalf("支付回填不完整: owner=%q ts=%d", payment.OwnerUserID, payment.TransactionTimeTs)
+	}
+	if payment.AmountCents != 1235 || payment.Amount != 12.35 {
+		t.Fatalf("支付金额分回填不完整: amount=%v cents=%d", payment.Amount, payment.AmountCents)
 	}
 	if payment.TripAssignSrc != "manual" || payment.TripAssignState != "assigned" {
 		t.Fatalf("旧行程字段未迁移: source=%q state=%q", payment.TripAssignSrc, payment.TripAssignState)
@@ -99,6 +102,9 @@ func TestRunMigratesLegacyDataIdempotently(t *testing.T) {
 	}
 	if invoice.OwnerUserID != "user-1" || invoice.InvoiceDateYMD == nil || *invoice.InvoiceDateYMD != "2026-01-06" {
 		t.Fatalf("发票回填不完整: owner=%q date=%v", invoice.OwnerUserID, invoice.InvoiceDateYMD)
+	}
+	if invoice.AmountCents == nil || *invoice.AmountCents != 1001 || invoice.Amount == nil || *invoice.Amount != 10.01 {
+		t.Fatalf("发票金额分回填不完整: amount=%v cents=%v", invoice.Amount, invoice.AmountCents)
 	}
 
 	var invoiceBlobCount int64

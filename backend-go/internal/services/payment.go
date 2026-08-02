@@ -443,6 +443,7 @@ func (s *PaymentService) ListWithInvoiceCountsCtx(ctx context.Context, ownerUser
 		"trip_assignment_state",
 		"bad_debt",
 		"amount",
+		"amount_cents",
 		"merchant",
 		"category",
 		"payment_method",

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"smart-bill-manager/internal/models"
+	"smart-bill-manager/internal/money"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
@@ -268,13 +269,13 @@ func (s *TripService) GetSummaryCtx(ctx context.Context, ownerUserID string, tri
 
 	out := &TripSummary{TripID: tripID}
 	type payAgg struct {
-		PaymentCount int64   `gorm:"column:payment_count"`
-		TotalAmount  float64 `gorm:"column:total_amount"`
+		PaymentCount int64 `gorm:"column:payment_count"`
+		TotalCents   int64 `gorm:"column:total_cents"`
 	}
 	var pa payAgg
 	if err := db.
 		Model(&models.Payment{}).
-		Select("COUNT(*) AS payment_count, COALESCE(SUM(amount), 0) AS total_amount").
+		Select("COUNT(*) AS payment_count, COALESCE(SUM(amount_cents), 0) AS total_cents").
 		Where("owner_user_id = ?", ownerUserID).
 		Where("trip_id = ?", tripID).
 		Where("is_draft = 0").
@@ -282,7 +283,7 @@ func (s *TripService) GetSummaryCtx(ctx context.Context, ownerUserID string, tri
 		return nil, err
 	}
 	out.PaymentCount = int(pa.PaymentCount)
-	out.TotalAmount = pa.TotalAmount
+	out.TotalAmount = money.ToMajor(pa.TotalCents)
 	if pa.PaymentCount == 0 {
 		return out, nil
 	}
@@ -338,7 +339,7 @@ func (s *TripService) GetAllSummariesCtx(ctx context.Context, ownerUserID string
 		SELECT
 			t.id AS trip_id,
 			COALESCE(p.payment_count, 0) AS payment_count,
-			COALESCE(p.total_amount, 0) AS total_amount,
+			COALESCE(p.total_cents, 0) / 100.0 AS total_amount,
 			COALESCE(li.linked_invoices, 0) AS linked_invoices,
 			COALESCE(p.unlinked_pays, 0) AS unlinked_pays
 		FROM trips t
@@ -347,7 +348,7 @@ func (s *TripService) GetAllSummariesCtx(ctx context.Context, ownerUserID string
 				trip_id,
 				owner_user_id,
 				COUNT(*) AS payment_count,
-				COALESCE(SUM(amount), 0) AS total_amount,
+				COALESCE(SUM(amount_cents), 0) AS total_cents,
 				COALESCE(SUM(CASE
 					WHEN NOT EXISTS (SELECT 1 FROM invoice_payment_links l WHERE l.payment_id = payments.id) THEN 1
 					ELSE 0
@@ -413,6 +414,7 @@ func (s *TripService) GetPaymentsCtx(ctx context.Context, ownerUserID string, tr
 			"trip_assignment_state",
 			"bad_debt",
 			"amount",
+			"amount_cents",
 			"merchant",
 			"category",
 			"payment_method",
@@ -479,6 +481,7 @@ func (s *TripService) GetPaymentsCtx(ctx context.Context, ownerUserID string, tr
 			"invoice_number",
 			"invoice_date",
 			"amount",
+			"amount_cents",
 			"seller_name",
 			"bad_debt",
 		}).

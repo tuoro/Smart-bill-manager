@@ -2,6 +2,10 @@ package models
 
 import (
 	"time"
+
+	"smart-bill-manager/internal/money"
+
+	"gorm.io/gorm"
 )
 
 // Payment represents a payment record
@@ -13,7 +17,8 @@ type Payment struct {
 	TripAssignSrc     string    `json:"trip_assignment_source" gorm:"column:trip_assignment_source;not null;default:auto;index"`   // auto|manual|blocked
 	TripAssignState   string    `json:"trip_assignment_state" gorm:"column:trip_assignment_state;not null;default:no_match;index"` // assigned|no_match|overlap|blocked
 	BadDebt           bool      `json:"bad_debt" gorm:"not null;default:false;index"`
-	Amount            float64   `json:"amount" gorm:"not null"`
+	Amount            float64   `json:"amount" gorm:"not null"` // 兼容旧数据库和元单位 API。
+	AmountCents       int64     `json:"-" gorm:"not null;default:0;index"`
 	Merchant          *string   `json:"merchant"`
 	Category          *string   `json:"category"`
 	PaymentMethod     *string   `json:"payment_method"`
@@ -30,6 +35,28 @@ type Payment struct {
 
 func (Payment) TableName() string {
 	return "payments"
+}
+
+func (payment *Payment) BeforeCreate(*gorm.DB) error {
+	cents, err := money.FromMajor(payment.Amount)
+	if err != nil {
+		return err
+	}
+	payment.AmountCents = cents
+	payment.Amount = money.ToMajor(cents)
+	return nil
+}
+
+func (payment *Payment) AfterFind(*gorm.DB) error {
+	if payment.AmountCents == 0 && payment.Amount != 0 {
+		cents, err := money.FromMajor(payment.Amount)
+		if err != nil {
+			return err
+		}
+		payment.AmountCents = cents
+	}
+	payment.Amount = money.ToMajor(payment.AmountCents)
+	return nil
 }
 
 // PaymentStats represents payment statistics

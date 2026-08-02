@@ -66,7 +66,7 @@ func (s *TripService) GetPendingPaymentsCtx(ctx context.Context, ownerUserID str
 			p.trip_assignment_source AS trip_assign_src,
 			p.trip_assignment_state AS trip_assign_state,
 			p.bad_debt AS bad_debt,
-			p.amount AS amount,
+			p.amount_cents / 100.0 AS amount,
 			p.merchant AS merchant,
 			p.category AS category,
 			p.payment_method AS payment_method,

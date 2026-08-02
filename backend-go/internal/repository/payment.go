@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
-	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 	"strings"
+
+	"smart-bill-manager/internal/models"
+	"smart-bill-manager/internal/money"
+	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
@@ -142,6 +144,9 @@ func (r *PaymentRepository) FindByIDForOwnerCtx(ctx context.Context, ownerUserID
 }
 
 func (r *PaymentRepository) Update(id string, data map[string]interface{}) error {
+	if err := money.SyncUpdateMap(data, "amount", "amount_cents", false); err != nil {
+		return err
+	}
 	result := database.GetDB().Model(&models.Payment{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
@@ -150,6 +155,9 @@ func (r *PaymentRepository) Update(id string, data map[string]interface{}) error
 }
 
 func (r *PaymentRepository) UpdateForOwner(ownerUserID string, id string, data map[string]interface{}) error {
+	if err := money.SyncUpdateMap(data, "amount", "amount_cents", false); err != nil {
+		return err
+	}
 	q := database.GetDB().Model(&models.Payment{}).Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
@@ -202,27 +210,41 @@ func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.Payment
 		MerchantStats: make(map[string]float64),
 		DailyStats:    make(map[string]float64),
 	}
+	categoryCents := make(map[string]int64)
+	merchantCents := make(map[string]int64)
+	dailyCents := make(map[string]int64)
+	var totalCents int64
 
 	for _, p := range payments {
-		stats.TotalAmount += p.Amount
+		totalCents += p.AmountCents
 		stats.TotalCount++
 
 		category := "未分类"
 		if p.Category != nil && *p.Category != "" {
 			category = *p.Category
 		}
-		stats.CategoryStats[category] += p.Amount
+		categoryCents[category] += p.AmountCents
 
 		merchant := "未知商家"
 		if p.Merchant != nil && *p.Merchant != "" {
 			merchant = *p.Merchant
 		}
-		stats.MerchantStats[merchant] += p.Amount
+		merchantCents[merchant] += p.AmountCents
 
 		if len(p.TransactionTime) >= 10 {
 			date := p.TransactionTime[:10]
-			stats.DailyStats[date] += p.Amount
+			dailyCents[date] += p.AmountCents
 		}
+	}
+	stats.TotalAmount = money.ToMajor(totalCents)
+	for key, cents := range categoryCents {
+		stats.CategoryStats[key] = money.ToMajor(cents)
+	}
+	for key, cents := range merchantCents {
+		stats.MerchantStats[key] = money.ToMajor(cents)
+	}
+	for key, cents := range dailyCents {
+		stats.DailyStats[key] = money.ToMajor(cents)
 	}
 
 	return stats, nil
@@ -259,58 +281,58 @@ func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID str
 	}
 
 	type totalsRow struct {
-		TotalAmount float64 `gorm:"column:total_amount"`
-		TotalCount  int64   `gorm:"column:total_count"`
+		TotalCents int64 `gorm:"column:total_cents"`
+		TotalCount int64 `gorm:"column:total_count"`
 	}
 	var totals totalsRow
 	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
-		Select("COALESCE(SUM(amount), 0) AS total_amount, COUNT(*) AS total_count").
+		Select("COALESCE(SUM(amount_cents), 0) AS total_cents, COUNT(*) AS total_count").
 		Scan(&totals).Error; err != nil {
 		return nil, err
 	}
-	stats.TotalAmount = totals.TotalAmount
+	stats.TotalAmount = money.ToMajor(totals.TotalCents)
 	stats.TotalCount = int(totals.TotalCount)
 
 	type kvRow struct {
-		Key   string  `gorm:"column:k"`
-		Total float64 `gorm:"column:total"`
+		Key        string `gorm:"column:k"`
+		TotalCents int64  `gorm:"column:total_cents"`
 	}
 
 	// Category stats
 	var catRows []kvRow
 	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
-		Select(`CASE WHEN category IS NULL OR TRIM(category) = '' THEN '未分类' ELSE category END AS k, COALESCE(SUM(amount), 0) AS total`).
+		Select(`CASE WHEN category IS NULL OR TRIM(category) = '' THEN '未分类' ELSE category END AS k, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("k").
 		Scan(&catRows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range catRows {
-		stats.CategoryStats[r.Key] = r.Total
+		stats.CategoryStats[r.Key] = money.ToMajor(r.TotalCents)
 	}
 
 	// Merchant stats
 	var merchRows []kvRow
 	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
-		Select(`CASE WHEN merchant IS NULL OR TRIM(merchant) = '' THEN '未知商家' ELSE merchant END AS k, COALESCE(SUM(amount), 0) AS total`).
+		Select(`CASE WHEN merchant IS NULL OR TRIM(merchant) = '' THEN '未知商家' ELSE merchant END AS k, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("k").
 		Scan(&merchRows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range merchRows {
-		stats.MerchantStats[r.Key] = r.Total
+		stats.MerchantStats[r.Key] = money.ToMajor(r.TotalCents)
 	}
 
 	// Daily stats (YYYY-MM-DD from RFC3339 string)
 	var dayRows []kvRow
 	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
-		Select(`SUBSTR(transaction_time, 1, 10) AS k, COALESCE(SUM(amount), 0) AS total`).
+		Select(`SUBSTR(transaction_time, 1, 10) AS k, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("k").
 		Scan(&dayRows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range dayRows {
 		if len(r.Key) == 10 {
-			stats.DailyStats[r.Key] = r.Total
+			stats.DailyStats[r.Key] = money.ToMajor(r.TotalCents)
 		}
 	}
 

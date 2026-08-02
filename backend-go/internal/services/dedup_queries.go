@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"smart-bill-manager/internal/models"
+	"smart-bill-manager/internal/money"
 	"smart-bill-manager/pkg/database"
 )
 
@@ -116,11 +117,9 @@ func FindPaymentCandidatesByAmountTimeForOwner(ownerUserID string, amount float6
 		limit = 5
 	}
 
-	eps := 0.01
-	minAmount := amount - eps
-	maxAmount := amount + eps
-	if minAmount < 0 {
-		minAmount = 0
+	amountCents, err := money.FromMajor(amount)
+	if err != nil {
+		return nil, err
 	}
 
 	deltaMs := int64(window / time.Millisecond)
@@ -131,7 +130,7 @@ func FindPaymentCandidatesByAmountTimeForOwner(ownerUserID string, amount float6
 	q := database.GetDB().Model(&models.Payment{}).
 		Where("is_draft = 0").
 		Where("transaction_time_ts BETWEEN ? AND ?", startTs, endTs).
-		Where("amount BETWEEN ? AND ?", minAmount, maxAmount)
+		Where("amount_cents = ?", amountCents)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}
@@ -166,12 +165,9 @@ func FindPaymentCandidatesByAmountTime(amount float64, transactionTimeTs int64, 
 		limit = 5
 	}
 
-	// Amount is stored as float64; use a small epsilon around 2-decimal money values.
-	eps := 0.01
-	minAmount := amount - eps
-	maxAmount := amount + eps
-	if minAmount < 0 {
-		minAmount = 0
+	amountCents, err := money.FromMajor(amount)
+	if err != nil {
+		return nil, err
 	}
 
 	deltaMs := int64(window / time.Millisecond)
@@ -182,7 +178,7 @@ func FindPaymentCandidatesByAmountTime(amount float64, transactionTimeTs int64, 
 	q := database.GetDB().Model(&models.Payment{}).
 		Where("is_draft = 0").
 		Where("transaction_time_ts BETWEEN ? AND ?", startTs, endTs).
-		Where("amount BETWEEN ? AND ?", minAmount, maxAmount)
+		Where("amount_cents = ?", amountCents)
 	if strings.TrimSpace(excludeID) != "" {
 		q = q.Where("id <> ?", strings.TrimSpace(excludeID))
 	}

@@ -1,4 +1,4 @@
-import api from './auth'
+import api from './client'
 import type { DashboardData, ApiResponse } from '@/types'
 
 export const dashboardApi = {

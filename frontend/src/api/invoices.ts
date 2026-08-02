@@ -1,4 +1,4 @@
-import api from './auth'
+import api from './client'
 import type { AxiosRequestConfig } from 'axios'
 import type { Invoice, InvoiceAttachment, Payment, ApiResponse, DedupHint } from '@/types'
 

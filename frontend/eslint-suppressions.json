@@ -67,7 +67,7 @@
   },
   "src/views/Invoices.vue": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 23
+      "count": 22
     }
   },
   "src/views/Logs.vue": {
@@ -77,7 +77,7 @@
   },
   "src/views/Payments.vue": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 27
+      "count": 26
     }
   },
   "src/views/Register.vue": {

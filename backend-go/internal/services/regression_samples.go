@@ -19,7 +19,6 @@ import (
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/utils"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
@@ -27,9 +26,13 @@ import (
 var ErrSampleNotFound = errors.New("regression sample not found")
 var ErrRepoSampleDirNotFound = errors.New("repo sample dir not found")
 
-type RegressionSampleService struct{}
+type RegressionSampleService struct {
+	db *gorm.DB
+}
 
-func NewRegressionSampleService() *RegressionSampleService { return &RegressionSampleService{} }
+func NewRegressionSampleService(db *gorm.DB) *RegressionSampleService {
+	return &RegressionSampleService{db: db}
+}
 
 type SampleQualityIssue struct {
 	Level   string `json:"level"`   // error | warn
@@ -372,7 +375,7 @@ func (s *RegressionSampleService) CreateOrUpdateFromPayment(paymentID string, cr
 		return nil, nil, fmt.Errorf("missing fields")
 	}
 
-	db := database.GetDB()
+	db := s.db
 	backfillRegressionSampleRawHashes(db)
 	var p models.Payment
 	res := db.Where("id = ?", paymentID).Limit(1).Find(&p)
@@ -483,7 +486,7 @@ func (s *RegressionSampleService) CreateOrUpdateFromInvoice(invoiceID string, cr
 		return nil, nil, fmt.Errorf("missing fields")
 	}
 
-	db := database.GetDB()
+	db := s.db
 	backfillRegressionSampleRawHashes(db)
 	var inv models.Invoice
 	res := db.Where("id = ?", invoiceID).Limit(1).Find(&inv)
@@ -632,7 +635,7 @@ func (s *RegressionSampleService) ListCtx(ctx context.Context, params ListRegres
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	q := db.Model(&models.RegressionSample{})
 
 	kind := strings.TrimSpace(params.Kind)
@@ -675,7 +678,7 @@ func (s *RegressionSampleService) Delete(id string) error {
 	if id == "" {
 		return ErrSampleNotFound
 	}
-	db := database.GetDB()
+	db := s.db
 	res := db.Where("id = ?", id).Delete(&models.RegressionSample{})
 	if res.Error != nil {
 		return res.Error
@@ -706,7 +709,7 @@ func (s *RegressionSampleService) BulkDelete(ids []string) (deleted int, err err
 	if len(clean) == 0 {
 		return 0, nil
 	}
-	db := database.GetDB()
+	db := s.db
 	res := db.Where("id IN ?", clean).Delete(&models.RegressionSample{})
 	if res.Error != nil {
 		return 0, res.Error
@@ -722,7 +725,7 @@ type ExportRegressionSamplesParams struct {
 }
 
 func (s *RegressionSampleService) PrepareExportZip(ctx context.Context, params ExportRegressionSamplesParams) (*ZipStream, error) {
-	db := database.GetDB()
+	db := s.db
 	backfillRegressionSampleRawHashes(db)
 	q := db.Model(&models.RegressionSample{})
 	kind := strings.TrimSpace(params.Kind)
@@ -890,7 +893,7 @@ func (s *RegressionSampleService) ImportRepoSamples() (*RepoImportResult, error)
 		return nil, err
 	}
 
-	db := database.GetDB()
+	db := s.db
 	backfillRegressionSampleRawHashes(db)
 	result := &RepoImportResult{}
 

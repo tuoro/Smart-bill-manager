@@ -8,15 +8,11 @@ import (
 	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 func TestTripServiceUsesInjectedDatabase(t *testing.T) {
 	primaryDB := openServiceTestDB(t)
-	globalDB := openServiceTestDB(t)
-	if database.GetDB() != globalDB {
-		t.Fatal("测试前提不成立：全局连接应指向第二个数据库")
-	}
+	secondaryDB := openServiceTestDB(t)
 
 	service := NewTripService(primaryDB, t.TempDir())
 	trip, _, err := service.Create("owner-1", CreateTripInput{
@@ -32,7 +28,7 @@ func TestTripServiceUsesInjectedDatabase(t *testing.T) {
 	}
 
 	assertTripCount(t, primaryDB, 1)
-	assertTripCount(t, globalDB, 0)
+	assertTripCount(t, secondaryDB, 0)
 }
 
 func assertTripCount(t *testing.T, db *gorm.DB, want int64) {

@@ -16,7 +16,10 @@ func TestEmailDeleteConfig_DeletesLogs(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.MkdirAll(dir, 0755)
 
-	db := database.Init(dir)
+	db, err := database.Open(dir)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
 	if err := db.AutoMigrate(&models.EmailConfig{}, &models.EmailLog{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

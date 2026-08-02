@@ -249,7 +249,7 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindPaymentByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
+	if existing, err := h.paymentService.FindByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
@@ -319,7 +319,7 @@ func (h *PaymentHandler) UploadScreenshot(c *gin.Context) {
 
 	dedup := interface{}(nil)
 	if payment != nil && payment.DedupStatus == services.DedupStatusSuspected {
-		if cands, derr := services.FindPaymentCandidatesByAmountTimeForOwner(middleware.GetEffectiveUserID(c), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
+		if cands, derr := h.paymentService.FindCandidatesByAmountTimeForOwner(middleware.GetEffectiveUserID(c), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
 			dedup = gin.H{
 				"kind":       "suspected_duplicate",
 				"reason":     "amount_time",
@@ -418,7 +418,7 @@ func (h *PaymentHandler) UploadScreenshotAsync(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindPaymentByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
+	if existing, err := h.paymentService.FindByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return

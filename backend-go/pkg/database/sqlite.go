@@ -15,16 +15,6 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var DB *gorm.DB
-
-func Init(dataDir string) *gorm.DB {
-	db, err := Open(dataDir)
-	if err != nil {
-		log.Fatal("Failed to initialize database:", err)
-	}
-	return db
-}
-
 // Open 创建数据库连接，并将错误交给调用方决定如何处理。
 func Open(dataDir string) (*gorm.DB, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -51,12 +41,7 @@ func Open(dataDir string) (*gorm.DB, error) {
 	// - improve read/write concurrency with WAL
 	applySQLiteTuning(sqlDB)
 
-	DB = db
 	return db, nil
-}
-
-func GetDB() *gorm.DB {
-	return DB
 }
 
 func applySQLiteTuning(sqlDB *sql.DB) {

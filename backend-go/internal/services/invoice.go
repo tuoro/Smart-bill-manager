@@ -243,7 +243,7 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 	if updated != nil && updated.InvoiceNumber != nil {
 		no := strings.TrimSpace(*updated.InvoiceNumber)
 		if no != "" {
-			if cands, derr := FindInvoiceCandidatesByInvoiceNumberForOwner(strings.TrimSpace(updated.OwnerUserID), no, updated.ID, 5); derr == nil && len(cands) > 0 {
+			if cands, derr := s.FindCandidatesByInvoiceNumberForOwner(strings.TrimSpace(updated.OwnerUserID), no, updated.ID, 5); derr == nil && len(cands) > 0 {
 				updated.DedupStatus = DedupStatusSuspected
 				ref := cands[0].ID
 				updated.DedupRefID = &ref
@@ -384,7 +384,7 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 	if invoice.InvoiceNumber != nil {
 		n := strings.TrimSpace(*invoice.InvoiceNumber)
 		if n != "" {
-			if cands, err := FindInvoiceCandidatesByInvoiceNumberForOwner(ownerUserID, n, invoice.ID, 5); err == nil && len(cands) > 0 {
+			if cands, err := s.FindCandidatesByInvoiceNumberForOwner(ownerUserID, n, invoice.ID, 5); err == nil && len(cands) > 0 {
 				invoice.DedupStatus = DedupStatusSuspected
 				ref := cands[0].ID
 				invoice.DedupRefID = &ref
@@ -704,7 +704,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 			hash = strings.TrimSpace(*inv.FileSHA256)
 		}
 		if hash != "" {
-			if existing, err := FindInvoiceByFileSHA256ForOwner(ownerUserID, hash, id); err != nil {
+			if existing, err := s.FindByFileSHA256ForOwner(ownerUserID, hash, id); err != nil {
 				return err
 			} else if existing != nil {
 				return &DuplicateError{
@@ -724,7 +724,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 			nextNo = strings.TrimSpace(*inv.InvoiceNumber)
 		}
 		if nextNo != "" {
-			cands, err := FindInvoiceCandidatesByInvoiceNumberForOwner(ownerUserID, nextNo, id, 5)
+			cands, err := s.FindCandidatesByInvoiceNumberForOwner(ownerUserID, nextNo, id, 5)
 			if err != nil {
 				return err
 			}
@@ -803,7 +803,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 			nextNo = strings.TrimSpace(*before.InvoiceNumber)
 		}
 		if nextNo != "" {
-			if cands, err := FindInvoiceCandidatesByInvoiceNumberForOwner(ownerUserID, nextNo, id, 5); err == nil && len(cands) > 0 {
+			if cands, err := s.FindCandidatesByInvoiceNumberForOwner(ownerUserID, nextNo, id, 5); err == nil && len(cands) > 0 {
 				if force {
 					data["dedup_status"] = DedupStatusForced
 					data["dedup_ref_id"] = cands[0].ID

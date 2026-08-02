@@ -24,12 +24,13 @@ const (
 )
 
 type Application struct {
-	Router      *gin.Engine
-	db          *gorm.DB
-	uploadsDir  string
-	taskService *services.TaskService
-	startOnce   sync.Once
-	done        chan struct{}
+	Router            *gin.Engine
+	db                *gorm.DB
+	uploadsDir        string
+	taskService       *services.TaskService
+	regressionService *services.RegressionSampleService
+	startOnce         sync.Once
+	done              chan struct{}
 }
 
 func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, error) {
@@ -51,6 +52,7 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 	emailService := services.NewEmailService(db, uploadsDir, invoiceService)
 	tripService := services.NewTripService(db, uploadsDir)
 	taskService := services.NewTaskService(db, paymentService, invoiceService)
+	regressionService := services.NewRegressionSampleService(db)
 
 	if cfg.NodeEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -91,14 +93,15 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 	adminGroup.Use(middleware.RequireAdmin())
 	handlers.NewAdminInvitesHandler(authService).RegisterRoutes(adminGroup.Group("/invites"))
 	handlers.NewAdminUsersHandler(authService, uploadsDir).RegisterRoutes(adminGroup.Group("/users"))
-	handlers.NewAdminRegressionSamplesHandler(services.NewRegressionSampleService()).RegisterRoutes(adminGroup.Group("/regression-samples"))
+	handlers.NewAdminRegressionSamplesHandler(regressionService).RegisterRoutes(adminGroup.Group("/regression-samples"))
 
 	return &Application{
-		Router:      router,
-		db:          db,
-		uploadsDir:  uploadsDir,
-		taskService: taskService,
-		done:        make(chan struct{}),
+		Router:            router,
+		db:                db,
+		uploadsDir:        uploadsDir,
+		taskService:       taskService,
+		regressionService: regressionService,
+		done:              make(chan struct{}),
 	}, nil
 }
 
@@ -145,7 +148,7 @@ func (a *Application) Wait(ctx context.Context) error {
 }
 
 func (a *Application) importRegressionSamples() {
-	result, err := services.NewRegressionSampleService().ImportRepoSamples()
+	result, err := a.regressionService.ImportRepoSamples()
 	if err != nil {
 		if !errors.Is(err, services.ErrRepoSampleDirNotFound) {
 			log.Printf("[Regression] repo sample import failed: %v", err)

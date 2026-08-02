@@ -7,7 +7,6 @@ import (
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/utils"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
@@ -72,7 +71,7 @@ func (s *InvoiceService) CreateFromExtracted(ownerUserID string, input CreateInv
 		DedupStatus:   DedupStatusOK,
 	}
 
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(inv).Error; err != nil {
 			return err

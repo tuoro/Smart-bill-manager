@@ -13,12 +13,12 @@ import (
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
 
 type InvoiceService struct {
+	db         *gorm.DB
 	repo       *repository.InvoiceRepository
 	blobRepo   *repository.OCRBlobRepository
 	attachRepo *repository.InvoiceAttachmentRepository
@@ -28,9 +28,10 @@ type InvoiceService struct {
 
 func NewInvoiceService(db *gorm.DB, uploadsDir string) *InvoiceService {
 	return &InvoiceService{
+		db:         db,
 		repo:       repository.NewInvoiceRepository(db),
 		blobRepo:   repository.NewOCRBlobRepository(db),
-		attachRepo: repository.NewInvoiceAttachmentRepository(),
+		attachRepo: repository.NewInvoiceAttachmentRepository(db),
 		ocrService: NewOCRService(),
 		uploadsDir: uploadsDir,
 	}
@@ -73,7 +74,7 @@ func (s *InvoiceService) CreateDraftFromUpload(ownerUserID string, input CreateI
 		DedupStatus:  DedupStatusOK,
 	}
 
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(inv).Error; err != nil {
 			return err
@@ -135,7 +136,7 @@ func (s *InvoiceService) UpdateDraftFileMeta(ownerUserID string, invoiceID strin
 		}
 	}
 
-	if err := database.GetDB().
+	if err := s.db.
 		Model(&models.Invoice{}).
 		Where("id = ? AND owner_user_id = ? AND is_draft = 1", invoiceID, ownerUserID).
 		Updates(update).Error; err != nil {
@@ -217,7 +218,7 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 	}
 
 	ownerUserID := strings.TrimSpace(inv.OwnerUserID)
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.Update(inv.ID, updateData); err != nil {
 			return err
@@ -246,7 +247,7 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 				updated.DedupStatus = DedupStatusSuspected
 				ref := cands[0].ID
 				updated.DedupRefID = &ref
-				_ = database.GetDB().Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
+				_ = s.db.Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
 					"dedup_status": DedupStatusSuspected,
 					"dedup_ref_id": ref,
 				}).Error
@@ -256,7 +257,7 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 					"candidates": cands,
 				}
 			} else {
-				_ = database.GetDB().Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
+				_ = s.db.Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
 					"dedup_status": DedupStatusOK,
 					"dedup_ref_id": nil,
 				}).Error
@@ -347,7 +348,7 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 	}
 
 	// Create invoice (and optional 1:1 payment link) atomically.
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(invoice).Error; err != nil {
 			return err
@@ -576,13 +577,13 @@ func (s *InvoiceService) CreateAttachmentCtx(ctx context.Context, ownerUserID st
 	// Best-effort dedup per invoice by sha.
 	if a.FileSHA256 != nil && strings.TrimSpace(*a.FileSHA256) != "" {
 		var cnt int64
-		_ = database.GetDB().WithContext(ctx).
+		_ = s.db.WithContext(ctx).
 			Model(&models.InvoiceAttachment{}).
 			Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
 			Count(&cnt).Error
 		if cnt > 0 {
 			var existing models.InvoiceAttachment
-			if err := database.GetDB().WithContext(ctx).
+			if err := s.db.WithContext(ctx).
 				Model(&models.InvoiceAttachment{}).
 				Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
 				Order("created_at ASC, id ASC").
@@ -744,7 +745,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 			data["payment_id"] = nil
 		} else {
 			var pay models.Payment
-			if err := database.GetDB().Select("id").Where("id = ? AND owner_user_id = ? AND is_draft = 0", trimmed, ownerUserID).First(&pay).Error; err != nil {
+			if err := s.db.Select("id").Where("id = ? AND owner_user_id = ? AND is_draft = 0", trimmed, ownerUserID).First(&pay).Error; err != nil {
 				return fmt.Errorf("payment not found")
 			}
 			data["payment_id"] = trimmed
@@ -887,7 +888,7 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 	}
 
 	// Delete invoice + links atomically.
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		_ = tx.Where("invoice_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
 		_ = tx.Where("owner_user_id = ? AND invoice_id = ?", ownerUserID, id).Delete(&models.InvoiceAttachment{}).Error
@@ -902,7 +903,7 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 
 	// If this invoice was created from an email log, allow the user to parse the email again.
 	// (Email UI disables "解析" when status is "parsed".)
-	_ = database.GetDB().
+	_ = s.db.
 		Model(&models.EmailLog{}).
 		Where("owner_user_id = ? AND parsed_invoice_id = ?", ownerUserID, id).
 		Updates(map[string]interface{}{
@@ -1027,13 +1028,13 @@ func (s *InvoiceService) SuggestPaymentsCtx(ctx context.Context, ownerUserID str
 		// Safety net: if repository-side filters are too strict (or data is missing),
 		// fall back to the most recent payments so scoring still has something to rank.
 		var total int64
-		_ = database.GetDB().WithContext(ctx).Model(&models.Payment{}).Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).Count(&total).Error
+		_ = s.db.WithContext(ctx).Model(&models.Payment{}).Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).Count(&total).Error
 		if debug {
 			log.Printf("[MATCH] invoice=%s repo candidates=0, fallback to recent payments (total=%d)", invoiceID, total)
 		}
 		if total > 0 {
 			var recent []models.Payment
-			_ = database.GetDB().WithContext(ctx).
+			_ = s.db.WithContext(ctx).
 				Model(&models.Payment{}).
 				Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).
 				Order("transaction_time DESC").
@@ -1282,7 +1283,7 @@ func (s *InvoiceService) Reparse(ownerUserID string, id string) (*models.Invoice
 	if buyerName != nil {
 		updateData["buyer_name"] = *buyerName
 	}
-	db := database.GetDB()
+	db := s.db
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.UpdateForOwner(ownerUserID, id, updateData); err != nil {

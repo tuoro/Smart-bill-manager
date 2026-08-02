@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,9 +18,17 @@ import (
 var DB *gorm.DB
 
 func Init(dataDir string) *gorm.DB {
-	// Ensure data directory exists
+	db, err := Open(dataDir)
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	return db
+}
+
+// Open 创建数据库连接，并将错误交给调用方决定如何处理。
+func Open(dataDir string) (*gorm.DB, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		log.Fatal("Failed to create data directory:", err)
+		return nil, fmt.Errorf("创建数据目录失败: %w", err)
 	}
 
 	dbPath := filepath.Join(dataDir, "bills.db")
@@ -29,12 +38,12 @@ func Init(dataDir string) *gorm.DB {
 		Logger: newGormLogger(),
 	})
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		return nil, fmt.Errorf("连接数据库失败: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatal("Failed to get database handle:", err)
+		return nil, fmt.Errorf("获取数据库连接句柄失败: %w", err)
 	}
 
 	// SQLite tuning:
@@ -43,7 +52,7 @@ func Init(dataDir string) *gorm.DB {
 	applySQLiteTuning(sqlDB)
 
 	DB = db
-	return db
+	return db, nil
 }
 
 func GetDB() *gorm.DB {

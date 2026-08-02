@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"smart-bill-manager/internal/models"
@@ -195,9 +196,14 @@ func (s *TaskService) CancelTask(id string, ownerUserID string) error {
 	return nil
 }
 
-func (s *TaskService) StartWorker() {
+func (s *TaskService) StartWorker(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
 	if s.db == nil {
-		return
+		close(done)
+		return done
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	processingTTL := getEnvSeconds("SBM_TASK_PROCESSING_TTL_SECONDS", 3600)
 	reapInterval := getEnvSeconds("SBM_TASK_REAPER_INTERVAL_SECONDS", 30)
@@ -217,10 +223,22 @@ func (s *TaskService) StartWorker() {
 	}
 
 	log.Printf("[TaskWorker] started idle=[%s,%s] ttl=%s reaper=%s", idleMin, idleMax, processingTTL, reapInterval)
+	var workers sync.WaitGroup
+	workers.Add(2)
 	go func() {
+		defer workers.Done()
 		idleSleep := idleMin
 		for {
-			err := s.processOne()
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			err := s.processOne(ctx)
+			if ctx.Err() != nil {
+				return
+			}
 			if err == nil {
 				idleSleep = idleMin
 				continue
@@ -240,9 +258,20 @@ func (s *TaskService) StartWorker() {
 
 			timer := time.NewTimer(idleSleep)
 			select {
+			case <-ctx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
 			case <-s.wakeCh:
 				if !timer.Stop() {
-					<-timer.C
+					select {
+					case <-timer.C:
+					default:
+					}
 				}
 				idleSleep = idleMin
 			case <-timer.C:
@@ -250,19 +279,31 @@ func (s *TaskService) StartWorker() {
 		}
 	}()
 	go func() {
+		defer workers.Done()
+		ticker := time.NewTicker(reapInterval)
+		defer ticker.Stop()
 		for {
-			time.Sleep(reapInterval)
-			if err := s.reapStuckProcessing(processingTTL); err != nil {
-				log.Printf("[TaskWorker] reaper error: %v", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := s.reapStuckProcessing(ctx, processingTTL); err != nil && !errors.Is(err, context.Canceled) {
+					log.Printf("[TaskWorker] reaper error: %v", err)
+				}
 			}
 		}
 	}()
+	go func() {
+		workers.Wait()
+		close(done)
+	}()
+	return done
 }
 
-func (s *TaskService) reapStuckProcessing(ttl time.Duration) error {
+func (s *TaskService) reapStuckProcessing(ctx context.Context, ttl time.Duration) error {
 	cutoff := time.Now().Add(-ttl)
 	msg := "task processing timeout"
-	res := s.db.Model(&models.Task{}).
+	res := s.db.WithContext(ctx).Model(&models.Task{}).
 		Where("status = ? AND updated_at < ?", TaskStatusProcessing, cutoff).
 		Updates(map[string]any{
 			"status":      TaskStatusFailed,
@@ -296,9 +337,9 @@ func getEnvMillis(key string, defaultMillis int) time.Duration {
 	return time.Duration(n) * time.Millisecond
 }
 
-func (s *TaskService) processOne() error {
+func (s *TaskService) processOne(ctx context.Context) error {
 	var t models.Task
-	res := s.db.
+	res := s.db.WithContext(ctx).
 		Where("status = ?", TaskStatusQueued).
 		Order("created_at ASC, id ASC").
 		Limit(1).
@@ -311,7 +352,7 @@ func (s *TaskService) processOne() error {
 	}
 
 	// Claim the task.
-	res = s.db.Model(&models.Task{}).
+	res = s.db.WithContext(ctx).Model(&models.Task{}).
 		Where("id = ? AND status = ?", t.ID, TaskStatusQueued).
 		Updates(map[string]any{
 			"status": TaskStatusProcessing,
@@ -325,7 +366,7 @@ func (s *TaskService) processOne() error {
 
 	// If canceled right after claiming, skip processing.
 	var latest models.Task
-	if err := s.db.Select("status").Where("id = ?", t.ID).First(&latest).Error; err == nil {
+	if err := s.db.WithContext(ctx).Select("status").Where("id = ?", t.ID).First(&latest).Error; err == nil {
 		if latest.Status == TaskStatusCanceled {
 			return nil
 		}
@@ -346,7 +387,7 @@ func (s *TaskService) processOne() error {
 
 	if runErr != nil {
 		msg := runErr.Error()
-		_ = s.db.Model(&models.Task{}).Where("id = ? AND status = ?", t.ID, TaskStatusProcessing).Updates(map[string]any{
+		_ = s.db.WithContext(ctx).Model(&models.Task{}).Where("id = ? AND status = ?", t.ID, TaskStatusProcessing).Updates(map[string]any{
 			"status": TaskStatusFailed,
 			"error":  &msg,
 		}).Error
@@ -361,7 +402,7 @@ func (s *TaskService) processOne() error {
 		}
 	}
 
-	_ = s.db.Model(&models.Task{}).Where("id = ? AND status = ?", t.ID, TaskStatusProcessing).Updates(map[string]any{
+	_ = s.db.WithContext(ctx).Model(&models.Task{}).Where("id = ? AND status = ?", t.ID, TaskStatusProcessing).Updates(map[string]any{
 		"status":      TaskStatusSucceeded,
 		"result_json": resultJSON,
 		"error":       nil,

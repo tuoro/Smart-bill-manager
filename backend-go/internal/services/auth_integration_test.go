@@ -18,8 +18,8 @@ import (
 )
 
 func TestAuthServiceUsesInjectedDatabase(t *testing.T) {
-	primaryDB := openAuthTestDB(t)
-	globalDB := openAuthTestDB(t)
+	primaryDB := openServiceTestDB(t)
+	globalDB := openServiceTestDB(t)
 	if database.GetDB() != globalDB {
 		t.Fatal("测试前提不成立：全局连接应指向第二个数据库")
 	}
@@ -47,7 +47,7 @@ func TestAuthServiceUsesInjectedDatabase(t *testing.T) {
 }
 
 func TestInviteRegistrationConsumesInviteAtomically(t *testing.T) {
-	db := openAuthTestDB(t)
+	db := openServiceTestDB(t)
 	service := newAuthTestService(t, db)
 	admin, err := service.CreateInitialAdminCtx(context.Background(), "admin", "secret12", nil)
 	if err != nil || !admin.Success || admin.User == nil {
@@ -85,7 +85,7 @@ func TestInviteRegistrationConsumesInviteAtomically(t *testing.T) {
 }
 
 func TestCreateInitialAdminSerializesConcurrentRequests(t *testing.T) {
-	db := openAuthTestDB(t)
+	db := openServiceTestDB(t)
 	service := newAuthTestService(t, db)
 	type callResult struct {
 		result *AuthResult
@@ -121,7 +121,7 @@ func TestCreateInitialAdminSerializesConcurrentRequests(t *testing.T) {
 }
 
 func TestCreateInviteHonorsCanceledContext(t *testing.T) {
-	db := openAuthTestDB(t)
+	db := openServiceTestDB(t)
 	service := newAuthTestService(t, db)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -132,7 +132,7 @@ func TestCreateInviteHonorsCanceledContext(t *testing.T) {
 }
 
 func TestLoginPropagatesDatabaseCancellation(t *testing.T) {
-	db := openAuthTestDB(t)
+	db := openServiceTestDB(t)
 	service := newAuthTestService(t, db)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -151,7 +151,7 @@ func newAuthTestService(t *testing.T, db *gorm.DB) *AuthService {
 	return NewAuthService(db, tokenManager)
 }
 
-func openAuthTestDB(t *testing.T) *gorm.DB {
+func openServiceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := database.Open(t.TempDir())
 	if err != nil {

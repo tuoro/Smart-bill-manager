@@ -9,7 +9,6 @@ import (
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
-	"smart-bill-manager/pkg/database"
 	"sort"
 	"strings"
 	"time"
@@ -20,6 +19,7 @@ import (
 var ErrMissingTransactionTime = errors.New("missing transaction time")
 
 type PaymentService struct {
+	db          *gorm.DB
 	repo        *repository.PaymentRepository
 	invoiceRepo *repository.InvoiceRepository
 	blobRepo    *repository.OCRBlobRepository
@@ -27,11 +27,12 @@ type PaymentService struct {
 	uploadsDir  string
 }
 
-func NewPaymentService(uploadsDir string) *PaymentService {
+func NewPaymentService(db *gorm.DB, uploadsDir string) *PaymentService {
 	return &PaymentService{
-		repo:        repository.NewPaymentRepository(),
-		invoiceRepo: repository.NewInvoiceRepository(),
-		blobRepo:    repository.NewOCRBlobRepository(),
+		db:          db,
+		repo:        repository.NewPaymentRepository(db),
+		invoiceRepo: repository.NewInvoiceRepository(db),
+		blobRepo:    repository.NewOCRBlobRepository(db),
 		ocrService:  NewOCRService(),
 		uploadsDir:  uploadsDir,
 	}
@@ -55,7 +56,7 @@ func (s *PaymentService) CreateDraftFromScreenshotUpload(ownerUserID string, scr
 		DedupStatus:       DedupStatusOK,
 	}
 
-	db := database.GetDB()
+	db := s.db
 	if err := db.Create(p).Error; err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func (s *PaymentService) DeleteDraftByScreenshotPath(ownerUserID string, screens
 	if screenshotPath == "" {
 		return nil
 	}
-	return database.GetDB().
+	return s.db.
 		Where("owner_user_id = ? AND is_draft = ? AND screenshot_path = ?", strings.TrimSpace(ownerUserID), true, screenshotPath).
 		Delete(&models.Payment{}).
 		Error
@@ -93,7 +94,7 @@ func (s *PaymentService) UpdateDraftScreenshotPath(ownerUserID string, paymentID
 		}
 	}
 
-	if err := database.GetDB().
+	if err := s.db.
 		Model(&models.Payment{}).
 		Where("id = ? AND owner_user_id = ? AND is_draft = 1", paymentID, strings.TrimSpace(ownerUserID)).
 		Updates(update).Error; err != nil {
@@ -176,7 +177,7 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 		}
 	}
 
-	db := database.GetDB()
+	db := s.db
 	ownerUserID := strings.TrimSpace(payment.OwnerUserID)
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := s.repo.Update(paymentID, updateData); err != nil {
@@ -202,7 +203,7 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 			updated.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			updated.DedupRefID = &ref
-			_ = database.GetDB().Model(&models.Payment{}).Where("id = ?", updated.ID).Updates(map[string]any{
+			_ = s.db.Model(&models.Payment{}).Where("id = ?", updated.ID).Updates(map[string]any{
 				"dedup_status": DedupStatusSuspected,
 				"dedup_ref_id": ref,
 			}).Error
@@ -276,7 +277,7 @@ func (s *PaymentService) Create(ownerUserID string, input CreatePaymentInput) (*
 		TripAssignState:   assignStateNoMatch,
 	}
 
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(payment).Error; err != nil {
 			return err
@@ -378,7 +379,7 @@ func (s *PaymentService) GetAllWithInvoiceCounts(ownerUserID string, filter Paym
 		Cnt       int    `gorm:"column:cnt"`
 	}
 	var rows []row
-	_ = database.GetDB().
+	_ = s.db.
 		Table("invoice_payment_links").
 		Select("payment_id, COUNT(*) AS cnt").
 		Where("payment_id IN ?", ids).
@@ -486,7 +487,7 @@ func (s *PaymentService) ListWithInvoiceCountsCtx(ctx context.Context, ownerUser
 		Cnt       int    `gorm:"column:cnt"`
 	}
 	var rows []row
-	if err := database.GetDB().WithContext(ctx).
+	if err := s.db.WithContext(ctx).
 		Table("invoice_payment_links").
 		Select("payment_id, COUNT(*) AS cnt").
 		Where("payment_id IN ?", ids).
@@ -728,7 +729,7 @@ func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePayme
 
 	// If transaction time changed (common during OCR confirm), recompute auto trip assignment.
 	if (timeChanged || confirming) && after != nil && strings.TrimSpace(after.TripAssignSrc) == assignSrcAuto {
-		db := database.GetDB()
+		db := s.db
 		_ = db.Transaction(func(tx *gorm.DB) error {
 			return autoAssignPaymentTx(tx, strings.TrimSpace(ownerUserID), after)
 		})
@@ -760,7 +761,7 @@ func (s *PaymentService) Delete(ownerUserID string, id string) error {
 		tripID = strings.TrimSpace(*payment.TripID)
 	}
 
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		_ = tx.Where("payment_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
 		_ = s.blobRepo.DeletePaymentBlob(tx, strings.TrimSpace(ownerUserID), id)
@@ -881,7 +882,7 @@ func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFr
 	}
 
 	// Set transaction time if extracted
-	db := database.GetDB()
+	db := s.db
 	if err := db.Create(payment).Error; err != nil {
 		return nil, nil, err
 	}

@@ -46,10 +46,10 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 	}
 
 	authService := services.NewAuthService(db, tokenManager)
-	paymentService := services.NewPaymentService(uploadsDir)
-	invoiceService := services.NewInvoiceService(uploadsDir)
+	paymentService := services.NewPaymentService(db, uploadsDir)
+	invoiceService := services.NewInvoiceService(db, uploadsDir)
 	emailService := services.NewEmailService(uploadsDir, invoiceService)
-	tripService := services.NewTripService(uploadsDir)
+	tripService := services.NewTripService(db, uploadsDir)
 	taskService := services.NewTaskService(db, paymentService, invoiceService)
 
 	if cfg.NodeEnv == "production" {

@@ -6,16 +6,17 @@ import (
 	"strings"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-type OCRBlobRepository struct{}
+type OCRBlobRepository struct {
+	db *gorm.DB
+}
 
-func NewOCRBlobRepository() *OCRBlobRepository {
-	return &OCRBlobRepository{}
+func NewOCRBlobRepository(db *gorm.DB) *OCRBlobRepository {
+	return &OCRBlobRepository{db: db}
 }
 
 func (r *OCRBlobRepository) UpsertInvoiceBlob(tx *gorm.DB, ownerUserID, invoiceID string, extractedData, rawText *string) error {
@@ -26,7 +27,7 @@ func (r *OCRBlobRepository) UpsertInvoiceBlob(tx *gorm.DB, ownerUserID, invoiceI
 	}
 	db := tx
 	if db == nil {
-		db = database.GetDB()
+		db = r.db
 	}
 
 	row := &models.InvoiceOCRBlob{
@@ -55,7 +56,7 @@ func (r *OCRBlobRepository) FindInvoiceBlobCtx(ctx context.Context, ownerUserID,
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := database.GetDB().WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Where("invoice_id = ? AND owner_user_id = ?", invoiceID, ownerUserID).
 		First(&row).Error; err != nil {
 		return nil, err
@@ -71,7 +72,7 @@ func (r *OCRBlobRepository) DeleteInvoiceBlob(tx *gorm.DB, ownerUserID, invoiceI
 	}
 	db := tx
 	if db == nil {
-		db = database.GetDB()
+		db = r.db
 	}
 	return db.Where("invoice_id = ? AND owner_user_id = ?", invoiceID, ownerUserID).Delete(&models.InvoiceOCRBlob{}).Error
 }
@@ -84,7 +85,7 @@ func (r *OCRBlobRepository) UpsertPaymentBlob(tx *gorm.DB, ownerUserID, paymentI
 	}
 	db := tx
 	if db == nil {
-		db = database.GetDB()
+		db = r.db
 	}
 
 	row := &models.PaymentOCRBlob{
@@ -112,7 +113,7 @@ func (r *OCRBlobRepository) FindPaymentBlobCtx(ctx context.Context, ownerUserID,
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := database.GetDB().WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Where("payment_id = ? AND owner_user_id = ?", paymentID, ownerUserID).
 		First(&row).Error; err != nil {
 		return nil, err
@@ -128,7 +129,7 @@ func (r *OCRBlobRepository) DeletePaymentBlob(tx *gorm.DB, ownerUserID, paymentI
 	}
 	db := tx
 	if db == nil {
-		db = database.GetDB()
+		db = r.db
 	}
 	return db.Where("payment_id = ? AND owner_user_id = ?", paymentID, ownerUserID).Delete(&models.PaymentOCRBlob{}).Error
 }

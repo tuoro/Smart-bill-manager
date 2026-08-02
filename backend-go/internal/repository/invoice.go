@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"math"
 	"regexp"
-	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 	"strconv"
 	"strings"
 	"time"
+
+	"smart-bill-manager/internal/models"
+	"smart-bill-manager/internal/money"
+	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
@@ -244,6 +246,9 @@ func (r *InvoiceRepository) FindByPaymentIDCtx(ctx context.Context, ownerUserID 
 }
 
 func (r *InvoiceRepository) Update(id string, data map[string]interface{}) error {
+	if err := normalizeInvoiceMoney(data); err != nil {
+		return err
+	}
 	result := database.GetDB().Model(&models.Invoice{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
@@ -256,6 +261,9 @@ func (r *InvoiceRepository) UpdateForOwner(ownerUserID string, id string, data m
 	id = strings.TrimSpace(id)
 	if ownerUserID == "" || id == "" {
 		return gorm.ErrRecordNotFound
+	}
+	if err := normalizeInvoiceMoney(data); err != nil {
+		return err
 	}
 	result := database.GetDB().Model(&models.Invoice{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Updates(data)
 	if result.RowsAffected == 0 {
@@ -314,19 +322,19 @@ func (r *InvoiceRepository) GetStatsCtx(ctx context.Context, ownerUserID string,
 	}
 
 	type totalsRow struct {
-		TotalCount  int64   `gorm:"column:total_count"`
-		TotalAmount float64 `gorm:"column:total_amount"`
+		TotalCount int64 `gorm:"column:total_count"`
+		TotalCents int64 `gorm:"column:total_cents"`
 	}
 	var totals totalsRow
 	if err := applyDate(database.GetDB().WithContext(ctx).
 		Table("invoices").
 		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
-		Select("COUNT(*) AS total_count, COALESCE(SUM(amount), 0) AS total_amount"),
+		Select("COUNT(*) AS total_count, COALESCE(SUM(amount_cents), 0) AS total_cents"),
 	).Scan(&totals).Error; err != nil {
 		return nil, err
 	}
 	stats.TotalCount = int(totals.TotalCount)
-	stats.TotalAmount = totals.TotalAmount
+	stats.TotalAmount = money.ToMajor(totals.TotalCents)
 
 	// By source
 	type srcRow struct {
@@ -348,22 +356,22 @@ func (r *InvoiceRepository) GetStatsCtx(ctx context.Context, ownerUserID string,
 
 	// By month (YYYY-MM)
 	type monthRow struct {
-		Month string  `gorm:"column:m"`
-		Total float64 `gorm:"column:total"`
+		Month      string `gorm:"column:m"`
+		TotalCents int64  `gorm:"column:total_cents"`
 	}
 	var monthRows []monthRow
 	if err := applyDate(database.GetDB().WithContext(ctx).
 		Table("invoices").
 		Where("is_draft = 0 AND owner_user_id = ?", ownerUserID).
-		Where("invoice_date_ymd IS NOT NULL AND LENGTH(invoice_date_ymd) >= 7 AND amount IS NOT NULL").
-		Select(`SUBSTR(invoice_date_ymd, 1, 7) AS m, COALESCE(SUM(amount), 0) AS total`).
+		Where("invoice_date_ymd IS NOT NULL AND LENGTH(invoice_date_ymd) >= 7 AND amount_cents IS NOT NULL").
+		Select(`SUBSTR(invoice_date_ymd, 1, 7) AS m, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("m"),
 	).Scan(&monthRows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range monthRows {
 		if len(r.Month) == 7 {
-			stats.ByMonth[r.Month] = r.Total
+			stats.ByMonth[r.Month] = money.ToMajor(r.TotalCents)
 		}
 	}
 
@@ -476,10 +484,14 @@ func (r *InvoiceRepository) SuggestPaymentsCtx(ctx context.Context, invoice *mod
 
 	// If invoice has amount, filter by similar amounts (within 10% range)
 	if invoice.Amount != nil {
-		minAmount := *invoice.Amount * 0.8
-		maxAmount := *invoice.Amount * 1.2
+		amountCents, err := money.FromMajor(*invoice.Amount)
+		if err != nil {
+			return nil, err
+		}
+		minAmount := int64(math.Floor(float64(amountCents) * 0.8))
+		maxAmount := int64(math.Ceil(float64(amountCents) * 1.2))
 		// Support negative payment amounts by matching on absolute value.
-		base = base.Where("ABS(amount) >= ? AND ABS(amount) <= ?", minAmount, maxAmount)
+		base = base.Where("ABS(amount_cents) >= ? AND ABS(amount_cents) <= ?", minAmount, maxAmount)
 	}
 
 	// If invoice has date, prioritize payments from similar timeframe
@@ -491,17 +503,17 @@ func (r *InvoiceRepository) SuggestPaymentsCtx(ctx context.Context, invoice *mod
 	}
 
 	// Default: newest first (service will apply scoring on top)
-	withOrder := func(q *gorm.DB, hasAmount bool, amount float64) *gorm.DB {
+	withOrder := func(q *gorm.DB, hasAmount bool, amountCents int64) *gorm.DB {
 		if hasAmount {
 			// Prefer closest amounts even if the record is older.
-			q = q.Order(gorm.Expr("ABS(ABS(amount) - ?) ASC", amount))
+			q = q.Order(gorm.Expr("ABS(ABS(amount_cents) - ?) ASC", amountCents))
 		}
 		return q.Order("transaction_time DESC")
 	}
 	hasInvoiceAmount := invoice.Amount != nil && *invoice.Amount > 0
-	invoiceAmount := 0.0
+	invoiceAmount := int64(0)
 	if hasInvoiceAmount {
-		invoiceAmount = *invoice.Amount
+		invoiceAmount, _ = money.FromMajor(*invoice.Amount)
 	}
 
 	if limit > 0 {
@@ -582,14 +594,19 @@ func (r *InvoiceRepository) SuggestInvoicesCtx(ctx context.Context, payment *mod
 	if payment != nil && payment.Amount != 0 {
 		absAmount = math.Abs(payment.Amount)
 		hasAmount = absAmount > 0
+		amountCents, err := money.FromMajor(absAmount)
+		if err != nil {
+			return nil, err
+		}
 		// Keep suggestions conservative: default to ±10% around payment amount.
-		minAmount := absAmount * 0.9
-		maxAmount := absAmount * 1.1
-		query = query.Where("amount >= ? AND amount <= ?", minAmount, maxAmount)
+		minAmount := int64(math.Floor(float64(amountCents) * 0.9))
+		maxAmount := int64(math.Ceil(float64(amountCents) * 1.1))
+		query = query.Where("amount_cents >= ? AND amount_cents <= ?", minAmount, maxAmount)
 	}
 
 	if hasAmount {
-		query = query.Order(gorm.Expr("ABS(amount - ?) ASC", absAmount))
+		amountCents, _ := money.FromMajor(absAmount)
+		query = query.Order(gorm.Expr("ABS(amount_cents - ?) ASC", amountCents))
 	}
 	query = query.Order("created_at DESC")
 
@@ -599,4 +616,11 @@ func (r *InvoiceRepository) SuggestInvoicesCtx(ctx context.Context, payment *mod
 
 	err := query.Find(&invoices).Error
 	return invoices, err
+}
+
+func normalizeInvoiceMoney(data map[string]interface{}) error {
+	if err := money.SyncUpdateMap(data, "amount", "amount_cents", true); err != nil {
+		return err
+	}
+	return money.SyncUpdateMap(data, "tax_amount", "tax_amount_cents", true)
 }

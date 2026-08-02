@@ -27,6 +27,7 @@ type migration struct {
 
 var registeredMigrations = []migration{
 	{version: 2026080301, name: "legacy_data_and_indexes", up: migrateLegacyDataAndIndexes},
+	{version: 2026080302, name: "money_cents", up: migrateMoneyCents},
 }
 
 // Run 先同步表结构，再按版本顺序执行尚未应用的数据迁移。

@@ -60,6 +60,7 @@ func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID stri
 			"id",
 			"merchant",
 			"amount",
+			"amount_cents",
 			"transaction_time",
 			"transaction_time_ts",
 			"screenshot_path",

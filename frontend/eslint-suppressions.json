@@ -14,11 +14,6 @@
       "count": 5
     }
   },
-  "src/router/index.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
   "src/stores/notifications.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 7
@@ -78,16 +73,6 @@
   "src/views/Payments.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 26
-    }
-  },
-  "src/views/Register.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
-  "src/views/Setup.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
     }
   },
   "src/views/Trips.vue": {

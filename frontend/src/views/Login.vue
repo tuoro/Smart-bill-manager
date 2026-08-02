@@ -23,7 +23,7 @@
           />
         </div>
 
-        <Button type="submit" class="submit-btn" :label="'\u767B\u5F55'" :loading="loading" />
+        <Button type="submit" class="submit-btn" :label="'\u767B\u5F55'" :loading="authStore.loading" />
       </form>
 
       <div class="footer">
@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
@@ -47,7 +47,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 
-const loading = ref(false)
 const form = reactive({
   username: '',
   password: '',
@@ -63,18 +62,13 @@ const handleLogin = async () => {
     return
   }
 
-  loading.value = true
-  try {
-    const result = await authStore.login(form.username, form.password)
-    if (result.success) {
-      toast.add({ severity: 'success', summary: '\u767B\u5F55\u6210\u529F', life: 1800 })
-      router.push('/dashboard')
-      return
-    }
-    toast.add({ severity: 'error', summary: result.message || '\u767B\u5F55\u5931\u8D25', life: 3500 })
-  } finally {
-    loading.value = false
+  const result = await authStore.login(form.username, form.password)
+  if (result.success) {
+    toast.add({ severity: 'success', summary: result.message, life: 1800 })
+    await router.push('/dashboard')
+    return
   }
+  toast.add({ severity: 'error', summary: result.message, life: 3500 })
 }
 </script>
 

@@ -31,7 +31,7 @@
           <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
         </div>
 
-        <Button type="submit" class="submit-btn" :label="'注册并登录'" :loading="loading" />
+        <Button type="submit" class="submit-btn" :label="'注册并登录'" :loading="authStore.loading" />
       </form>
 
       <div class="footer">
@@ -43,18 +43,18 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import InputText from 'primevue/inputtext'
 import Password from 'primevue/password'
 import Button from 'primevue/button'
 import { useToast } from 'primevue/usetoast'
-import { authApi, setStoredUser, setToken } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const toast = useToast()
+const authStore = useAuthStore()
 
-const loading = ref(false)
 const form = reactive({
   inviteCode: '',
   username: '',
@@ -101,26 +101,13 @@ const validate = () => {
 const handleRegister = async () => {
   if (!validate()) return
 
-  loading.value = true
-  try {
-    const res = await authApi.inviteRegister(form.inviteCode, form.username, form.password)
-    if (res.data.success) {
-      if (res.data.token) setToken(res.data.token)
-      if (res.data.user) setStoredUser(res.data.user)
-      toast.add({ severity: 'success', summary: '注册成功', life: 2200 })
-      setTimeout(() => router.push('/dashboard'), 300)
-      return
-    }
-    toast.add({ severity: 'error', summary: res.data.message || '注册失败', life: 3500 })
-  } catch (error: any) {
-    toast.add({
-      severity: 'error',
-      summary: error.response?.data?.message || '注册失败，请稍后重试',
-      life: 3500,
-    })
-  } finally {
-    loading.value = false
+  const result = await authStore.registerWithInvite(form.inviteCode, form.username, form.password)
+  if (result.success) {
+    toast.add({ severity: 'success', summary: result.message, life: 2200 })
+    await router.push('/dashboard')
+    return
   }
+  toast.add({ severity: 'error', summary: result.message, life: 3500 })
 }
 </script>
 

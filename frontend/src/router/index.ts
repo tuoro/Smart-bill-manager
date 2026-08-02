@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { setAuthErrorHandler } from '@/api/auth'
+import { getStoredUser, getToken } from '@/api/storage'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -91,17 +92,15 @@ const router = createRouter({
   routes,
 })
 
-// Set up auth error handler to redirect to login
 setAuthErrorHandler(() => {
-  router.push('/login')
+  const authStore = useAuthStore()
+  authStore.clearSession()
+  void router.push('/login')
 })
 
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
 
-  // Only check setup status when needed:
-  // - when user tries to visit /setup
-  // - when user is not authenticated (first install / logged out)
   let setupResponse: { setupRequired: boolean } | null = null
   if (to.path === '/setup' || !authStore.isAuthenticated) {
     try {
@@ -112,8 +111,6 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.path === '/setup') {
-    // If setup is not required (admin already exists), redirect to login.
-    // If setup status is unknown (e.g. server still starting), allow the setup page to load.
     if (setupResponse && !setupResponse.setupRequired) {
       next('/login')
       return
@@ -128,11 +125,9 @@ router.beforeEach(async (to, _from, next) => {
       return
     }
 
-    // If setup status is unknown and there is no local session, prefer /setup over /login.
-    // This avoids "first open goes to login" on fresh installs when the setup check fails.
     if (setupResponse === null) {
-      const hasLocalToken = !!localStorage.getItem('token')
-      const hasLocalUser = !!localStorage.getItem('user')
+      const hasLocalToken = Boolean(getToken())
+      const hasLocalUser = Boolean(getStoredUser())
       if (!hasLocalToken && !hasLocalUser) {
         next('/setup')
         return
@@ -150,7 +145,7 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  if ((to.meta as any)?.requiresAdmin) {
+  if (to.meta.requiresAdmin) {
     if (authStore.user?.role !== 'admin') {
       next('/dashboard')
       return

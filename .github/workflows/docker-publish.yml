@@ -37,7 +37,22 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: |
-          go test -count=1 -cover ./...
+          go test -count=1 -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+
+          total_coverage="$(go tool cover -func=coverage.out | awk '/^total:/ { gsub("%", "", $3); print $3 }')"
+          if [ -z "$total_coverage" ]; then
+            echo "无法读取后端整体覆盖率"
+            exit 1
+          fi
+
+          awk -v coverage="$total_coverage" 'BEGIN {
+            if (coverage + 0 < 25.0) {
+              printf "后端整体覆盖率 %.1f%%，低于要求的 25.0%%\n", coverage
+              exit 1
+            }
+            printf "后端整体覆盖率 %.1f%%，达到要求的 25.0%%\n", coverage
+          }'
           go vet ./...
 
       - name: Set up Node.js

@@ -45,7 +45,7 @@ func (h *AdminInvitesHandler) CreateInvite(c *gin.Context) {
 	}
 
 	adminID := middleware.GetUserID(c)
-	res, err := h.authService.CreateInvite(adminID, expiresInDays)
+	res, err := h.authService.CreateInviteCtx(c.Request.Context(), adminID, expiresInDays)
 	if err != nil {
 		utils.Error(c, 500, "生成邀请码失败", err)
 		return
@@ -145,7 +145,7 @@ func (h *AdminInvitesHandler) DeleteInvite(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.DeleteInvite(id); err != nil {
+	if err := h.authService.DeleteInviteCtx(c.Request.Context(), id); err != nil {
 		switch err {
 		case services.ErrNotFound:
 			utils.Error(c, 404, "邀请码不存在", err)

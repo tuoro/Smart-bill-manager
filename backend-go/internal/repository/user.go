@@ -3,18 +3,28 @@ package repository
 import (
 	"context"
 
+	"gorm.io/gorm"
+
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
-type UserRepository struct{}
+type UserRepository struct {
+	db *gorm.DB
+}
 
-func NewUserRepository() *UserRepository {
-	return &UserRepository{}
+func NewUserRepository(db *gorm.DB) *UserRepository {
+	return &UserRepository{db: db}
 }
 
 func (r *UserRepository) Create(user *models.User) error {
-	return database.GetDB().Create(user).Error
+	return r.CreateCtx(context.Background(), user)
+}
+
+func (r *UserRepository) CreateCtx(ctx context.Context, user *models.User) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return r.db.WithContext(ctx).Create(user).Error
 }
 
 func (r *UserRepository) FindByUsername(username string) (*models.User, error) {
@@ -27,7 +37,7 @@ func (r *UserRepository) FindByUsernameCtx(ctx context.Context, username string)
 	}
 	var user models.User
 	// Do not filter is_active here; callers (e.g. login) may want to distinguish "disabled" from "not found".
-	err := database.GetDB().WithContext(ctx).Where("username = ?", username).First(&user).Error
+	err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +53,7 @@ func (r *UserRepository) FindByIDCtx(ctx context.Context, id string) (*models.Us
 		ctx = context.Background()
 	}
 	var user models.User
-	err := database.GetDB().WithContext(ctx).Where("id = ?", id).First(&user).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +69,7 @@ func (r *UserRepository) FindAllCtx(ctx context.Context) ([]models.User, error) 
 		ctx = context.Background()
 	}
 	var users []models.User
-	err := database.GetDB().WithContext(ctx).Find(&users).Error
+	err := r.db.WithContext(ctx).Find(&users).Error
 	return users, err
 }
 
@@ -71,7 +81,7 @@ func (r *UserRepository) FindUsernamesByIDsCtx(ctx context.Context, ids []string
 		return []models.User{}, nil
 	}
 	var users []models.User
-	err := database.GetDB().WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Select("id", "username", "role", "is_active").
 		Where("id IN ?", ids).
 		Find(&users).Error
@@ -83,7 +93,7 @@ func (r *UserRepository) ExistsByIDCtx(ctx context.Context, id string) (bool, er
 		ctx = context.Background()
 	}
 	var count int64
-	err := database.GetDB().WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Count(&count).Error
 	return count > 0, err
 }
 
@@ -92,7 +102,7 @@ func (r *UserRepository) CountActiveAdminsCtx(ctx context.Context) (int64, error
 		ctx = context.Background()
 	}
 	var count int64
-	err := database.GetDB().WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Model(&models.User{}).
 		Where("role = ? AND is_active = 1", "admin").
 		Count(&count).Error
@@ -107,18 +117,25 @@ func (r *UserRepository) UpdateActiveByIDCtx(ctx context.Context, id string, act
 	if active {
 		val = 1
 	}
-	return database.GetDB().WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Update("is_active", val).Error
+	return r.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Update("is_active", val).Error
 }
 
 func (r *UserRepository) DeleteByIDCtx(ctx context.Context, id string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return database.GetDB().WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error
+	return r.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error
 }
 
 func (r *UserRepository) Update(user *models.User) error {
-	return database.GetDB().Save(user).Error
+	return r.UpdateCtx(context.Background(), user)
+}
+
+func (r *UserRepository) UpdateCtx(ctx context.Context, user *models.User) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return r.db.WithContext(ctx).Save(user).Error
 }
 
 func (r *UserRepository) UpdatePassword(id, hashedPassword string) error {
@@ -129,11 +146,18 @@ func (r *UserRepository) UpdatePasswordCtx(ctx context.Context, id, hashedPasswo
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return database.GetDB().WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Update("password", hashedPassword).Error
+	return r.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", id).Update("password", hashedPassword).Error
 }
 
 func (r *UserRepository) UpdateRole(username, role string) error {
-	return database.GetDB().Model(&models.User{}).Where("username = ?", username).Update("role", role).Error
+	return r.UpdateRoleCtx(context.Background(), username, role)
+}
+
+func (r *UserRepository) UpdateRoleCtx(ctx context.Context, username, role string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return r.db.WithContext(ctx).Model(&models.User{}).Where("username = ?", username).Update("role", role).Error
 }
 
 func (r *UserRepository) Count() (int64, error) {
@@ -145,7 +169,7 @@ func (r *UserRepository) CountCtx(ctx context.Context) (int64, error) {
 		ctx = context.Background()
 	}
 	var count int64
-	err := database.GetDB().WithContext(ctx).Model(&models.User{}).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&models.User{}).Count(&count).Error
 	return count, err
 }
 
@@ -158,6 +182,6 @@ func (r *UserRepository) ExistsByUsernameCtx(ctx context.Context, username strin
 		ctx = context.Background()
 	}
 	var count int64
-	err := database.GetDB().WithContext(ctx).Model(&models.User{}).Where("username = ?", username).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&models.User{}).Where("username = ?", username).Count(&count).Error
 	return count > 0, err
 }

@@ -16,7 +16,6 @@ import (
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/utils"
-	"smart-bill-manager/pkg/database"
 )
 
 type InviteCreateResult struct {
@@ -74,40 +73,48 @@ func generateRawInviteCode() (string, error) {
 }
 
 func (s *AuthService) CreateInvite(createdByUserID string, expiresInDays int) (*InviteCreateResult, error) {
+	return s.CreateInviteCtx(context.Background(), createdByUserID, expiresInDays)
+}
+
+func (s *AuthService) CreateInviteCtx(ctx context.Context, createdByUserID string, expiresInDays int) (*InviteCreateResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var expiresAt *time.Time
 	if expiresInDays > 0 {
 		t := time.Now().Add(time.Duration(expiresInDays) * 24 * time.Hour)
 		expiresAt = &t
 	}
 
-	db := database.GetDB()
-	for i := 0; i < 5; i++ {
-		raw, err := generateRawInviteCode()
-		if err != nil {
-			return nil, err
-		}
-		normalized := normalizeInviteCode(raw)
-		hash := inviteCodeHash(normalized)
-		invite := &models.Invite{
-			ID:        utils.GenerateUUID(),
-			CodeHash:  hash,
-			CodeHint:  inviteCodeHint(normalized),
-			CreatedBy: createdByUserID,
-			ExpiresAt: expiresAt,
-		}
-		if err := db.Create(invite).Error; err != nil {
-			// In the unlikely event of a collision, retry a few times.
-			continue
-		}
-
-		return &InviteCreateResult{
-			Code:      formatInviteCode(normalized),
-			CodeHint:  invite.CodeHint,
-			ExpiresAt: expiresAt,
-		}, nil
+	raw, err := generateRawInviteCode()
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("failed to generate unique invite code")
+	normalized := normalizeInviteCode(raw)
+	invite := &models.Invite{
+		ID:        utils.GenerateUUID(),
+		CodeHash:  inviteCodeHash(normalized),
+		CodeHint:  inviteCodeHint(normalized),
+		CreatedBy: createdByUserID,
+		ExpiresAt: expiresAt,
+	}
+	if err := s.db.WithContext(ctx).Create(invite).Error; err != nil {
+		return nil, fmt.Errorf("create invite: %w", err)
+	}
+
+	return &InviteCreateResult{
+		Code:      formatInviteCode(normalized),
+		CodeHint:  invite.CodeHint,
+		ExpiresAt: expiresAt,
+	}, nil
 }
+
+var (
+	errInvalidInvite  = errors.New("invalid invite")
+	errInviteExpired  = errors.New("invite expired")
+	errInviteConsumed = errors.New("invite consumed")
+	errUsernameExists = errors.New("username exists")
+)
 
 func (s *AuthService) ListInvites(limit int) ([]models.Invite, error) {
 	return s.ListInvitesCtx(context.Background(), limit)
@@ -124,7 +131,7 @@ func (s *AuthService) ListInvitesCtx(ctx context.Context, limit int) ([]models.I
 		limit = 200
 	}
 
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	out := make([]models.Invite, 0, limit)
 	if err := db.Order("created_at DESC").Limit(limit).Find(&out).Error; err != nil {
 		return nil, err
@@ -140,7 +147,7 @@ func (s *AuthService) DeleteInviteCtx(ctx context.Context, id string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 
 	var inv models.Invite
 	if err := db.Where("id = ?", id).First(&inv).Error; err != nil {
@@ -174,6 +181,13 @@ func (s *AuthService) DeleteInviteCtx(ctx context.Context, id string) error {
 }
 
 func (s *AuthService) RegisterWithInvite(inviteCode, username, password string, email *string) (*AuthResult, error) {
+	return s.RegisterWithInviteCtx(context.Background(), inviteCode, username, password, email)
+}
+
+func (s *AuthService) RegisterWithInviteCtx(ctx context.Context, inviteCode, username, password string, email *string) (*AuthResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	normalized := normalizeInviteCode(inviteCode)
 	if normalized == "" {
 		return &AuthResult{Success: false, Message: "邀请码不能为空"}, nil
@@ -190,21 +204,21 @@ func (s *AuthService) RegisterWithInvite(inviteCode, username, password string, 
 	now := time.Now()
 	var createdUser models.User
 
-	db := database.GetDB()
+	db := s.db.WithContext(ctx)
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var inv models.Invite
 		if err := tx.Where("code_hash = ?", hash).First(&inv).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("invalid invite: %w", err)
+				return errInvalidInvite
 			}
 			return err
 		}
 
 		if inv.UsedAt != nil {
-			return fmt.Errorf("invite already used")
+			return errInviteConsumed
 		}
 		if inv.ExpiresAt != nil && inv.ExpiresAt.Before(now) {
-			return fmt.Errorf("invite expired")
+			return errInviteExpired
 		}
 
 		// Check username exists (within tx).
@@ -213,7 +227,7 @@ func (s *AuthService) RegisterWithInvite(inviteCode, username, password string, 
 			return err
 		}
 		if cnt > 0 {
-			return fmt.Errorf("username exists")
+			return errUsernameExists
 		}
 
 		u := models.User{
@@ -239,23 +253,21 @@ func (s *AuthService) RegisterWithInvite(inviteCode, username, password string, 
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
-			return fmt.Errorf("invite already consumed")
+			return errInviteConsumed
 		}
 
 		createdUser = u
 		return nil
 	}); err != nil {
 		switch {
-		case strings.Contains(err.Error(), "invalid invite"):
+		case errors.Is(err, errInvalidInvite):
 			return &AuthResult{Success: false, Message: "邀请码无效"}, nil
-		case strings.Contains(err.Error(), "invite already used"):
+		case errors.Is(err, errInviteConsumed):
 			return &AuthResult{Success: false, Message: "邀请码已被使用"}, nil
-		case strings.Contains(err.Error(), "invite expired"):
+		case errors.Is(err, errInviteExpired):
 			return &AuthResult{Success: false, Message: "邀请码已过期"}, nil
-		case strings.Contains(err.Error(), "username exists"):
+		case errors.Is(err, errUsernameExists):
 			return &AuthResult{Success: false, Message: "用户名已存在"}, nil
-		case strings.Contains(err.Error(), "invite already consumed"):
-			return &AuthResult{Success: false, Message: "邀请码已被使用"}, nil
 		default:
 			return nil, err
 		}

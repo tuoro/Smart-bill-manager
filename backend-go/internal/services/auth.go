@@ -4,21 +4,27 @@ import (
 	"context"
 	"errors"
 	"log"
+	"sync"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
+
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
 )
 
 type AuthService struct {
+	db           *gorm.DB
 	userRepo     *repository.UserRepository
 	tokenManager *utils.TokenManager
+	setupMu      sync.Mutex
 }
 
-func NewAuthService(tokenManager *utils.TokenManager) *AuthService {
+func NewAuthService(db *gorm.DB, tokenManager *utils.TokenManager) *AuthService {
 	return &AuthService{
-		userRepo:     repository.NewUserRepository(),
+		db:           db,
+		userRepo:     repository.NewUserRepository(db),
 		tokenManager: tokenManager,
 	}
 }
@@ -32,8 +38,15 @@ type AuthResult struct {
 
 // Register creates a new user
 func (s *AuthService) Register(username, password string, email *string) (*AuthResult, error) {
+	return s.RegisterCtx(context.Background(), username, password, email)
+}
+
+func (s *AuthService) RegisterCtx(ctx context.Context, username, password string, email *string) (*AuthResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	// Check if username exists
-	exists, err := s.userRepo.ExistsByUsernameCtx(context.Background(), username)
+	exists, err := s.userRepo.ExistsByUsernameCtx(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +71,7 @@ func (s *AuthService) Register(username, password string, email *string) (*AuthR
 		IsActive: 1,
 	}
 
-	if err := s.userRepo.Create(user); err != nil {
+	if err := s.userRepo.CreateCtx(ctx, user); err != nil {
 		return nil, err
 	}
 
@@ -79,9 +92,19 @@ func (s *AuthService) Register(username, password string, email *string) (*AuthR
 
 // Login authenticates a user
 func (s *AuthService) Login(username, password string) (*AuthResult, error) {
-	user, err := s.userRepo.FindByUsernameCtx(context.Background(), username)
+	return s.LoginCtx(context.Background(), username, password)
+}
+
+func (s *AuthService) LoginCtx(ctx context.Context, username, password string) (*AuthResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	user, err := s.userRepo.FindByUsernameCtx(ctx, username)
 	if err != nil {
-		return &AuthResult{Success: false, Message: "用户名或密码错误"}, nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &AuthResult{Success: false, Message: "用户名或密码错误"}, nil
+		}
+		return nil, err
 	}
 
 	if user.IsActive != 1 {
@@ -147,9 +170,19 @@ func (s *AuthService) GetAllUsersCtx(ctx context.Context) ([]models.UserResponse
 
 // UpdatePassword updates user password
 func (s *AuthService) UpdatePassword(userID, oldPassword, newPassword string) (*AuthResult, error) {
-	user, err := s.userRepo.FindByIDCtx(context.Background(), userID)
+	return s.UpdatePasswordCtx(context.Background(), userID, oldPassword, newPassword)
+}
+
+func (s *AuthService) UpdatePasswordCtx(ctx context.Context, userID, oldPassword, newPassword string) (*AuthResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	user, err := s.userRepo.FindByIDCtx(ctx, userID)
 	if err != nil {
-		return &AuthResult{Success: false, Message: "用户不存在"}, nil
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &AuthResult{Success: false, Message: "用户不存在"}, nil
+		}
+		return nil, err
 	}
 
 	// Verify old password
@@ -163,7 +196,7 @@ func (s *AuthService) UpdatePassword(userID, oldPassword, newPassword string) (*
 		return nil, err
 	}
 
-	if err := s.userRepo.UpdatePassword(userID, string(hashedPassword)); err != nil {
+	if err := s.userRepo.UpdatePasswordCtx(ctx, userID, string(hashedPassword)); err != nil {
 		return nil, err
 	}
 
@@ -185,56 +218,72 @@ func (s *AuthService) HasUsersCtx(ctx context.Context) (bool, error) {
 
 // CreateInitialAdmin creates the first admin user during setup
 func (s *AuthService) CreateInitialAdmin(username, password string, email *string) (*AuthResult, error) {
-	// Only allow if no users exist
-	hasUsers, err := s.HasUsers()
-	if err != nil {
-		return nil, err
-	}
-	if hasUsers {
-		return &AuthResult{Success: false, Message: "系统已初始化，无法重复设置"}, nil
-	}
+	return s.CreateInitialAdminCtx(context.Background(), username, password, email)
+}
 
-	// Validate username and password
+func (s *AuthService) CreateInitialAdminCtx(ctx context.Context, username, password string, email *string) (*AuthResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
+
 	if len(username) < 3 || len(username) > 50 {
 		return &AuthResult{Success: false, Message: "用户名长度应为3-50个字符"}, nil
 	}
-
 	if len(password) < 6 {
 		return &AuthResult{Success: false, Message: "密码长度至少6个字符"}, nil
 	}
 
-	result, err := s.Register(username, password, email)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
-	if result.Success {
-		// Update role to admin
-		if err := s.userRepo.UpdateRole(username, "admin"); err != nil {
-			return nil, err
+	var (
+		createdUser        models.User
+		alreadyInitialized bool
+	)
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.User{}).Count(&count).Error; err != nil {
+			return err
 		}
-
-		log.Println("=========================================")
-		log.Println("Admin user created via setup:")
-		log.Printf("  Username: %s\n", username)
-		log.Println("=========================================")
-
-		// Update the role in the result
-		if result.User != nil {
-			result.User.Role = "admin"
+		if count > 0 {
+			alreadyInitialized = true
+			return nil
 		}
-
-		// Re-issue token with admin role (Register() always issues a "user" token).
-		if result.User != nil {
-			token, err := s.tokenManager.GenerateToken(result.User.ID, result.User.Username, "admin")
-			if err != nil {
-				return nil, err
-			}
-			result.Token = token
+		createdUser = models.User{
+			ID:       utils.GenerateUUID(),
+			Username: username,
+			Password: string(hashedPassword),
+			Email:    email,
+			Role:     "admin",
+			IsActive: 1,
 		}
+		return tx.Create(&createdUser).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	if alreadyInitialized {
+		return &AuthResult{Success: false, Message: "系统已初始化，无法重复设置"}, nil
 	}
 
-	return result, nil
+	token, err := s.tokenManager.GenerateToken(createdUser.ID, createdUser.Username, createdUser.Role)
+	if err != nil {
+		return nil, err
+	}
+	userResponse := createdUser.ToResponse()
+
+	log.Printf("初始管理员已创建: username=%s", username)
+
+	return &AuthResult{
+		Success: true,
+		Message: "初始化成功",
+		User:    &userResponse,
+		Token:   token,
+	}, nil
 }
 
 var ErrUnauthorized = errors.New("unauthorized")

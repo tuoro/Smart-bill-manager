@@ -1,4 +1,4 @@
-import api from './auth'
+import api from './client'
 import type { AxiosRequestConfig } from 'axios'
 import type { EmailConfig, EmailLog, ApiResponse, Invoice } from '@/types'
 

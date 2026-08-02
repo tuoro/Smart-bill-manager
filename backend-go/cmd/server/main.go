@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "time/tzdata"
@@ -16,9 +15,9 @@ import (
 	"smart-bill-manager/internal/config"
 	"smart-bill-manager/internal/handlers"
 	"smart-bill-manager/internal/middleware"
+	"smart-bill-manager/internal/migrations"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/services"
-	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
 )
 
@@ -33,199 +32,18 @@ func main() {
 	// Initialize database
 	db := database.Init(cfg.DataDir)
 
-	// Run migrations
-	if err := db.AutoMigrate(
-		&models.User{},
-		&models.Invite{},
-		&models.Task{},
-		&models.RegressionSample{},
-		&models.Payment{},
-		&models.Trip{},
-		&models.Invoice{},
-		&models.InvoiceAttachment{},
-		&models.InvoiceOCRBlob{},
-		&models.PaymentOCRBlob{},
-		&models.InvoicePaymentLink{},
-		&models.EmailConfig{},
-		&models.EmailLog{},
-	); err != nil {
+	// 执行版本化数据库迁移。
+	if err := migrations.Run(db); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
 
-	// Best-effort data hygiene + index hardening for email_logs.
-	// This must NOT fail startup; it is safe to run repeatedly.
+	// 邮件日志去重仍是可重复执行的兼容性维护任务，不阻断启动。
 	services.EnsureEmailLogUniqueIndex(db)
 
-	// Forced security: never keep IMAP passwords in plaintext in the DB.
+	// 强制加密旧版数据库中的 IMAP 明文密码。
 	if err := services.EnsureEmailConfigPasswordsEncrypted(db); err != nil {
 		log.Fatal("Failed to enforce email password encryption:", err)
 	}
-
-	// Backward-compatible: if older builds created short column names, keep data by copying into new columns.
-	// Ignore errors because these legacy columns may not exist.
-	db.Exec("UPDATE payments SET trip_assignment_source = COALESCE(trip_assignment_source, trip_assign_src, 'auto')")
-	db.Exec("UPDATE payments SET trip_assignment_state = COALESCE(trip_assignment_state, trip_assign_state, 'no_match')")
-
-	// Backfill numeric timestamps for older rows (used for stats and trip auto-assignment).
-	db.Exec(`
-		UPDATE payments
-		SET transaction_time_ts = CAST(strftime('%s', transaction_time) AS INTEGER) * 1000
-		WHERE transaction_time_ts = 0
-		  AND transaction_time IS NOT NULL
-		  AND TRIM(transaction_time) != ''
-		  AND strftime('%s', transaction_time) IS NOT NULL
-	`)
-	db.Exec(`
-		UPDATE trips
-		SET start_time_ts = CAST(strftime('%s', start_time) AS INTEGER) * 1000
-		WHERE start_time_ts = 0
-		  AND start_time IS NOT NULL
-		  AND TRIM(start_time) != ''
-		  AND strftime('%s', start_time) IS NOT NULL
-	`)
-	db.Exec(`
-		UPDATE trips
-		SET end_time_ts = CAST(strftime('%s', end_time) AS INTEGER) * 1000
-		WHERE end_time_ts = 0
-		  AND end_time IS NOT NULL
-		  AND TRIM(end_time) != ''
-		  AND strftime('%s', end_time) IS NOT NULL
-	`)
-
-	// Multi-user backfill: older DBs may not have owner_user_id populated.
-	// Assign all legacy rows to the first created user (typically the initial admin).
-	var firstUser models.User
-	if err := db.Select("id").Order("created_at ASC").First(&firstUser).Error; err == nil {
-		defaultOwnerID := strings.TrimSpace(firstUser.ID)
-		if defaultOwnerID != "" {
-			db.Exec(`UPDATE payments SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
-			db.Exec(`UPDATE trips SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
-			db.Exec(`UPDATE invoices SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
-			db.Exec(`UPDATE email_configs SET owner_user_id = ? WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''`, defaultOwnerID)
-			// Prefer deriving logs from their config; fallback to default owner.
-			db.Exec(`
-				UPDATE email_logs
-				SET owner_user_id = COALESCE(
-					(SELECT owner_user_id FROM email_configs WHERE email_configs.id = email_logs.email_config_id),
-					?
-	)
-				WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''
-			`, defaultOwnerID)
-			// Tasks: default to created_by; fallback to default owner.
-			db.Exec(`
-				UPDATE tasks
-				SET owner_user_id = COALESCE(NULLIF(TRIM(created_by), ''), ?)
-				WHERE owner_user_id IS NULL OR TRIM(owner_user_id) = ''
-			`, defaultOwnerID)
-		}
-	}
-
-	// Create additional indexes
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invites_code_hash ON invites(code_hash)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invites_created_at ON invites(created_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invites_used_at ON invites(used_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_time ON payments(transaction_time)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_time_ts ON payments(transaction_time_ts)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_owner_draft_time_ts ON payments(owner_user_id, is_draft, transaction_time_ts)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_owner_draft_category_time_ts ON payments(owner_user_id, is_draft, category, transaction_time_ts)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_trip_id ON payments(trip_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_bad_debt ON payments(bad_debt)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_trip_assign_src ON payments(trip_assignment_source)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_trip_assign_state ON payments(trip_assignment_state)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_file_sha256 ON payments(file_sha256)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payments_dedup_status ON payments(dedup_status)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_time ON trips(start_time, end_time)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_time_ts ON trips(start_time_ts, end_time_ts)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_timezone ON trips(timezone)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_reimburse_status ON trips(reimburse_status)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_trips_bad_debt_locked ON trips(bad_debt_locked)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_date_ymd ON invoices(invoice_date_ymd)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_owner_draft_created_at ON invoices(owner_user_id, is_draft, created_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_owner_draft_date_ymd ON invoices(owner_user_id, is_draft, invoice_date_ymd)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_invoice_number ON invoices(invoice_number)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_owner_invoice_number ON invoices(owner_user_id, invoice_number)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_bad_debt ON invoices(bad_debt)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_file_sha256 ON invoices(file_sha256)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_owner_file_sha256 ON invoices(owner_user_id, file_sha256)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoices_dedup_status ON invoices(dedup_status)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoice_ocr_blobs_owner_invoice ON invoice_ocr_blobs(owner_user_id, invoice_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_payment_ocr_blobs_owner_payment ON payment_ocr_blobs(owner_user_id, payment_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_tasks_status_created_at ON tasks(status, created_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by)")
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_source ON regression_samples(source_type, source_id, kind)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_regression_samples_kind_created_at ON regression_samples(kind, created_at)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_regression_samples_name ON regression_samples(name)")
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_kind_rawhash ON regression_samples(kind, raw_hash) WHERE raw_hash != ''")
-
-	// Link rule:
-	// - 1 invoice -> 0/1 payment (invoice_id unique)
-	// - 1 payment -> 0..N invoices (payment_id non-unique)
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_invoice_id ON invoice_payment_links(invoice_id)")
-	// Backward-compatible migration: older builds created a UNIQUE index on payment_id which enforced 1:1.
-	db.Exec("DROP INDEX IF EXISTS ux_invoice_payment_links_payment_id")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_invoice_payment_links_payment_id ON invoice_payment_links(payment_id)")
-	db.Exec("CREATE INDEX IF NOT EXISTS idx_email_logs_date ON email_logs(created_at)")
-
-	// Backfill invoice_date_ymd (fast path via SQL for common formats, then a Go parser fallback).
-	db.Exec(`
-		UPDATE invoices
-		SET invoice_date_ymd = SUBSTR(invoice_date, 1, 10)
-		WHERE (invoice_date_ymd IS NULL OR TRIM(invoice_date_ymd) = '')
-		  AND invoice_date IS NOT NULL
-		  AND invoice_date LIKE '____-__-__%'
-	`)
-	db.Exec(`
-		UPDATE invoices
-		SET invoice_date_ymd = REPLACE(SUBSTR(invoice_date, 1, 10), '/', '-')
-		WHERE (invoice_date_ymd IS NULL OR TRIM(invoice_date_ymd) = '')
-		  AND invoice_date IS NOT NULL
-		  AND invoice_date LIKE '____/__/__%'
-	`)
-
-	type invoiceDateRow struct {
-		ID          string  `gorm:"column:id"`
-		InvoiceDate *string `gorm:"column:invoice_date"`
-	}
-	var missing []invoiceDateRow
-	_ = db.Raw(`
-		SELECT id, invoice_date
-		FROM invoices
-		WHERE invoice_date IS NOT NULL
-		  AND TRIM(invoice_date) != ''
-		  AND (invoice_date_ymd IS NULL OR TRIM(invoice_date_ymd) = '')
-		LIMIT 2000
-	`).Scan(&missing).Error
-	for _, r := range missing {
-		if r.ID == "" || r.InvoiceDate == nil {
-			continue
-		}
-		ymd := utils.NormalizeDateYMD(*r.InvoiceDate)
-		if ymd == "" {
-			continue
-		}
-		db.Exec(`UPDATE invoices SET invoice_date_ymd = ? WHERE id = ?`, ymd, r.ID)
-	}
-
-	// Backfill OCR blobs tables from legacy columns (best-effort; keeps existing data readable).
-	db.Exec(`
-		INSERT INTO invoice_ocr_blobs (invoice_id, owner_user_id, extracted_data, raw_text, created_at, updated_at)
-		SELECT id, owner_user_id, extracted_data, raw_text, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-		FROM invoices
-		WHERE (extracted_data IS NOT NULL AND TRIM(extracted_data) != '')
-		   OR (raw_text IS NOT NULL AND TRIM(raw_text) != '')
-		  AND NOT EXISTS (SELECT 1 FROM invoice_ocr_blobs b WHERE b.invoice_id = invoices.id)
-		LIMIT 500
-	`)
-	db.Exec(`
-		INSERT INTO payment_ocr_blobs (payment_id, owner_user_id, extracted_data, created_at, updated_at)
-		SELECT id, owner_user_id, extracted_data, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-		FROM payments
-		WHERE extracted_data IS NOT NULL AND TRIM(extracted_data) != ''
-		  AND NOT EXISTS (SELECT 1 FROM payment_ocr_blobs b WHERE b.payment_id = payments.id)
-		LIMIT 500
-	`)
 
 	// Ensure uploads directory exists
 	uploadsDir := cfg.UploadsDir

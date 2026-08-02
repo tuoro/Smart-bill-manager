@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -21,7 +20,7 @@ func TestMoneyPersistenceUsesCentsAsCanonicalValue(t *testing.T) {
 		t.Fatalf("初始化金额测试表失败: %v", err)
 	}
 
-	paymentRepo := NewPaymentRepository()
+	paymentRepo := NewPaymentRepository(db)
 	payment := &models.Payment{
 		ID: "payment-1", OwnerUserID: "owner-1", Amount: 10.235,
 		TransactionTime: "2026-01-02T03:04:05Z", TransactionTimeTs: 1,
@@ -63,7 +62,7 @@ func TestMoneyPersistenceUsesCentsAsCanonicalValue(t *testing.T) {
 
 	amount := 30.345
 	taxAmount := 1.235
-	invoiceRepo := NewInvoiceRepository()
+	invoiceRepo := NewInvoiceRepository(db)
 	invoice := &models.Invoice{
 		ID: "invoice-1", OwnerUserID: "owner-1", Filename: "invoice.pdf",
 		OriginalName: "invoice.pdf", FilePath: "uploads/invoice.pdf",
@@ -103,14 +102,11 @@ func openMoneyTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("打开金额测试数据库失败: %v", err)
 	}
-	previous := database.DB
-	database.DB = db
 	sqlDB, err := db.DB()
 	if err != nil {
 		t.Fatalf("获取底层数据库失败: %v", err)
 	}
 	t.Cleanup(func() {
-		database.DB = previous
 		if err := sqlDB.Close(); err != nil {
 			t.Errorf("关闭金额测试数据库失败: %v", err)
 		}

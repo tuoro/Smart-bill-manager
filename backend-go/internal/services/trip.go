@@ -23,10 +23,10 @@ type TripService struct {
 	uploadsDir  string
 }
 
-func NewTripService(uploadsDir string) *TripService {
+func NewTripService(db *gorm.DB, uploadsDir string) *TripService {
 	return &TripService{
 		repo:        repository.NewTripRepository(),
-		paymentRepo: repository.NewPaymentRepository(),
+		paymentRepo: repository.NewPaymentRepository(db),
 		uploadsDir:  uploadsDir,
 	}
 }

@@ -6,24 +6,25 @@ import (
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/money"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
 
-type PaymentRepository struct{}
+type PaymentRepository struct {
+	db *gorm.DB
+}
 
-func NewPaymentRepository() *PaymentRepository {
-	return &PaymentRepository{}
+func NewPaymentRepository(db *gorm.DB) *PaymentRepository {
+	return &PaymentRepository{db: db}
 }
 
 func (r *PaymentRepository) Create(payment *models.Payment) error {
-	return database.GetDB().Create(payment).Error
+	return r.db.Create(payment).Error
 }
 
 func (r *PaymentRepository) FindByID(id string) (*models.Payment, error) {
 	var payment models.Payment
-	err := database.GetDB().Where("id = ?", id).First(&payment).Error
+	err := r.db.Where("id = ?", id).First(&payment).Error
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func (r *PaymentRepository) buildFindAllQuery(ctx context.Context, filter Paymen
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	query := database.GetDB().WithContext(ctx).Model(&models.Payment{})
+	query := r.db.WithContext(ctx).Model(&models.Payment{})
 	if filter.OwnerUserID != "" {
 		query = query.Where("owner_user_id = ?", filter.OwnerUserID)
 	}
@@ -132,7 +133,7 @@ func (r *PaymentRepository) FindByIDForOwnerCtx(ctx context.Context, ownerUserID
 		ctx = context.Background()
 	}
 	var payment models.Payment
-	q := database.GetDB().WithContext(ctx).Where("id = ?", id)
+	q := r.db.WithContext(ctx).Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}
@@ -147,7 +148,7 @@ func (r *PaymentRepository) Update(id string, data map[string]interface{}) error
 	if err := money.SyncUpdateMap(data, "amount", "amount_cents", false); err != nil {
 		return err
 	}
-	result := database.GetDB().Model(&models.Payment{}).Where("id = ?", id).Updates(data)
+	result := r.db.Model(&models.Payment{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -158,7 +159,7 @@ func (r *PaymentRepository) UpdateForOwner(ownerUserID string, id string, data m
 	if err := money.SyncUpdateMap(data, "amount", "amount_cents", false); err != nil {
 		return err
 	}
-	q := database.GetDB().Model(&models.Payment{}).Where("id = ?", id)
+	q := r.db.Model(&models.Payment{}).Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}
@@ -170,7 +171,7 @@ func (r *PaymentRepository) UpdateForOwner(ownerUserID string, id string, data m
 }
 
 func (r *PaymentRepository) Delete(id string) error {
-	result := database.GetDB().Where("id = ?", id).Delete(&models.Payment{})
+	result := r.db.Where("id = ?", id).Delete(&models.Payment{})
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -178,7 +179,7 @@ func (r *PaymentRepository) Delete(id string) error {
 }
 
 func (r *PaymentRepository) DeleteForOwner(ownerUserID string, id string) error {
-	q := database.GetDB().Where("id = ?", id)
+	q := r.db.Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}
@@ -192,7 +193,7 @@ func (r *PaymentRepository) DeleteForOwner(ownerUserID string, id string) error 
 func (r *PaymentRepository) GetStats(startDate, endDate string) (*models.PaymentStats, error) {
 	var payments []models.Payment
 
-	query := database.GetDB().Model(&models.Payment{}).Where("is_draft = 0")
+	query := r.db.Model(&models.Payment{}).Where("is_draft = 0")
 
 	if startDate != "" {
 		query = query.Where("transaction_time >= ?", startDate)
@@ -285,7 +286,7 @@ func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID str
 		TotalCount int64 `gorm:"column:total_count"`
 	}
 	var totals totalsRow
-	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
+	if err := applyFilter(r.db.WithContext(ctx).Table("payments")).
 		Select("COALESCE(SUM(amount_cents), 0) AS total_cents, COUNT(*) AS total_count").
 		Scan(&totals).Error; err != nil {
 		return nil, err
@@ -300,7 +301,7 @@ func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID str
 
 	// Category stats
 	var catRows []kvRow
-	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
+	if err := applyFilter(r.db.WithContext(ctx).Table("payments")).
 		Select(`CASE WHEN category IS NULL OR TRIM(category) = '' THEN '未分类' ELSE category END AS k, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("k").
 		Scan(&catRows).Error; err != nil {
@@ -312,7 +313,7 @@ func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID str
 
 	// Merchant stats
 	var merchRows []kvRow
-	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
+	if err := applyFilter(r.db.WithContext(ctx).Table("payments")).
 		Select(`CASE WHEN merchant IS NULL OR TRIM(merchant) = '' THEN '未知商家' ELSE merchant END AS k, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("k").
 		Scan(&merchRows).Error; err != nil {
@@ -324,7 +325,7 @@ func (r *PaymentRepository) GetStatsByTsCtx(ctx context.Context, ownerUserID str
 
 	// Daily stats (YYYY-MM-DD from RFC3339 string)
 	var dayRows []kvRow
-	if err := applyFilter(database.GetDB().WithContext(ctx).Table("payments")).
+	if err := applyFilter(r.db.WithContext(ctx).Table("payments")).
 		Select(`SUBSTR(transaction_time, 1, 10) AS k, COALESCE(SUM(amount_cents), 0) AS total_cents`).
 		Group("k").
 		Scan(&dayRows).Error; err != nil {
@@ -349,7 +350,7 @@ func (r *PaymentRepository) GetLinkedInvoicesCtx(ctx context.Context, ownerUserI
 		ctx = context.Background()
 	}
 	var invoices []models.Invoice
-	q := database.GetDB().WithContext(ctx).
+	q := r.db.WithContext(ctx).
 		Joins("INNER JOIN invoice_payment_links ON invoice_payment_links.invoice_id = invoices.id").
 		Where("invoice_payment_links.payment_id = ?", paymentID).
 		Where("invoices.is_draft = 0")

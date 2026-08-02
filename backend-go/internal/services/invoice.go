@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -220,7 +219,7 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 	ownerUserID := strings.TrimSpace(inv.OwnerUserID)
 	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.Update(inv.ID, updateData); err != nil {
+		if err := s.repo.WithDB(tx).Update(inv.ID, updateData); err != nil {
 			return err
 		}
 		// Store OCR blobs outside the invoices table to keep it slim.
@@ -229,38 +228,50 @@ func (s *InvoiceService) ProcessInvoiceOCRTask(invoiceID string) (any, error) {
 		return nil, err
 	}
 
-	updated, _ := s.repo.FindByID(inv.ID)
+	updated, err := s.repo.FindByID(inv.ID)
+	if err != nil {
+		return nil, err
+	}
 	dedup := any(nil)
-	if updated != nil {
-		blob, _ := s.blobRepo.FindInvoiceBlob(ownerUserID, updated.ID)
-		if blob != nil {
-			updated.ExtractedData = blob.ExtractedData
-			updated.RawText = blob.RawText
-		}
+	blob, err := s.blobRepo.FindInvoiceBlob(ownerUserID, updated.ID)
+	if err != nil {
+		return nil, err
+	}
+	if blob != nil {
+		updated.ExtractedData = blob.ExtractedData
+		updated.RawText = blob.RawText
 	}
 
 	// Mark suspected duplicates based on invoice_number.
 	if updated != nil && updated.InvoiceNumber != nil {
 		no := strings.TrimSpace(*updated.InvoiceNumber)
 		if no != "" {
-			if cands, derr := s.FindCandidatesByInvoiceNumberForOwner(strings.TrimSpace(updated.OwnerUserID), no, updated.ID, 5); derr == nil && len(cands) > 0 {
+			cands, err := s.FindCandidatesByInvoiceNumberForOwner(strings.TrimSpace(updated.OwnerUserID), no, updated.ID, 5)
+			if err != nil {
+				return nil, err
+			}
+			if len(cands) > 0 {
 				updated.DedupStatus = DedupStatusSuspected
 				ref := cands[0].ID
 				updated.DedupRefID = &ref
-				_ = s.db.Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
+				if err := s.db.Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
 					"dedup_status": DedupStatusSuspected,
 					"dedup_ref_id": ref,
-				}).Error
+				}).Error; err != nil {
+					return nil, err
+				}
 				dedup = map[string]any{
 					"kind":       "suspected_duplicate",
 					"reason":     "invoice_number",
 					"candidates": cands,
 				}
 			} else {
-				_ = s.db.Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
+				if err := s.db.Model(&models.Invoice{}).Where("id = ?", updated.ID).Updates(map[string]any{
 					"dedup_status": DedupStatusOK,
 					"dedup_ref_id": nil,
-				}).Error
+				}).Error; err != nil {
+					return nil, err
+				}
 				updated.DedupStatus = DedupStatusOK
 				updated.DedupRefID = nil
 			}
@@ -384,14 +395,20 @@ func (s *InvoiceService) Create(ownerUserID string, input CreateInvoiceInput) (*
 	if invoice.InvoiceNumber != nil {
 		n := strings.TrimSpace(*invoice.InvoiceNumber)
 		if n != "" {
-			if cands, err := s.FindCandidatesByInvoiceNumberForOwner(ownerUserID, n, invoice.ID, 5); err == nil && len(cands) > 0 {
+			cands, err := s.FindCandidatesByInvoiceNumberForOwner(ownerUserID, n, invoice.ID, 5)
+			if err != nil {
+				return nil, err
+			}
+			if len(cands) > 0 {
 				invoice.DedupStatus = DedupStatusSuspected
 				ref := cands[0].ID
 				invoice.DedupRefID = &ref
-				_ = db.Model(&models.Invoice{}).Where("id = ?", invoice.ID).Updates(map[string]interface{}{
+				if err := db.Model(&models.Invoice{}).Where("id = ?", invoice.ID).Updates(map[string]interface{}{
 					"dedup_status": DedupStatusSuspected,
 					"dedup_ref_id": ref,
-				}).Error
+				}).Error; err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
@@ -577,20 +594,22 @@ func (s *InvoiceService) CreateAttachmentCtx(ctx context.Context, ownerUserID st
 	// Best-effort dedup per invoice by sha.
 	if a.FileSHA256 != nil && strings.TrimSpace(*a.FileSHA256) != "" {
 		var cnt int64
-		_ = s.db.WithContext(ctx).
+		if err := s.db.WithContext(ctx).
 			Model(&models.InvoiceAttachment{}).
 			Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
-			Count(&cnt).Error
+			Count(&cnt).Error; err != nil {
+			return nil, err
+		}
 		if cnt > 0 {
 			var existing models.InvoiceAttachment
 			if err := s.db.WithContext(ctx).
 				Model(&models.InvoiceAttachment{}).
 				Where("owner_user_id = ? AND invoice_id = ? AND file_sha256 = ?", ownerUserID, invoiceID, strings.TrimSpace(*a.FileSHA256)).
 				Order("created_at ASC, id ASC").
-				First(&existing).Error; err == nil {
-				return &existing, nil
+				First(&existing).Error; err != nil {
+				return nil, err
 			}
-			return a, nil
+			return &existing, nil
 		}
 	}
 
@@ -644,10 +663,9 @@ func (s *InvoiceService) DeleteAttachmentCtx(ctx context.Context, ownerUserID st
 
 	p := strings.TrimSpace(row.FilePath)
 	if p != "" {
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(s.uploadsDir, "..", p)
+		if _, err := removeStoredFile(s.uploadsDir, p); err != nil {
+			log.Printf("[FileCleanup] 删除发票附件失败 invoice_id=%s attachment_id=%s err=%v", invoiceID, attachmentID, err)
 		}
-		_ = os.Remove(p)
 	}
 	return nil
 }
@@ -849,9 +867,11 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 	}
 	var attachments []models.InvoiceAttachment
 	if s.attachRepo != nil {
-		if rows, err := s.attachRepo.FindByInvoiceIDForOwnerCtx(ctx, ownerUserID, id); err == nil {
-			attachments = rows
+		rows, err := s.attachRepo.FindByInvoiceIDForOwnerCtx(ctx, ownerUserID, id)
+		if err != nil {
+			return err
 		}
+		attachments = rows
 	}
 
 	affectedTrips := make([]string, 0, 4)
@@ -870,47 +890,44 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 		}
 	}
 
-	// Delete file
-	filePath := invoice.FilePath
-	if !filepath.IsAbs(filePath) {
-		filePath = filepath.Join(s.uploadsDir, "..", filePath)
+	// Delete invoice + links atomically.
+	db := s.db
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("invoice_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_user_id = ? AND invoice_id = ?", ownerUserID, id).Delete(&models.InvoiceAttachment{}).Error; err != nil {
+			return err
+		}
+		if err := s.blobRepo.DeleteInvoiceBlob(tx, ownerUserID, id); err != nil {
+			return err
+		}
+		if err := tx.Model(&models.EmailLog{}).
+			Where("owner_user_id = ? AND parsed_invoice_id = ?", ownerUserID, id).
+			Updates(map[string]interface{}{
+				"parsed_invoice_id": nil,
+				"status":            "received",
+				"parse_error":       nil,
+			}).Error; err != nil {
+			return err
+		}
+		return s.repo.WithDB(tx).DeleteForOwner(ownerUserID, id)
+	}); err != nil {
+		return err
 	}
-	_ = os.Remove(filePath) // Ignore error if file doesn't exist
+
+	if _, err := removeStoredFile(s.uploadsDir, invoice.FilePath); err != nil {
+		log.Printf("[FileCleanup] 删除发票文件失败 invoice_id=%s err=%v", id, err)
+	}
 	for _, a := range attachments {
 		p := strings.TrimSpace(a.FilePath)
 		if p == "" {
 			continue
 		}
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(s.uploadsDir, "..", p)
+		if _, err := removeStoredFile(s.uploadsDir, p); err != nil {
+			log.Printf("[FileCleanup] 删除发票附件失败 invoice_id=%s attachment_id=%s err=%v", id, a.ID, err)
 		}
-		_ = os.Remove(p)
 	}
-
-	// Delete invoice + links atomically.
-	db := s.db
-	if err := db.Transaction(func(tx *gorm.DB) error {
-		_ = tx.Where("invoice_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
-		_ = tx.Where("owner_user_id = ? AND invoice_id = ?", ownerUserID, id).Delete(&models.InvoiceAttachment{}).Error
-		_ = s.blobRepo.DeleteInvoiceBlob(tx, ownerUserID, id)
-		if err := tx.Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.Invoice{}).Error; err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	// If this invoice was created from an email log, allow the user to parse the email again.
-	// (Email UI disables "解析" when status is "parsed".)
-	_ = s.db.
-		Model(&models.EmailLog{}).
-		Where("owner_user_id = ? AND parsed_invoice_id = ?", ownerUserID, id).
-		Updates(map[string]interface{}{
-			"parsed_invoice_id": nil,
-			"status":            "received",
-			"parse_error":       nil,
-		}).Error
 
 	return recalcTripBadDebtLockedForTripIDs(s.db, affectedTrips)
 }
@@ -933,21 +950,30 @@ func (s *InvoiceService) GetStatsByInvoiceDateCtx(ctx context.Context, ownerUser
 
 // LinkPayment links an invoice to a payment
 func (s *InvoiceService) LinkPayment(ownerUserID string, invoiceID, paymentID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	paymentID = strings.TrimSpace(paymentID)
-	if err := s.repo.LinkPayment(strings.TrimSpace(ownerUserID), invoiceID, paymentID); err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		repo := s.repo.WithDB(tx)
+		if err := repo.LinkPayment(ownerUserID, invoiceID, paymentID); err != nil {
+			return err
+		}
+		return repo.UpdateForOwner(ownerUserID, invoiceID, map[string]interface{}{"payment_id": paymentID})
+	}); err != nil {
 		return err
 	}
-	// Keep legacy pointer in sync (1:1).
-	_ = s.repo.UpdateForOwner(strings.TrimSpace(ownerUserID), invoiceID, map[string]interface{}{"payment_id": paymentID})
 
-	inv, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), invoiceID)
+	inv, err := s.repo.FindByIDForOwner(ownerUserID, invoiceID)
 	if err != nil {
-		return nil
+		return err
 	}
 	if !inv.BadDebt {
 		return nil
 	}
-	if tripID, err := getTripIDForPaymentForOwner(s.db, strings.TrimSpace(ownerUserID), strings.TrimSpace(paymentID)); err == nil && tripID != "" {
+	tripID, err := getTripIDForPaymentForOwner(s.db, ownerUserID, paymentID)
+	if err != nil {
+		return err
+	}
+	if tripID != "" {
 		return recalcTripBadDebtLocked(s.db, tripID)
 	}
 	return nil
@@ -955,21 +981,30 @@ func (s *InvoiceService) LinkPayment(ownerUserID string, invoiceID, paymentID st
 
 // UnlinkPayment removes the link between an invoice and a payment
 func (s *InvoiceService) UnlinkPayment(ownerUserID string, invoiceID, paymentID string) error {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	paymentID = strings.TrimSpace(paymentID)
-	if err := s.repo.UnlinkPayment(strings.TrimSpace(ownerUserID), invoiceID, paymentID); err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		repo := s.repo.WithDB(tx)
+		if err := repo.UnlinkPayment(ownerUserID, invoiceID, paymentID); err != nil {
+			return err
+		}
+		return repo.UpdateForOwner(ownerUserID, invoiceID, map[string]interface{}{"payment_id": nil})
+	}); err != nil {
 		return err
 	}
-	// Keep legacy pointer in sync (1:1).
-	_ = s.repo.UpdateForOwner(strings.TrimSpace(ownerUserID), invoiceID, map[string]interface{}{"payment_id": nil})
 
-	inv, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), invoiceID)
+	inv, err := s.repo.FindByIDForOwner(ownerUserID, invoiceID)
 	if err != nil {
-		return nil
+		return err
 	}
 	if !inv.BadDebt {
 		return nil
 	}
-	if tripID, err := getTripIDForPaymentForOwner(s.db, strings.TrimSpace(ownerUserID), strings.TrimSpace(paymentID)); err == nil && tripID != "" {
+	tripID, err := getTripIDForPaymentForOwner(s.db, ownerUserID, paymentID)
+	if err != nil {
+		return err
+	}
+	if tripID != "" {
 		return recalcTripBadDebtLocked(s.db, tripID)
 	}
 	return nil
@@ -1005,7 +1040,10 @@ func (s *InvoiceService) SuggestPaymentsCtx(ctx context.Context, ownerUserID str
 		)
 	}
 
-	linked, _ := s.repo.GetLinkedPaymentsCtx(ctx, strings.TrimSpace(ownerUserID), invoiceID)
+	linked, err := s.repo.GetLinkedPaymentsCtx(ctx, strings.TrimSpace(ownerUserID), invoiceID)
+	if err != nil {
+		return nil, err
+	}
 	linkedIDs := make(map[string]struct{}, len(linked))
 	for _, p := range linked {
 		linkedIDs[p.ID] = struct{}{}
@@ -1028,18 +1066,22 @@ func (s *InvoiceService) SuggestPaymentsCtx(ctx context.Context, ownerUserID str
 		// Safety net: if repository-side filters are too strict (or data is missing),
 		// fall back to the most recent payments so scoring still has something to rank.
 		var total int64
-		_ = s.db.WithContext(ctx).Model(&models.Payment{}).Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).Count(&total).Error
+		if err := s.db.WithContext(ctx).Model(&models.Payment{}).Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).Count(&total).Error; err != nil {
+			return nil, err
+		}
 		if debug {
 			log.Printf("[MATCH] invoice=%s repo candidates=0, fallback to recent payments (total=%d)", invoiceID, total)
 		}
 		if total > 0 {
 			var recent []models.Payment
-			_ = s.db.WithContext(ctx).
+			if err := s.db.WithContext(ctx).
 				Model(&models.Payment{}).
 				Where("is_draft = 0 AND owner_user_id = ?", strings.TrimSpace(ownerUserID)).
 				Order("transaction_time DESC").
 				Limit(maxCandidates).
-				Find(&recent).Error
+				Find(&recent).Error; err != nil {
+				return nil, err
+			}
 			candidates = recent
 
 			if debug {
@@ -1286,7 +1328,7 @@ func (s *InvoiceService) Reparse(ownerUserID string, id string) (*models.Invoice
 	db := s.db
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.UpdateForOwner(ownerUserID, id, updateData); err != nil {
+		if err := s.repo.WithDB(tx).UpdateForOwner(ownerUserID, id, updateData); err != nil {
 			return err
 		}
 		return s.blobRepo.UpsertInvoiceBlob(tx, ownerUserID, id, extractedData, rawText)

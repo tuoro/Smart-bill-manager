@@ -18,6 +18,14 @@ func NewPaymentRepository(db *gorm.DB) *PaymentRepository {
 	return &PaymentRepository{db: db}
 }
 
+// WithDB 返回绑定到指定连接或事务的仓储副本。
+func (r *PaymentRepository) WithDB(db *gorm.DB) *PaymentRepository {
+	if db == nil {
+		return r
+	}
+	return &PaymentRepository{db: db}
+}
+
 func (r *PaymentRepository) Create(payment *models.Payment) error {
 	return r.db.Create(payment).Error
 }

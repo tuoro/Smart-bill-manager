@@ -23,6 +23,14 @@ func NewInvoiceRepository(db *gorm.DB) *InvoiceRepository {
 	return &InvoiceRepository{db: db}
 }
 
+// WithDB 返回绑定到指定连接或事务的仓储副本。
+func (r *InvoiceRepository) WithDB(db *gorm.DB) *InvoiceRepository {
+	if db == nil {
+		return r
+	}
+	return &InvoiceRepository{db: db}
+}
+
 var invoiceDatePrefixRegex = regexp.MustCompile(`(\d{4})\D+(\d{1,2})\D+(\d{1,2})`)
 
 func normalizeDatePrefix(s string) string {

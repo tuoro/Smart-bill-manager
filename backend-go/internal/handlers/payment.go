@@ -163,23 +163,6 @@ func (h *PaymentHandler) Update(c *gin.Context) {
 
 func (h *PaymentHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
-
-	payment, err := h.paymentService.GetByIDCtx(c.Request.Context(), middleware.GetEffectiveUserID(c), id)
-	if err != nil {
-		utils.Error(c, 404, "支付记录不存在", nil)
-		return
-	}
-
-	// Remove the screenshot file if present (ignore missing file).
-	if payment.ScreenshotPath != nil && *payment.ScreenshotPath != "" {
-		if absPath, err := resolveUploadsFilePath(h.uploadsDir, *payment.ScreenshotPath); err == nil {
-			if rmErr := os.Remove(absPath); rmErr != nil && !os.IsNotExist(rmErr) {
-				utils.Error(c, 500, "删除支付截图文件失败", rmErr)
-				return
-			}
-		}
-	}
-
 	ownerUserID := middleware.GetEffectiveUserID(c)
 	if err := h.paymentService.Delete(ownerUserID, id); err != nil {
 		utils.Error(c, 404, "支付记录不存在", nil)

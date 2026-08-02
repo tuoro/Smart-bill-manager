@@ -180,7 +180,7 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 	db := s.db
 	ownerUserID := strings.TrimSpace(payment.OwnerUserID)
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.Update(paymentID, updateData); err != nil {
+		if err := s.repo.WithDB(tx).Update(paymentID, updateData); err != nil {
 			return err
 		}
 		return s.blobRepo.UpsertPaymentBlob(tx, ownerUserID, paymentID, extractedDataJSON)
@@ -188,25 +188,35 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 		return nil, err
 	}
 
-	updated, _ := s.repo.FindByID(paymentID)
+	updated, err := s.repo.FindByID(paymentID)
+	if err != nil {
+		return nil, err
+	}
 	dedup := any(nil)
-	if updated != nil {
-		blob, _ := s.blobRepo.FindPaymentBlob(ownerUserID, updated.ID)
-		if blob != nil {
-			updated.ExtractedData = blob.ExtractedData
-		}
+	blob, err := s.blobRepo.FindPaymentBlob(ownerUserID, updated.ID)
+	if err != nil {
+		return nil, err
+	}
+	if blob != nil {
+		updated.ExtractedData = blob.ExtractedData
 	}
 
 	// If we have a meaningful amount+time, compute suspected duplicates for UI.
 	if updated != nil && updated.Amount > 0 && updated.TransactionTimeTs > 0 {
-		if cands, derr := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(updated.OwnerUserID), updated.Amount, updated.TransactionTimeTs, updated.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
+		cands, err := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(updated.OwnerUserID), updated.Amount, updated.TransactionTimeTs, updated.ID, 5*time.Minute, 5)
+		if err != nil {
+			return nil, err
+		}
+		if len(cands) > 0 {
 			updated.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			updated.DedupRefID = &ref
-			_ = s.db.Model(&models.Payment{}).Where("id = ?", updated.ID).Updates(map[string]any{
+			if err := s.db.Model(&models.Payment{}).Where("id = ?", updated.ID).Updates(map[string]any{
 				"dedup_status": DedupStatusSuspected,
 				"dedup_ref_id": ref,
-			}).Error
+			}).Error; err != nil {
+				return nil, err
+			}
 			dedup = map[string]any{
 				"kind":       "suspected_duplicate",
 				"reason":     "amount_time",
@@ -379,12 +389,14 @@ func (s *PaymentService) GetAllWithInvoiceCounts(ownerUserID string, filter Paym
 		Cnt       int    `gorm:"column:cnt"`
 	}
 	var rows []row
-	_ = s.db.
+	if err := s.db.
 		Table("invoice_payment_links").
 		Select("payment_id, COUNT(*) AS cnt").
 		Where("payment_id IN ?", ids).
 		Group("payment_id").
-		Scan(&rows).Error
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
 
 	counts := make(map[string]int, len(rows))
 	for _, r := range rows {
@@ -725,15 +737,24 @@ func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePayme
 		return err
 	}
 
-	after, _ := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	after, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+	if err != nil {
+		return err
+	}
 
 	// If transaction time changed (common during OCR confirm), recompute auto trip assignment.
 	if (timeChanged || confirming) && after != nil && strings.TrimSpace(after.TripAssignSrc) == assignSrcAuto {
 		db := s.db
-		_ = db.Transaction(func(tx *gorm.DB) error {
+		if err := db.Transaction(func(tx *gorm.DB) error {
 			return autoAssignPaymentTx(tx, strings.TrimSpace(ownerUserID), after)
-		})
-		after, _ = s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+		}); err != nil {
+			return err
+		}
+		refreshed, err := s.repo.FindByIDForOwner(strings.TrimSpace(ownerUserID), id)
+		if err != nil {
+			return err
+		}
+		after = refreshed
 	}
 
 	if !needsRecalc && !(timeChanged || confirming) {
@@ -763,11 +784,20 @@ func (s *PaymentService) Delete(ownerUserID string, id string) error {
 
 	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		_ = tx.Where("payment_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error
-		_ = s.blobRepo.DeletePaymentBlob(tx, strings.TrimSpace(ownerUserID), id)
-		return tx.Where("id = ? AND owner_user_id = ?", id, strings.TrimSpace(ownerUserID)).Delete(&models.Payment{}).Error
+		if err := tx.Where("payment_id = ?", id).Delete(&models.InvoicePaymentLink{}).Error; err != nil {
+			return err
+		}
+		if err := s.blobRepo.DeletePaymentBlob(tx, strings.TrimSpace(ownerUserID), id); err != nil {
+			return err
+		}
+		return s.repo.WithDB(tx).DeleteForOwner(strings.TrimSpace(ownerUserID), id)
 	}); err != nil {
 		return err
+	}
+	if payment.ScreenshotPath != nil && strings.TrimSpace(*payment.ScreenshotPath) != "" {
+		if _, err := removeStoredFile(s.uploadsDir, *payment.ScreenshotPath); err != nil {
+			log.Printf("[FileCleanup] 删除支付截图失败 payment_id=%s err=%v", id, err)
+		}
 	}
 
 	if tripID == "" {
@@ -883,22 +913,32 @@ func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFr
 
 	// Set transaction time if extracted
 	db := s.db
-	if err := db.Create(payment).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(payment).Error; err != nil {
+			return err
+		}
+		return s.blobRepo.UpsertPaymentBlob(tx, strings.TrimSpace(ownerUserID), payment.ID, extractedDataJSON)
+	}); err != nil {
 		return nil, nil, err
 	}
-	_ = s.blobRepo.UpsertPaymentBlob(nil, strings.TrimSpace(ownerUserID), payment.ID, extractedDataJSON)
 	payment.ExtractedData = extractedDataJSON
 
 	// Mark suspected duplicates for UI (amount+time) if we have a meaningful timestamp.
 	if payment.Amount > 0 && payment.TransactionTimeTs > 0 {
-		if cands, err := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(payment.OwnerUserID), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); err == nil && len(cands) > 0 {
+		cands, err := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(payment.OwnerUserID), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(cands) > 0 {
 			payment.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			payment.DedupRefID = &ref
-			_ = db.Model(&models.Payment{}).Where("id = ?", payment.ID).Updates(map[string]interface{}{
+			if err := db.Model(&models.Payment{}).Where("id = ?", payment.ID).Updates(map[string]interface{}{
 				"dedup_status": DedupStatusSuspected,
 				"dedup_ref_id": ref,
-			}).Error
+			}).Error; err != nil {
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -1120,11 +1160,15 @@ func (s *PaymentService) ReparseScreenshot(paymentID string) (*PaymentExtractedD
 		}
 	}
 
-	// Update the payment record
-	if err := s.repo.Update(paymentID, updateData); err != nil {
+	// 主表字段和 OCR Blob 必须同时提交或同时回滚。
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.WithDB(tx).Update(paymentID, updateData); err != nil {
+			return err
+		}
+		return s.blobRepo.UpsertPaymentBlob(tx, strings.TrimSpace(payment.OwnerUserID), paymentID, extractedDataJSON)
+	}); err != nil {
 		return nil, fmt.Errorf("failed to update payment: %w", err)
 	}
-	_ = s.blobRepo.UpsertPaymentBlob(nil, strings.TrimSpace(payment.OwnerUserID), paymentID, extractedDataJSON)
 
 	return extracted, nil
 }

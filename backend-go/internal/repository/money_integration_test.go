@@ -3,6 +3,7 @@
 package repository
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -13,6 +14,68 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+func TestRepositoryWithDBParticipatesInTransaction(t *testing.T) {
+	db := openMoneyTestDB(t)
+	if err := db.AutoMigrate(&models.Payment{}, &models.Invoice{}); err != nil {
+		t.Fatalf("初始化事务测试表失败: %v", err)
+	}
+
+	paymentRepo := NewPaymentRepository(db)
+	payment := &models.Payment{
+		ID: "payment-tx", OwnerUserID: "owner-1", Amount: 10,
+		TransactionTime: "2026-01-02T03:04:05Z", TransactionTimeTs: 1,
+		TripAssignSrc: "auto", TripAssignState: "no_match", DedupStatus: "ok",
+	}
+	if err := paymentRepo.Create(payment); err != nil {
+		t.Fatalf("创建事务测试支付记录失败: %v", err)
+	}
+
+	rollbackErr := errors.New("rollback")
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := paymentRepo.WithDB(tx).Update(payment.ID, map[string]any{"amount": 99}); err != nil {
+			return err
+		}
+		return rollbackErr
+	})
+	if !errors.Is(err, rollbackErr) {
+		t.Fatalf("事务应按预期回滚: %v", err)
+	}
+	storedPayment, err := paymentRepo.FindByID(payment.ID)
+	if err != nil {
+		t.Fatalf("读取回滚后的支付记录失败: %v", err)
+	}
+	if storedPayment.Amount != 10 {
+		t.Fatalf("支付仓储更新未随事务回滚: amount=%v", storedPayment.Amount)
+	}
+
+	amount := 20.0
+	invoiceRepo := NewInvoiceRepository(db)
+	invoice := &models.Invoice{
+		ID: "invoice-tx", OwnerUserID: "owner-1", Filename: "invoice.pdf",
+		OriginalName: "invoice.pdf", FilePath: "uploads/invoice.pdf",
+		Amount: &amount, ParseStatus: "success", Source: "upload", DedupStatus: "ok",
+	}
+	if err := invoiceRepo.Create(invoice); err != nil {
+		t.Fatalf("创建事务测试发票失败: %v", err)
+	}
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := invoiceRepo.WithDB(tx).UpdateForOwner("owner-1", invoice.ID, map[string]any{"amount": 88}); err != nil {
+			return err
+		}
+		return rollbackErr
+	})
+	if !errors.Is(err, rollbackErr) {
+		t.Fatalf("发票事务应按预期回滚: %v", err)
+	}
+	storedInvoice, err := invoiceRepo.FindByID(invoice.ID)
+	if err != nil {
+		t.Fatalf("读取回滚后的发票失败: %v", err)
+	}
+	if storedInvoice.Amount == nil || *storedInvoice.Amount != 20 {
+		t.Fatalf("发票仓储更新未随事务回滚: amount=%v", storedInvoice.Amount)
+	}
+}
 
 func TestMoneyPersistenceUsesCentsAsCanonicalValue(t *testing.T) {
 	db := openMoneyTestDB(t)

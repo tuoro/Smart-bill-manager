@@ -3,12 +3,37 @@
 package services
 
 import (
+	"os"
 	"testing"
 
 	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
 )
+
+func TestPaymentDeleteKeepsScreenshotWhenTransactionFails(t *testing.T) {
+	db := openServiceTestDB(t)
+	uploadsDir := t.TempDir()
+	filePath := createCleanupTestFile(t, uploadsDir, "owner/payment.png")
+	storedPath := "uploads/owner/payment.png"
+	service := NewPaymentService(db, uploadsDir)
+
+	payment, err := service.CreateDraftFromScreenshotUpload("owner-1", storedPath, nil)
+	if err != nil {
+		t.Fatalf("准备删除回滚测试支付记录失败: %v", err)
+	}
+	if err := db.Migrator().DropTable(&models.PaymentOCRBlob{}); err != nil {
+		t.Fatalf("构造删除事务失败条件失败: %v", err)
+	}
+
+	if err := service.Delete("owner-1", payment.ID); err == nil {
+		t.Fatal("缺少 Blob 表时删除事务应失败")
+	}
+	assertPaymentCount(t, db, 1)
+	if _, err := os.Stat(filePath); err != nil {
+		t.Fatalf("删除事务失败时截图必须保留: %v", err)
+	}
+}
 
 func TestPaymentServiceUsesInjectedDatabase(t *testing.T) {
 	primaryDB := openServiceTestDB(t)

@@ -5,19 +5,20 @@ import (
 	"strings"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
 
-type TripRepository struct{}
+type TripRepository struct {
+	db *gorm.DB
+}
 
-func NewTripRepository() *TripRepository {
-	return &TripRepository{}
+func NewTripRepository(db *gorm.DB) *TripRepository {
+	return &TripRepository{db: db}
 }
 
 func (r *TripRepository) Create(trip *models.Trip) error {
-	return database.GetDB().Create(trip).Error
+	return r.db.Create(trip).Error
 }
 
 func (r *TripRepository) FindByID(id string) (*models.Trip, error) {
@@ -29,7 +30,7 @@ func (r *TripRepository) FindByIDCtx(ctx context.Context, id string) (*models.Tr
 		ctx = context.Background()
 	}
 	var trip models.Trip
-	err := database.GetDB().WithContext(ctx).Where("id = ?", id).First(&trip).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&trip).Error
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +46,7 @@ func (r *TripRepository) FindAllCtx(ctx context.Context, ownerUserID string) ([]
 		ctx = context.Background()
 	}
 	var trips []models.Trip
-	q := database.GetDB().WithContext(ctx).Model(&models.Trip{}).Order("start_time_ts DESC")
+	q := r.db.WithContext(ctx).Model(&models.Trip{}).Order("start_time_ts DESC")
 	if strings.TrimSpace(ownerUserID) != "" {
 		q = q.Where("owner_user_id = ?", strings.TrimSpace(ownerUserID))
 	}
@@ -67,7 +68,7 @@ func (r *TripRepository) FindByIDForOwnerCtx(ctx context.Context, ownerUserID st
 	if ownerUserID == "" || id == "" {
 		return nil, gorm.ErrRecordNotFound
 	}
-	q := database.GetDB().WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID)
+	q := r.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID)
 	err := q.First(&trip).Error
 	if err != nil {
 		return nil, err
@@ -76,7 +77,7 @@ func (r *TripRepository) FindByIDForOwnerCtx(ctx context.Context, ownerUserID st
 }
 
 func (r *TripRepository) Update(id string, data map[string]interface{}) error {
-	result := database.GetDB().Model(&models.Trip{}).Where("id = ?", id).Updates(data)
+	result := r.db.Model(&models.Trip{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -84,7 +85,7 @@ func (r *TripRepository) Update(id string, data map[string]interface{}) error {
 }
 
 func (r *TripRepository) UpdateForOwner(ownerUserID string, id string, data map[string]interface{}) error {
-	q := database.GetDB().Model(&models.Trip{}).Where("id = ?", id)
+	q := r.db.Model(&models.Trip{}).Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}
@@ -96,7 +97,7 @@ func (r *TripRepository) UpdateForOwner(ownerUserID string, id string, data map[
 }
 
 func (r *TripRepository) Delete(id string) error {
-	result := database.GetDB().Where("id = ?", id).Delete(&models.Trip{})
+	result := r.db.Where("id = ?", id).Delete(&models.Trip{})
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -104,7 +105,7 @@ func (r *TripRepository) Delete(id string) error {
 }
 
 func (r *TripRepository) DeleteForOwner(ownerUserID string, id string) error {
-	q := database.GetDB().Where("id = ?", id)
+	q := r.db.Where("id = ?", id)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
 	}

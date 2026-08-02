@@ -12,12 +12,12 @@ import (
 	"smart-bill-manager/internal/money"
 	"smart-bill-manager/internal/repository"
 	"smart-bill-manager/internal/utils"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
 
 type TripService struct {
+	db          *gorm.DB
 	repo        *repository.TripRepository
 	paymentRepo *repository.PaymentRepository
 	uploadsDir  string
@@ -25,7 +25,8 @@ type TripService struct {
 
 func NewTripService(db *gorm.DB, uploadsDir string) *TripService {
 	return &TripService{
-		repo:        repository.NewTripRepository(),
+		db:          db,
+		repo:        repository.NewTripRepository(db),
 		paymentRepo: repository.NewPaymentRepository(db),
 		uploadsDir:  uploadsDir,
 	}
@@ -89,7 +90,7 @@ func (s *TripService) Create(ownerUserID string, input CreateTripInput) (*models
 
 	var changes *AssignmentChangeSummary
 	var affectedTripIDs []string
-	db := database.GetDB()
+	db := s.db
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(trip).Error; err != nil {
 			return err
@@ -105,7 +106,7 @@ func (s *TripService) Create(ownerUserID string, input CreateTripInput) (*models
 		return nil, nil, err
 	}
 
-	_ = recalcTripBadDebtLockedForTripIDs(affectedTripIDs)
+	_ = recalcTripBadDebtLockedForTripIDs(s.db, affectedTripIDs)
 	return trip, changes, nil
 }
 
@@ -136,7 +137,7 @@ type UpdateTripInput struct {
 }
 
 func (s *TripService) Update(ownerUserID string, id string, input UpdateTripInput) (*AssignmentChangeSummary, error) {
-	db := database.GetDB()
+	db := s.db
 	var changes *AssignmentChangeSummary
 
 	var affectedTripIDs []string
@@ -239,7 +240,7 @@ func (s *TripService) Update(ownerUserID string, id string, input UpdateTripInpu
 		return nil, err
 	}
 
-	_ = recalcTripBadDebtLockedForTripIDs(affectedTripIDs)
+	_ = recalcTripBadDebtLockedForTripIDs(s.db, affectedTripIDs)
 	return changes, nil
 }
 
@@ -260,7 +261,7 @@ func (s *TripService) GetSummaryCtx(ctx context.Context, ownerUserID string, tri
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	tripID = strings.TrimSpace(tripID)
 	if ownerUserID == "" || tripID == "" {
@@ -328,7 +329,7 @@ func (s *TripService) GetAllSummariesCtx(ctx context.Context, ownerUserID string
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
 		return nil, fmt.Errorf("missing owner_user_id")
@@ -396,7 +397,7 @@ func (s *TripService) GetPaymentsCtx(ctx context.Context, ownerUserID string, tr
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	tripID = strings.TrimSpace(tripID)
 	if ownerUserID == "" || tripID == "" {
@@ -535,7 +536,7 @@ func (s *TripService) GetCascadePreviewCtx(ctx context.Context, ownerUserID stri
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	tripID = strings.TrimSpace(tripID)
 	if ownerUserID == "" || tripID == "" {
@@ -638,7 +639,7 @@ func (s *TripService) DeleteWithOptions(ownerUserID string, tripID string, opts 
 		invoicePaths = nil
 	}
 
-	db := database.GetDB()
+	db := s.db
 	var rangeStartTs int64
 	var rangeEndTs int64
 	var affectedTripIDs []string
@@ -768,7 +769,7 @@ func (s *TripService) DeleteWithOptions(ownerUserID string, tripID string, opts 
 		return nil, err
 	}
 
-	_ = recalcTripBadDebtLockedForTripIDs(affectedTripIDs)
+	_ = recalcTripBadDebtLockedForTripIDs(s.db, affectedTripIDs)
 
 	// Best-effort file cleanup after DB commit.
 	for _, p := range screenshotPaths {

@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"log"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,9 +30,7 @@ func Error(c *gin.Context, statusCode int, message string, err error) {
 		Success: false,
 		Message: message,
 	}
-	if err != nil {
-		resp.Error = err.Error()
-	}
+	setErrorDetail(c, statusCode, message, err, &resp)
 	c.JSON(statusCode, resp)
 }
 
@@ -40,10 +41,28 @@ func ErrorData(c *gin.Context, statusCode int, message string, data interface{},
 		Message: message,
 		Data:    data,
 	}
-	if err != nil {
-		resp.Error = err.Error()
-	}
+	setErrorDetail(c, statusCode, message, err, &resp)
 	c.JSON(statusCode, resp)
+}
+
+func setErrorDetail(c *gin.Context, statusCode int, message string, err error, resp *Response) {
+	if err == nil || resp == nil {
+		return
+	}
+	if statusCode < http.StatusInternalServerError {
+		resp.Error = err.Error()
+		return
+	}
+
+	method := ""
+	path := ""
+	requestID := ""
+	if c != nil && c.Request != nil {
+		method = c.Request.Method
+		path = c.Request.URL.Path
+		requestID = c.GetHeader("X-Request-ID")
+	}
+	log.Printf("[APIError] status=%d method=%q path=%q request_id=%q message=%q err=%v", statusCode, method, path, requestID, message, err)
 }
 
 // SuccessData sends a success response with only data

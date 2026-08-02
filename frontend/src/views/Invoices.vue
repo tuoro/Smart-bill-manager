@@ -745,7 +745,8 @@ import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { invoiceApi, tasksApi, regressionSamplesApi } from '@/api'
+import { invoiceApi, regressionSamplesApi } from '@/api'
+import { useTaskPolling } from '@/composables/useTaskPolling'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { debounce } from '@/utils/debounce'
@@ -829,6 +830,7 @@ const loadInvoiceFileBlobUrl = async (invoiceId: string) => {
 }
 
 const toast = useToast()
+const { waitForTask } = useTaskPolling({ timeoutMs: 180000, pollIntervalMs: 900 })
 const notifications = useNotificationStore()
 const confirm = useConfirm()
 const authStore = useAuthStore()
@@ -1375,20 +1377,6 @@ const handleUpload = async () => {
     uploadedInvoiceDedupById.value = {}
     uploadOcrDraftById.value = {}
     uploadDedup.value = null
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-    const waitForTask = async (taskId: string, opts?: { timeoutMs?: number }) => {
-      const timeoutMs = opts?.timeoutMs ?? 180000
-      const start = Date.now()
-      while (Date.now() - start < timeoutMs) {
-        const res = await tasksApi.getById(taskId)
-        const t = res.data?.data as any
-        if (!t) throw new Error('任务状态获取失败')
-        if (t.status === 'succeeded' || t.status === 'failed' || t.status === 'canceled') return t
-        await sleep(900)
-      }
-      throw new Error('识别超时，请稍后重试')
-    }
-
     if (selectedFiles.value.length === 1) {
       const res = await invoiceApi.uploadAsync(selectedFiles.value[0])
       const payload = (res.data?.data || null) as any

@@ -718,7 +718,8 @@ import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { invoiceApi, paymentApi, tasksApi, regressionSamplesApi } from '@/api'
+import { invoiceApi, paymentApi, regressionSamplesApi } from '@/api'
+import { useTaskPolling } from '@/composables/useTaskPolling'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { debounce } from '@/utils/debounce'
@@ -743,6 +744,7 @@ interface OcrExtractedData {
 }
 
 const toast = useToast()
+const { waitForTask } = useTaskPolling()
 const notifications = useNotificationStore()
 const confirm = useConfirm()
 const authStore = useAuthStore()
@@ -1409,20 +1411,6 @@ watch(
 )
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-const waitForTask = async (taskId: string, opts?: { timeoutMs?: number; shouldStop?: () => boolean }) => {
-  const timeoutMs = opts?.timeoutMs ?? 120000
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    if (opts?.shouldStop?.()) return { status: 'canceled' }
-    const res = await tasksApi.getById(taskId)
-    const t = res.data?.data as any
-    if (!t) throw new Error('任务状态获取失败')
-    if (t.status === 'succeeded' || t.status === 'failed' || t.status === 'canceled') return t
-    await sleep(800)
-  }
-  throw new Error('识别超时，请稍后重试')
-}
 
 const handleScreenshotUpload = async () => {
   if (selectedScreenshotFiles.value.length === 0) {

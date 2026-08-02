@@ -5,15 +5,16 @@ import (
 	"strings"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
 
-type InvoiceAttachmentRepository struct{}
+type InvoiceAttachmentRepository struct {
+	db *gorm.DB
+}
 
-func NewInvoiceAttachmentRepository() *InvoiceAttachmentRepository {
-	return &InvoiceAttachmentRepository{}
+func NewInvoiceAttachmentRepository(db *gorm.DB) *InvoiceAttachmentRepository {
+	return &InvoiceAttachmentRepository{db: db}
 }
 
 func (r *InvoiceAttachmentRepository) CreateCtx(ctx context.Context, a *models.InvoiceAttachment) error {
@@ -23,7 +24,7 @@ func (r *InvoiceAttachmentRepository) CreateCtx(ctx context.Context, a *models.I
 	if a == nil {
 		return gorm.ErrInvalidData
 	}
-	return database.GetDB().WithContext(ctx).Create(a).Error
+	return r.db.WithContext(ctx).Create(a).Error
 }
 
 func (r *InvoiceAttachmentRepository) FindByInvoiceIDForOwnerCtx(ctx context.Context, ownerUserID string, invoiceID string) ([]models.InvoiceAttachment, error) {
@@ -36,7 +37,7 @@ func (r *InvoiceAttachmentRepository) FindByInvoiceIDForOwnerCtx(ctx context.Con
 		return []models.InvoiceAttachment{}, nil
 	}
 	var rows []models.InvoiceAttachment
-	err := database.GetDB().WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Model(&models.InvoiceAttachment{}).
 		Where("owner_user_id = ? AND invoice_id = ?", ownerUserID, invoiceID).
 		Order("created_at ASC, id ASC").
@@ -54,7 +55,7 @@ func (r *InvoiceAttachmentRepository) FindByIDForOwnerCtx(ctx context.Context, o
 		return nil, gorm.ErrRecordNotFound
 	}
 	var row models.InvoiceAttachment
-	if err := database.GetDB().WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Where("owner_user_id = ? AND id = ?", ownerUserID, id).
 		First(&row).Error; err != nil {
 		return nil, err
@@ -71,7 +72,7 @@ func (r *InvoiceAttachmentRepository) DeleteByInvoiceIDForOwnerCtx(ctx context.C
 	if ownerUserID == "" || invoiceID == "" {
 		return 0, nil
 	}
-	res := database.GetDB().WithContext(ctx).
+	res := r.db.WithContext(ctx).
 		Where("owner_user_id = ? AND invoice_id = ?", ownerUserID, invoiceID).
 		Delete(&models.InvoiceAttachment{})
 	return res.RowsAffected, res.Error
@@ -86,7 +87,7 @@ func (r *InvoiceAttachmentRepository) DeleteByIDForOwnerCtx(ctx context.Context,
 	if ownerUserID == "" || id == "" {
 		return 0, nil
 	}
-	res := database.GetDB().WithContext(ctx).
+	res := r.db.WithContext(ctx).
 		Where("owner_user_id = ? AND id = ?", ownerUserID, id).
 		Delete(&models.InvoiceAttachment{})
 	return res.RowsAffected, res.Error

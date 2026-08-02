@@ -12,12 +12,14 @@ import (
 )
 
 type AuthService struct {
-	userRepo *repository.UserRepository
+	userRepo     *repository.UserRepository
+	tokenManager *utils.TokenManager
 }
 
-func NewAuthService() *AuthService {
+func NewAuthService(tokenManager *utils.TokenManager) *AuthService {
 	return &AuthService{
-		userRepo: repository.NewUserRepository(),
+		userRepo:     repository.NewUserRepository(),
+		tokenManager: tokenManager,
 	}
 }
 
@@ -61,7 +63,7 @@ func (s *AuthService) Register(username, password string, email *string) (*AuthR
 	}
 
 	// Generate token
-	token, err := utils.GenerateToken(id, username, "user")
+	token, err := s.tokenManager.GenerateToken(id, username, "user")
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +94,7 @@ func (s *AuthService) Login(username, password string) (*AuthResult, error) {
 	}
 
 	// Generate token
-	token, err := utils.GenerateToken(user.ID, user.Username, user.Role)
+	token, err := s.tokenManager.GenerateToken(user.ID, user.Username, user.Role)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +110,7 @@ func (s *AuthService) Login(username, password string) (*AuthResult, error) {
 
 // VerifyToken verifies a JWT token
 func (s *AuthService) VerifyToken(tokenString string) (*utils.Claims, error) {
-	return utils.VerifyToken(tokenString)
+	return s.tokenManager.VerifyToken(tokenString)
 }
 
 // GetUserByID gets a user by ID
@@ -224,9 +226,11 @@ func (s *AuthService) CreateInitialAdmin(username, password string, email *strin
 
 		// Re-issue token with admin role (Register() always issues a "user" token).
 		if result.User != nil {
-			if token, err := utils.GenerateToken(result.User.ID, result.User.Username, "admin"); err == nil {
-				result.Token = token
+			token, err := s.tokenManager.GenerateToken(result.User.ID, result.User.Username, "admin")
+			if err != nil {
+				return nil, err
 			}
+			result.Token = token
 		}
 	}
 

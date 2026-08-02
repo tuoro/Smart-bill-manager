@@ -8,8 +8,11 @@ services:
     ports:
       - "80:80"
     environment:
-      # Optional: Set a secure JWT secret (recommended for production)
-      # - JWT_SECRET=your-secure-random-secret-key
+      # 本地默认使用 development；生产部署请设置 NODE_ENV=production 和持久 JWT_SECRET。
+      - NODE_ENV=${NODE_ENV:-development}
+      - JWT_SECRET=${JWT_SECRET:-}
+      # 前后端不同源时用英文逗号分隔；同源部署保持为空。
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
       # Optional: Set admin password (otherwise a random password is generated)
       # - ADMIN_PASSWORD=your-admin-password
       # OCR engine selection:

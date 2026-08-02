@@ -18,6 +18,7 @@ import (
 	"smart-bill-manager/internal/migrations"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/services"
+	"smart-bill-manager/internal/utils"
 	"smart-bill-manager/pkg/database"
 )
 
@@ -25,9 +26,15 @@ func main() {
 	log.Println("Starting Smart Bill Manager...")
 
 	// Load configuration
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("Failed to load configuration:", err)
+	}
 	log.Printf("Environment: %s", cfg.NodeEnv)
 	log.Printf("Working directory: %s", mustGetWd())
+	if cfg.JWTSecretGenerated {
+		log.Println("Development JWT secret was generated for this process; existing sessions will expire after restart.")
+	}
 
 	// Initialize database
 	db := database.Init(cfg.DataDir)
@@ -56,7 +63,11 @@ func main() {
 	log.Printf("Uploads directory: %s", uploadsDir)
 
 	// Initialize services
-	authService := services.NewAuthService()
+	tokenManager, err := utils.NewTokenManager(cfg.JWTSecret, cfg.JWTExpiresIn)
+	if err != nil {
+		log.Fatal("Failed to initialize JWT manager:", err)
+	}
+	authService := services.NewAuthService(tokenManager)
 	paymentService := services.NewPaymentService(uploadsDir)
 	invoiceService := services.NewInvoiceService(uploadsDir)
 	emailService := services.NewEmailService(uploadsDir, invoiceService)
@@ -94,9 +105,12 @@ func main() {
 
 	// Create Gin router
 	r := gin.Default()
+	if err := r.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
+		log.Fatal("Failed to configure trusted proxies:", err)
+	}
 
 	// Middleware
-	r.Use(middleware.CORSMiddleware())
+	r.Use(middleware.CORSMiddleware(cfg.CORSAllowedOrigins))
 
 	// Serve uploaded files
 	// Do not expose uploads statically; files are served via authenticated endpoints.

@@ -83,6 +83,7 @@ docker compose up -d --build
 docker pull ghcr.io/tuoro/smart-bill-manager:latest
 docker run -d --name smart-bill-manager -p 80:80 \
   -e NODE_ENV=production \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
   -e SBM_OCR_DATA_DIR=/app/backend/data \
   -e SBM_OCR_WORKER=1 \
   -e SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression \
@@ -106,8 +107,9 @@ docker run -d --name smart-bill-manager -p 80:80 \
 - `UPLOADS_DIR=./uploads`：上传目录
 
 ### JWT
-- `JWT_SECRET`：JWT 签名密钥（不设置则启动时随机生成；容器重启后旧 token 会失效）
+- `JWT_SECRET`：JWT 签名密钥，至少 32 个字符；生产环境必填，开发环境缺省时会生成临时密钥
 - `JWT_EXPIRES_IN=168h`：token 有效期（默认 7 天）
+- `CORS_ALLOWED_ORIGINS`：跨域来源白名单，多个来源用英文逗号分隔；同源部署无需配置
 
 ### 草稿清理
 - `SBM_DRAFT_TTL_HOURS=6`

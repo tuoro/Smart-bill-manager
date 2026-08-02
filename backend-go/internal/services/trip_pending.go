@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 type PendingCandidateTrip struct {
@@ -34,7 +33,7 @@ func (s *TripService) GetPendingPaymentsCtx(ctx context.Context, ownerUserID str
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 
 	type row struct {
 		PaymentID          string
@@ -149,7 +148,7 @@ func (s *TripService) AssignPendingPayment(ownerUserID string, paymentID, tripID
 	if ownerUserID == "" || paymentID == "" || tripID == "" {
 		return fmt.Errorf("owner_user_id, payment_id and trip_id are required")
 	}
-	db := database.GetDB()
+	db := s.db
 	var t models.Trip
 	if err := db.Select("id").Where("id = ? AND owner_user_id = ?", tripID, ownerUserID).First(&t).Error; err != nil {
 		return fmt.Errorf("trip not found")
@@ -161,7 +160,7 @@ func (s *TripService) AssignPendingPayment(ownerUserID string, paymentID, tripID
 	}).Error; err != nil {
 		return err
 	}
-	return recalcTripBadDebtLocked(tripID)
+	return recalcTripBadDebtLocked(s.db, tripID)
 }
 
 func (s *TripService) BlockPendingPayment(ownerUserID string, paymentID string) error {
@@ -170,7 +169,7 @@ func (s *TripService) BlockPendingPayment(ownerUserID string, paymentID string) 
 	if ownerUserID == "" || paymentID == "" {
 		return fmt.Errorf("owner_user_id and payment_id are required")
 	}
-	db := database.GetDB()
+	db := s.db
 	return db.Model(&models.Payment{}).Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).Updates(map[string]interface{}{
 		"trip_id":                nil,
 		"trip_assignment_source": assignSrcBlocked,

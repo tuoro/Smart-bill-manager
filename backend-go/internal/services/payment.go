@@ -747,7 +747,7 @@ func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePayme
 	if after != nil && after.BadDebt && after.TripID != nil && strings.TrimSpace(*after.TripID) != "" {
 		affected = append(affected, strings.TrimSpace(*after.TripID))
 	}
-	return recalcTripBadDebtLockedForTripIDs(affected)
+	return recalcTripBadDebtLockedForTripIDs(s.db, affected)
 }
 
 func (s *PaymentService) Delete(ownerUserID string, id string) error {
@@ -773,7 +773,7 @@ func (s *PaymentService) Delete(ownerUserID string, id string) error {
 	if tripID == "" {
 		return nil
 	}
-	return recalcTripBadDebtLocked(tripID)
+	return recalcTripBadDebtLocked(s.db, tripID)
 }
 
 func (s *PaymentService) GetStats(ownerUserID string, startDate, endDate string) (*models.PaymentStats, error) {

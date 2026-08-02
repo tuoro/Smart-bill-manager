@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
@@ -58,13 +57,11 @@ func isTripBadDebtLockedTx(tx *gorm.DB, tripID string) (bool, error) {
 	return invoiceBadDebtViaLegacy > 0, nil
 }
 
-func recalcTripBadDebtLocked(tripID string) error {
+func recalcTripBadDebtLocked(db *gorm.DB, tripID string) error {
 	tripID = strings.TrimSpace(tripID)
-	if tripID == "" {
+	if db == nil || tripID == "" {
 		return nil
 	}
-
-	db := database.GetDB()
 
 	var paymentBadDebt int64
 	if err := db.Model(&models.Payment{}).
@@ -99,7 +96,7 @@ func recalcTripBadDebtLocked(tripID string) error {
 	return db.Model(&models.Trip{}).Where("id = ?", tripID).Update("bad_debt_locked", locked).Error
 }
 
-func recalcTripBadDebtLockedForTripIDs(tripIDs []string) error {
+func recalcTripBadDebtLockedForTripIDs(db *gorm.DB, tripIDs []string) error {
 	unique := make(map[string]struct{}, len(tripIDs))
 	for _, id := range tripIDs {
 		id = strings.TrimSpace(id)
@@ -110,38 +107,20 @@ func recalcTripBadDebtLockedForTripIDs(tripIDs []string) error {
 	}
 
 	for id := range unique {
-		if err := recalcTripBadDebtLocked(id); err != nil {
+		if err := recalcTripBadDebtLocked(db, id); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func getTripIDForPayment(paymentID string) (string, error) {
-	paymentID = strings.TrimSpace(paymentID)
-	if paymentID == "" {
-		return "", nil
-	}
-
-	db := database.GetDB()
-	var payment models.Payment
-	if err := db.Select("trip_id").Where("id = ?", paymentID).First(&payment).Error; err != nil {
-		return "", err
-	}
-	if payment.TripID == nil || strings.TrimSpace(*payment.TripID) == "" {
-		return "", nil
-	}
-	return strings.TrimSpace(*payment.TripID), nil
-}
-
-func getTripIDForPaymentForOwner(ownerUserID string, paymentID string) (string, error) {
+func getTripIDForPaymentForOwner(db *gorm.DB, ownerUserID string, paymentID string) (string, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	paymentID = strings.TrimSpace(paymentID)
-	if ownerUserID == "" || paymentID == "" {
+	if db == nil || ownerUserID == "" || paymentID == "" {
 		return "", nil
 	}
 
-	db := database.GetDB()
 	var payment models.Payment
 	if err := db.Select("trip_id").Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).First(&payment).Error; err != nil {
 		return "", err

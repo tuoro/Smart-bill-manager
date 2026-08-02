@@ -678,7 +678,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 			return err
 		}
 		if before.PaymentID != nil && strings.TrimSpace(*before.PaymentID) != "" {
-			if tripID, err := getTripIDForPaymentForOwner(ownerUserID, strings.TrimSpace(*before.PaymentID)); err == nil && tripID != "" {
+			if tripID, err := getTripIDForPaymentForOwner(s.db, ownerUserID, strings.TrimSpace(*before.PaymentID)); err == nil && tripID != "" {
 				affectedTrips = append(affectedTrips, tripID)
 			}
 		}
@@ -750,7 +750,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 			}
 			data["payment_id"] = trimmed
 			if needsRecalc {
-				if tripID, err := getTripIDForPaymentForOwner(ownerUserID, trimmed); err == nil && tripID != "" {
+				if tripID, err := getTripIDForPaymentForOwner(s.db, ownerUserID, trimmed); err == nil && tripID != "" {
 					affectedTrips = append(affectedTrips, tripID)
 				}
 			}
@@ -832,7 +832,7 @@ func (s *InvoiceService) Update(ownerUserID string, id string, input UpdateInvoi
 	if !needsRecalc {
 		return nil
 	}
-	return recalcTripBadDebtLockedForTripIDs(affectedTrips)
+	return recalcTripBadDebtLockedForTripIDs(s.db, affectedTrips)
 }
 
 func (s *InvoiceService) Delete(ownerUserID string, id string) error {
@@ -865,7 +865,7 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 		}
 	}
 	if invoice.PaymentID != nil && strings.TrimSpace(*invoice.PaymentID) != "" {
-		if tripID, err := getTripIDForPaymentForOwner(ownerUserID, strings.TrimSpace(*invoice.PaymentID)); err == nil && tripID != "" {
+		if tripID, err := getTripIDForPaymentForOwner(s.db, ownerUserID, strings.TrimSpace(*invoice.PaymentID)); err == nil && tripID != "" {
 			affectedTrips = append(affectedTrips, tripID)
 		}
 	}
@@ -912,7 +912,7 @@ func (s *InvoiceService) Delete(ownerUserID string, id string) error {
 			"parse_error":       nil,
 		}).Error
 
-	return recalcTripBadDebtLockedForTripIDs(affectedTrips)
+	return recalcTripBadDebtLockedForTripIDs(s.db, affectedTrips)
 }
 
 func (s *InvoiceService) GetStats(ownerUserID string) (*models.InvoiceStats, error) {
@@ -947,8 +947,8 @@ func (s *InvoiceService) LinkPayment(ownerUserID string, invoiceID, paymentID st
 	if !inv.BadDebt {
 		return nil
 	}
-	if tripID, err := getTripIDForPaymentForOwner(strings.TrimSpace(ownerUserID), strings.TrimSpace(paymentID)); err == nil && tripID != "" {
-		return recalcTripBadDebtLocked(tripID)
+	if tripID, err := getTripIDForPaymentForOwner(s.db, strings.TrimSpace(ownerUserID), strings.TrimSpace(paymentID)); err == nil && tripID != "" {
+		return recalcTripBadDebtLocked(s.db, tripID)
 	}
 	return nil
 }
@@ -969,8 +969,8 @@ func (s *InvoiceService) UnlinkPayment(ownerUserID string, invoiceID, paymentID 
 	if !inv.BadDebt {
 		return nil
 	}
-	if tripID, err := getTripIDForPaymentForOwner(strings.TrimSpace(ownerUserID), strings.TrimSpace(paymentID)); err == nil && tripID != "" {
-		return recalcTripBadDebtLocked(tripID)
+	if tripID, err := getTripIDForPaymentForOwner(s.db, strings.TrimSpace(ownerUserID), strings.TrimSpace(paymentID)); err == nil && tripID != "" {
+		return recalcTripBadDebtLocked(s.db, tripID)
 	}
 	return nil
 }

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 type tripExportInvoice struct {
@@ -45,7 +44,7 @@ func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID stri
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	db := database.GetDB().WithContext(ctx)
+	db := s.db.WithContext(ctx)
 
 	var trip models.Trip
 	if err := db.Model(&models.Trip{}).

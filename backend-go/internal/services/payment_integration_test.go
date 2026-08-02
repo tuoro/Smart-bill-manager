@@ -8,18 +8,15 @@ import (
 	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 func TestPaymentServiceUsesInjectedDatabase(t *testing.T) {
 	primaryDB := openServiceTestDB(t)
-	globalDB := openServiceTestDB(t)
-	if database.GetDB() != globalDB {
-		t.Fatal("测试前提不成立：全局连接应指向第二个数据库")
-	}
+	secondaryDB := openServiceTestDB(t)
 
 	service := NewPaymentService(primaryDB, t.TempDir())
-	payment, err := service.CreateDraftFromScreenshotUpload("owner-1", "uploads/payment.png", nil)
+	fileHash := "payment-hash"
+	payment, err := service.CreateDraftFromScreenshotUpload("owner-1", "uploads/payment.png", &fileHash)
 	if err != nil {
 		t.Fatalf("创建支付草稿失败: %v", err)
 	}
@@ -28,7 +25,15 @@ func TestPaymentServiceUsesInjectedDatabase(t *testing.T) {
 	}
 
 	assertPaymentCount(t, primaryDB, 1)
-	assertPaymentCount(t, globalDB, 0)
+	assertPaymentCount(t, secondaryDB, 0)
+
+	found, err := service.FindByFileSHA256ForOwner("owner-1", fileHash, "")
+	if err != nil {
+		t.Fatalf("按文件哈希查询支付记录失败: %v", err)
+	}
+	if found == nil || found.ID != payment.ID {
+		t.Fatalf("去重查询未使用注入数据库: %#v", found)
+	}
 }
 
 func assertPaymentCount(t *testing.T, db *gorm.DB, want int64) {

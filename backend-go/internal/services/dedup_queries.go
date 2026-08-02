@@ -7,17 +7,22 @@ import (
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/money"
-	"smart-bill-manager/pkg/database"
+
+	"gorm.io/gorm"
 )
 
-func FindPaymentByFileSHA256ForOwner(ownerUserID string, hash string, excludeID string) (*models.Payment, error) {
+func (s *PaymentService) FindByFileSHA256ForOwner(ownerUserID string, hash string, excludeID string) (*models.Payment, error) {
+	return findPaymentByFileSHA256ForOwner(s.db, ownerUserID, hash, excludeID)
+}
+
+func findPaymentByFileSHA256ForOwner(db *gorm.DB, ownerUserID string, hash string, excludeID string) (*models.Payment, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	hash = strings.TrimSpace(hash)
 	if hash == "" {
 		return nil, nil
 	}
 
-	q := database.GetDB().Model(&models.Payment{}).
+	q := db.Model(&models.Payment{}).
 		Where("file_sha256 = ?", hash)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
@@ -37,36 +42,18 @@ func FindPaymentByFileSHA256ForOwner(ownerUserID string, hash string, excludeID 
 	return &p, nil
 }
 
-func FindPaymentByFileSHA256(hash string, excludeID string) (*models.Payment, error) {
-	hash = strings.TrimSpace(hash)
-	if hash == "" {
-		return nil, nil
-	}
-	q := database.GetDB().Model(&models.Payment{}).
-		Where("file_sha256 = ?", hash)
-	if strings.TrimSpace(excludeID) != "" {
-		q = q.Where("id <> ?", strings.TrimSpace(excludeID))
-	}
-
-	var p models.Payment
-	res := q.Order("is_draft ASC, created_at DESC, id DESC").Limit(1).Find(&p)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-	if res.RowsAffected == 0 {
-		return nil, nil
-	}
-	return &p, nil
+func (s *InvoiceService) FindByFileSHA256ForOwner(ownerUserID string, hash string, excludeID string) (*models.Invoice, error) {
+	return findInvoiceByFileSHA256ForOwner(s.db, ownerUserID, hash, excludeID)
 }
 
-func FindInvoiceByFileSHA256ForOwner(ownerUserID string, hash string, excludeID string) (*models.Invoice, error) {
+func findInvoiceByFileSHA256ForOwner(db *gorm.DB, ownerUserID string, hash string, excludeID string) (*models.Invoice, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	hash = strings.TrimSpace(hash)
 	if hash == "" {
 		return nil, nil
 	}
 
-	q := database.GetDB().Model(&models.Invoice{}).
+	q := db.Model(&models.Invoice{}).
 		Where("file_sha256 = ?", hash)
 	if ownerUserID != "" {
 		q = q.Where("owner_user_id = ?", ownerUserID)
@@ -86,29 +73,11 @@ func FindInvoiceByFileSHA256ForOwner(ownerUserID string, hash string, excludeID 
 	return &inv, nil
 }
 
-func FindInvoiceByFileSHA256(hash string, excludeID string) (*models.Invoice, error) {
-	hash = strings.TrimSpace(hash)
-	if hash == "" {
-		return nil, nil
-	}
-	q := database.GetDB().Model(&models.Invoice{}).
-		Where("file_sha256 = ?", hash)
-	if strings.TrimSpace(excludeID) != "" {
-		q = q.Where("id <> ?", strings.TrimSpace(excludeID))
-	}
-
-	var inv models.Invoice
-	res := q.Order("is_draft ASC, created_at DESC, id DESC").Limit(1).Find(&inv)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-	if res.RowsAffected == 0 {
-		return nil, nil
-	}
-	return &inv, nil
+func (s *PaymentService) FindCandidatesByAmountTimeForOwner(ownerUserID string, amount float64, transactionTimeTs int64, excludeID string, window time.Duration, limit int) ([]DedupCandidate, error) {
+	return findPaymentCandidatesByAmountTimeForOwner(s.db, ownerUserID, amount, transactionTimeTs, excludeID, window, limit)
 }
 
-func FindPaymentCandidatesByAmountTimeForOwner(ownerUserID string, amount float64, transactionTimeTs int64, excludeID string, window time.Duration, limit int) ([]DedupCandidate, error) {
+func findPaymentCandidatesByAmountTimeForOwner(db *gorm.DB, ownerUserID string, amount float64, transactionTimeTs int64, excludeID string, window time.Duration, limit int) ([]DedupCandidate, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	if amount <= 0 || transactionTimeTs <= 0 {
 		return nil, nil
@@ -127,7 +96,7 @@ func FindPaymentCandidatesByAmountTimeForOwner(ownerUserID string, amount float6
 	endTs := transactionTimeTs + deltaMs
 
 	var rows []models.Payment
-	q := database.GetDB().Model(&models.Payment{}).
+	q := db.Model(&models.Payment{}).
 		Where("is_draft = 0").
 		Where("transaction_time_ts BETWEEN ? AND ?", startTs, endTs).
 		Where("amount_cents = ?", amountCents)
@@ -157,52 +126,11 @@ func FindPaymentCandidatesByAmountTimeForOwner(ownerUserID string, amount float6
 	return out, nil
 }
 
-func FindPaymentCandidatesByAmountTime(amount float64, transactionTimeTs int64, excludeID string, window time.Duration, limit int) ([]DedupCandidate, error) {
-	if amount <= 0 || transactionTimeTs <= 0 {
-		return nil, nil
-	}
-	if limit <= 0 {
-		limit = 5
-	}
-
-	amountCents, err := money.FromMajor(amount)
-	if err != nil {
-		return nil, err
-	}
-
-	deltaMs := int64(window / time.Millisecond)
-	startTs := transactionTimeTs - deltaMs
-	endTs := transactionTimeTs + deltaMs
-
-	var rows []models.Payment
-	q := database.GetDB().Model(&models.Payment{}).
-		Where("is_draft = 0").
-		Where("transaction_time_ts BETWEEN ? AND ?", startTs, endTs).
-		Where("amount_cents = ?", amountCents)
-	if strings.TrimSpace(excludeID) != "" {
-		q = q.Where("id <> ?", strings.TrimSpace(excludeID))
-	}
-	if err := q.Order("transaction_time_ts DESC, created_at DESC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, err
-	}
-
-	out := make([]DedupCandidate, 0, len(rows))
-	for _, p := range rows {
-		amt := math.Abs(p.Amount)
-		ts := p.TransactionTime
-		out = append(out, DedupCandidate{
-			ID:              p.ID,
-			IsDraft:         p.IsDraft,
-			Amount:          &amt,
-			TransactionTime: &ts,
-			Merchant:        p.Merchant,
-			CreatedAt:       p.CreatedAt,
-		})
-	}
-	return out, nil
+func (s *InvoiceService) FindCandidatesByInvoiceNumberForOwner(ownerUserID string, invoiceNumber string, excludeID string, limit int) ([]DedupCandidate, error) {
+	return findInvoiceCandidatesByInvoiceNumberForOwner(s.db, ownerUserID, invoiceNumber, excludeID, limit)
 }
 
-func FindInvoiceCandidatesByInvoiceNumberForOwner(ownerUserID string, invoiceNumber string, excludeID string, limit int) ([]DedupCandidate, error) {
+func findInvoiceCandidatesByInvoiceNumberForOwner(db *gorm.DB, ownerUserID string, invoiceNumber string, excludeID string, limit int) ([]DedupCandidate, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	invoiceNumber = strings.TrimSpace(invoiceNumber)
 	if invoiceNumber == "" {
@@ -213,7 +141,7 @@ func FindInvoiceCandidatesByInvoiceNumberForOwner(ownerUserID string, invoiceNum
 	}
 
 	var rows []models.Invoice
-	q := database.GetDB().Model(&models.Invoice{}).
+	q := db.Model(&models.Invoice{}).
 		Where("is_draft = 0").
 		Where("invoice_number = ?", invoiceNumber)
 	if ownerUserID != "" {
@@ -241,7 +169,7 @@ func FindInvoiceCandidatesByInvoiceNumberForOwner(ownerUserID string, invoiceNum
 	return out, nil
 }
 
-func FindInvoiceCandidatesByInvoiceNumber(invoiceNumber string, excludeID string, limit int) ([]DedupCandidate, error) {
+func findInvoiceCandidatesByInvoiceNumber(db *gorm.DB, invoiceNumber string, excludeID string, limit int) ([]DedupCandidate, error) {
 	invoiceNumber = strings.TrimSpace(invoiceNumber)
 	if invoiceNumber == "" {
 		return nil, nil
@@ -251,7 +179,7 @@ func FindInvoiceCandidatesByInvoiceNumber(invoiceNumber string, excludeID string
 	}
 
 	var rows []models.Invoice
-	q := database.GetDB().Model(&models.Invoice{}).
+	q := db.Model(&models.Invoice{}).
 		Where("is_draft = 0").
 		Where("invoice_number = ?", invoiceNumber)
 	if strings.TrimSpace(excludeID) != "" {

@@ -100,7 +100,7 @@ func (s *InvoiceService) CreateFromExtracted(ownerUserID string, input CreateInv
 	if inv.InvoiceNumber != nil {
 		n := strings.TrimSpace(*inv.InvoiceNumber)
 		if n != "" {
-			if cands, err := FindInvoiceCandidatesByInvoiceNumber(n, inv.ID, 5); err == nil && len(cands) > 0 {
+			if cands, err := findInvoiceCandidatesByInvoiceNumber(s.db, n, inv.ID, 5); err == nil && len(cands) > 0 {
 				inv.DedupStatus = DedupStatusSuspected
 				ref := cands[0].ID
 				inv.DedupRefID = &ref

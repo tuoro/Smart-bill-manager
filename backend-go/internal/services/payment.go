@@ -199,7 +199,7 @@ func (s *PaymentService) ProcessPaymentOCRTask(paymentID string) (any, error) {
 
 	// If we have a meaningful amount+time, compute suspected duplicates for UI.
 	if updated != nil && updated.Amount > 0 && updated.TransactionTimeTs > 0 {
-		if cands, derr := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(updated.OwnerUserID), updated.Amount, updated.TransactionTimeTs, updated.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
+		if cands, derr := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(updated.OwnerUserID), updated.Amount, updated.TransactionTimeTs, updated.ID, 5*time.Minute, 5); derr == nil && len(cands) > 0 {
 			updated.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			updated.DedupRefID = &ref
@@ -567,7 +567,7 @@ func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePayme
 			hash = strings.TrimSpace(*before.FileSHA256)
 		}
 		if hash != "" {
-			if existing, err := FindPaymentByFileSHA256ForOwner(strings.TrimSpace(ownerUserID), hash, id); err != nil {
+			if existing, err := s.FindByFileSHA256ForOwner(strings.TrimSpace(ownerUserID), hash, id); err != nil {
 				return err
 			} else if existing != nil {
 				return &DuplicateError{
@@ -591,7 +591,7 @@ func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePayme
 			}
 		}
 
-		cands, err := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(ownerUserID), nextAmount, nextTs, id, 5*time.Minute, 5)
+		cands, err := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(ownerUserID), nextAmount, nextTs, id, 5*time.Minute, 5)
 		if err != nil {
 			return err
 		}
@@ -699,7 +699,7 @@ func (s *PaymentService) Update(ownerUserID string, id string, input UpdatePayme
 			}
 		}
 
-		cands, err := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(ownerUserID), nextAmount, nextTs, id, 5*time.Minute, 5)
+		cands, err := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(ownerUserID), nextAmount, nextTs, id, 5*time.Minute, 5)
 		if err == nil && len(cands) > 0 {
 			if force {
 				data["dedup_status"] = DedupStatusForced
@@ -891,7 +891,7 @@ func (s *PaymentService) CreateFromScreenshot(ownerUserID string, input CreateFr
 
 	// Mark suspected duplicates for UI (amount+time) if we have a meaningful timestamp.
 	if payment.Amount > 0 && payment.TransactionTimeTs > 0 {
-		if cands, err := FindPaymentCandidatesByAmountTimeForOwner(strings.TrimSpace(payment.OwnerUserID), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); err == nil && len(cands) > 0 {
+		if cands, err := s.FindCandidatesByAmountTimeForOwner(strings.TrimSpace(payment.OwnerUserID), payment.Amount, payment.TransactionTimeTs, payment.ID, 5*time.Minute, 5); err == nil && len(cands) > 0 {
 			payment.DedupStatus = DedupStatusSuspected
 			ref := cands[0].ID
 			payment.DedupRefID = &ref

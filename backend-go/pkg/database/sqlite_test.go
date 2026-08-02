@@ -24,9 +24,6 @@ func TestOpenCreatesDatabaseAndEnablesForeignKeys(t *testing.T) {
 		}
 	})
 
-	if DB != db {
-		t.Fatal("全局兼容连接未指向新打开的数据库")
-	}
 	if _, err := os.Stat(filepath.Join(dataDir, "bills.db")); err != nil {
 		t.Fatalf("数据库文件未创建: %v", err)
 	}

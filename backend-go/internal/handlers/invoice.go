@@ -487,7 +487,7 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
+	if existing, err := h.invoiceService.FindByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
@@ -527,7 +527,7 @@ func (h *InvoiceHandler) Upload(c *gin.Context) {
 	if invoice != nil && invoice.DedupStatus == services.DedupStatusSuspected && invoice.InvoiceNumber != nil {
 		no := strings.TrimSpace(*invoice.InvoiceNumber)
 		if no != "" {
-			if cands, derr := services.FindInvoiceCandidatesByInvoiceNumberForOwner(middleware.GetEffectiveUserID(c), no, invoice.ID, 5); derr == nil && len(cands) > 0 {
+			if cands, derr := h.invoiceService.FindCandidatesByInvoiceNumberForOwner(middleware.GetEffectiveUserID(c), no, invoice.ID, 5); derr == nil && len(cands) > 0 {
 				dedup = gin.H{
 					"kind":       "suspected_duplicate",
 					"reason":     "invoice_number",
@@ -595,7 +595,7 @@ func (h *InvoiceHandler) UploadAsync(c *gin.Context) {
 	}
 	fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-	if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
+	if existing, err := h.invoiceService.FindByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 		_ = os.Remove(filePath)
 		utils.Error(c, 500, "重复检查失败", err)
 		return
@@ -765,7 +765,7 @@ func (h *InvoiceHandler) UploadMultiple(c *gin.Context) {
 			}
 			fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-			if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
+			if existing, err := h.invoiceService.FindByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 				_ = os.Remove(filePath)
 				return
 			} else if existing != nil {
@@ -875,7 +875,7 @@ func (h *InvoiceHandler) UploadMultipleAsync(c *gin.Context) {
 		}
 		fileSHA := hex.EncodeToString(hasher.Sum(nil))
 
-		if existing, err := services.FindInvoiceByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
+		if existing, err := h.invoiceService.FindByFileSHA256ForOwner(middleware.GetEffectiveUserID(c), fileSHA, ""); err != nil {
 			_ = os.Remove(filePath)
 			continue
 		} else if existing != nil {

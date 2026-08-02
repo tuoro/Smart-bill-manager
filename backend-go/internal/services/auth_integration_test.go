@@ -19,10 +19,7 @@ import (
 
 func TestAuthServiceUsesInjectedDatabase(t *testing.T) {
 	primaryDB := openServiceTestDB(t)
-	globalDB := openServiceTestDB(t)
-	if database.GetDB() != globalDB {
-		t.Fatal("测试前提不成立：全局连接应指向第二个数据库")
-	}
+	secondaryDB := openServiceTestDB(t)
 
 	service := newAuthTestService(t, primaryDB)
 	result, err := service.CreateInitialAdminCtx(context.Background(), "admin", "secret12", nil)
@@ -34,7 +31,7 @@ func TestAuthServiceUsesInjectedDatabase(t *testing.T) {
 	}
 
 	assertUserCount(t, primaryDB, 1)
-	assertUserCount(t, globalDB, 0)
+	assertUserCount(t, secondaryDB, 0)
 
 	second, err := service.CreateInitialAdminCtx(context.Background(), "admin2", "secret12", nil)
 	if err != nil {

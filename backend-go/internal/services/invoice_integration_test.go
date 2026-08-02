@@ -8,22 +8,20 @@ import (
 	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 func TestInvoiceServiceUsesInjectedDatabase(t *testing.T) {
 	primaryDB := openServiceTestDB(t)
-	globalDB := openServiceTestDB(t)
-	if database.GetDB() != globalDB {
-		t.Fatal("测试前提不成立：全局连接应指向第二个数据库")
-	}
+	secondaryDB := openServiceTestDB(t)
 
 	service := NewInvoiceService(primaryDB, t.TempDir())
+	fileHash := "invoice-hash"
 	invoice, err := service.CreateDraftFromUpload("owner-1", CreateInvoiceInput{
 		Filename:     "invoice.pdf",
 		OriginalName: "invoice.pdf",
 		FilePath:     "uploads/invoice.pdf",
 		FileSize:     128,
+		FileSHA256:   &fileHash,
 		Source:       "upload",
 	})
 	if err != nil {
@@ -34,7 +32,15 @@ func TestInvoiceServiceUsesInjectedDatabase(t *testing.T) {
 	}
 
 	assertInvoiceCount(t, primaryDB, 1)
-	assertInvoiceCount(t, globalDB, 0)
+	assertInvoiceCount(t, secondaryDB, 0)
+
+	found, err := service.FindByFileSHA256ForOwner("owner-1", fileHash, "")
+	if err != nil {
+		t.Fatalf("按文件哈希查询发票失败: %v", err)
+	}
+	if found == nil || found.ID != invoice.ID {
+		t.Fatalf("去重查询未使用注入数据库: %#v", found)
+	}
 }
 
 func assertInvoiceCount(t *testing.T, db *gorm.DB, want int64) {

@@ -8,16 +8,12 @@ import (
 	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 )
 
 func TestEmailServiceUsesInjectedDatabase(t *testing.T) {
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	primaryDB := openServiceTestDB(t)
-	globalDB := openServiceTestDB(t)
-	if database.GetDB() != globalDB {
-		t.Fatal("测试前提不成立：全局连接应指向第二个数据库")
-	}
+	secondaryDB := openServiceTestDB(t)
 
 	service := NewEmailService(primaryDB, t.TempDir(), nil)
 	config, err := service.CreateConfig("owner-1", CreateEmailConfigInput{
@@ -35,7 +31,7 @@ func TestEmailServiceUsesInjectedDatabase(t *testing.T) {
 	}
 
 	assertEmailConfigCount(t, primaryDB, 1)
-	assertEmailConfigCount(t, globalDB, 0)
+	assertEmailConfigCount(t, secondaryDB, 0)
 }
 
 func assertEmailConfigCount(t *testing.T, db *gorm.DB, want int64) {

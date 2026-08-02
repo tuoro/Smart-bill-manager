@@ -72,7 +72,11 @@ func main() {
 		dir = "./data"
 	}
 
-	db := database.Init(dir)
+	db, err := database.Open(dir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 	ocrSvc := services.NewOCRService()
 
 	var out sampleOut

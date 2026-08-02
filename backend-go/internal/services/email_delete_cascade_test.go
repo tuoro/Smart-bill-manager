@@ -61,7 +61,7 @@ func TestEmailDeleteConfig_DeletesLogs(t *testing.T) {
 		t.Fatalf("create logOther: %v", err)
 	}
 
-	svc := NewEmailService(filepath.Join(dir, "uploads"), nil)
+	svc := NewEmailService(db, filepath.Join(dir, "uploads"), nil)
 	if err := svc.DeleteConfig(owner, "c1"); err != nil {
 		t.Fatalf("DeleteConfig: %v", err)
 	}

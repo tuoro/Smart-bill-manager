@@ -19,6 +19,7 @@ import (
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
 	"github.com/emersion/go-message/mail"
+	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/repository"
@@ -322,9 +323,9 @@ func ptrString(s string) *string {
 	return &v
 }
 
-func NewEmailService(uploadsDir string, invoiceService *InvoiceService) *EmailService {
+func NewEmailService(db *gorm.DB, uploadsDir string, invoiceService *InvoiceService) *EmailService {
 	return &EmailService{
-		repo:              repository.NewEmailRepository(),
+		repo:              repository.NewEmailRepository(db),
 		invoiceService:    invoiceService,
 		uploadsDir:        uploadsDir,
 		activeConnections: make(map[string]*client.Client),

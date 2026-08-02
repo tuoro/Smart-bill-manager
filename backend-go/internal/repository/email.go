@@ -6,20 +6,21 @@ import (
 	"strings"
 
 	"smart-bill-manager/internal/models"
-	"smart-bill-manager/pkg/database"
 
 	"gorm.io/gorm"
 )
 
-type EmailRepository struct{}
+type EmailRepository struct {
+	db *gorm.DB
+}
 
-func NewEmailRepository() *EmailRepository {
-	return &EmailRepository{}
+func NewEmailRepository(db *gorm.DB) *EmailRepository {
+	return &EmailRepository{db: db}
 }
 
 // Email Config methods
 func (r *EmailRepository) CreateConfig(config *models.EmailConfig) error {
-	return database.GetDB().Create(config).Error
+	return r.db.Create(config).Error
 }
 
 func (r *EmailRepository) FindConfigByID(id string) (*models.EmailConfig, error) {
@@ -31,7 +32,7 @@ func (r *EmailRepository) FindConfigByIDCtx(ctx context.Context, id string) (*mo
 		ctx = context.Background()
 	}
 	var config models.EmailConfig
-	err := database.GetDB().WithContext(ctx).Where("id = ?", id).First(&config).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&config).Error
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func (r *EmailRepository) FindConfigByIDForOwnerCtx(ctx context.Context, ownerUs
 		return nil, gorm.ErrRecordNotFound
 	}
 	var config models.EmailConfig
-	err := database.GetDB().WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&config).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&config).Error
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +70,12 @@ func (r *EmailRepository) FindAllConfigsCtx(ctx context.Context, ownerUserID str
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	var configs []models.EmailConfig
-	err := database.GetDB().WithContext(ctx).Where("owner_user_id = ?", ownerUserID).Order("created_at DESC").Find(&configs).Error
+	err := r.db.WithContext(ctx).Where("owner_user_id = ?", ownerUserID).Order("created_at DESC").Find(&configs).Error
 	return configs, err
 }
 
 func (r *EmailRepository) UpdateConfig(id string, data map[string]interface{}) error {
-	result := database.GetDB().Model(&models.EmailConfig{}).Where("id = ?", id).Updates(data)
+	result := r.db.Model(&models.EmailConfig{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -84,7 +85,7 @@ func (r *EmailRepository) UpdateConfig(id string, data map[string]interface{}) e
 func (r *EmailRepository) UpdateConfigForOwner(ownerUserID string, id string, data map[string]interface{}) error {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	id = strings.TrimSpace(id)
-	result := database.GetDB().Model(&models.EmailConfig{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Updates(data)
+	result := r.db.Model(&models.EmailConfig{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -92,7 +93,7 @@ func (r *EmailRepository) UpdateConfigForOwner(ownerUserID string, id string, da
 }
 
 func (r *EmailRepository) DeleteConfig(id string) error {
-	result := database.GetDB().Where("id = ?", id).Delete(&models.EmailConfig{})
+	result := r.db.Where("id = ?", id).Delete(&models.EmailConfig{})
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -102,7 +103,7 @@ func (r *EmailRepository) DeleteConfig(id string) error {
 func (r *EmailRepository) DeleteConfigForOwner(ownerUserID string, id string) error {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	id = strings.TrimSpace(id)
-	result := database.GetDB().Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.EmailConfig{})
+	result := r.db.Where("id = ? AND owner_user_id = ?", id, ownerUserID).Delete(&models.EmailConfig{})
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
@@ -114,7 +115,7 @@ func (r *EmailRepository) DeleteLogsByConfigID(configID string) (deleted int64, 
 	if configID == "" {
 		return 0, fmt.Errorf("missing config id")
 	}
-	res := database.GetDB().Where("email_config_id = ?", configID).Delete(&models.EmailLog{})
+	res := r.db.Where("email_config_id = ?", configID).Delete(&models.EmailLog{})
 	return res.RowsAffected, res.Error
 }
 
@@ -124,7 +125,7 @@ func (r *EmailRepository) DeleteLogsByConfigIDForOwner(ownerUserID string, confi
 	if ownerUserID == "" || configID == "" {
 		return 0, fmt.Errorf("missing fields")
 	}
-	res := database.GetDB().
+	res := r.db.
 		Where("owner_user_id = ? AND email_config_id = ?", ownerUserID, configID).
 		Delete(&models.EmailLog{})
 	return res.RowsAffected, res.Error
@@ -137,7 +138,7 @@ func (r *EmailRepository) DeleteConfigForOwnerCascade(ownerUserID string, id str
 		return gorm.ErrRecordNotFound
 	}
 
-	return database.GetDB().Transaction(func(tx *gorm.DB) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Ensure config belongs to owner first.
 		var cfg models.EmailConfig
 		if err := tx.Select("id").Where("id = ? AND owner_user_id = ?", id, ownerUserID).First(&cfg).Error; err != nil {
@@ -157,13 +158,13 @@ func (r *EmailRepository) DeleteConfigForOwnerCascade(ownerUserID string, id str
 }
 
 func (r *EmailRepository) UpdateLastCheck(id, lastCheck string) error {
-	return database.GetDB().Model(&models.EmailConfig{}).Where("id = ?", id).Update("last_check", lastCheck).Error
+	return r.db.Model(&models.EmailConfig{}).Where("id = ?", id).Update("last_check", lastCheck).Error
 }
 
 func (r *EmailRepository) UpdateLastCheckForOwner(ownerUserID string, id, lastCheck string) error {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	id = strings.TrimSpace(id)
-	return database.GetDB().Model(&models.EmailConfig{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Update("last_check", lastCheck).Error
+	return r.db.Model(&models.EmailConfig{}).Where("id = ? AND owner_user_id = ?", id, ownerUserID).Update("last_check", lastCheck).Error
 }
 
 func (r *EmailRepository) GetConfigIDs(ownerUserID string) ([]string, error) {
@@ -176,13 +177,13 @@ func (r *EmailRepository) GetConfigIDsCtx(ctx context.Context, ownerUserID strin
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	var ids []string
-	err := database.GetDB().WithContext(ctx).Model(&models.EmailConfig{}).Where("owner_user_id = ?", ownerUserID).Pluck("id", &ids).Error
+	err := r.db.WithContext(ctx).Model(&models.EmailConfig{}).Where("owner_user_id = ?", ownerUserID).Pluck("id", &ids).Error
 	return ids, err
 }
 
 // Email Log methods
 func (r *EmailRepository) CreateLog(log *models.EmailLog) error {
-	return database.GetDB().Create(log).Error
+	return r.db.Create(log).Error
 }
 
 func (r *EmailRepository) FindLogs(ownerUserID string, configID string, limit int) ([]models.EmailLog, error) {
@@ -196,7 +197,7 @@ func (r *EmailRepository) FindLogsCtx(ctx context.Context, ownerUserID string, c
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	var logs []models.EmailLog
 
-	query := database.GetDB().
+	query := r.db.
 		WithContext(ctx).
 		Model(&models.EmailLog{}).
 		Where("owner_user_id = ?", ownerUserID).
@@ -233,7 +234,7 @@ func (r *EmailRepository) FindLogsForMailboxReconcileCtx(ctx context.Context, ow
 	}
 
 	var logs []models.EmailLog
-	err := database.GetDB().
+	err := r.db.
 		WithContext(ctx).
 		Model(&models.EmailLog{}).
 		Select("id, message_uid, status").
@@ -258,7 +259,7 @@ func (r *EmailRepository) GetMaxUIDForMailboxCtx(ctx context.Context, ownerUserI
 	}
 
 	var v *uint32
-	if err := database.GetDB().WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Model(&models.EmailLog{}).
 		Select("MAX(message_uid)").
 		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ?", ownerUserID, configID, mailbox).
@@ -286,7 +287,7 @@ func (r *EmailRepository) GetMinUIDForMailboxCtx(ctx context.Context, ownerUserI
 	}
 
 	var v *uint32
-	if err := database.GetDB().WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Model(&models.EmailLog{}).
 		Select("MIN(message_uid)").
 		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ?", ownerUserID, configID, mailbox).
@@ -317,7 +318,7 @@ func (r *EmailRepository) MarkLogsDeletedByIDs(ids []string) (int64, error) {
 		if len(chunk) == 0 {
 			continue
 		}
-		res := database.GetDB().
+		res := r.db.
 			Model(&models.EmailLog{}).
 			Where("id IN ?", chunk).
 			Where("status <> ?", "deleted").
@@ -340,7 +341,7 @@ func (r *EmailRepository) FindLogByIDCtx(ctx context.Context, id string) (*model
 		ctx = context.Background()
 	}
 	var logRow models.EmailLog
-	if err := database.GetDB().WithContext(ctx).Where("id = ?", id).First(&logRow).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&logRow).Error; err != nil {
 		return nil, err
 	}
 	return &logRow, nil
@@ -360,7 +361,7 @@ func (r *EmailRepository) FindLogByUIDCtx(ctx context.Context, ownerUserID strin
 		return nil, gorm.ErrRecordNotFound
 	}
 	var logRow models.EmailLog
-	if err := database.GetDB().WithContext(ctx).
+	if err := r.db.WithContext(ctx).
 		Select("id, owner_user_id, email_config_id, mailbox, message_uid, has_attachment, attachment_count, invoice_xml_url, invoice_pdf_url, parsed_invoice_id, status").
 		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ? AND message_uid = ?", ownerUserID, configID, mailbox, messageUID).
 		First(&logRow).Error; err != nil {
@@ -381,7 +382,7 @@ func (r *EmailRepository) LogExists(ownerUserID string, configID string, mailbox
 	}
 
 	var cnt int64
-	if err := database.GetDB().
+	if err := r.db.
 		Model(&models.EmailLog{}).
 		Where("owner_user_id = ? AND email_config_id = ? AND mailbox = ? AND message_uid = ?", ownerUserID, configID, mailbox, messageUID).
 		Limit(1).
@@ -392,7 +393,7 @@ func (r *EmailRepository) LogExists(ownerUserID string, configID string, mailbox
 }
 
 func (r *EmailRepository) UpdateLog(id string, data map[string]interface{}) error {
-	result := database.GetDB().Model(&models.EmailLog{}).Where("id = ?", id).Updates(data)
+	result := r.db.Model(&models.EmailLog{}).Where("id = ?", id).Updates(data)
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}

@@ -1,9 +1,4 @@
 {
-  "src/api/tasks.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
   "src/components/ChangePassword.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
@@ -12,26 +7,6 @@
   "src/components/NotificationCenter.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
-    }
-  },
-  "src/stores/notifications.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 7
-    }
-  },
-  "src/stores/theme.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
-  "src/utils/debounce.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
-  "src/utils/http.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
     }
   },
   "src/views/AdminInvites.vue": {

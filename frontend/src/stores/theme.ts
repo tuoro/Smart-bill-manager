@@ -10,6 +10,10 @@ const prefersDark = ref(false)
 let mql: MediaQueryList | null = null
 let mqlHandler: ((e: MediaQueryListEvent) => void) | null = null
 
+type LegacyMediaQueryList = MediaQueryList & {
+  addListener?: (listener: (event: MediaQueryListEvent) => void) => void
+}
+
 const effectiveDark = computed(() => mode.value === 'dark' || (mode.value === 'system' && prefersDark.value))
 
 function readStoredMode(): ThemeMode {
@@ -17,7 +21,7 @@ function readStoredMode(): ThemeMode {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw === 'light' || raw === 'dark') return raw
   } catch {
-    // ignore
+    // 存储不可用时回退到系统主题。
   }
   return 'system'
 }
@@ -30,7 +34,7 @@ function writeStoredMode(next: ThemeMode) {
       localStorage.setItem(STORAGE_KEY, next)
     }
   } catch {
-    // ignore
+    // 隐私模式下存储失败不应影响主题切换。
   }
 }
 
@@ -52,8 +56,7 @@ function ensureMql() {
   if (typeof mql.addEventListener === 'function') {
     mql.addEventListener('change', mqlHandler)
   } else {
-    // Safari fallback
-    ;(mql as any).addListener(mqlHandler)
+    ;(mql as LegacyMediaQueryList).addListener?.(mqlHandler)
   }
 }
 

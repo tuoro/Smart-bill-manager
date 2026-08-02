@@ -20,6 +20,15 @@ type AddNotificationInput = {
 
 const STORAGE_KEY = 'sbm.notifications.v1'
 const MAX_ITEMS = 50
+const severities = new Set<NotificationSeverity>(['success', 'info', 'warn', 'error'])
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+
+const normalizeSeverity = (value: unknown): NotificationSeverity =>
+  typeof value === 'string' && severities.has(value as NotificationSeverity)
+    ? (value as NotificationSeverity)
+    : 'info'
 
 const getStorage = () => {
   try {
@@ -30,21 +39,25 @@ const getStorage = () => {
   }
 }
 
-const safeParse = (raw: string | null): AppNotification[] => {
+export const parseStoredNotifications = (raw: string | null): AppNotification[] => {
   if (!raw) return []
   try {
-    const data = JSON.parse(raw)
+    const data: unknown = JSON.parse(raw)
     if (!Array.isArray(data)) return []
     return data
-      .filter((x) => x && typeof x === 'object')
-      .map((x) => ({
-        id: String((x as any).id || ''),
-        createdAt: Number((x as any).createdAt || Date.now()),
-        severity: ((x as any).severity as NotificationSeverity) || 'info',
-        title: String((x as any).title || ''),
-        detail: (x as any).detail ? String((x as any).detail) : undefined,
-        read: Boolean((x as any).read),
-      }))
+      .map(asRecord)
+      .filter((item): item is Record<string, unknown> => item !== null)
+      .map((item) => {
+        const createdAt = Number(item.createdAt)
+        return {
+          id: typeof item.id === 'string' ? item.id : '',
+          createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+          severity: normalizeSeverity(item.severity),
+          title: typeof item.title === 'string' ? item.title : '',
+          detail: typeof item.detail === 'string' && item.detail ? item.detail : undefined,
+          read: item.read === true,
+        }
+      })
       .filter((x) => x.id && x.title)
       .slice(0, MAX_ITEMS)
   } catch {
@@ -56,7 +69,7 @@ const makeId = () => `${Date.now()}_${Math.random().toString(16).slice(2)}`
 
 export const useNotificationStore = defineStore('notifications', () => {
   const storage = getStorage()
-  const items = ref<AppNotification[]>(safeParse(storage?.getItem(STORAGE_KEY) || null))
+  const items = ref<AppNotification[]>(parseStoredNotifications(storage?.getItem(STORAGE_KEY) || null))
 
   watch(
     items,
@@ -64,10 +77,10 @@ export const useNotificationStore = defineStore('notifications', () => {
       try {
         storage?.setItem(STORAGE_KEY, JSON.stringify(v.slice(0, MAX_ITEMS)))
       } catch {
-        // ignore
+        // 存储失败不影响当前会话内通知。
       }
     },
-    { deep: true }
+    { deep: true },
   )
 
   const unreadCount = computed(() => items.value.filter((x) => !x.read).length)

@@ -34,6 +34,8 @@ jobs:
 
       - name: Verify backend
         working-directory: backend-go
+        env:
+          CGO_ENABLED: 1
         run: |
           go test -count=1 -cover ./...
           go vet ./...

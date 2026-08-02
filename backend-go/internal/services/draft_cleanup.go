@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,16 +14,22 @@ import (
 	"gorm.io/gorm"
 )
 
-func StartDraftCleanup(db *gorm.DB, uploadsDir string) {
+func StartDraftCleanup(ctx context.Context, db *gorm.DB, uploadsDir string) <-chan struct{} {
+	done := make(chan struct{})
 	if db == nil {
-		return
+		close(done)
+		return done
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	ttlHours := envInt("SBM_DRAFT_TTL_HOURS", 6)
 	intervalMinutes := envInt("SBM_DRAFT_CLEANUP_INTERVAL_MINUTES", 15)
 	if ttlHours <= 0 || intervalMinutes <= 0 {
 		log.Printf("[DraftCleanup] disabled (SBM_DRAFT_TTL_HOURS=%d SBM_DRAFT_CLEANUP_INTERVAL_MINUTES=%d)", ttlHours, intervalMinutes)
-		return
+		close(done)
+		return done
 	}
 
 	ttl := time.Duration(ttlHours) * time.Hour
@@ -30,20 +37,33 @@ func StartDraftCleanup(db *gorm.DB, uploadsDir string) {
 
 	cleanupOnce := func() {
 		cutoff := time.Now().Add(-ttl)
-		payDeleted, invDeleted, fileDeleted := cleanupDraftsOnce(db, uploadsDir, cutoff)
+		payDeleted, invDeleted, fileDeleted := cleanupDraftsOnce(ctx, db, uploadsDir, cutoff)
 		if payDeleted > 0 || invDeleted > 0 || fileDeleted > 0 {
 			log.Printf("[DraftCleanup] removed payments=%d invoices=%d files=%d (cutoff=%s)", payDeleted, invDeleted, fileDeleted, cutoff.Format(time.RFC3339))
 		}
 	}
 
-	cleanupOnce()
 	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for range ticker.C {
+		defer close(done)
+		select {
+		case <-ctx.Done():
+			return
+		default:
 			cleanupOnce()
 		}
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cleanupOnce()
+			}
+		}
 	}()
+	return done
 }
 
 func envInt(key string, fallback int) int {
@@ -58,13 +78,13 @@ func envInt(key string, fallback int) int {
 	return n
 }
 
-func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time) (paymentsDeleted int, invoicesDeleted int, filesDeleted int) {
+func cleanupDraftsOnce(ctx context.Context, db *gorm.DB, uploadsDir string, cutoff time.Time) (paymentsDeleted int, invoicesDeleted int, filesDeleted int) {
 	type payRow struct {
 		ID             string
 		ScreenshotPath *string
 	}
 	var payRows []payRow
-	_ = db.Model(&models.Payment{}).
+	_ = db.WithContext(ctx).Model(&models.Payment{}).
 		Select("id, screenshot_path").
 		Where("is_draft = 1 AND created_at < ?", cutoff).
 		Scan(&payRows).Error
@@ -74,13 +94,16 @@ func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time) (paymen
 		FilePath string
 	}
 	var invRows []invRow
-	_ = db.Model(&models.Invoice{}).
+	_ = db.WithContext(ctx).Model(&models.Invoice{}).
 		Select("id, file_path").
 		Where("is_draft = 1 AND created_at < ?", cutoff).
 		Scan(&invRows).Error
 
 	payIDs := make([]string, 0, len(payRows))
 	for _, r := range payRows {
+		if ctx.Err() != nil {
+			return paymentsDeleted, invoicesDeleted, filesDeleted
+		}
 		payIDs = append(payIDs, strings.TrimSpace(r.ID))
 		if r.ScreenshotPath == nil || strings.TrimSpace(*r.ScreenshotPath) == "" {
 			continue
@@ -92,6 +115,9 @@ func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time) (paymen
 
 	invIDs := make([]string, 0, len(invRows))
 	for _, r := range invRows {
+		if ctx.Err() != nil {
+			return paymentsDeleted, invoicesDeleted, filesDeleted
+		}
 		invIDs = append(invIDs, strings.TrimSpace(r.ID))
 		if strings.TrimSpace(r.FilePath) == "" {
 			continue
@@ -101,7 +127,7 @@ func cleanupDraftsOnce(db *gorm.DB, uploadsDir string, cutoff time.Time) (paymen
 		}
 	}
 
-	_ = db.Transaction(func(tx *gorm.DB) error {
+	_ = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if len(payIDs) > 0 {
 			tx.Where("payment_id IN ?", payIDs).Delete(&models.InvoicePaymentLink{})
 			if err := tx.Where("id IN ?", payIDs).Delete(&models.Payment{}).Error; err == nil {
@@ -156,4 +182,3 @@ func resolveUploadsPathAbs(uploadsDir, storedPath string) string {
 	abs = filepath.Clean(abs)
 	return abs
 }
-

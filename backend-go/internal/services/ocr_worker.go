@@ -127,6 +127,12 @@ func StartOCRWorkerIfEnabled() (bool, error) {
 	return true, nil
 }
 
+func StopOCRWorker() {
+	globalRapidOCRWorker.mu.Lock()
+	defer globalRapidOCRWorker.mu.Unlock()
+	globalRapidOCRWorker.stopLocked()
+}
+
 func randHex(nBytes int) string {
 	b := make([]byte, nBytes)
 	if _, err := rand.Read(b); err != nil {

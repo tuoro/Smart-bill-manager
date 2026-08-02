@@ -21,8 +21,17 @@
         <div class="panel-title">
           <span>&#37038;&#31665;&#37197;&#32622;</span>
           <div class="panel-actions">
-            <Button :label="'\u5237\u65B0'" icon="pi pi-refresh" class="p-button-outlined" @click="loadAll" />
-            <Button :label="'\u6DFB\u52A0\u90AE\u7BB1'" icon="pi pi-plus" @click="openModal" />
+            <Button
+              :label="'\u5237\u65B0'"
+              icon="pi pi-refresh"
+              class="p-button-outlined"
+              @click="loadAll"
+            />
+            <Button
+              :label="'\u6DFB\u52A0\u90AE\u7BB1'"
+              icon="pi pi-plus"
+              @click="openModal"
+            />
           </div>
         </div>
       </template>
@@ -33,27 +42,47 @@
           :loading="loading"
           :paginator="true"
           :rows="configPageSize"
-          :rowsPerPageOptions="[10, 20, 50, 100]"
-          :tableStyle="{ minWidth: '1120px', tableLayout: 'fixed' }"
-          emptyMessage="暂无邮箱配置"
-          responsiveLayout="scroll"
+          :rows-per-page-options="[10, 20, 50, 100]"
+          :table-style="{ minWidth: '1120px', tableLayout: 'fixed' }"
+          empty-message="暂无邮箱配置"
+          responsive-layout="scroll"
           @page="onConfigPage"
         >
-          <Column :header="'\u90AE\u7BB1\u5730\u5740'" :style="{ width: '260px' }">
+          <Column
+            :header="'\u90AE\u7BB1\u5730\u5740'"
+            :style="{ width: '260px' }"
+          >
             <template #body="{ data: row }">
               <div class="email-cell">
                 <i class="pi pi-envelope" />
-                <span class="sbm-ellipsis" :title="row.email">{{ row.email }}</span>
+                <span
+                  class="sbm-ellipsis"
+                  :title="row.email"
+                >{{ row.email }}</span>
               </div>
             </template>
           </Column>
-          <Column field="imap_host" :header="'IMAP \u670D\u52A1\u5668'" :style="{ width: '220px' }">
+          <Column
+            field="imap_host"
+            :header="'IMAP \u670D\u52A1\u5668'"
+            :style="{ width: '220px' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="row.imap_host">{{ row.imap_host }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="row.imap_host"
+              >{{ row.imap_host }}</span>
             </template>
           </Column>
-          <Column field="imap_port" :header="'\u7AEF\u53E3'" :style="{ width: '90px' }" />
-          <Column :header="'\u72B6\u6001'" :style="{ width: '120px' }">
+          <Column
+            field="imap_port"
+            :header="'\u7AEF\u53E3'"
+            :style="{ width: '90px' }"
+          />
+          <Column
+            :header="'\u72B6\u6001'"
+            :style="{ width: '120px' }"
+          >
             <template #body="{ data: row }">
               <Tag
                 :severity="monitorStatus[row.id] === 'running' ? 'success' : 'secondary'"
@@ -61,12 +90,18 @@
               />
             </template>
           </Column>
-          <Column :header="'\u6700\u540E\u68C0\u67E5'" :style="{ width: '160px' }">
+          <Column
+            :header="'\u6700\u540E\u68C0\u67E5'"
+            :style="{ width: '160px' }"
+          >
             <template #body="{ data: row }">
               {{ row.last_check ? formatDateTime(row.last_check) : '-' }}
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '260px' }">
+          <Column
+            :header="'\u64CD\u4F5C'"
+            :style="{ width: '260px' }"
+          >
             <template #body="{ data: row }">
               <div class="actions">
                 <Button
@@ -149,49 +184,88 @@
           :value="logs"
           :paginator="true"
           :rows="logPageSize"
-          :rowsPerPageOptions="[10, 20, 50, 100]"
-          :tableStyle="{ minWidth: '1260px', tableLayout: 'fixed' }"
-          emptyMessage="暂无邮件日志"
-          responsiveLayout="scroll"
+          :rows-per-page-options="[10, 20, 50, 100]"
+          :table-style="{ minWidth: '1260px', tableLayout: 'fixed' }"
+          empty-message="暂无邮件日志"
+          responsive-layout="scroll"
           @page="onLogPage"
         >
-          <Column field="subject" :header="'\u4E3B\u9898'" :style="{ width: '360px' }">
+          <Column
+            field="subject"
+            :header="'\u4E3B\u9898'"
+            :style="{ width: '360px' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="row.subject || ''">{{ row.subject || '-' }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="row.subject || ''"
+              >{{ row.subject || '-' }}</span>
             </template>
           </Column>
-          <Column field="from_address" :header="'\u53D1\u4EF6\u4EBA'" :style="{ width: '240px' }">
+          <Column
+            field="from_address"
+            :header="'\u53D1\u4EF6\u4EBA'"
+            :style="{ width: '240px' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="row.from_address || ''">{{ row.from_address || '-' }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="row.from_address || ''"
+              >{{ row.from_address || '-' }}</span>
             </template>
           </Column>
-          <Column :header="'\u9644\u4EF6'" :style="{ width: '110px' }">
+          <Column
+            :header="'\u9644\u4EF6'"
+            :style="{ width: '110px' }"
+          >
             <template #body="{ data: row }">
               <Tag
                 v-if="row.has_attachment"
                 severity="info"
                 :value="`${row.attachment_count}\u4E2A`"
               />
-              <Tag v-else severity="secondary" :value="'\u65E0'" />
+              <Tag
+                v-else
+                severity="secondary"
+                :value="'\u65E0'"
+              />
             </template>
           </Column>
-          <Column :header="'\u63A5\u6536\u65F6\u95F4'" :style="{ width: '190px' }">
+          <Column
+            :header="'\u63A5\u6536\u65F6\u95F4'"
+            :style="{ width: '190px' }"
+          >
             <template #body="{ data: row }">
               {{ row.received_date ? formatDateTime(row.received_date) : '-' }}
             </template>
           </Column>
-          <Column :header="'\u72B6\u6001'" :style="{ width: '280px' }">
+          <Column
+            :header="'\u72B6\u6001'"
+            :style="{ width: '280px' }"
+          >
             <template #body="{ data: row }">
               <div class="log-status">
-                <Tag :severity="getLogStatusSeverity(row.status)" :value="getLogStatusLabel(row.status)" />
-                <small v-if="row.parse_error" class="p-error sbm-ellipsis" :title="row.parse_error">{{ row.parse_error }}</small>
-                <small v-else-if="row.parsed_invoice_id" class="muted sbm-ellipsis" :title="row.parsed_invoice_id"
-                  >发票ID：{{ row.parsed_invoice_id }}</small
-                >
+                <Tag
+                  :severity="getLogStatusSeverity(row.status)"
+                  :value="getLogStatusLabel(row.status)"
+                />
+                <small
+                  v-if="row.parse_error"
+                  class="p-error sbm-ellipsis"
+                  :title="row.parse_error"
+                >{{ row.parse_error }}</small>
+                <small
+                  v-else-if="row.parsed_invoice_id"
+                  class="muted sbm-ellipsis"
+                  :title="row.parsed_invoice_id"
+                >发票ID：{{ row.parsed_invoice_id }}</small>
               </div>
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '240px' }">
+          <Column
+            :header="'\u64CD\u4F5C'"
+            :style="{ width: '240px' }"
+          >
             <template #body="{ data: row }">
               <div class="actions">
                 <Button
@@ -232,12 +306,20 @@
       </template>
     </Card>
 
-    <Dialog v-model:visible="syncModalVisible" modal :header="'邮件同步'" :style="{ width: '560px', maxWidth: '92vw' }">
+    <Dialog
+      v-model:visible="syncModalVisible"
+      modal
+      :header="'邮件同步'"
+      :style="{ width: '560px', maxWidth: '92vw' }"
+    >
       <div class="p-fluid">
         <div class="grid-form">
           <div class="field col-span-2">
             <label>邮箱</label>
-            <InputText :modelValue="syncTarget?.email || ''" disabled />
+            <InputText
+              :model-value="syncTarget?.email || ''"
+              disabled
+            />
           </div>
 
           <div class="field">
@@ -246,30 +328,66 @@
               id="syncMode"
               v-model="syncForm.mode"
               :options="SYNC_MODE_OPTIONS"
-              optionLabel="label"
-              optionValue="value"
-              :showClear="false"
+              option-label="label"
+              option-value="value"
+              :show-clear="false"
             />
           </div>
 
           <div class="field">
             <label for="syncLimit">数量</label>
-            <InputNumber id="syncLimit" v-model="syncForm.limit" :min="1" :useGrouping="false" />
+            <InputNumber
+              id="syncLimit"
+              v-model="syncForm.limit"
+              :min="1"
+              :use-grouping="false"
+            />
           </div>
         </div>
 
         <div class="quick-limits">
-          <Button size="small" class="p-button-outlined" label="100" @click="setSyncLimit(100)" />
-          <Button size="small" class="p-button-outlined" label="500" @click="setSyncLimit(500)" />
-          <Button size="small" class="p-button-outlined" label="1000" @click="setSyncLimit(1000)" />
-          <Button size="small" class="p-button-outlined" label="2000" @click="setSyncLimit(2000)" />
-          <Button size="small" class="p-button-outlined" label="5000" @click="setSyncLimit(5000)" />
+          <Button
+            size="small"
+            class="p-button-outlined"
+            label="100"
+            @click="setSyncLimit(100)"
+          />
+          <Button
+            size="small"
+            class="p-button-outlined"
+            label="500"
+            @click="setSyncLimit(500)"
+          />
+          <Button
+            size="small"
+            class="p-button-outlined"
+            label="1000"
+            @click="setSyncLimit(1000)"
+          />
+          <Button
+            size="small"
+            class="p-button-outlined"
+            label="2000"
+            @click="setSyncLimit(2000)"
+          />
+          <Button
+            size="small"
+            class="p-button-outlined"
+            label="5000"
+            @click="setSyncLimit(5000)"
+          />
         </div>
 
         <small class="muted">{{ syncHint }}</small>
 
         <div class="footer sync-footer">
-          <Button type="button" class="p-button-outlined" severity="secondary" :label="'取消'" @click="syncModalVisible = false" />
+          <Button
+            type="button"
+            class="p-button-outlined"
+            severity="secondary"
+            :label="'取消'"
+            @click="syncModalVisible = false"
+          />
           <Button
             type="button"
             :label="'开始'"
@@ -282,13 +400,30 @@
       </div>
     </Dialog>
 
-    <Dialog v-model:visible="modalVisible" modal :header="modalTitle" :style="{ width: '620px', maxWidth: '92vw' }">
-      <form class="p-fluid" @submit.prevent="handleSubmit">
+    <Dialog
+      v-model:visible="modalVisible"
+      modal
+      :header="modalTitle"
+      :style="{ width: '620px', maxWidth: '92vw' }"
+    >
+      <form
+        class="p-fluid"
+        @submit.prevent="handleSubmit"
+      >
         <div class="grid-form">
           <div class="field col-span-2">
             <label for="email">&#37038;&#31665;&#22320;&#22336;</label>
-            <InputText id="email" v-model.trim="form.email" type="email" inputmode="email" autocomplete="email" />
-            <small v-if="errors.email" class="p-error">{{ errors.email }}</small>
+            <InputText
+              id="email"
+              v-model.trim="form.email"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+            />
+            <small
+              v-if="errors.email"
+              class="p-error"
+            >{{ errors.email }}</small>
           </div>
 
           <div class="field col-span-2">
@@ -297,9 +432,9 @@
               id="preset"
               v-model="selectedPreset"
               :options="EMAIL_PRESETS"
-              optionLabel="name"
-              optionValue="name"
-              :showClear="true"
+              option-label="name"
+              option-value="name"
+              :show-clear="true"
               :placeholder="'\u9009\u62E9\u90AE\u7BB1\u63D0\u4F9B\u5546 ( \u53EF\u9009 )'"
               @change="handlePresetSelect"
             />
@@ -307,20 +442,43 @@
 
           <div class="field">
             <label for="host">IMAP Host</label>
-            <InputText id="host" v-model.trim="form.imap_host" />
-            <small v-if="errors.imap_host" class="p-error">{{ errors.imap_host }}</small>
+            <InputText
+              id="host"
+              v-model.trim="form.imap_host"
+            />
+            <small
+              v-if="errors.imap_host"
+              class="p-error"
+            >{{ errors.imap_host }}</small>
           </div>
 
           <div class="field">
             <label for="port">&#31471;&#21475;</label>
-            <InputNumber id="port" v-model="form.imap_port" :min="1" :useGrouping="false" />
-            <small v-if="errors.imap_port" class="p-error">{{ errors.imap_port }}</small>
+            <InputNumber
+              id="port"
+              v-model="form.imap_port"
+              :min="1"
+              :use-grouping="false"
+            />
+            <small
+              v-if="errors.imap_port"
+              class="p-error"
+            >{{ errors.imap_port }}</small>
           </div>
 
           <div class="field col-span-2">
             <label for="password">&#25480;&#26435;&#30721; / &#23494;&#30721;</label>
-            <Password id="password" v-model="form.password" toggleMask :feedback="false" autocomplete="current-password" />
-            <small v-if="errors.password" class="p-error">{{ errors.password }}</small>
+            <Password
+              id="password"
+              v-model="form.password"
+              toggle-mask
+              :feedback="false"
+              autocomplete="current-password"
+            />
+            <small
+              v-if="errors.password"
+              class="p-error"
+            >{{ errors.password }}</small>
           </div>
         </div>
 
@@ -340,8 +498,19 @@
             @click="handleTest"
           />
           <div class="footer-right">
-            <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u53D6\u6D88'" @click="modalVisible = false" />
-            <Button type="submit" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="saving" />
+            <Button
+              type="button"
+              class="p-button-outlined"
+              severity="secondary"
+              :label="'\u53D6\u6D88'"
+              @click="modalVisible = false"
+            />
+            <Button
+              type="submit"
+              :label="'\u4FDD\u5B58'"
+              icon="pi pi-check"
+              :loading="saving"
+            />
           </div>
         </div>
       </form>

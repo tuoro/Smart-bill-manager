@@ -1,11 +1,24 @@
 <template>
   <div class="layout">
-    <aside v-if="!isMobile" class="sidebar" :class="{ collapsed: isCollapsed }">
-      <div class="brand" @click="router.push('/dashboard')">
-        <div class="brand-logo" aria-hidden="true">
+    <aside
+      v-if="!isMobile"
+      class="sidebar"
+      :class="{ collapsed: isCollapsed }"
+    >
+      <div
+        class="brand"
+        @click="router.push('/dashboard')"
+      >
+        <div
+          class="brand-logo"
+          aria-hidden="true"
+        >
           <i class="pi pi-box" />
         </div>
-        <span v-if="!isCollapsed" class="brand-text">Smart Bill</span>
+        <span
+          v-if="!isCollapsed"
+          class="brand-text"
+        >Smart Bill</span>
       </div>
 
       <nav class="nav">
@@ -38,13 +51,16 @@
       class="mobile-drawer"
       position="left"
       :dismissable="true"
-      :showCloseIcon="true"
+      :show-close-icon="true"
       :modal="true"
-      :blockScroll="true"
+      :block-scroll="true"
     >
       <template #header>
         <div class="drawer-header">
-          <div class="brand-logo" aria-hidden="true">
+          <div
+            class="brand-logo"
+            aria-hidden="true"
+          >
             <i class="pi pi-box" />
           </div>
           <span class="drawer-title">Smart Bill</span>
@@ -71,8 +87,12 @@
       <div class="content-inner">
         <header class="topbar">
           <div class="topbar-left">
-            <div class="page-kicker">智能账单管理</div>
-            <h2 class="page-title">{{ pageTitle }}</h2>
+            <div class="page-kicker">
+              智能账单管理
+            </div>
+            <h2 class="page-title">
+              {{ pageTitle }}
+            </h2>
           </div>
 
           <div class="topbar-right">
@@ -88,10 +108,21 @@
             />
             <NotificationCenter />
 
-            <div v-if="authStore.user?.role === 'admin' && actAsUserId" class="act-as-banner">
+            <div
+              v-if="authStore.user?.role === 'admin' && actAsUserId"
+              class="act-as-banner"
+            >
               <i class="pi pi-user-edit" />
               <span class="act-as-text">代操作：{{ actAsUsername || actAsUserId }}</span>
-              <Button class="act-as-exit" severity="danger" text rounded icon="pi pi-times" aria-label="退出代操作" @click="stopActAs" />
+              <Button
+                class="act-as-exit"
+                severity="danger"
+                text
+                rounded
+                icon="pi pi-times"
+                aria-label="退出代操作"
+                @click="stopActAs"
+              />
             </div>
 
             <Button
@@ -104,13 +135,31 @@
               @click="mobileNavVisible = true"
             />
 
-            <button class="user-button" type="button" @click="toggleUserMenu">
-              <Avatar v-if="userAvatarLabel" :label="userAvatarLabel" shape="circle" class="user-avatar" />
-              <Avatar v-else icon="pi pi-user" shape="circle" class="user-avatar" />
+            <button
+              class="user-button"
+              type="button"
+              @click="toggleUserMenu"
+            >
+              <Avatar
+                v-if="userAvatarLabel"
+                :label="userAvatarLabel"
+                shape="circle"
+                class="user-avatar"
+              />
+              <Avatar
+                v-else
+                icon="pi pi-user"
+                shape="circle"
+                class="user-avatar"
+              />
               <span class="username">{{ userDisplayName }}</span>
               <i class="pi pi-angle-down" />
             </button>
-            <Menu ref="userMenu" :model="userMenuItems" popup />
+            <Menu
+              ref="userMenu"
+              :model="userMenuItems"
+              popup
+            />
           </div>
         </header>
 

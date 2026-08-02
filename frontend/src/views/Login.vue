@@ -2,33 +2,59 @@
   <div class="sbm-auth-bg">
     <div class="sbm-auth-card sbm-surface">
       <div class="header">
-        <h2 class="sbm-auth-title">&#128176; &#26234;&#33021;&#36134;&#21333;&#31649;&#29702;</h2>
-        <p class="sbm-auth-subtitle">Smart Bill Manager</p>
+        <h2 class="sbm-auth-title">
+          &#128176; &#26234;&#33021;&#36134;&#21333;&#31649;&#29702;
+        </h2>
+        <p class="sbm-auth-subtitle">
+          Smart Bill Manager
+        </p>
       </div>
 
-      <form class="p-fluid" @submit.prevent="handleLogin">
+      <form
+        class="p-fluid"
+        @submit.prevent="handleLogin"
+      >
         <div class="field">
-          <label class="sbm-field-label" for="username">&#29992;&#25143;&#21517;</label>
-          <InputText id="username" v-model.trim="form.username" autocomplete="username" />
+          <label
+            class="sbm-field-label"
+            for="username"
+          >&#29992;&#25143;&#21517;</label>
+          <InputText
+            id="username"
+            v-model.trim="form.username"
+            autocomplete="username"
+          />
         </div>
 
         <div class="field">
-          <label class="sbm-field-label" for="password">&#23494;&#30721;</label>
+          <label
+            class="sbm-field-label"
+            for="password"
+          >&#23494;&#30721;</label>
           <Password
             id="password"
             v-model="form.password"
-            toggleMask
+            toggle-mask
             :feedback="false"
             autocomplete="current-password"
           />
         </div>
 
-        <Button type="submit" class="submit-btn" :label="'\u767B\u5F55'" :loading="authStore.loading" />
+        <Button
+          type="submit"
+          class="submit-btn"
+          :label="'\u767B\u5F55'"
+          :loading="authStore.loading"
+        />
       </form>
 
       <div class="footer">
         <span class="muted">没有账号？</span>
-        <Button class="p-button-text" label="邀请码注册" @click="router.push('/register')" />
+        <Button
+          class="p-button-text"
+          label="邀请码注册"
+          @click="router.push('/register')"
+        />
       </div>
     </div>
   </div>

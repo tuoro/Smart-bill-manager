@@ -8,20 +8,50 @@
       aria-label="消息"
       @click="toggle"
     />
-    <span v-if="unreadCount > 0" class="nc-badge" aria-hidden="true">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+    <span
+      v-if="unreadCount > 0"
+      class="nc-badge"
+      aria-hidden="true"
+    >{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
 
-    <OverlayPanel ref="panel" :dismissable="true" :showCloseIcon="false" class="nc-panel" @show="onShow">
+    <OverlayPanel
+      ref="panel"
+      :dismissable="true"
+      :show-close-icon="false"
+      class="nc-panel"
+      @show="onShow"
+    >
       <div class="nc-header">
-        <div class="nc-title">消息</div>
+        <div class="nc-title">
+          消息
+        </div>
         <div class="nc-actions">
-          <Button class="p-button-text" size="small" :label="'全部已读'" @click="markAllRead" />
-          <Button class="p-button-text p-button-danger" size="small" :label="'清空'" @click="clear" />
+          <Button
+            class="p-button-text"
+            size="small"
+            :label="'全部已读'"
+            @click="markAllRead"
+          />
+          <Button
+            class="p-button-text p-button-danger"
+            size="small"
+            :label="'清空'"
+            @click="clear"
+          />
         </div>
       </div>
 
-      <div v-if="items.length === 0" class="nc-empty">暂无消息</div>
+      <div
+        v-if="items.length === 0"
+        class="nc-empty"
+      >
+        暂无消息
+      </div>
 
-      <div v-else class="nc-list">
+      <div
+        v-else
+        class="nc-list"
+      >
         <button
           v-for="n in items"
           :key="n.id"
@@ -31,16 +61,34 @@
           @click="handleItemClick(n.id)"
         >
           <div class="nc-row">
-            <span class="nc-dot" aria-hidden="true" />
+            <span
+              class="nc-dot"
+              aria-hidden="true"
+            />
             <div class="nc-main">
               <div class="nc-top">
                 <div class="nc-titleRow">
-                  <span class="nc-text" :title="n.title">{{ n.title }}</span>
-                  <Tag :severity="severityToTag(n.severity)" class="nc-tag" :value="severityLabel(n.severity)" />
+                  <span
+                    class="nc-text"
+                    :title="n.title"
+                  >{{ n.title }}</span>
+                  <Tag
+                    :severity="severityToTag(n.severity)"
+                    class="nc-tag"
+                    :value="severityLabel(n.severity)"
+                  />
                 </div>
-                <div class="nc-timeInline">{{ formatTime(n.createdAt) }}</div>
+                <div class="nc-timeInline">
+                  {{ formatTime(n.createdAt) }}
+                </div>
               </div>
-              <div v-if="n.detail" class="nc-detail" :title="n.detail">{{ n.detail }}</div>
+              <div
+                v-if="n.detail"
+                class="nc-detail"
+                :title="n.detail"
+              >
+                {{ n.detail }}
+              </div>
             </div>
           </div>
         </button>

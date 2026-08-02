@@ -5,16 +5,22 @@
     :header="'\u652F\u4ED8\u8BB0\u5F55\u8BE6\u60C5'"
     :style="{ width: currentPayment?.screenshot_path ? '1060px' : '740px', maxWidth: '94vw' }"
     :breakpoints="{ '960px': '94vw', '640px': '96vw' }"
-    :contentStyle="{ padding: '14px 16px' }"
+    :content-style="{ padding: '14px 16px' }"
     :closable="!editing && !saving"
-    :closeOnEscape="!editing && !saving"
+    :close-on-escape="!editing && !saving"
     @hide="onDialogHide"
   >
-    <div v-if="currentPayment" class="detail">
+    <div
+      v-if="currentPayment"
+      class="detail"
+    >
       <div class="header-row">
         <div class="title">
           <i class="pi pi-image" />
-          <span class="sbm-ellipsis" :title="getScreenshotTitle(currentPayment)">
+          <span
+            class="sbm-ellipsis"
+            :title="getScreenshotTitle(currentPayment)"
+          >
             {{ getScreenshotTitle(currentPayment) }}
           </span>
         </div>
@@ -50,50 +56,83 @@
 
       <div class="payment-detail-layout">
         <div class="payment-detail-left">
-          <div class="section-title">&#25903;&#20184;&#25130;&#22270;</div>
-          <div v-if="currentPayment.screenshot_path && screenshotSrc" class="screenshot-wrap">
+          <div class="section-title">
+            &#25903;&#20184;&#25130;&#22270;
+          </div>
+          <div
+            v-if="currentPayment.screenshot_path && screenshotSrc"
+            class="screenshot-wrap"
+          >
             <Image
               class="screenshot"
               :src="screenshotSrc"
               preview
-              :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+              :image-style="{ width: '100%', maxWidth: '100%', height: 'auto' }"
             />
           </div>
-          <Message v-else severity="secondary" :closable="false">&#26242;&#26080;&#25903;&#20184;&#25130;&#22270;</Message>
+          <Message
+            v-else
+            severity="secondary"
+            :closable="false"
+          >
+            &#26242;&#26080;&#25903;&#20184;&#25130;&#22270;
+          </Message>
         </div>
 
         <div class="payment-detail-right">
           <div class="grid sbm-grid-tight">
             <div class="col-12 md:col-6">
               <div class="kv">
-                <div class="k">&#37329;&#39069;</div>
-                <div class="v" :class="{ amount: !editing }">
+                <div class="k">
+                  &#37329;&#39069;
+                </div>
+                <div
+                  class="v"
+                  :class="{ amount: !editing }"
+                >
                   <InputNumber
                     v-if="editing"
                     v-model="form.amount"
-                    :minFractionDigits="2"
-                    :maxFractionDigits="2"
+                    :min-fraction-digits="2"
+                    :max-fraction-digits="2"
                     :min="0"
-                    :useGrouping="false"
+                    :use-grouping="false"
                   />
-                  <template v-else>{{ formatMoney(currentPayment.amount || 0) }}</template>
+                  <template v-else>
+                    {{ formatMoney(currentPayment.amount || 0) }}
+                  </template>
                 </div>
               </div>
             </div>
             <div class="col-12 md:col-6">
               <div class="kv">
-                <div class="k">&#21830;&#23478;</div>
-                <div class="v" :title="normalizeInlineText(currentPayment.merchant)">
-                  <InputText v-if="editing" v-model.trim="form.merchant" />
-                  <template v-else>{{ normalizeInlineText(currentPayment.merchant) || '-' }}</template>
+                <div class="k">
+                  &#21830;&#23478;
+                </div>
+                <div
+                  class="v"
+                  :title="normalizeInlineText(currentPayment.merchant)"
+                >
+                  <InputText
+                    v-if="editing"
+                    v-model.trim="form.merchant"
+                  />
+                  <template v-else>
+                    {{ normalizeInlineText(currentPayment.merchant) || '-' }}
+                  </template>
                 </div>
               </div>
             </div>
             <div class="col-12 md:col-6">
               <div class="kv">
-                <div class="k">&#25903;&#20184;&#26041;&#24335;</div>
+                <div class="k">
+                  &#25903;&#20184;&#26041;&#24335;
+                </div>
                 <div class="v">
-                  <InputText v-if="editing" v-model.trim="form.payment_method" />
+                  <InputText
+                    v-if="editing"
+                    v-model.trim="form.payment_method"
+                  />
                   <template v-else>
                     <Tag
                       v-if="currentPayment.payment_method"
@@ -109,11 +148,13 @@
             </div>
             <div class="col-12 md:col-6">
               <div class="kv">
-                <div class="k">&#20132;&#26131;&#26102;&#38388;</div>
+                <div class="k">
+                  &#20132;&#26131;&#26102;&#38388;
+                </div>
                 <div class="v">
                   <template v-if="editing">
                     <InputText
-                      :modelValue="formatDateTimeDraft(form.transaction_time)"
+                      :model-value="formatDateTimeDraft(form.transaction_time)"
                       readonly
                       :placeholder="'请选择交易时间'"
                       @click="toggleTimePanel"
@@ -121,12 +162,17 @@
                     <OverlayPanel
                       ref="timePanel"
                       :dismissable="true"
-                      :showCloseIcon="false"
+                      :show-close-icon="false"
                       class="payment-time-panel"
                       @show="onTimePanelShow"
                       @hide="onTimePanelHide"
                     >
-                      <DatePicker v-model="timeDraft" inline showTime :manualInput="false" />
+                      <DatePicker
+                        v-model="timeDraft"
+                        inline
+                        show-time
+                        :manual-input="false"
+                      />
                       <div class="payment-time-panel-footer">
                         <Button
                           type="button"
@@ -135,20 +181,36 @@
                           :label="'取消'"
                           @click="cancelTimePanel"
                         />
-                        <Button type="button" :label="'确认'" icon="pi pi-check" @click="confirmTimePanel" />
+                        <Button
+                          type="button"
+                          :label="'确认'"
+                          icon="pi pi-check"
+                          @click="confirmTimePanel"
+                        />
                       </div>
                     </OverlayPanel>
                   </template>
-                  <template v-else>{{ formatDateTime(currentPayment.transaction_time) }}</template>
+                  <template v-else>
+                    {{ formatDateTime(currentPayment.transaction_time) }}
+                  </template>
                 </div>
               </div>
             </div>
             <div class="col-12">
               <div class="kv">
-                <div class="k">&#22791;&#27880;</div>
+                <div class="k">
+                  &#22791;&#27880;
+                </div>
                 <div class="v">
-                  <Textarea v-if="editing" v-model="form.description" autoResize rows="3" />
-                  <template v-else>{{ currentPayment.description || '-' }}</template>
+                  <Textarea
+                    v-if="editing"
+                    v-model="form.description"
+                    auto-resize
+                    rows="3"
+                  />
+                  <template v-else>
+                    {{ currentPayment.description || '-' }}
+                  </template>
                 </div>
               </div>
             </div>
@@ -156,8 +218,13 @@
         </div>
       </div>
 
-      <div v-if="currentPayment.extracted_data" class="section">
-        <div class="section-title">OCR &#25991;&#26412;</div>
+      <div
+        v-if="currentPayment.extracted_data"
+        class="section"
+      >
+        <div class="section-title">
+          OCR &#25991;&#26412;
+        </div>
         <Accordion>
           <AccordionTab
             v-if="getExtractedPrettyText(currentPayment.extracted_data || null)"
@@ -172,7 +239,10 @@
       </div>
     </div>
     <template #footer>
-      <div v-if="editing" class="dialog-footer-center">
+      <div
+        v-if="editing"
+        class="dialog-footer-center"
+      >
         <Button
           type="button"
           class="p-button-outlined"
@@ -181,7 +251,13 @@
           :disabled="saving"
           @click="cancelEditMode"
         />
-        <Button type="button" :label="'\u4FDD\u5B58'" icon="pi pi-check" :loading="saving" @click="save" />
+        <Button
+          type="button"
+          :label="'\u4FDD\u5B58'"
+          icon="pi pi-check"
+          :loading="saving"
+          @click="save"
+        />
       </div>
       <Button
         v-else

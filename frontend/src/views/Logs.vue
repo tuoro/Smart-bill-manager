@@ -14,42 +14,63 @@
             <MultiSelect
               v-model="selectedSources"
               :options="sourceOptions"
-              optionLabel="label"
-              optionValue="name"
-              optionDisabled="disabled"
+              option-label="label"
+              option-value="name"
+              option-disabled="disabled"
               display="chip"
               :placeholder="'\u9009\u62E9\u65E5\u5FD7\u6E90'"
-              :maxSelectedLabels="2"
+              :max-selected-labels="2"
               class="sources"
               @change="handleSourcesChange"
             />
             <MultiSelect
               v-model="selectedCategories"
               :options="categoryOptions"
-              optionLabel="label"
-              optionValue="name"
+              option-label="label"
+              option-value="name"
               display="chip"
               :placeholder="'\u9009\u62E9\u65E5\u5FD7\u7C7B\u522B'"
-              :maxSelectedLabels="2"
+              :max-selected-labels="2"
               class="sources"
             />
             <span class="p-input-icon-left">
               <i class="pi pi-filter" />
-              <InputText v-model="filter" :placeholder="'\u8FC7\u6EE4\u5173\u952E\u8BCD'" />
+              <InputText
+                v-model="filter"
+                :placeholder="'\u8FC7\u6EE4\u5173\u952E\u8BCD'"
+              />
             </span>
             <div class="switch">
               <span class="switch-label">&#33258;&#21160;&#28378;&#21160;</span>
               <InputSwitch v-model="autoScroll" />
             </div>
-            <Button :label="'\u6E05\u7A7A'" class="p-button-outlined" severity="secondary" @click="clearLogs" />
-            <Button :label="'\u91CD\u8FDE'" icon="pi pi-refresh" :loading="connecting" :disabled="connecting" @click="reconnect" />
+            <Button
+              :label="'\u6E05\u7A7A'"
+              class="p-button-outlined"
+              severity="secondary"
+              @click="clearLogs"
+            />
+            <Button
+              :label="'\u91CD\u8FDE'"
+              icon="pi pi-refresh"
+              :loading="connecting"
+              :disabled="connecting"
+              @click="reconnect"
+            />
           </div>
         </div>
       </template>
 
       <template #content>
-        <div ref="logContainer" class="log-container">
-          <div v-for="(l, idx) in filteredLogs" :key="idx" class="log-line">
+        <div
+          ref="logContainer"
+          class="log-container"
+        >
+          <div
+            v-for="(l, idx) in filteredLogs"
+            :key="idx"
+            class="log-line"
+          >
             <span class="ts">{{ formatTs(l.timestamp) }}</span>
             <span class="src">[{{ l.source }}]</span>
             <span class="msg">{{ l.message }}</span>

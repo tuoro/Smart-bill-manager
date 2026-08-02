@@ -2,41 +2,101 @@
   <div class="sbm-auth-bg">
     <div class="sbm-auth-card sbm-surface">
       <div class="header">
-        <h2 class="sbm-auth-title">邀请码注册</h2>
-        <p class="subtitle">需要管理员生成的邀请码才能注册</p>
+        <h2 class="sbm-auth-title">
+          邀请码注册
+        </h2>
+        <p class="subtitle">
+          需要管理员生成的邀请码才能注册
+        </p>
       </div>
 
-      <form class="p-fluid" @submit.prevent="handleRegister">
+      <form
+        class="p-fluid"
+        @submit.prevent="handleRegister"
+      >
         <div class="field">
-          <label class="sbm-field-label" for="inviteCode">邀请码</label>
-          <InputText id="inviteCode" v-model.trim="form.inviteCode" autocomplete="off" />
-          <small v-if="errors.inviteCode" class="p-error">{{ errors.inviteCode }}</small>
+          <label
+            class="sbm-field-label"
+            for="inviteCode"
+          >邀请码</label>
+          <InputText
+            id="inviteCode"
+            v-model.trim="form.inviteCode"
+            autocomplete="off"
+          />
+          <small
+            v-if="errors.inviteCode"
+            class="p-error"
+          >{{ errors.inviteCode }}</small>
         </div>
 
         <div class="field">
-          <label class="sbm-field-label" for="username">用户名</label>
-          <InputText id="username" v-model.trim="form.username" autocomplete="username" />
-          <small v-if="errors.username" class="p-error">{{ errors.username }}</small>
+          <label
+            class="sbm-field-label"
+            for="username"
+          >用户名</label>
+          <InputText
+            id="username"
+            v-model.trim="form.username"
+            autocomplete="username"
+          />
+          <small
+            v-if="errors.username"
+            class="p-error"
+          >{{ errors.username }}</small>
         </div>
 
         <div class="field">
-          <label class="sbm-field-label" for="password">密码</label>
-          <Password id="password" v-model="form.password" toggleMask :feedback="false" autocomplete="new-password" />
-          <small v-if="errors.password" class="p-error">{{ errors.password }}</small>
+          <label
+            class="sbm-field-label"
+            for="password"
+          >密码</label>
+          <Password
+            id="password"
+            v-model="form.password"
+            toggle-mask
+            :feedback="false"
+            autocomplete="new-password"
+          />
+          <small
+            v-if="errors.password"
+            class="p-error"
+          >{{ errors.password }}</small>
         </div>
 
         <div class="field">
-          <label class="sbm-field-label" for="confirmPassword">确认密码</label>
-          <Password id="confirmPassword" v-model="form.confirmPassword" toggleMask :feedback="false" autocomplete="new-password" />
-          <small v-if="errors.confirmPassword" class="p-error">{{ errors.confirmPassword }}</small>
+          <label
+            class="sbm-field-label"
+            for="confirmPassword"
+          >确认密码</label>
+          <Password
+            id="confirmPassword"
+            v-model="form.confirmPassword"
+            toggle-mask
+            :feedback="false"
+            autocomplete="new-password"
+          />
+          <small
+            v-if="errors.confirmPassword"
+            class="p-error"
+          >{{ errors.confirmPassword }}</small>
         </div>
 
-        <Button type="submit" class="submit-btn" :label="'注册并登录'" :loading="authStore.loading" />
+        <Button
+          type="submit"
+          class="submit-btn"
+          :label="'注册并登录'"
+          :loading="authStore.loading"
+        />
       </form>
 
       <div class="footer">
         <span class="muted">已有账号？</span>
-        <Button class="p-button-text" label="去登录" @click="router.push('/login')" />
+        <Button
+          class="p-button-text"
+          label="去登录"
+          @click="router.push('/login')"
+        />
       </div>
     </div>
   </div>

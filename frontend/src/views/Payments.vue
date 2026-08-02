@@ -6,8 +6,12 @@
           <template #content>
             <div class="stat">
               <div>
-                <div class="stat-title">&#24635;&#25903;&#20986;</div>
-                <div class="stat-value">{{ formatMoney(stats?.totalAmount || 0) }}</div>
+                <div class="stat-title">
+                  &#24635;&#25903;&#20986;
+                </div>
+                <div class="stat-value">
+                  {{ formatMoney(stats?.totalAmount || 0) }}
+                </div>
               </div>
               <i class="pi pi-wallet stat-icon danger" />
             </div>
@@ -19,8 +23,12 @@
           <template #content>
             <div class="stat">
               <div>
-                <div class="stat-title">&#20132;&#26131;&#31508;&#25968;</div>
-                <div class="stat-value">{{ stats?.totalCount || 0 }}</div>
+                <div class="stat-title">
+                  &#20132;&#26131;&#31508;&#25968;
+                </div>
+                <div class="stat-value">
+                  {{ stats?.totalCount || 0 }}
+                </div>
               </div>
               <i class="pi pi-shopping-cart stat-icon success" />
             </div>
@@ -32,8 +40,12 @@
           <template #content>
             <div class="stat">
               <div>
-                <div class="stat-title">&#24179;&#22343;&#27599;&#31508;</div>
-                <div class="stat-value">{{ formatMoney(avgAmount) }}</div>
+                <div class="stat-title">
+                  &#24179;&#22343;&#27599;&#31508;
+                </div>
+                <div class="stat-value">
+                  {{ formatMoney(avgAmount) }}
+                </div>
               </div>
               <i class="pi pi-chart-line stat-icon info" />
             </div>
@@ -62,17 +74,23 @@
             />
             <DatePicker
               v-model="dateRange"
-              selectionMode="range"
-              :manualInput="false"
+              selection-mode="range"
+              :manual-input="false"
               :placeholder="'\u65E5\u671F\u8303\u56F4'"
-              @update:modelValue="handleDateChange"
+              @update:model-value="handleDateChange"
             />
-            <Button :label="'\u4E0A\u4F20\u622A\u56FE'" icon="pi pi-image" severity="success" @click="openScreenshotModal" />
+            <Button
+              :label="'\u4E0A\u4F20\u622A\u56FE'"
+              icon="pi pi-image"
+              severity="success"
+              @click="openScreenshotModal"
+            />
           </div>
         </div>
       </template>
       <template #content>
         <DataTable
+          v-model:selection="selectedPayments"
           class="payments-table sbm-dt-fixed"
           :value="payments"
           :loading="loading"
@@ -80,27 +98,44 @@
           :lazy="true"
           :rows="pageSize"
           :first="first"
-          :totalRecords="totalRecords"
-          :rowsPerPageOptions="[10, 20, 50, 100]"
-          responsiveLayout="scroll"
-          sortField="transaction_time"
-          :sortOrder="-1"
-          dataKey="id"
-          v-model:selection="selectedPayments"
+          :total-records="totalRecords"
+          :rows-per-page-options="[10, 20, 50, 100]"
+          responsive-layout="scroll"
+          sort-field="transaction_time"
+          :sort-order="-1"
+          data-key="id"
           @page="onPage"
         >
-          <Column v-if="batchDeleteMode" selectionMode="multiple" :style="{ width: '4%' }" />
-          <Column field="amount" :header="'\u91D1\u989D'" sortable :style="{ width: '10%' }">
+          <Column
+            v-if="batchDeleteMode"
+            selection-mode="multiple"
+            :style="{ width: '4%' }"
+          />
+          <Column
+            field="amount"
+            :header="'\u91D1\u989D'"
+            sortable
+            :style="{ width: '10%' }"
+          >
             <template #body="{ data: row }">
               <span class="amount">{{ formatMoney(row.amount) }}</span>
             </template>
           </Column>
-          <Column :header="'\u5546\u5BB6'" :style="{ width: '21%' }">
+          <Column
+            :header="'\u5546\u5BB6'"
+            :style="{ width: '21%' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="normalizeInlineText(row.merchant)">{{ normalizeInlineText(row.merchant) || '-' }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="normalizeInlineText(row.merchant)"
+              >{{ normalizeInlineText(row.merchant) || '-' }}</span>
             </template>
           </Column>
-          <Column :header="'\u652F\u4ED8\u65B9\u5F0F'" :style="{ width: '15%' }">
+          <Column
+            :header="'\u652F\u4ED8\u65B9\u5F0F'"
+            :style="{ width: '15%' }"
+          >
             <template #body="{ data: row }">
               <Tag
                 v-if="row.payment_method"
@@ -112,26 +147,56 @@
               <span v-else>-</span>
             </template>
           </Column>
-          <Column :header="'\u5907\u6CE8'" :style="{ width: '21%' }">
+          <Column
+            :header="'\u5907\u6CE8'"
+            :style="{ width: '21%' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="normalizeInlineText(row.description)">{{ normalizeInlineText(row.description) || '-' }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="normalizeInlineText(row.description)"
+              >{{ normalizeInlineText(row.description) || '-' }}</span>
             </template>
           </Column>
-          <Column field="transaction_time" :header="'\u4EA4\u6613\u65F6\u95F4'" sortable :style="{ width: '15%' }">
+          <Column
+            field="transaction_time"
+            :header="'\u4EA4\u6613\u65F6\u95F4'"
+            sortable
+            :style="{ width: '15%' }"
+          >
             <template #body="{ data: row }">
               {{ formatDateTime(row.transaction_time) }}
             </template>
           </Column>
-          <Column :header="'\u5173\u8054\u53D1\u7968'" :style="{ width: '7%' }">
+          <Column
+            :header="'\u5173\u8054\u53D1\u7968'"
+            :style="{ width: '7%' }"
+          >
             <template #body="{ data: row }">
-              <Button size="small" class="p-button-text" :label="invoiceCountLabel(row.invoiceCount)" @click="viewLinkedInvoices(row)" />
+              <Button
+                size="small"
+                class="p-button-text"
+                :label="invoiceCountLabel(row.invoiceCount)"
+                @click="viewLinkedInvoices(row)"
+              />
             </template>
           </Column>
-          <Column :header="'\u64CD\u4F5C'" :style="{ width: '7%' }">
+          <Column
+            :header="'\u64CD\u4F5C'"
+            :style="{ width: '7%' }"
+          >
             <template #body="{ data: row }">
               <div class="row-actions">
-                <Button class="p-button-text" icon="pi pi-eye" @click="openPaymentDetail(row)" />
-                <Button class="p-button-text p-button-danger" icon="pi pi-trash" @click="confirmDelete(row.id)" />
+                <Button
+                  class="p-button-text"
+                  icon="pi pi-eye"
+                  @click="openPaymentDetail(row)"
+                />
+                <Button
+                  class="p-button-text p-button-danger"
+                  icon="pi pi-trash"
+                  @click="confirmDelete(row.id)"
+                />
               </div>
             </template>
           </Column>
@@ -145,7 +210,7 @@
       :header="'\u4E0A\u4F20\u652F\u4ED8\u622A\u56FE'"
       :style="{ width: uploadedPaymentId ? '1060px' : '880px', maxWidth: '96vw' }"
       :closable="!uploadingScreenshot && !savingOcrResult"
-      :closeOnEscape="!uploadingScreenshot && !savingOcrResult"
+      :close-on-escape="!uploadingScreenshot && !savingOcrResult"
     >
       <div class="upload-screenshot-body">
         <div
@@ -157,8 +222,12 @@
         >
           <div class="sbm-dropzone-hero">
             <i class="pi pi-cloud-upload" />
-            <div class="sbm-dropzone-title">拖拽图片到此处，或者点击选择</div>
-            <div class="sbm-dropzone-sub">支持 PNG/JPG，可多选（最多 50 张），最大 10MB</div>
+            <div class="sbm-dropzone-title">
+              拖拽图片到此处，或者点击选择
+            </div>
+            <div class="sbm-dropzone-sub">
+              支持 PNG/JPG，可多选（最多 50 张），最大 10MB
+            </div>
             <Button
               type="button"
               icon="pi pi-plus"
@@ -175,11 +244,22 @@
             accept="image/png,image/jpeg"
             multiple
             @change="onScreenshotInputChange"
-          />
+          >
 
-          <div v-if="selectedScreenshotFiles.length > 0" class="file-list" @click.stop>
-            <div v-for="(f, idx) in selectedScreenshotFiles" :key="`${f.name}-${f.size}-${idx}`" class="file-row">
-              <span class="file-row-name" :title="f.name">{{ f.name }}</span>
+          <div
+            v-if="selectedScreenshotFiles.length > 0"
+            class="file-list"
+            @click.stop
+          >
+            <div
+              v-for="(f, idx) in selectedScreenshotFiles"
+              :key="`${f.name}-${f.size}-${idx}`"
+              class="file-row"
+            >
+              <span
+                class="file-row-name"
+                :title="f.name"
+              >{{ f.name }}</span>
               <Button
                 class="file-row-remove p-button-text"
                 severity="secondary"
@@ -189,21 +269,43 @@
                 @click="removeSelectedScreenshot(idx)"
               />
             </div>
-            <div class="file-hint">已选择 {{ selectedScreenshotFiles.length }} 个文件</div>
+            <div class="file-hint">
+              已选择 {{ selectedScreenshotFiles.length }} 个文件
+            </div>
           </div>
 
-          <small v-if="screenshotError" class="p-error" @click.stop>{{ screenshotError }}</small>
+          <small
+            v-if="screenshotError"
+            class="p-error"
+            @click.stop
+          >{{ screenshotError }}</small>
         </div>
 
-        <Message v-if="!uploadedPaymentId" severity="info" :closable="false" style="margin-top: 12px">
+        <Message
+          v-if="!uploadedPaymentId"
+          severity="info"
+          :closable="false"
+          style="margin-top: 12px"
+        >
           请选择截图，点击“识别”生成录入建议。
         </Message>
-        <Message v-else-if="uploadedPaymentId && !ocrResult" severity="warn" :closable="false" style="margin-top: 12px">
+        <Message
+          v-else-if="uploadedPaymentId && !ocrResult"
+          severity="warn"
+          :closable="false"
+          style="margin-top: 12px"
+        >
           已上传，但未解析出可用的 OCR 摘要（可能仍在解析中或解析失败）。你仍可手动填写后保存。
         </Message>
 
-        <div v-if="uploadedPaymentId && uploadedPaymentIds.length > 1" class="upload-batch-switcher" @click.stop>
-          <div class="upload-batch-title">批量预览（{{ uploadedPaymentIds.length }} 个文件）</div>
+        <div
+          v-if="uploadedPaymentId && uploadedPaymentIds.length > 1"
+          class="upload-batch-switcher"
+          @click.stop
+        >
+          <div class="upload-batch-title">
+            批量预览（{{ uploadedPaymentIds.length }} 个文件）
+          </div>
           <div class="upload-batch-controls">
             <Button
               class="p-button-text"
@@ -216,8 +318,8 @@
             <Dropdown
               v-model="uploadedPaymentId"
               :options="uploadedPaymentOptions"
-              optionLabel="label"
-              optionValue="id"
+              option-label="label"
+              option-value="id"
               :disabled="uploadingScreenshot || savingOcrResult"
               style="min-width: 360px"
             />
@@ -233,20 +335,46 @@
           </div>
         </div>
 
-        <div v-if="uploadedPaymentId" class="upload-screenshot-layout">
+        <div
+          v-if="uploadedPaymentId"
+          class="upload-screenshot-layout"
+        >
           <div class="upload-screenshot-left">
-            <div v-if="screenshotPreviewSrc" class="raw raw-screenshot">
-              <div class="raw-title">支付截图</div>
+            <div
+              v-if="screenshotPreviewSrc"
+              class="raw raw-screenshot"
+            >
+              <div class="raw-title">
+                支付截图
+              </div>
               <div class="screenshot-wrap">
-                <Image class="screenshot" :src="screenshotPreviewSrc" preview :imageStyle="{ width: '100%', maxWidth: '100%', height: 'auto' }" />
+                <Image
+                  class="screenshot"
+                  :src="screenshotPreviewSrc"
+                  preview
+                  :image-style="{ width: '100%', maxWidth: '100%', height: 'auto' }"
+                />
               </div>
             </div>
-            <Message v-else severity="secondary" :closable="false">暂无截图预览</Message>
+            <Message
+              v-else
+              severity="secondary"
+              :closable="false"
+            >
+              暂无截图预览
+            </Message>
           </div>
 
           <div class="upload-screenshot-right">
-            <form class="p-fluid" @submit.prevent="handleSaveOcrResult">
-              <Message v-if="uploadDedup?.kind === 'suspected_duplicate'" severity="warn" :closable="false">
+            <form
+              class="p-fluid"
+              @submit.prevent="handleSaveOcrResult"
+            >
+              <Message
+                v-if="uploadDedup?.kind === 'suspected_duplicate'"
+                severity="warn"
+                :closable="false"
+              >
                 检测到疑似重复支付记录（金额 + 时间接近）。如果确认需要保留，可点击保存后选择“仍然保存”。
               </Message>
               <div class="grid">
@@ -255,10 +383,10 @@
                   <InputNumber
                     id="ocr_amount"
                     v-model="ocrForm.amount"
-                    :minFractionDigits="2"
-                    :maxFractionDigits="2"
+                    :min-fraction-digits="2"
+                    :max-fraction-digits="2"
                     :min="0"
-                    :useGrouping="false"
+                    :use-grouping="false"
                   />
                   <small
                     v-if="isAdmin && (ocrResult?.amount_source || ocrResult?.amount_confidence)"
@@ -268,12 +396,18 @@
                     &#26469;&#28304;&#65306;{{ formatSourceLabel(ocrResult?.amount_source) || '未识别' }}
                     <span v-if="ocrResult?.amount_confidence">（置信度：{{ confidenceLabel(ocrResult?.amount_confidence) }}）</span>
                   </small>
-                  <small v-if="ocrErrors.amount" class="p-error">{{ ocrErrors.amount }}</small>
+                  <small
+                    v-if="ocrErrors.amount"
+                    class="p-error"
+                  >{{ ocrErrors.amount }}</small>
                 </div>
 
                 <div class="col-12 md:col-6 field">
                   <label for="ocr_merchant">&#21830;&#23478;</label>
-                  <InputText id="ocr_merchant" v-model.trim="ocrForm.merchant" />
+                  <InputText
+                    id="ocr_merchant"
+                    v-model.trim="ocrForm.merchant"
+                  />
                   <small
                     v-if="isAdmin && (ocrResult?.merchant_source || ocrResult?.merchant_confidence)"
                     class="sbm-ocr-hint"
@@ -286,7 +420,10 @@
 
                 <div class="col-12 md:col-6 field">
                   <label for="ocr_method">&#25903;&#20184;&#26041;&#24335;</label>
-                  <InputText id="ocr_method" v-model.trim="ocrForm.payment_method" />
+                  <InputText
+                    id="ocr_method"
+                    v-model.trim="ocrForm.payment_method"
+                  />
                   <small
                     v-if="isAdmin && (ocrResult?.payment_method_source || ocrResult?.payment_method_confidence)"
                     class="sbm-ocr-hint"
@@ -299,8 +436,16 @@
 
                 <div class="col-12 md:col-6 field">
                   <label for="ocr_time">&#20132;&#26131;&#26102;&#38388;</label>
-                  <DatePicker id="ocr_time" v-model="ocrForm.transaction_time" showTime :manualInput="false" />
-                  <small v-if="ocrErrors.transaction_time" class="p-error">{{ ocrErrors.transaction_time }}</small>
+                  <DatePicker
+                    id="ocr_time"
+                    v-model="ocrForm.transaction_time"
+                    show-time
+                    :manual-input="false"
+                  />
+                  <small
+                    v-if="ocrErrors.transaction_time"
+                    class="p-error"
+                  >{{ ocrErrors.transaction_time }}</small>
                   <small
                     v-if="isAdmin && (ocrResult?.transaction_time_source || ocrResult?.transaction_time_confidence)"
                     class="sbm-ocr-hint"
@@ -313,20 +458,36 @@
 
                 <div class="col-12 field">
                   <label for="ocr_desc">&#22791;&#27880;</label>
-                  <Textarea id="ocr_desc" v-model="ocrForm.description" autoResize rows="3" />
+                  <Textarea
+                    id="ocr_desc"
+                    v-model="ocrForm.description"
+                    auto-resize
+                    rows="3"
+                  />
                 </div>
               </div>
             </form>
           </div>
         </div>
 
-        <div v-if="isAdmin && (ocrResult?.raw_text || ocrResult?.pretty_text)" class="raw">
-          <div class="raw-title">OCR &#25991;&#26412;</div>
+        <div
+          v-if="isAdmin && (ocrResult?.raw_text || ocrResult?.pretty_text)"
+          class="raw"
+        >
+          <div class="raw-title">
+            OCR &#25991;&#26412;
+          </div>
           <Accordion>
-            <AccordionTab v-if="ocrResult?.pretty_text" :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'">
+            <AccordionTab
+              v-if="ocrResult?.pretty_text"
+              :header="'\u70B9\u51FB\u67E5\u770B OCR \u6574\u7406\u7248\u6587\u672C'"
+            >
               <pre class="raw-text">{{ ocrResult.pretty_text }}</pre>
             </AccordionTab>
-            <AccordionTab v-if="ocrResult?.raw_text" :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'">
+            <AccordionTab
+              v-if="ocrResult?.raw_text"
+              :header="'\u70B9\u51FB\u67E5\u770B OCR \u539F\u59CB\u6587\u672C'"
+            >
               <pre class="raw-text">{{ ocrResult.raw_text }}</pre>
             </AccordionTab>
           </Accordion>
@@ -364,9 +525,16 @@
       </template>
     </Dialog>
 
-    <Dialog v-model:visible="linkedInvoicesModalVisible" modal :header="'\u5173\u8054\u7684\u53D1\u7968'" :style="{ width: '980px', maxWidth: '96vw' }">
+    <Dialog
+      v-model:visible="linkedInvoicesModalVisible"
+      modal
+      :header="'\u5173\u8054\u7684\u53D1\u7968'"
+      :style="{ width: '980px', maxWidth: '96vw' }"
+    >
       <div class="match-header">
-        <div class="match-title">&#26234;&#33021;&#21305;&#37197;&#24314;&#35758;</div>
+        <div class="match-title">
+          &#26234;&#33021;&#21305;&#37197;&#24314;&#35758;
+        </div>
         <Button
           class="p-button-text"
           :label="'\u63A8\u8350\u5339\u914D'"
@@ -376,146 +544,289 @@
         />
       </div>
 
-      <div v-if="currentPaymentForInvoices" class="match-summary">
+      <div
+        v-if="currentPaymentForInvoices"
+        class="match-summary"
+      >
         <div class="match-summary-item">
-          <div class="match-summary-label">已关联发票合计</div>
-          <div class="match-summary-value">{{ formatMoney(linkedInvoiceAmount.sum) }}</div>
-          <small v-if="linkedInvoiceAmount.unknown > 0" class="muted">另有 {{ linkedInvoiceAmount.unknown }} 张未识别金额</small>
-        </div>
-        <div class="match-summary-item">
-          <div class="match-summary-label">支付金额</div>
-          <div class="match-summary-value">{{ formatMoney(Number(currentPaymentForInvoices.amount || 0)) }}</div>
-        </div>
-        <div class="match-summary-item">
-          <div class="match-summary-label">差额</div>
+          <div class="match-summary-label">
+            已关联发票合计
+          </div>
           <div class="match-summary-value">
-            <Tag :severity="diffTagSeverity" :value="diffTagLabel" />
+            {{ formatMoney(linkedInvoiceAmount.sum) }}
+          </div>
+          <small
+            v-if="linkedInvoiceAmount.unknown > 0"
+            class="muted"
+          >另有 {{ linkedInvoiceAmount.unknown }} 张未识别金额</small>
+        </div>
+        <div class="match-summary-item">
+          <div class="match-summary-label">
+            支付金额
+          </div>
+          <div class="match-summary-value">
+            {{ formatMoney(Number(currentPaymentForInvoices.amount || 0)) }}
+          </div>
+        </div>
+        <div class="match-summary-item">
+          <div class="match-summary-label">
+            差额
+          </div>
+          <div class="match-summary-value">
+            <Tag
+              :severity="diffTagSeverity"
+              :value="diffTagLabel"
+            />
           </div>
         </div>
       </div>
 
       <Tabs v-model:value="invoiceMatchTab">
         <TabList>
-          <Tab value="linked">&#24050;&#20851;&#32852; ({{ linkedInvoices.length }})</Tab>
-          <Tab value="suggested">&#26234;&#33021;&#25512;&#33616; ({{ suggestedInvoices.length }})</Tab>
+          <Tab value="linked">
+            &#24050;&#20851;&#32852; ({{ linkedInvoices.length }})
+          </Tab>
+          <Tab value="suggested">
+            &#26234;&#33021;&#25512;&#33616; ({{ suggestedInvoices.length }})
+          </Tab>
         </TabList>
         <TabPanels>
-        <TabPanel value="linked">
-          <DataTable class="match-table" :value="linkedInvoices" :loading="loadingLinkedInvoices" scrollHeight="360px" :scrollable="true" responsiveLayout="scroll">
-            <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
-              <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
-            </Column>
-            <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '320px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '150px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u64CD\u4F5C'" :style="{ width: '110px' }">
-              <template #body="{ data: row }">
-                <Button
-                  size="small"
-                  class="p-button-text p-button-danger"
-                  :label="'\u53D6\u6D88\u5173\u8054'"
-                  :loading="unlinkingInvoiceFromPayment"
-                  @click="handleUnlinkInvoiceFromPayment(row.id)"
-                />
-              </template>
-            </Column>
-          </DataTable>
-        </TabPanel>
+          <TabPanel value="linked">
+            <DataTable
+              class="match-table"
+              :value="linkedInvoices"
+              :loading="loadingLinkedInvoices"
+              scroll-height="360px"
+              :scrollable="true"
+              responsive-layout="scroll"
+            >
+              <Column
+                :header="'\u53D1\u7968\u53F7'"
+                :style="{ width: '200px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="invoicePrimaryLabel(row)"
+                  >{{ invoicePrimaryLabel(row) }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u91D1\u989D'"
+                :style="{ width: '120px' }"
+              >
+                <template #body="{ data: row }">
+                  {{ row.amount ? formatMoney(row.amount) : '-' }}
+                </template>
+              </Column>
+              <Column
+                :header="'\u9500\u552E\u65B9'"
+                :style="{ width: '320px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.seller_name || '-'"
+                  >{{ row.seller_name || '-' }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u5F00\u7968\u65F6\u95F4'"
+                :style="{ width: '150px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.invoice_date || '-'"
+                  >{{ row.invoice_date || '-' }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u64CD\u4F5C'"
+                :style="{ width: '110px' }"
+              >
+                <template #body="{ data: row }">
+                  <Button
+                    size="small"
+                    class="p-button-text p-button-danger"
+                    :label="'\u53D6\u6D88\u5173\u8054'"
+                    :loading="unlinkingInvoiceFromPayment"
+                    @click="handleUnlinkInvoiceFromPayment(row.id)"
+                  />
+                </template>
+              </Column>
+            </DataTable>
+          </TabPanel>
 
-        <TabPanel value="suggested">
-          <DataTable class="match-table" :value="suggestedInvoices" :loading="loadingSuggestedInvoices" scrollHeight="260px" :scrollable="true" responsiveLayout="scroll">
-            <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
-              <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
-            </Column>
-            <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '320px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '150px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
-              <template #body="{ data: row }">
-                <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
-              </template>
-            </Column>
-          </DataTable>
+          <TabPanel value="suggested">
+            <DataTable
+              class="match-table"
+              :value="suggestedInvoices"
+              :loading="loadingSuggestedInvoices"
+              scroll-height="260px"
+              :scrollable="true"
+              responsive-layout="scroll"
+            >
+              <Column
+                :header="'\u53D1\u7968\u53F7'"
+                :style="{ width: '200px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="invoicePrimaryLabel(row)"
+                  >{{ invoicePrimaryLabel(row) }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u91D1\u989D'"
+                :style="{ width: '120px' }"
+              >
+                <template #body="{ data: row }">
+                  {{ row.amount ? formatMoney(row.amount) : '-' }}
+                </template>
+              </Column>
+              <Column
+                :header="'\u9500\u552E\u65B9'"
+                :style="{ width: '320px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.seller_name || '-'"
+                  >{{ row.seller_name || '-' }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u5F00\u7968\u65F6\u95F4'"
+                :style="{ width: '150px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.invoice_date || '-'"
+                  >{{ row.invoice_date || '-' }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u64CD\u4F5C'"
+                :style="{ width: '90px' }"
+              >
+                <template #body="{ data: row }">
+                  <Button
+                    size="small"
+                    class="p-button-text"
+                    :label="'\u5173\u8054'"
+                    :loading="linkingInvoiceToPayment"
+                    @click="handleLinkInvoiceToPayment(row.id)"
+                  />
+                </template>
+              </Column>
+            </DataTable>
 
-          <div v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0" class="no-data">
-            <i class="pi pi-info-circle" />
-            <span>&#26242;&#26080;&#25512;&#33616;</span>
-          </div>
+            <div
+              v-if="!loadingSuggestedInvoices && suggestedInvoices.length === 0"
+              class="no-data"
+            >
+              <i class="pi pi-info-circle" />
+              <span>&#26242;&#26080;&#25512;&#33616;</span>
+            </div>
 
-          <div v-if="loadingUnlinkedInvoices || unlinkedInvoicesTotal > 0" class="match-subtitle">全部未关联发票</div>
-          <DataTable
-            v-if="loadingUnlinkedInvoices || unlinkedInvoicesTotal > 0"
-            class="match-table match-table-secondary"
-            :value="unlinkedInvoices"
-            :loading="loadingUnlinkedInvoices"
-            responsiveLayout="scroll"
-            :paginator="true"
-            :rows="unlinkedRows"
-            :first="unlinkedFirst"
-            :totalRecords="unlinkedInvoicesTotal"
-            :rowsPerPageOptions="[10, 20, 50]"
-            :lazy="true"
-            @page="onUnlinkedPage"
-          >
-            <Column :header="'\u53D1\u7968\u53F7'" :style="{ width: '200px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="invoicePrimaryLabel(row)">{{ invoicePrimaryLabel(row) }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u91D1\u989D'" :style="{ width: '120px' }">
-              <template #body="{ data: row }">{{ row.amount ? formatMoney(row.amount) : '-' }}</template>
-            </Column>
-            <Column :header="'\u9500\u552E\u65B9'" :style="{ width: '320px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.seller_name || '-'">{{ row.seller_name || '-' }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u5F00\u7968\u65F6\u95F4'" :style="{ width: '150px' }">
-              <template #body="{ data: row }">
-                <span class="sbm-ellipsis" :title="row.invoice_date || '-'">{{ row.invoice_date || '-' }}</span>
-              </template>
-            </Column>
-            <Column :header="'\u64CD\u4F5C'" :style="{ width: '90px' }">
-              <template #body="{ data: row }">
-                <Button size="small" class="p-button-text" :label="'\u5173\u8054'" :loading="linkingInvoiceToPayment" @click="handleLinkInvoiceToPayment(row.id)" />
-              </template>
-            </Column>
-          </DataTable>
+            <div
+              v-if="loadingUnlinkedInvoices || unlinkedInvoicesTotal > 0"
+              class="match-subtitle"
+            >
+              全部未关联发票
+            </div>
+            <DataTable
+              v-if="loadingUnlinkedInvoices || unlinkedInvoicesTotal > 0"
+              class="match-table match-table-secondary"
+              :value="unlinkedInvoices"
+              :loading="loadingUnlinkedInvoices"
+              responsive-layout="scroll"
+              :paginator="true"
+              :rows="unlinkedRows"
+              :first="unlinkedFirst"
+              :total-records="unlinkedInvoicesTotal"
+              :rows-per-page-options="[10, 20, 50]"
+              :lazy="true"
+              @page="onUnlinkedPage"
+            >
+              <Column
+                :header="'\u53D1\u7968\u53F7'"
+                :style="{ width: '200px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="invoicePrimaryLabel(row)"
+                  >{{ invoicePrimaryLabel(row) }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u91D1\u989D'"
+                :style="{ width: '120px' }"
+              >
+                <template #body="{ data: row }">
+                  {{ row.amount ? formatMoney(row.amount) : '-' }}
+                </template>
+              </Column>
+              <Column
+                :header="'\u9500\u552E\u65B9'"
+                :style="{ width: '320px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.seller_name || '-'"
+                  >{{ row.seller_name || '-' }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u5F00\u7968\u65F6\u95F4'"
+                :style="{ width: '150px' }"
+              >
+                <template #body="{ data: row }">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.invoice_date || '-'"
+                  >{{ row.invoice_date || '-' }}</span>
+                </template>
+              </Column>
+              <Column
+                :header="'\u64CD\u4F5C'"
+                :style="{ width: '90px' }"
+              >
+                <template #body="{ data: row }">
+                  <Button
+                    size="small"
+                    class="p-button-text"
+                    :label="'\u5173\u8054'"
+                    :loading="linkingInvoiceToPayment"
+                    @click="handleLinkInvoiceToPayment(row.id)"
+                  />
+                </template>
+              </Column>
+            </DataTable>
 
-          <div v-else class="no-data no-data-secondary">
-            <i class="pi pi-info-circle" />
-            <span>暂无未关联发票</span>
-          </div>
-        </TabPanel>
-
+            <div
+              v-else
+              class="no-data no-data-secondary"
+            >
+              <i class="pi pi-info-circle" />
+              <span>暂无未关联发票</span>
+            </div>
+          </TabPanel>
         </TabPanels>
       </Tabs>
       <template #footer>
-        <Button type="button" class="p-button-outlined" severity="secondary" :label="'\u5173\u95ED'" @click="linkedInvoicesModalVisible = false" />
+        <Button
+          type="button"
+          class="p-button-outlined"
+          severity="secondary"
+          :label="'\u5173\u95ED'"
+          @click="linkedInvoicesModalVisible = false"
+        />
       </template>
     </Dialog>
 

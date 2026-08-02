@@ -21,8 +21,8 @@
             <Dropdown
               v-model="expiresInDays"
               :options="expiresOptions"
-              optionLabel="label"
-              optionValue="value"
+              option-label="label"
+              option-value="value"
               class="expires-dropdown"
             />
             <Button
@@ -34,37 +34,44 @@
         </div>
       </template>
       <template #content>
-        <Message v-if="!isAdmin" severity="warn" :closable="false"
-          >仅管理员可访问</Message
+        <Message
+          v-if="!isAdmin"
+          severity="warn"
+          :closable="false"
         >
+          仅管理员可访问
+        </Message>
 
-        <div v-else class="content">
+        <div
+          v-else
+          class="content"
+        >
           <div class="list-toolbar">
             <SelectButton
               v-model="usedFilter"
               :options="usedFilterOptions"
-              optionLabel="label"
-              optionValue="value"
+              option-label="label"
+              option-value="value"
               aria-label="筛选是否已使用"
             />
           </div>
 
           <DataTable
+            v-model:selection="selectedInvites"
             class="invites-table sbm-dt-fixed"
             :value="filteredInvites"
             :loading="loading"
-            responsiveLayout="scroll"
+            responsive-layout="scroll"
             :paginator="true"
             :rows="pageSize"
-            :rowsPerPageOptions="[10, 20, 50]"
-            :tableStyle="{ minWidth: '980px', tableLayout: 'fixed' }"
-            dataKey="id"
-            v-model:selection="selectedInvites"
+            :rows-per-page-options="[10, 20, 50]"
+            :table-style="{ minWidth: '980px', tableLayout: 'fixed' }"
+            data-key="id"
             @page="onPage"
           >
             <Column
               v-if="batchDeleteMode"
-              selectionMode="multiple"
+              selection-mode="multiple"
               :style="{ width: '48px' }"
             />
             <Column
@@ -73,16 +80,29 @@
               :style="{ width: '18%' }"
             >
               <template #body="{ data: row }">
-                <span class="mono sbm-ellipsis" :title="row.code_hint">{{ row.code_hint }}</span>
+                <span
+                  class="mono sbm-ellipsis"
+                  :title="row.code_hint"
+                >{{ row.code_hint }}</span>
               </template>
             </Column>
-            <Column header="使用者" :style="{ width: '18%' }">
+            <Column
+              header="使用者"
+              :style="{ width: '18%' }"
+            >
               <template #body="{ data: row }">
                 <div class="user-cell">
-                  <span class="sbm-ellipsis" :title="row.usedByUsername || row.usedBy || ''">
+                  <span
+                    class="sbm-ellipsis"
+                    :title="row.usedByUsername || row.usedBy || ''"
+                  >
                     {{ displayUserLabel(row.usedByUsername, row.usedBy, row.usedByDeleted) }}
                   </span>
-                  <small v-if="row.usedBy" class="muted sbm-ellipsis" :title="row.usedBy">ID：{{ row.usedBy }}</small>
+                  <small
+                    v-if="row.usedBy"
+                    class="muted sbm-ellipsis"
+                    :title="row.usedBy"
+                  >ID：{{ row.usedBy }}</small>
                 </div>
               </template>
             </Column>
@@ -91,9 +111,11 @@
               header="生成时间"
               :style="{ width: '22%' }"
             >
-              <template #body="{ data: row }">{{
-                formatDateTime(row.createdAt)
-              }}</template>
+              <template #body="{ data: row }">
+                {{
+                  formatDateTime(row.createdAt)
+                }}
+              </template>
             </Column>
             <Column
               field="expiresAt"
@@ -104,20 +126,45 @@
                 <span v-if="row.expiresAt">{{
                   formatDateTime(row.expiresAt)
                 }}</span>
-                <span v-else class="muted">永不过期</span>
+                <span
+                  v-else
+                  class="muted"
+                >永不过期</span>
               </template>
             </Column>
-            <Column header="状态" :style="{ width: '18%' }">
+            <Column
+              header="状态"
+              :style="{ width: '18%' }"
+            >
               <template #body="{ data: row }">
-                <Tag v-if="row.usedAt" severity="secondary" value="已使用" />
-                <Tag v-else-if="row.expired" severity="danger" value="已过期" />
-                <Tag v-else severity="success" value="可使用" />
+                <Tag
+                  v-if="row.usedAt"
+                  severity="secondary"
+                  value="已使用"
+                />
+                <Tag
+                  v-else-if="row.expired"
+                  severity="danger"
+                  value="已过期"
+                />
+                <Tag
+                  v-else
+                  severity="success"
+                  value="可使用"
+                />
               </template>
             </Column>
-            <Column field="usedAt" header="使用时间" :style="{ width: '20%' }">
+            <Column
+              field="usedAt"
+              header="使用时间"
+              :style="{ width: '20%' }"
+            >
               <template #body="{ data: row }">
                 <span v-if="row.usedAt">{{ formatDateTime(row.usedAt) }}</span>
-                <span v-else class="muted">-</span>
+                <span
+                  v-else
+                  class="muted"
+                >-</span>
               </template>
             </Column>
           </DataTable>
@@ -133,7 +180,9 @@
       header="最新邀请码"
     >
       <div class="last-code">
-        <div class="last-code-title">最新邀请码（只显示一次，请及时保存）</div>
+        <div class="last-code-title">
+          最新邀请码（只显示一次，请及时保存）
+        </div>
         <div class="last-code-row">
           <span class="last-code-value">{{ lastCode }}</span>
           <Button
@@ -143,7 +192,10 @@
             @click="copyLastCode"
           />
         </div>
-        <small v-if="lastExpiresHint" class="muted">{{
+        <small
+          v-if="lastExpiresHint"
+          class="muted"
+        >{{
           lastExpiresHint
         }}</small>
       </div>

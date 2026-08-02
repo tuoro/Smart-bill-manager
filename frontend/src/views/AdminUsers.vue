@@ -4,7 +4,12 @@
       <template #title>
         <div class="panel-title">
           <span>用户</span>
-          <Button :label="'刷新'" icon="pi pi-refresh" class="p-button-outlined" @click="loadUsers" />
+          <Button
+            :label="'刷新'"
+            icon="pi pi-refresh"
+            class="p-button-outlined"
+            @click="loadUsers"
+          />
         </div>
       </template>
       <template #content>
@@ -14,27 +19,51 @@
           :loading="loading"
           :paginator="true"
           :rows="pageSize"
-          :rowsPerPageOptions="[10, 20, 50, 100]"
-          :tableStyle="{ minWidth: '920px', tableLayout: 'fixed' }"
-          responsiveLayout="scroll"
+          :rows-per-page-options="[10, 20, 50, 100]"
+          :table-style="{ minWidth: '920px', tableLayout: 'fixed' }"
+          responsive-layout="scroll"
           @page="onPage"
         >
-          <Column field="username" header="用户名" :style="{ width: '180px' }">
+          <Column
+            field="username"
+            header="用户名"
+            :style="{ width: '180px' }"
+          >
             <template #body="{ data: row }">
-              <span class="sbm-ellipsis" :title="row.username">{{ row.username }}</span>
+              <span
+                class="sbm-ellipsis"
+                :title="row.username"
+              >{{ row.username }}</span>
             </template>
           </Column>
-          <Column field="role" header="角色" :style="{ width: '120px' }">
+          <Column
+            field="role"
+            header="角色"
+            :style="{ width: '120px' }"
+          >
             <template #body="{ data: row }">
-              <Tag :severity="row.role === 'admin' ? 'danger' : 'secondary'" :value="row.role" />
+              <Tag
+                :severity="row.role === 'admin' ? 'danger' : 'secondary'"
+                :value="row.role"
+              />
             </template>
           </Column>
-          <Column field="is_active" header="状态" :style="{ width: '120px' }">
+          <Column
+            field="is_active"
+            header="状态"
+            :style="{ width: '120px' }"
+          >
             <template #body="{ data: row }">
-              <Tag :severity="row.is_active ? 'success' : 'secondary'" :value="row.is_active ? '启用' : '停用'" />
+              <Tag
+                :severity="row.is_active ? 'success' : 'secondary'"
+                :value="row.is_active ? '启用' : '停用'"
+              />
             </template>
           </Column>
-          <Column header="管理" :style="{ width: '200px' }">
+          <Column
+            header="管理"
+            :style="{ width: '200px' }"
+          >
             <template #body="{ data: row }">
               <div class="actions">
                 <Button
@@ -82,7 +111,10 @@
               </div>
             </template>
           </Column>
-          <Column header="代操作" :style="{ width: '140px' }">
+          <Column
+            header="代操作"
+            :style="{ width: '140px' }"
+          >
             <template #body="{ data: row }">
               <Button
                 v-if="currentActAsUserId !== row.id"
@@ -104,9 +136,15 @@
               />
             </template>
           </Column>
-          <Column header="ID" :style="{ width: '360px' }">
+          <Column
+            header="ID"
+            :style="{ width: '360px' }"
+          >
             <template #body="{ data: row }">
-              <span class="mono sbm-ellipsis" :title="row.id">{{ row.id }}</span>
+              <span
+                class="mono sbm-ellipsis"
+                :title="row.id"
+              >{{ row.id }}</span>
             </template>
           </Column>
         </DataTable>
@@ -124,22 +162,49 @@
       <div class="p-fluid">
         <div class="field">
           <label>用户</label>
-          <div class="mono sbm-ellipsis" :title="passwordTarget?.username || ''">
+          <div
+            class="mono sbm-ellipsis"
+            :title="passwordTarget?.username || ''"
+          >
             {{ passwordTarget?.username || '-' }}
           </div>
         </div>
 
-        <div class="field" style="margin-top: 12px">
+        <div
+          class="field"
+          style="margin-top: 12px"
+        >
           <label>新密码</label>
-          <Password v-model="passwordValue" toggleMask :feedback="false" autocomplete="new-password" />
-          <small v-if="passwordError" class="p-error">{{ passwordError }}</small>
-          <small v-else class="muted">用户需要使用新密码重新登录</small>
+          <Password
+            v-model="passwordValue"
+            toggle-mask
+            :feedback="false"
+            autocomplete="new-password"
+          />
+          <small
+            v-if="passwordError"
+            class="p-error"
+          >{{ passwordError }}</small>
+          <small
+            v-else
+            class="muted"
+          >用户需要使用新密码重新登录</small>
         </div>
       </div>
 
       <template #footer>
-        <Button class="p-button-outlined" severity="secondary" label="取消" @click="closePasswordDialog" />
-        <Button :loading="passwordSaving" label="确认重置" icon="pi pi-check" @click="submitPasswordReset" />
+        <Button
+          class="p-button-outlined"
+          severity="secondary"
+          label="取消"
+          @click="closePasswordDialog"
+        />
+        <Button
+          :loading="passwordSaving"
+          label="确认重置"
+          icon="pi pi-check"
+          @click="submitPasswordReset"
+        />
       </template>
     </Dialog>
   </div>

@@ -1,5 +1,9 @@
 <template>
-  <VChart class="chart" :option="option" autoresize />
+  <VChart
+    class="chart"
+    :option="option"
+    autoresize
+  />
 </template>
 
 <script setup lang="ts">

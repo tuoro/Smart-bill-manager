@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getApiErrorMessage, isRequestCanceled } from './http'
+import { getApiErrorDetails, getApiErrorMessage, isRequestCanceled } from './http'
 
 describe('isRequestCanceled', () => {
   it.each([
@@ -32,5 +32,17 @@ describe('getApiErrorMessage', () => {
   it('忽略非结构化对象并安全返回默认信息', () => {
     expect(getApiErrorMessage('invalid', '默认错误')).toBe('默认错误')
     expect(getApiErrorMessage(null, '默认错误')).toBe('默认错误')
+  })
+})
+
+describe('getApiErrorDetails', () => {
+  it('提取响应状态和业务数据', () => {
+    const data = { kind: 'hash_duplicate' }
+
+    expect(getApiErrorDetails({ response: { status: 409, data: { data } } })).toEqual({ status: 409, data })
+  })
+
+  it.each([null, 'invalid', {}, { response: 'invalid' }])('无法识别时返回空详情：%p', (error) => {
+    expect(getApiErrorDetails(error)).toEqual({ status: undefined, data: undefined })
   })
 })

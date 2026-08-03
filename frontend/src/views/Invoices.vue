@@ -1114,12 +1114,14 @@ import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { invoiceApi, regressionSamplesApi } from '@/api'
+import type { InvoiceOcrTaskResult } from '@/api/invoices'
+import type { SampleQualityIssue } from '@/api/regressionSamples'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useTaskPolling } from '@/composables/useTaskPolling'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { debounce } from '@/utils/debounce'
-import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
+import { getApiErrorDetails, getApiErrorMessage, isRequestCanceled } from '@/utils/http'
 import type { Invoice, Payment, DedupHint, InvoiceAttachment } from '@/types'
 
 interface InvoiceExtractedData {
@@ -1199,7 +1201,7 @@ const loadInvoiceFileBlobUrl = async (invoiceId: string) => {
 }
 
 const toast = useToast()
-const { waitForTask } = useTaskPolling({ timeoutMs: 180000, pollIntervalMs: 900 })
+const { waitForTask } = useTaskPolling<InvoiceOcrTaskResult>({ timeoutMs: 180000, pollIntervalMs: 900 })
 const notifications = useNotificationStore()
 const confirm = useConfirm()
 const authStore = useAuthStore()
@@ -1218,18 +1220,17 @@ const confirmForceSave = (message: string) =>
     })
   })
 
-const summarizeSampleIssues = (issues: any[]) => {
-  const items = Array.isArray(issues) ? issues : []
-  const parts = items.slice(0, 6).map((it: any) => {
+const summarizeSampleIssues = (issues: SampleQualityIssue[]) => {
+  const parts = issues.slice(0, 6).map((it) => {
     const level = String(it?.level || '').toLowerCase()
     const label = level === 'error' ? '\u9519\u8bef' : '\u8b66\u544a'
     return `${label}\uff1a${it?.message || it?.code || '\u672a\u77e5\u95ee\u9898'}`
   })
-  const suffix = items.length > 6 ? '\u2026' : ''
+  const suffix = issues.length > 6 ? '\u2026' : ''
   return parts.join('\uff1b') + suffix
 }
 
-const confirmForceMarkRegressionSample = (issues: any[]) =>
+const confirmForceMarkRegressionSample = (issues: SampleQualityIssue[]) =>
   new Promise<boolean>(resolve => {
     confirm.require({
       header: '\u6837\u672c\u8d28\u91cf\u63d0\u793a',
@@ -1427,7 +1428,7 @@ const cleanupPendingInvoiceDraftOnLoad = async () => {
       if (typeof v !== 'string' || !v) continue
       try {
         const res = await invoiceApi.getById(v)
-        const inv = res.data?.data as any
+        const inv = res.data?.data
         if (inv?.is_draft) {
           await invoiceApi.delete(v)
         }
@@ -1634,7 +1635,7 @@ const discardUploadedInvoices = async () => {
   for (const id of ids) {
     try {
       const res = await invoiceApi.getById(id)
-      const inv = res.data?.data as any
+      const inv = res.data?.data
       if (inv?.is_draft) draftIds.push(id)
     } catch {
       // ignore per-item
@@ -1723,9 +1724,9 @@ const handleUpload = async () => {
     uploadDedup.value = null
     if (selectedFiles.value.length === 1) {
       const res = await invoiceApi.uploadAsync(selectedFiles.value[0])
-      const payload = (res.data?.data || null) as any
-      const taskId = payload?.taskId as string
-      const draftInvoice = payload?.invoice as Invoice
+      const payload = res.data?.data
+      const taskId = payload?.taskId
+      const draftInvoice = payload?.invoice
       createdInvoice = draftInvoice || null
       uploadedInvoiceIds.value = createdInvoice ? [createdInvoice.id] : []
       if (createdInvoice) {
@@ -1736,9 +1737,9 @@ const handleUpload = async () => {
         const task = await waitForTask(taskId)
         if (task.status === 'failed') throw new Error(task?.error || '识别失败')
         if (task.status === 'canceled') throw new Error('识别已取消')
-        const result = task.result as any
+        const result = task.result
         createdInvoice = result?.invoice || createdInvoice
-        const dedup = (result?.dedup as any) || null
+        const dedup = result?.dedup ?? null
         if (createdInvoice) {
           uploadedInvoicesById.value = { ...uploadedInvoicesById.value, [createdInvoice.id]: createdInvoice }
           uploadedInvoiceDedupById.value = { ...uploadedInvoiceDedupById.value, [createdInvoice.id]: dedup }
@@ -1746,7 +1747,7 @@ const handleUpload = async () => {
       }
     } else {
       const res = await invoiceApi.uploadMultipleAsync(selectedFiles.value)
-      const items = (res.data?.data || []) as Array<{ taskId: string; invoice: Invoice }>
+      const items = res.data?.data ?? []
       const createdList = items.map(it => it.invoice).filter(Boolean)
       createdInvoice = createdList.length > 0 ? createdList[0] : null
       uploadedInvoiceIds.value = createdList.map(it => it.id)
@@ -1759,9 +1760,9 @@ const handleUpload = async () => {
         const task = await waitForTask(it.taskId)
         if (task.status === 'failed') throw new Error(task?.error || '识别失败')
         if (task.status === 'canceled') throw new Error('识别已取消')
-        const result = task.result as any
-        const invoice = (result?.invoice as Invoice) || it.invoice
-        const dedup = (result?.dedup as any) || null
+        const result = task.result
+        const invoice = result?.invoice || it.invoice
+        const dedup = result?.dedup ?? null
         if (invoice?.id) {
           uploadedInvoicesById.value = { ...uploadedInvoicesById.value, [invoice.id]: invoice }
           if (dedup) {
@@ -1783,11 +1784,8 @@ const handleUpload = async () => {
     })
     // 不立即关闭，等待用户确认并保存
   } catch (error: unknown) {
-    const err = error as any
-    const resp = err?.response
-    const data = resp?.data
-    const dup = data?.data as DedupHint | undefined
-    if (resp?.status === 409 && dup?.kind === 'hash_duplicate') {
+    const { status, data: dedup } = getApiErrorDetails<DedupHint>(error)
+    if (status === 409 && dedup?.kind === 'hash_duplicate') {
       toast.add({ severity: 'warn', summary: '\u6587\u4EF6\u5185\u5BB9\u91CD\u590D\uFF0C\u5DF2\u5B58\u5728\u8BB0\u5F55', life: 4500 })
     } else {
       toast.add({ severity: 'error', summary: '\u4E0A\u4F20\u5931\u8D25', life: 3000 })
@@ -1831,10 +1829,8 @@ const handleSaveUploadedInvoice = async () => {
       try {
         await saveOne(false)
       } catch (error: unknown) {
-        const err = error as any
-        const resp = err?.response
-        const dup = resp?.data?.data as DedupHint | undefined
-        if (resp?.status === 409 && dup?.kind === 'suspected_duplicate') {
+        const { status, data: dedup } = getApiErrorDetails<DedupHint>(error)
+        if (status === 409 && dedup?.kind === 'suspected_duplicate') {
           const ok = await confirmForceSave('检测到疑似重复发票（发票号码重复），是否仍然保存？')
           if (!ok) return
           await saveOne(true)
@@ -1975,8 +1971,8 @@ const onInvoiceAttachmentInputChange = async (e: Event) => {
         toast.add({ severity: 'error', summary: res.data.message || '附件上传失败', life: 2500 })
       }
     }
-  } catch (err: any) {
-    toast.add({ severity: 'error', summary: err?.response?.data?.message || '附件上传失败', life: 2500 })
+  } catch (err: unknown) {
+    toast.add({ severity: 'error', summary: getApiErrorMessage(err, '附件上传失败'), life: 2500 })
   } finally {
     uploadingInvoiceAttachment.value = false
     input.value = ''
@@ -2004,8 +2000,8 @@ const confirmDeleteAttachment = async (invoice: Invoice, attachment: InvoiceAtta
         } else {
           toast.add({ severity: 'error', summary: res.data.message || '删除失败', life: 2500 })
         }
-      } catch (err: any) {
-        toast.add({ severity: 'error', summary: err?.response?.data?.message || '删除失败', life: 2500 })
+      } catch (err: unknown) {
+        toast.add({ severity: 'error', summary: getApiErrorMessage(err, '删除失败'), life: 2500 })
       } finally {
         uploadingInvoiceAttachment.value = false
       }
@@ -2043,8 +2039,8 @@ const markInvoiceRegressionSample = async (id: string) => {
   try {
     const res = await regressionSamplesApi.markInvoice(id)
     if (res.data.success) {
-      const issues = (res.data as any)?.data?.issues as any[] | undefined
-      const warnIssues = (Array.isArray(issues) ? issues : []).filter((it) => String(it?.level || '').toLowerCase() === 'warn')
+      const issues = res.data.data?.issues ?? []
+      const warnIssues = issues.filter((it) => String(it?.level || '').toLowerCase() === 'warn')
       const nonPiiWarnIssues = warnIssues.filter((it) => !String(it?.code || '').toLowerCase().startsWith('pii_'))
       const hasWarn = nonPiiWarnIssues.length > 0
       const hasOnlyPiiWarn = warnIssues.length > 0 && nonPiiWarnIssues.length === 0
@@ -2060,10 +2056,10 @@ const markInvoiceRegressionSample = async (id: string) => {
       return
     }
     toast.add({ severity: 'error', summary: res.data.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
-  } catch (e: any) {
-    if (e?.response?.status === 422) {
-      const issues = e?.response?.data?.data?.issues as any[] | undefined
-      const ok = await confirmForceMarkRegressionSample(issues || [])
+  } catch (e: unknown) {
+    const { status, data } = getApiErrorDetails<{ issues?: SampleQualityIssue[] }>(e)
+    if (status === 422) {
+      const ok = await confirmForceMarkRegressionSample(data?.issues ?? [])
       if (!ok) return
       const res = await regressionSamplesApi.markInvoice(id, { force: true })
       if (res.data.success) {
@@ -2071,7 +2067,7 @@ const markInvoiceRegressionSample = async (id: string) => {
         return
       }
     }
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '\u6807\u8bb0\u5931\u8d25'), life: 3000 })
   } finally {
     markingRegressionSample.value = false
   }

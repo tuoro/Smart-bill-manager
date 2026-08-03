@@ -866,13 +866,14 @@ import Textarea from 'primevue/textarea'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { invoiceApi, paymentApi } from '@/api'
+import type { PaymentOcrTaskResult } from '@/api/payments'
 import PaymentDetailDialog from '@/components/payments/PaymentDetailDialog.vue'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useTaskPolling } from '@/composables/useTaskPolling'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
 import { debounce } from '@/utils/debounce'
-import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
+import { getApiErrorDetails, getApiErrorMessage, isRequestCanceled } from '@/utils/http'
 import type { Invoice, Payment, DedupHint } from '@/types'
 
 interface OcrExtractedData {
@@ -893,7 +894,7 @@ interface OcrExtractedData {
 }
 
 const toast = useToast()
-const { waitForTask } = useTaskPolling()
+const { waitForTask } = useTaskPolling<PaymentOcrTaskResult<OcrExtractedData>>()
 const notifications = useNotificationStore()
 const confirm = useConfirm()
 const authStore = useAuthStore()
@@ -1046,8 +1047,8 @@ const cleanupPendingPaymentDraftOnLoad = async () => {
   const raw = window.localStorage.getItem(PENDING_PAYMENT_DRAFT_KEY)
   if (!raw) return
   try {
-    const parsed = JSON.parse(raw) as any
-    const ids = Array.isArray(parsed?.ids) ? (parsed.ids as unknown[]) : []
+    const parsed = JSON.parse(raw) as { ids?: unknown; paymentId?: unknown; screenshotPath?: unknown }
+    const ids = Array.isArray(parsed?.ids) ? parsed.ids : []
     const paymentId = typeof parsed?.paymentId === 'string' ? parsed.paymentId : ''
     const screenshotPath = typeof parsed?.screenshotPath === 'string' ? parsed.screenshotPath : ''
 
@@ -1062,8 +1063,8 @@ const cleanupPendingPaymentDraftOnLoad = async () => {
       for (const id of Array.from(new Set(targetIds))) {
         try {
           const res = await paymentApi.getById(id)
-          const p = res.data?.data as any
-          if (p?.is_draft) await paymentApi.delete(id)
+          const payment = res.data?.data
+          if (payment?.is_draft) await paymentApi.delete(id)
         } catch {
           // ignore per-item
         }
@@ -1116,8 +1117,8 @@ const discardUploadedPayments = async () => {
   for (const id of ids) {
     try {
       const res = await paymentApi.getById(id)
-      const p = res.data?.data as any
-      if (p?.is_draft) draftIds.push(id)
+      const payment = res.data?.data
+      if (payment?.is_draft) draftIds.push(id)
     } catch {
       // ignore per-item
     }
@@ -1505,10 +1506,9 @@ const handleScreenshotUpload = async () => {
 
       try {
         const res = await paymentApi.uploadScreenshotAsync(file)
-        const payload = res.data?.data as any
-        const taskId = payload?.taskId as string
-        const payment = payload?.payment as Payment | null
-        const paymentId = payment?.id as string | undefined
+        const payload = res.data?.data
+        const taskId = payload?.taskId
+        const paymentId = payload?.payment?.id
 
         if (!paymentId) {
           failedCount += 1
@@ -1537,9 +1537,9 @@ const handleScreenshotUpload = async () => {
           }
           if (attemptId !== screenshotUploadAttempt.value) return
 
-          const result = task.result as any
-          const extracted = (result?.extracted as OcrExtractedData) || null
-          const dedup = (result?.dedup as DedupHint) || null
+          const result = task.result
+          const extracted = result?.extracted ?? null
+          const dedup = result?.dedup ?? null
 
           uploadedExtractedById.value = { ...uploadedExtractedById.value, [paymentId]: extracted }
           if (dedup) {
@@ -1550,11 +1550,8 @@ const handleScreenshotUpload = async () => {
         // Small delay to avoid hammering OCR in a tight loop.
         await sleep(120)
       } catch (error: unknown) {
-        const err = error as any
-        const resp = err?.response
-        const data = resp?.data
-        const dup = data?.data as DedupHint | undefined
-        if (resp?.status === 409 && dup?.kind === 'hash_duplicate') {
+        const { status, data: dedup } = getApiErrorDetails<DedupHint>(error)
+        if (status === 409 && dedup?.kind === 'hash_duplicate') {
           dupSkipped += 1
           continue
         }
@@ -1647,10 +1644,8 @@ const handleSaveOcrResult = async () => {
       try {
         await saveOne(false)
       } catch (error: unknown) {
-        const err = error as any
-        const resp = err?.response
-        const dup = resp?.data?.data as DedupHint | undefined
-        if (resp?.status === 409 && dup?.kind === 'suspected_duplicate') {
+        const { status, data: dedup } = getApiErrorDetails<DedupHint>(error)
+        if (status === 409 && dedup?.kind === 'suspected_duplicate') {
           uploadedPaymentId.value = id
           const ok = await confirmForceSave('检测到疑似重复支付记录（金额 + 时间接近），是否仍然保存？')
           if (!ok) return
@@ -1757,9 +1752,9 @@ const fetchUnlinkedInvoices = async (opts?: { reset?: boolean }) => {
   loadingUnlinkedInvoices.value = true
   try {
     const res = await invoiceApi.getUnlinked({ limit: unlinkedRows.value, offset: unlinkedFirst.value })
-    const payload = res.data?.data as any
-    unlinkedInvoices.value = Array.isArray(payload?.items) ? (payload.items as Invoice[]) : []
-    unlinkedInvoicesTotal.value = typeof payload?.total === 'number' ? payload.total : 0
+    const payload = res.data?.data
+    unlinkedInvoices.value = payload?.items ?? []
+    unlinkedInvoicesTotal.value = payload?.total ?? 0
   } catch {
     unlinkedInvoices.value = []
     unlinkedInvoicesTotal.value = 0
@@ -1897,7 +1892,7 @@ const tryOpenMatchFromRoute = async () => {
     if (res.data.success && res.data.data) await viewLinkedInvoices(res.data.data)
   } finally {
     const query = { ...route.query }
-    delete (query as any).match
+    delete query.match
     router.replace({ query })
   }
 }

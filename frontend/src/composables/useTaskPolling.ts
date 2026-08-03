@@ -9,25 +9,28 @@ export type WaitForTaskOptions = {
   timeoutMessage?: string
 }
 
-type TaskFetcher = (taskId: string) => Promise<TaskDTO | null>
+type TaskFetcher<TResult> = (taskId: string) => Promise<TaskDTO<TResult> | null>
 
 const terminalStatuses = new Set(['succeeded', 'failed', 'canceled'])
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, ms)))
 
-const defaultFetcher: TaskFetcher = async (taskId) => {
-  const response = await tasksApi.getById(taskId)
+const defaultFetcher = async <TResult>(taskId: string): Promise<TaskDTO<TResult> | null> => {
+  const response = await tasksApi.getById<TResult>(taskId)
   return response.data?.data || null
 }
 
-const canceledTask = (taskId: string): TaskDTO => ({
+const canceledTask = <TResult>(taskId: string): TaskDTO<TResult> => ({
   id: taskId,
   type: '',
   status: 'canceled',
   target_id: '',
 })
 
-export const useTaskPolling = (defaults: WaitForTaskOptions = {}, fetchTask: TaskFetcher = defaultFetcher) => {
-  const waitForTask = async (taskId: string, options: WaitForTaskOptions = {}): Promise<TaskDTO> => {
+export const useTaskPolling = <TResult = unknown>(
+  defaults: WaitForTaskOptions = {},
+  fetchTask: TaskFetcher<TResult> = defaultFetcher<TResult>,
+) => {
+  const waitForTask = async (taskId: string, options: WaitForTaskOptions = {}): Promise<TaskDTO<TResult>> => {
     const opts = { ...defaults, ...options }
     const timeoutMs = opts.timeoutMs ?? 120000
     const pollIntervalMs = opts.pollIntervalMs ?? 800

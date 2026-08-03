@@ -1,22 +1,4 @@
 {
-  "src/views/AdminInvites.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    }
-  },
-  "src/views/AdminRegressionSamples.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "no-useless-escape": {
-      "count": 3
-    }
-  },
-  "src/views/AdminUsers.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    }
-  },
   "src/views/EmailMonitor.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 11

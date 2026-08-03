@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getApiErrorDetails, getApiErrorMessage, isRequestCanceled } from './http'
+import { getApiErrorDetails, getApiErrorMessage, isRequestCanceled, isRequestTimeout } from './http'
 
 describe('isRequestCanceled', () => {
   it.each([
@@ -11,6 +11,18 @@ describe('isRequestCanceled', () => {
     [null, false],
   ] as const)('正确识别取消请求 %#', (error, expected) => {
     expect(isRequestCanceled(error)).toBe(expected)
+  })
+})
+
+describe('isRequestTimeout', () => {
+  it.each([
+    [{ code: 'ECONNABORTED' }, true],
+    [{ code: 'ETIMEDOUT' }, true],
+    [{ message: 'Request timeout after 10s' }, true],
+    [{ code: 'NETWORK_ERROR' }, false],
+    [null, false],
+  ] as const)('正确识别超时请求 %#', (error, expected) => {
+    expect(isRequestTimeout(error)).toBe(expected)
   })
 })
 

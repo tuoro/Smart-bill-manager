@@ -40,7 +40,7 @@ npm run test:run
 npm run build
 ```
 
-`lint:ci` 要求零警告。`eslint-suppressions.json` 只记录重构前页面中的显式类型存量，基线只能缩减，不能扩张。修复历史问题后运行：
+`lint:ci` 要求零警告。`eslint-suppressions.json` 已清空，不得重新引入历史类型或规则抑制；确认删除旧抑制后可运行：
 
 ```bash
 npx eslint . --prune-suppressions

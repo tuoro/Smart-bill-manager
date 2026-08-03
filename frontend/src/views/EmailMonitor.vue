@@ -523,7 +523,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import DataTable from 'primevue/datatable'
+import DataTable, { type DataTablePageEvent } from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Dropdown from 'primevue/dropdown'
 import InputNumber from 'primevue/inputnumber'
@@ -536,7 +536,8 @@ import { useToast } from 'primevue/usetoast'
 import dayjs from 'dayjs'
 import { emailApi } from '@/api'
 import { useNotificationStore } from '@/stores/notifications'
-import { isRequestCanceled } from '@/utils/http'
+import { getDownloadFilename, getHeaderString, sanitizeDownloadFilename } from '@/utils/download'
+import { getApiErrorMessage, isRequestCanceled, isRequestTimeout } from '@/utils/http'
 import type { EmailConfig, EmailLog } from '@/types'
 
 const toast = useToast()
@@ -639,11 +640,11 @@ const BASE_POLL_MS = 4000
 const MAX_POLL_MS = 30000
 const POLL_LOG_LIMIT = 50
 
-const onConfigPage = (e: any) => {
+const onConfigPage = (e: DataTablePageEvent) => {
   configPageSize.value = e?.rows || configPageSize.value
 }
 
-const onLogPage = (e: any) => {
+const onLogPage = (e: DataTablePageEvent) => {
   logPageSize.value = e?.rows || logPageSize.value
 }
 
@@ -707,7 +708,7 @@ const loadConfigs = async (): Promise<boolean> => {
     const res = await emailApi.getConfigs({ signal: controller.signal })
     if (res.data.success && res.data.data) configs.value = res.data.data
     return Boolean(res.data.success)
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return false
     toast.add({ severity: 'error', summary: '\u52A0\u8F7D\u90AE\u7BB1\u914D\u7F6E\u5931\u8D25', life: 3000 })
     return false
@@ -754,7 +755,7 @@ const loadLogs = async (): Promise<boolean> => {
       if (maxTs > lastTs) setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
     }
     return Boolean(res.data.success)
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return false
     console.error('Load logs failed:', e)
     return false
@@ -827,7 +828,7 @@ const pollLogs = async (): Promise<boolean> => {
 
     setStoredTs(EMAIL_LOG_TS_KEY, maxTs)
     return true
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return false
     console.error('Poll logs failed:', e)
     return false
@@ -842,13 +843,13 @@ const loadMonitorStatus = async (): Promise<boolean> => {
     const res = await emailApi.getMonitoringStatus({ signal: controller.signal })
     if (res.data.success && res.data.data) {
       const statusMap: Record<string, string> = {}
-      res.data.data.forEach((item: any) => {
+      res.data.data.forEach((item) => {
         statusMap[item.configId] = item.status
       })
       monitorStatus.value = statusMap
     }
     return Boolean(res.data.success)
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return false
     console.error('Load monitor status failed:', e)
     return false
@@ -967,26 +968,20 @@ const handleParseLog = async (id: string) => {
       toast.add({ severity: 'error', summary: res.data.message || '解析失败', life: 3500 })
     }
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } } }
-    toast.add({ severity: 'error', summary: err.response?.data?.message || '解析失败', life: 3500 })
+    toast.add({ severity: 'error', summary: getApiErrorMessage(error, '解析失败'), life: 3500 })
   } finally {
     parseLoading.value = null
     await loadLogs()
   }
 }
 
-const filenameFromDisposition = (disposition?: string): string | null => {
-  if (!disposition) return null
-  const match = disposition.match(/filename=\"?([^\";]+)\"?/i)
-  return match?.[1] || null
-}
-
 const handleExportLog = async (id: string) => {
   try {
     const res = await emailApi.exportLogEML(id, 'eml')
-    const contentType = (res.headers?.['content-type'] as string) || 'message/rfc822'
-    const disposition = res.headers?.['content-disposition'] as string | undefined
-    const filename = filenameFromDisposition(disposition) || `email_${id}.eml`
+    const contentType = getHeaderString(res.headers['content-type']) || 'message/rfc822'
+    const disposition = getHeaderString(res.headers['content-disposition'])
+    const fallback = `email_${id}.eml`
+    const filename = sanitizeDownloadFilename(getDownloadFilename(disposition), fallback)
     const blob = new Blob([res.data], { type: contentType })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1006,8 +1001,7 @@ const handleExportLog = async (id: string) => {
 const handleCopyRawEmail = async (id: string) => {
   try {
     const res = await emailApi.exportLogEML(id, 'text')
-    const blob = res.data as Blob
-    const raw = await blob.text()
+    const raw = await res.data.text()
     const maxChars = 400_000
     const text = raw.length > maxChars ? raw.slice(0, maxChars) + '\n\n[TRUNCATED]' : raw
     await navigator.clipboard.writeText(text)
@@ -1150,16 +1144,20 @@ const handleSubmit = async () => {
       await loadAll()
     }
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } } }
+    const fallback = editingId.value ? '\u66F4\u65B0\u914D\u7F6E\u5931\u8D25' : '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25'
+    const message = getApiErrorMessage(
+      error,
+      fallback,
+    )
     toast.add({
       severity: 'error',
-      summary: err.response?.data?.message || (editingId.value ? '\u66F4\u65B0\u914D\u7F6E\u5931\u8D25' : '\u521B\u5EFA\u914D\u7F6E\u5931\u8D25'),
+      summary: message,
       life: 3500,
     })
     notifications.add({
       severity: 'error',
       title: editingId.value ? '邮箱配置更新失败' : '邮箱配置创建失败',
-      detail: err.response?.data?.message || form.email,
+      detail: getApiErrorMessage(error, form.email),
     })
   } finally {
     saving.value = false
@@ -1234,13 +1232,7 @@ const handleStopMonitor = async (id: string) => {
 
 const clearLogsLoading = ref<string | null>(null)
 
-const isRequestTimeout = (err: any): boolean => {
-  const code = String(err?.code || '')
-  const msg = String(err?.message || '').toLowerCase()
-  return code === 'ECONNABORTED' || code === 'ETIMEDOUT' || msg.includes('timeout')
-}
-
-const normalizeSyncLimit = (v: any) => {
+const normalizeSyncLimit = (v: unknown) => {
   let n = Number(v || 0)
   if (!Number.isFinite(n)) {
     n = 0
@@ -1342,7 +1334,7 @@ const runSync = async (id: string, stopAndResume: boolean, mode: SyncMode, limit
       toast.add({ severity: 'error', summary: res.data?.message || title, life: 3500 })
       notifications.add({ severity: 'error', title, detail: res.data?.message || id })
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     const title = mode === 'backfill' ? '历史回填失败' : '邮件同步失败'
     if (isRequestTimeout(e)) {
       toast.add({ severity: 'warn', summary: `${title}请求超时：后台可能仍在继续，请稍后观察日志是否持续增加`, life: 4500 })
@@ -1436,7 +1428,7 @@ const runClearLogs = async (id: string, stopAndResume: boolean) => {
 
     const res = await emailApi.clearLogs(id)
     if (res.data?.success) {
-      const deleted = (res.data.data as any)?.deleted || 0
+      const deleted = res.data.data?.deleted || 0
       toast.add({ severity: 'success', summary: `日志已清空（${deleted}）`, life: 2400 })
       notifications.add({ severity: 'info', title: '邮件日志已清空', detail: id })
       setStoredTs(EMAIL_LOG_TS_KEY, 0)

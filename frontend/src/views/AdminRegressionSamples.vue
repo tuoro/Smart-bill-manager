@@ -202,6 +202,7 @@ import dayjs from 'dayjs'
 import { regressionSamplesApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { debounce } from '@/utils/debounce'
+import { getDownloadFilename, getHeaderString, sanitizeDownloadFilename } from '@/utils/download'
 import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
 import type { RegressionSample } from '@/api/regressionSamples'
 
@@ -336,12 +337,6 @@ const onDeleteSelectedClick = () => {
   })
 }
 
-const parseFilename = (disposition?: string) => {
-  if (!disposition) return ''
-  const m = disposition.match(/filename="?([^";]+)"?/i)
-  return m?.[1] || ''
-}
-
 const exportLocalSelectedZip = async () => {
   if (!isAdmin.value) return
   if (!selectMode.value) return
@@ -358,7 +353,11 @@ const exportLocalSelectedZip = async () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = parseFilename(res.headers?.['content-disposition']) || 'regression_samples.zip'
+    const disposition = getHeaderString(res.headers['content-disposition'])
+    a.download = sanitizeDownloadFilename(
+      getDownloadFilename(disposition),
+      'regression_samples.zip',
+    )
     document.body.appendChild(a)
     a.click()
     a.remove()

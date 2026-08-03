@@ -28,7 +28,7 @@ export const emailApi = {
     api.post<ApiResponse<Invoice>>(`/email/logs/${id}/parse`),
 
   exportLogEML: (id: string, format?: 'eml' | 'text') =>
-    api.get(`/email/logs/${id}/export`, {
+    api.get<Blob>(`/email/logs/${id}/export`, {
       params: format === 'text' ? { format: 'text' } : undefined,
       responseType: 'blob',
     }),

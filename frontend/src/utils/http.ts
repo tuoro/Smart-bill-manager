@@ -25,6 +25,13 @@ export const isRequestCanceled = (error: unknown): boolean => {
   return code === 'ERR_CANCELED' || name === 'CanceledError' || name === 'AbortError'
 }
 
+export const isRequestTimeout = (error: unknown): boolean => {
+  const record = asRecord(error)
+  const code = asMessage(record?.code)
+  const message = asMessage(record?.message).toLowerCase()
+  return code === 'ECONNABORTED' || code === 'ETIMEDOUT' || message.includes('timeout')
+}
+
 export const getApiErrorMessage = (error: unknown, fallback: string): string => {
   const record = asRecord(error)
   const response = asRecord(record?.response)

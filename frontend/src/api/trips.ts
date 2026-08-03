@@ -10,16 +10,23 @@ import type {
   TripPaymentWithInvoices,
 } from '@/types'
 
+export type CreateTripInput = Pick<Trip, 'name' | 'start_time' | 'end_time'> &
+  Partial<Pick<Trip, 'note' | 'reimburse_status' | 'timezone'>>
+
+export type UpdateTripInput = Partial<
+  Pick<Trip, 'name' | 'start_time' | 'end_time' | 'note' | 'reimburse_status' | 'timezone'>
+>
+
 export const tripsApi = {
   list: (config?: AxiosRequestConfig) => api.get<ApiResponse<Trip[]>>('/trips', config),
 
   getSummaries: (config?: AxiosRequestConfig) => api.get<ApiResponse<TripSummary[]>>('/trips/summaries', config),
 
-  create: (trip: Omit<Trip, 'id' | 'created_at' | 'updated_at'>) =>
-    api.post<ApiResponse<{ trip: Trip; changes?: AssignmentChangeSummary }>>('/trips', trip),
+  create: (trip: CreateTripInput) =>
+    api.post<ApiResponse<{ trip: Trip; changes: AssignmentChangeSummary | null }>>('/trips', trip),
 
-  update: (id: string, trip: Partial<Pick<Trip, 'name' | 'start_time' | 'end_time' | 'note' | 'reimburse_status' | 'timezone'>>) =>
-    api.put<ApiResponse<{ changes?: AssignmentChangeSummary }>>(`/trips/${id}`, trip),
+  update: (id: string, trip: UpdateTripInput) =>
+    api.put<ApiResponse<{ changes: AssignmentChangeSummary | null }>>(`/trips/${id}`, trip),
 
   getSummary: (id: string, config?: AxiosRequestConfig) => api.get<ApiResponse<TripSummary>>(`/trips/${id}/summary`, config),
 
@@ -30,7 +37,7 @@ export const tripsApi = {
     }),
 
   exportZip: async (id: string, config?: AxiosRequestConfig) =>
-    api.get(`/trips/${id}/export`, {
+    api.get<Blob>(`/trips/${id}/export`, {
       responseType: 'blob',
       ...(config || {}),
     }),

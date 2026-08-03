@@ -46,7 +46,7 @@ export const regressionSamplesApi = {
   delete: (id: string) => api.delete<ApiResponse<{ deleted: boolean }>>(`/admin/regression-samples/${id}`),
 
   exportZip: async (params?: { kind?: string; origin?: string; redact?: boolean }) =>
-    api.get('/admin/regression-samples/export', {
+    api.get<Blob>('/admin/regression-samples/export', {
       params: {
         kind: params?.kind || undefined,
         origin: params?.origin || undefined,
@@ -56,5 +56,5 @@ export const regressionSamplesApi = {
     }),
 
   exportSelectedZip: async (input: { ids: string[]; kind?: string; origin?: string; redact?: boolean }) =>
-    api.post('/admin/regression-samples/export', input, { responseType: 'blob' }),
+    api.post<Blob>('/admin/regression-samples/export', input, { responseType: 'blob' }),
 }

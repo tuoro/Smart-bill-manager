@@ -430,7 +430,7 @@
                         <Dropdown
                           v-model="pendingSelection[row.payment.id]"
                           :options="
-                            row.candidates.map((t: any) => ({
+                            row.candidates.map((t: PendingCandidateTrip) => ({
                               label: `${t.name} · ${formatDateTime(t.start_time)}~${formatDateTime(t.end_time)}`,
                               value: t.id,
                             }))
@@ -862,8 +862,10 @@ import AccordionTab from "primevue/accordiontab";
 import Button from "primevue/button";
 import Card from "primevue/card";
 import Column from "primevue/column";
-import DataTable from "primevue/datatable";
-import DatePicker from "primevue/datepicker";
+import DataTable, { type DataTablePageEvent } from "primevue/datatable";
+import DatePicker, {
+  type DatePickerDateSlotOptions,
+} from "primevue/datepicker";
 import Dialog from "primevue/dialog";
 import Dropdown from "primevue/dropdown";
 import Paginator from "primevue/paginator";
@@ -882,9 +884,15 @@ import dayjs from "dayjs";
 import { Temporal } from "@js-temporal/polyfill";
 import { invoiceApi, paymentApi, tripsApi } from "@/api";
 import { debounce } from "@/utils/debounce";
-import { isRequestCanceled } from "@/utils/http";
+import {
+  getDownloadFilename,
+  getHeaderString,
+  sanitizeDownloadFilename,
+} from "@/utils/download";
+import { getApiErrorMessage, isRequestCanceled } from "@/utils/http";
 import type {
   Payment,
+  PendingCandidateTrip,
   PendingPayment,
   Trip,
   TripCascadePreview,
@@ -927,21 +935,39 @@ const notifications = useNotificationStore();
 
 const activeTab = ref<"trips" | "pending" | "calendar">("trips");
 
-const tripStartPicker = ref<any>(null);
-const tripEndPicker = ref<any>(null);
+type DatePickerOverlayInstance = {
+  // PrimeVue 4.5 的公开类型未暴露这些运行时字段，升级组件时需回归日期面板定位。
+  overlayVisible: boolean;
+  overlay?: HTMLElement | null;
+  $el?: HTMLElement | null;
+};
 
-const closeDatePicker = (pickerRef: { value: any } | any) => {
-  const inst = pickerRef?.value ?? pickerRef;
+type DatePickerTarget =
+  | DatePickerOverlayInstance
+  | { value: DatePickerOverlayInstance | null }
+  | null;
+
+const resolveDatePicker = (picker: DatePickerTarget) => {
+  if (!picker) return null;
+  return "overlayVisible" in picker ? picker : picker.value;
+};
+
+const tripStartPicker = ref<DatePickerOverlayInstance | null>(null);
+const tripEndPicker = ref<DatePickerOverlayInstance | null>(null);
+
+const closeDatePicker = (pickerRef: DatePickerTarget) => {
+  const inst = resolveDatePicker(pickerRef);
   if (!inst) return;
   inst.overlayVisible = false;
 };
 
-const OPEN_PICKERS = new Set<any>();
+const OPEN_PICKERS = new Set<DatePickerOverlayInstance>();
+const pickerShowRafs = new Set<number>();
 let viewportListenerAttached = false;
 let viewportRaf = 0;
 
-const resetOverlayStyle = (inst: any) => {
-  const overlay = inst?.overlay as HTMLElement | undefined;
+const resetOverlayStyle = (inst: DatePickerOverlayInstance) => {
+  const overlay = inst.overlay;
   if (!overlay) return;
   overlay.style.transform = "";
   overlay.style.transformOrigin = "";
@@ -950,12 +976,12 @@ const resetOverlayStyle = (inst: any) => {
   overlay.style.overflow = "";
 };
 
-const repositionPickerBelow = (inst: any) => {
+const repositionPickerBelow = (inst: DatePickerOverlayInstance) => {
   if (typeof window === "undefined") return;
-  if (!inst?.overlayVisible) return;
+  if (!inst.overlayVisible) return;
 
-  const overlay = inst?.overlay as HTMLElement | undefined;
-  const root = inst?.$el as HTMLElement | undefined;
+  const overlay = inst.overlay;
+  const root = inst.$el;
   if (!overlay || !root) return;
 
   const input = (root.querySelector("input") as HTMLElement | null) || root;
@@ -968,7 +994,7 @@ const repositionPickerBelow = (inst: any) => {
   const viewportH =
     window.innerHeight || document.documentElement.clientHeight || 0;
 
-  // Reset any previous scaling before measuring.
+  // 测量前清除上一次缩放，避免尺寸计算累积误差。
   overlay.style.transform = "";
   overlay.style.transformOrigin = "";
   overlay.style.maxHeight = "";
@@ -1003,7 +1029,7 @@ const repositionPickerBelow = (inst: any) => {
   const left = Math.max(minLeft, Math.min(targetRect.left + scrollX, maxLeft));
   const top = targetRect.bottom + scrollY + belowGap;
 
-  // If even after scaling the overlay is taller than available space, cap height and allow scrolling (still below).
+  // 缩放后仍超高时限制面板高度，并保持在输入框下方滚动。
   if (availableH > 0 && naturalH * scale > availableH) {
     overlay.style.maxHeight = `${Math.max(220, Math.floor(availableH / scale))}px`;
     overlay.style.overflow = "auto";
@@ -1029,11 +1055,11 @@ const attachViewportListeners = () => {
   if (viewportListenerAttached) return;
   viewportListenerAttached = true;
   window.addEventListener("resize", onViewportChange, { passive: true });
-  // capture=true so it also reacts when dialog scroll container scrolls
+  // 捕获滚动事件，以便对话框内部滚动时同步调整面板位置。
   window.addEventListener("scroll", onViewportChange, {
     passive: true,
     capture: true,
-  } as any);
+  });
 };
 
 const detachViewportListeners = () => {
@@ -1041,27 +1067,47 @@ const detachViewportListeners = () => {
   if (!viewportListenerAttached) return;
   if (OPEN_PICKERS.size > 0) return;
   viewportListenerAttached = false;
-  window.removeEventListener("resize", onViewportChange as any);
-  window.removeEventListener("scroll", onViewportChange as any, true as any);
+  window.removeEventListener("resize", onViewportChange);
+  window.removeEventListener("scroll", onViewportChange, true);
 };
 
-const onPickerShow = async (pickerRef: { value: any } | any) => {
-  const inst = pickerRef?.value ?? pickerRef;
+const disposePickerOverlays = () => {
+  if (typeof window === "undefined") return;
+  for (const inst of OPEN_PICKERS) resetOverlayStyle(inst);
+  OPEN_PICKERS.clear();
+  if (viewportRaf) {
+    window.cancelAnimationFrame(viewportRaf);
+    viewportRaf = 0;
+  }
+  for (const raf of pickerShowRafs) window.cancelAnimationFrame(raf);
+  pickerShowRafs.clear();
+  viewportListenerAttached = false;
+  window.removeEventListener("resize", onViewportChange);
+  window.removeEventListener("scroll", onViewportChange, true);
+};
+
+const onPickerShow = async (pickerRef: DatePickerTarget) => {
+  const inst = resolveDatePicker(pickerRef);
   if (!inst) return;
   OPEN_PICKERS.add(inst);
   attachViewportListeners();
   await nextTick();
+  if (!OPEN_PICKERS.has(inst)) return;
   repositionPickerBelow(inst);
   if (
     typeof window !== "undefined" &&
     typeof window.requestAnimationFrame === "function"
   ) {
-    window.requestAnimationFrame(() => repositionPickerBelow(inst));
+    const raf = window.requestAnimationFrame(() => {
+      pickerShowRafs.delete(raf);
+      if (OPEN_PICKERS.has(inst)) repositionPickerBelow(inst);
+    });
+    pickerShowRafs.add(raf);
   }
 };
 
-const onPickerHide = (pickerRef: { value: any } | any) => {
-  const inst = pickerRef?.value ?? pickerRef;
+const onPickerHide = (pickerRef: DatePickerTarget) => {
+  const inst = resolveDatePicker(pickerRef);
   if (!inst) return;
   OPEN_PICKERS.delete(inst);
   resetOverlayStyle(inst);
@@ -1087,15 +1133,15 @@ const tripTableRows = ref(10);
 const pendingTableRows = ref(10);
 const calendarTableRows = ref(10);
 
-const onTripTablePage = (e: any) => {
+const onTripTablePage = (e: DataTablePageEvent) => {
   tripTableRows.value = e?.rows || tripTableRows.value;
 };
 
-const onPendingTablePage = (e: any) => {
+const onPendingTablePage = (e: DataTablePageEvent) => {
   pendingTableRows.value = e?.rows || pendingTableRows.value;
 };
 
-const onCalendarTablePage = (e: any) => {
+const onCalendarTablePage = (e: DataTablePageEvent) => {
   calendarTableRows.value = e?.rows || calendarTableRows.value;
 };
 
@@ -1181,10 +1227,12 @@ const tzLabel = (tz: string) => {
 
 const timezoneOptions = computed(() => {
   let zones: string[] = [];
-  const anyIntl = Intl as any;
-  if (anyIntl?.supportedValuesOf) {
+  const intlApi = Intl as typeof Intl & {
+    supportedValuesOf?: (key: "timeZone") => string[];
+  };
+  if (intlApi.supportedValuesOf) {
     try {
-      zones = anyIntl.supportedValuesOf("timeZone") as string[];
+      zones = intlApi.supportedValuesOf("timeZone");
     } catch {
       zones = [];
     }
@@ -1264,7 +1312,10 @@ const dateToParts = (d: Date) => ({
   second: d.getSeconds(),
 });
 
-const isSameWallClock = (parts: ReturnType<typeof dateToParts>, zdt: any) => {
+const isSameWallClock = (
+  parts: ReturnType<typeof dateToParts>,
+  zdt: Temporal.ZonedDateTime,
+) => {
   const pdt = zdt.toPlainDateTime();
   return (
     pdt.year === parts.year &&
@@ -1284,9 +1335,10 @@ const toUtcIsoWithDstConfirm = async (
   const parts = dateToParts(d);
 
   const tryMake = (disambiguation: "reject" | "earlier" | "later") =>
-    Temporal.ZonedDateTime.from({ ...parts, timeZone }, {
-      disambiguation,
-    } as any);
+    Temporal.ZonedDateTime.from(
+      { ...parts, timeZone },
+      { disambiguation },
+    );
 
   try {
     const zdt = tryMake("reject");
@@ -1358,7 +1410,7 @@ const handleSaveTrip = async () => {
 
     if (editingTrip.value) {
       const res = await tripsApi.update(editingTrip.value.id, payload);
-      const changes = (res.data as any)?.data?.changes;
+      const changes = res.data.data?.changes;
       toast.add({ severity: "success", summary: "行程已更新", life: 2000 });
       notifications.add({
         severity: "success",
@@ -1379,8 +1431,8 @@ const handleSaveTrip = async () => {
         });
       }
     } else {
-      const res = await tripsApi.create(payload as any);
-      const changes = (res.data as any)?.data?.changes;
+      const res = await tripsApi.create(payload);
+      const changes = res.data.data?.changes;
       toast.add({ severity: "success", summary: "行程已创建", life: 2000 });
       notifications.add({
         severity: "success",
@@ -1404,8 +1456,8 @@ const handleSaveTrip = async () => {
 
     tripModalVisible.value = false;
     await reloadAll();
-  } catch (error: any) {
-    const msg = error?.response?.data?.message || "保存失败";
+  } catch (error: unknown) {
+    const msg = getApiErrorMessage(error, "保存失败");
     toast.add({ severity: "error", summary: msg, life: 3500 });
     notifications.add({
       severity: "error",
@@ -1424,7 +1476,7 @@ const loadTrips = async (signal?: AbortSignal) => {
   try {
     const res = await tripsApi.list({ signal });
     trips.value = res.data.data || [];
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     throw e;
   }
@@ -1436,7 +1488,7 @@ const loadSummaries = async (signal?: AbortSignal) => {
     const list = res.data.data || [];
     for (const k of Object.keys(summaries)) delete summaries[k];
     for (const s of list) summaries[s.trip_id] = s;
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     throw e;
   }
@@ -1455,7 +1507,7 @@ const loadTripPayments = async (tripId: string, signal?: AbortSignal) => {
     const items = res.data.data || [];
     tripPayments[tripId] = items;
     tripOrders[tripId] = computeTripOrder(items);
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     throw e;
   } finally {
@@ -1472,21 +1524,8 @@ type TripOrderCacheItem = {
 
 const tripOrders = reactive<Record<string, TripOrderCacheItem>>({});
 
-const parseFilename = (disposition?: string) => {
-  if (!disposition) return "";
-  const m = disposition.match(/filename=\"?([^\";]+)\"?/i);
-  return m?.[1] || "";
-};
-
-const sanitizeDownloadFilename = (name: string) =>
-  String(name || "")
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, "_")
-    .replace(/\s+/g, " ")
-    .slice(0, 120) || "trip_export.zip";
-
 const paymentSortTs = (p: TripPaymentWithInvoices) => {
-  const ts = Number((p as any).transaction_time_ts || 0);
+  const ts = Number(p.transaction_time_ts || 0);
   if (Number.isFinite(ts) && ts > 0) return ts;
   const parsed = dayjs(p.transaction_time);
   if (parsed.isValid()) return parsed.valueOf();
@@ -1591,16 +1630,22 @@ const exportTrip = async (trip: Trip) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download =
-      parseFilename((res.headers as any)?.["content-disposition"]) ||
-      sanitizeDownloadFilename(`trip_${trip.name}.zip`);
+    const fallback = sanitizeDownloadFilename(
+      `trip_${trip.name}.zip`,
+      "trip_export.zip",
+    );
+    const disposition = getHeaderString(res.headers["content-disposition"]);
+    a.download = sanitizeDownloadFilename(
+      getDownloadFilename(disposition),
+      fallback,
+    );
     document.body.appendChild(a);
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
     toast.add({ severity: "success", summary: "已导出 ZIP", life: 2000 });
-  } catch (e: any) {
-    const msg = e?.response?.data?.message || "导出失败";
+  } catch (e: unknown) {
+    const msg = getApiErrorMessage(e, "导出失败");
     toast.add({ severity: "error", summary: msg, life: 3500 });
   } finally {
     exportingTripId.value = null;
@@ -1625,7 +1670,7 @@ const loadPendingPayments = async (signal?: AbortSignal) => {
     }
     for (const k of Object.keys(pendingSelection)) delete pendingSelection[k];
     for (const [k, v] of Object.entries(next)) pendingSelection[k] = v;
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     throw e;
   } finally {
@@ -1650,8 +1695,8 @@ const assignPending = async (paymentId: string) => {
       detail: `${paymentId} → ${tripNameById.value[tripId] || tripId}`,
     });
     await reloadAll();
-  } catch (e: any) {
-    const msg = e?.response?.data?.message || "归属失败";
+  } catch (e: unknown) {
+    const msg = getApiErrorMessage(e, "归属失败");
     toast.add({ severity: "error", summary: msg, life: 3500 });
     notifications.add({ severity: "error", title: "归属失败", detail: msg });
   } finally {
@@ -1677,8 +1722,8 @@ const blockPending = (paymentId: string) => {
           detail: paymentId,
         });
         await reloadAll();
-      } catch (e: any) {
-        const msg = e?.response?.data?.message || "操作失败";
+      } catch (e: unknown) {
+        const msg = getApiErrorMessage(e, "操作失败");
         toast.add({ severity: "error", summary: msg, life: 3500 });
         notifications.add({
           severity: "error",
@@ -1734,7 +1779,7 @@ const reloadAll = async () => {
     if (activeTab.value === "calendar") {
       await refreshCalendarMonth(signal);
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     toast.add({ severity: "error", summary: "刷新失败", life: 3000 });
   } finally {
@@ -1784,8 +1829,8 @@ const submitDeleteTrip = async () => {
     delete summaries[trip.id];
     closeDeleteTripDialog();
     await reloadAll();
-  } catch (e: any) {
-    const msg = e?.response?.data?.message || "删除失败";
+  } catch (e: unknown) {
+    const msg = getApiErrorMessage(e, "删除失败");
     toast.add({ severity: "error", summary: msg, life: 3500 });
     notifications.add({
       severity: "error",
@@ -1814,7 +1859,7 @@ const confirmDeleteTrip = async (trip: Trip) => {
   deletingTripId.value = trip.id;
   try {
     const res = await tripsApi.cascadePreview(trip.id);
-    const preview = res.data.data as TripCascadePreview | undefined;
+    const preview = res.data.data;
     deletingTripId.value = null;
     if (!preview) return;
 
@@ -1822,9 +1867,9 @@ const confirmDeleteTrip = async (trip: Trip) => {
     deleteTripPreview.value = preview;
     deleteTripOptions.deletePayments = false;
     deleteTripModalVisible.value = true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     deletingTripId.value = null;
-    const msg = error?.response?.data?.message || "获取删除预览失败";
+    const msg = getApiErrorMessage(error, "获取删除预览失败");
     toast.add({ severity: "error", summary: msg, life: 3500 });
     notifications.add({
       severity: "error",
@@ -1858,8 +1903,8 @@ const togglePaymentBadDebt = (trip: Trip, row: TripPaymentWithInvoices) => {
           detail: `${trip.name}：${row.id}`,
         });
         await reloadAll();
-      } catch (e: any) {
-        const msg = e?.response?.data?.message || "操作失败";
+      } catch (e: unknown) {
+        const msg = getApiErrorMessage(e, "操作失败");
         toast.add({ severity: "error", summary: msg, life: 3500 });
         notifications.add({
           severity: "error",
@@ -1895,8 +1940,8 @@ const toggleInvoiceBadDebt = (trip: Trip, inv: TripPaymentInvoice) => {
           detail: `${trip.name}：${inv.invoice_number || inv.id}`,
         });
         await reloadAll();
-      } catch (e: any) {
-        const msg = e?.response?.data?.message || "操作失败";
+      } catch (e: unknown) {
+        const msg = getApiErrorMessage(e, "操作失败");
         toast.add({ severity: "error", summary: msg, life: 3500 });
         notifications.add({
           severity: "error",
@@ -1933,8 +1978,8 @@ const unassignPayment = (paymentId: string) => {
           detail: paymentId,
         });
         await reloadAll();
-      } catch (e: any) {
-        const msg = e?.response?.data?.message || "操作失败";
+      } catch (e: unknown) {
+        const msg = getApiErrorMessage(e, "操作失败");
         toast.add({ severity: "error", summary: msg, life: 3500 });
         notifications.add({
           severity: "error",
@@ -1983,8 +2028,8 @@ const confirmMovePayment = async () => {
     });
     closeMovePayment();
     await reloadAll();
-  } catch (e: any) {
-    const msg = e?.response?.data?.message || "移动失败";
+  } catch (e: unknown) {
+    const msg = getApiErrorMessage(e, "移动失败");
     toast.add({ severity: "error", summary: msg, life: 3500 });
     notifications.add({
       severity: "error",
@@ -2110,15 +2155,15 @@ const refreshCalendarMonth = async (signal?: AbortSignal) => {
         },
         { signal: controller.signal },
       );
-      const data = res.data?.data as any;
-      const items = (data?.items || []) as Payment[];
-      const total: number = typeof data?.total === "number" ? data.total : 0;
+      const data = res.data.data;
+      const items = data?.items || [];
+      const total = data?.total || 0;
       all.push(...items);
       offset += items.length;
       if (items.length === 0 || (total > 0 && offset >= total)) break;
     }
     calendarMonthPayments.value = all;
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     console.warn("Load calendar payments failed:", e);
   } finally {
@@ -2139,12 +2184,12 @@ const calendarFilteredPayments = computed(() => {
   );
 });
 
-const calendarSlotToDay = (slotDate: any) => {
+const calendarSlotToDay = (slotDate: DatePickerDateSlotOptions) => {
   const monthIndex = normalizePrimeMonthIndex(slotDate.month);
   return dayjs().year(slotDate.year).month(monthIndex).date(slotDate.day);
 };
 
-const calendarDateCellClass = (slotDate: any) => {
+const calendarDateCellClass = (slotDate: DatePickerDateSlotOptions) => {
   const trip = calendarActiveTrip.value;
   const range = calendarTripRange.value;
   const d = calendarSlotToDay(slotDate);
@@ -2263,6 +2308,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  disposePickerOverlays();
   reloadAbort.value?.abort();
   pendingAbort.value?.abort();
   calendarAbort.value?.abort();

@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"smart-bill-manager/internal/middleware"
 	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/services"
@@ -1000,6 +1002,10 @@ func (h *InvoiceHandler) LinkPayment(c *gin.Context) {
 	}
 
 	if err := h.invoiceService.LinkPayment(middleware.GetEffectiveUserID(c), id, input.PaymentID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.Error(c, 404, "发票或支付记录不存在", nil)
+			return
+		}
 		utils.Error(c, 500, "关联支付记录失败", err)
 		return
 	}

@@ -2,7 +2,7 @@
 
 Smart Bill Manager 是一个面向个人与小团队的自托管账单系统，统一管理支付记录、电子发票、差旅行程和邮箱票据。系统支持 OCR 自动提取、多用户账本隔离、管理员代操作和异步任务处理。
 
-当前稳定版本：`v0.2.2`。本版本清零前端历史类型与规则抑制，统一文件下载边界，并修复日期面板卸载清理；升级说明见 [CHANGELOG.md](CHANGELOG.md)，设计边界见 [架构说明](docs/architecture.md)。
+当前稳定版本：`v0.2.3`。本版本在前端历史类型抑制清零的基础上，修复行程日历月份索引偏移；升级说明见 [CHANGELOG.md](CHANGELOG.md)，设计边界见 [架构说明](docs/architecture.md)。
 
 ## 主要能力
 
@@ -50,7 +50,7 @@ docker compose logs -f smart-bill-manager
 ### 预构建镜像
 
 ```bash
-docker pull ghcr.io/tuoro/smart-bill-manager:0.2.2
+docker pull ghcr.io/tuoro/smart-bill-manager:0.2.3
 docker run -d --name smart-bill-manager -p 80:80 \
   -e NODE_ENV=production \
   -e JWT_SECRET="replace-with-a-persistent-32-char-secret" \
@@ -59,7 +59,7 @@ docker run -d --name smart-bill-manager -p 80:80 \
   -e SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
-  ghcr.io/tuoro/smart-bill-manager:0.2.2
+  ghcr.io/tuoro/smart-bill-manager:0.2.3
 ```
 
 生产环境必须持久保存 `JWT_SECRET`，不要在每次启动时重新生成，否则已有登录会话会全部失效。
@@ -147,7 +147,7 @@ npm run test:run
 npm run build
 ```
 
-CI 要求前端 ESLint 零警告、后端整体覆盖率不低于 35%，并完成统一 Docker 镜像构建。v0.2.2 沿用的后端整体语句覆盖率为 35.9%；关键认证、代操作、文件访问、支付与发票关联已通过真实 HTTP 契约覆盖，但不能将整体数字理解为所有接口都已充分覆盖。
+CI 要求前端 ESLint 零警告、后端整体覆盖率不低于 35%，并完成统一 Docker 镜像构建。v0.2.3 沿用的后端整体语句覆盖率为 35.9%；关键认证、代操作、文件访问、支付与发票关联已通过真实 HTTP 契约覆盖，但不能将整体数字理解为所有接口都已充分覆盖。
 
 ## 项目结构
 

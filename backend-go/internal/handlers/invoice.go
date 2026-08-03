@@ -351,12 +351,12 @@ func (h *InvoiceHandler) Download(c *gin.Context) {
 		return
 	}
 
-	filePath := invoice.FilePath
-	if !filepath.IsAbs(filePath) {
-		filePath = filepath.Join(h.uploadsDir, "..", filePath)
+	filePath, err := resolveUploadsFilePath(h.uploadsDir, invoice.FilePath)
+	if err != nil {
+		utils.Error(c, 400, "invalid file path", err)
+		return
 	}
-
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(filePath); err != nil {
 		utils.Error(c, 404, "文件不存在", nil)
 		return
 	}
@@ -395,15 +395,12 @@ func (h *InvoiceHandler) DownloadAttachment(c *gin.Context) {
 		return
 	}
 
-	filePath := strings.TrimSpace(a.FilePath)
-	if filePath == "" {
-		utils.Error(c, 404, "file not found", nil)
+	filePath, err := resolveUploadsFilePath(h.uploadsDir, a.FilePath)
+	if err != nil {
+		utils.Error(c, 400, "invalid file path", err)
 		return
 	}
-	if !filepath.IsAbs(filePath) {
-		filePath = filepath.Join(h.uploadsDir, "..", filePath)
-	}
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(filePath); err != nil {
 		utils.Error(c, 404, "file not found", nil)
 		return
 	}

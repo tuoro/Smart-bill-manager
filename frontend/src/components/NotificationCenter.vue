@@ -20,6 +20,7 @@
       :show-close-icon="false"
       class="nc-panel"
       @show="onShow"
+      @hide="onHide"
     >
       <div class="nc-header">
         <div class="nc-title">
@@ -108,20 +109,15 @@ import type { NotificationSeverity } from '@/stores/notifications'
 
 const store = useNotificationStore()
 const panel = ref<InstanceType<typeof OverlayPanel> | null>(null)
+const panelOpen = ref(false)
 const lastTarget = ref<HTMLElement | null>(null)
 
 const items = computed(() => store.items)
 const unreadCount = computed(() => store.unreadCount)
 
-const isOpen = () => {
-  const p = panel.value as any
-  return !!p?.visible
-}
+const isOpen = () => panelOpen.value
 
 const getOverlayEl = (): HTMLElement | null => {
-  const p = panel.value as any
-  const container = p?.container as HTMLElement | undefined
-  if (container) return container
   return (
     (document.querySelector('.p-popover.nc-panel') as HTMLElement | null) ||
     (document.querySelector('.p-overlaypanel.nc-panel') as HTMLElement | null)
@@ -157,6 +153,7 @@ const forceLeftAligned = () => {
 }
 
 const onShow = async () => {
+  panelOpen.value = true
   await realign()
   // Some browsers report 0 width on the first frame; re-apply once more.
   if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -164,6 +161,10 @@ const onShow = async () => {
   } else {
     forceLeftAligned()
   }
+}
+
+const onHide = () => {
+  panelOpen.value = false
 }
 
 const toggle = (event: MouseEvent) => {
@@ -196,13 +197,13 @@ const handleViewportChange = () => {
 onMounted(() => {
   if (typeof window === 'undefined') return
   window.addEventListener('resize', handleViewportChange, { passive: true })
-  window.addEventListener('orientationchange', handleViewportChange, { passive: true } as any)
+  window.addEventListener('orientationchange', handleViewportChange, { passive: true })
 })
 
 onBeforeUnmount(() => {
   if (typeof window === 'undefined') return
-  window.removeEventListener('resize', handleViewportChange as any)
-  window.removeEventListener('orientationchange', handleViewportChange as any)
+  window.removeEventListener('resize', handleViewportChange)
+  window.removeEventListener('orientationchange', handleViewportChange)
 })
 
 const handleItemClick = async (id: string) => {

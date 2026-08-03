@@ -91,6 +91,7 @@ import InputSwitch from 'primevue/inputswitch'
 import Button from 'primevue/button'
 import { useToast } from 'primevue/usetoast'
 import api from '@/api/auth'
+import { isRequestCanceled } from '@/utils/http'
 
 type LogSource = { name: string; available: boolean }
 type LogEvent = { type: 'log' | 'ping'; timestamp: string; source?: string; message?: string; category?: string }
@@ -332,7 +333,7 @@ const startStream = async () => {
       }
     }
   } catch (e: unknown) {
-    if ((e as any)?.name !== 'AbortError') {
+    if (!isRequestCanceled(e)) {
       const msg = e instanceof Error ? e.message : String(e)
       toast.add({ severity: 'error', summary: `\u65E5\u5FD7\u8FDE\u63A5\u5931\u8D25\uFF1A${msg}`, life: 3500 })
     }

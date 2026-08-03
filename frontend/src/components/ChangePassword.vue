@@ -92,6 +92,7 @@ import Button from 'primevue/button'
 import Password from 'primevue/password'
 import { useToast } from 'primevue/usetoast'
 import { authApi } from '@/api/auth'
+import { getApiErrorMessage } from '@/utils/http'
 import { checkPasswordStrength, type PasswordStrength } from '@/utils/password'
 
 interface Props {
@@ -187,11 +188,11 @@ const handleSubmit = async () => {
       return
     }
     toast.add({ severity: 'error', summary: response.data.message || '\u4FEE\u6539\u5931\u8D25', life: 3000 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Change password error:', error)
     toast.add({
       severity: 'error',
-      summary: error.response?.data?.message || '\u4FEE\u6539\u5BC6\u7801\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5',
+      summary: getApiErrorMessage(error, '\u4FEE\u6539\u5BC6\u7801\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5'),
       life: 3500,
     })
   } finally {

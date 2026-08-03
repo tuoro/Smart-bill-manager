@@ -190,7 +190,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
-import DataTable from 'primevue/datatable'
+import DataTable, { type DataTablePageEvent } from 'primevue/datatable'
 import Column from 'primevue/column'
 import Message from 'primevue/message'
 import SelectButton from 'primevue/selectbutton'
@@ -275,7 +275,7 @@ const load = async () => {
       return
     }
     toast.add({ severity: 'error', summary: res.data.message || '获取回归样本失败', life: 3000 })
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return
     toast.add({ severity: 'error', summary: getApiErrorMessage(e, '获取回归样本失败'), life: 3000 })
   } finally {
@@ -291,7 +291,7 @@ const reload = async () => {
   await load()
 }
 
-const onPage = async (e: any) => {
+const onPage = async (e: DataTablePageEvent) => {
   offset.value = e.first || 0
   limit.value = e.rows || 20
   await load()
@@ -313,8 +313,8 @@ const doDeleteSelected = async (rows: RegressionSample[]) => {
     } else {
       toast.add({ severity: 'error', summary: res.data.message || '删除失败', life: 3000 })
     }
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '删除失败', life: 3000 })
+  } catch (e: unknown) {
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '删除失败'), life: 3000 })
   } finally {
     loading.value = false
     await reload()
@@ -338,7 +338,7 @@ const onDeleteSelectedClick = () => {
 
 const parseFilename = (disposition?: string) => {
   if (!disposition) return ''
-  const m = disposition.match(/filename=\"?([^\";]+)\"?/i)
+  const m = disposition.match(/filename="?([^";]+)"?/i)
   return m?.[1] || ''
 }
 
@@ -364,8 +364,8 @@ const exportLocalSelectedZip = async () => {
     a.remove()
     window.URL.revokeObjectURL(url)
     toast.add({ severity: 'success', summary: '已导出本地样本 ZIP', life: 2000 })
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '导出失败', life: 3000 })
+  } catch (e: unknown) {
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '导出失败'), life: 3000 })
   } finally {
     loading.value = false
   }

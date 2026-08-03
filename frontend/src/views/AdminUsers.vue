@@ -215,7 +215,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Column from 'primevue/column'
-import DataTable from 'primevue/datatable'
+import DataTable, { type DataTablePageEvent } from 'primevue/datatable'
 import Dialog from 'primevue/dialog'
 import Password from 'primevue/password'
 import Tag from 'primevue/tag'
@@ -224,7 +224,7 @@ import { useToast } from 'primevue/usetoast'
 import { authApi } from '@/api/auth'
 import { clearActAs, getActAsUserId, setActAsUser } from '@/api'
 import { useAuthStore } from '@/stores/auth'
-import { isRequestCanceled } from '@/utils/http'
+import { getApiErrorMessage, isRequestCanceled } from '@/utils/http'
 import type { User } from '@/types'
 
 const toast = useToast()
@@ -244,7 +244,7 @@ const passwordValue = ref('')
 const passwordSaving = ref(false)
 const passwordError = ref('')
 
-const onPage = (e: any) => {
+const onPage = (e: DataTablePageEvent) => {
   pageSize.value = e?.rows || pageSize.value
 }
 
@@ -285,9 +285,9 @@ const toggleActive = async (user: User, active: boolean) => {
       return
     }
     toast.add({ severity: 'error', summary: res.data.message || '操作失败', life: 3000 })
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '操作失败', life: 3000 })
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '操作失败'), life: 3000 })
   } finally {
     workingId.value = null
   }
@@ -323,9 +323,9 @@ const deleteUser = async (user: User) => {
       return
     }
     toast.add({ severity: 'error', summary: res.data.message || '删除失败', life: 3000 })
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return
-    toast.add({ severity: 'error', summary: e.response?.data?.message || '删除失败', life: 3000 })
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '删除失败'), life: 3000 })
   } finally {
     deletingId.value = null
   }
@@ -385,8 +385,8 @@ const submitPasswordReset = async () => {
       return
     }
     passwordError.value = res.data.message || '重置失败'
-  } catch (e: any) {
-    passwordError.value = e.response?.data?.message || '重置失败'
+  } catch (e: unknown) {
+    passwordError.value = getApiErrorMessage(e, '重置失败')
   } finally {
     passwordSaving.value = false
   }
@@ -400,9 +400,9 @@ const loadUsers = async () => {
   try {
     const res = await authApi.adminListUsers({ signal: controller.signal })
     if (res.data.success && res.data.data) users.value = res.data.data
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return
-    toast.add({ severity: 'error', summary: '加载用户失败', life: 3000 })
+    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '加载用户失败'), life: 3000 })
   } finally {
     loading.value = false
     if (usersAbort.value === controller) usersAbort.value = null

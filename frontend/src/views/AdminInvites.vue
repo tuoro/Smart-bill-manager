@@ -216,7 +216,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Card from "primevue/card";
 import Button from "primevue/button";
-import DataTable from "primevue/datatable";
+import DataTable, { type DataTablePageEvent } from "primevue/datatable";
 import Column from "primevue/column";
 import Dialog from "primevue/dialog";
 import Dropdown from "primevue/dropdown";
@@ -228,7 +228,7 @@ import { useConfirm } from "primevue/useconfirm";
 import dayjs from "dayjs";
 import { authApi } from "@/api";
 import { useAuthStore } from "@/stores/auth";
-import { isRequestCanceled } from "@/utils/http";
+import { getApiErrorMessage, isRequestCanceled } from "@/utils/http";
 
 type InviteRow = {
   id: string;
@@ -258,7 +258,7 @@ const batchDeleteMode = ref(false);
 const pageSize = ref(20);
 const invitesAbort = ref<AbortController | null>(null);
 
-const onPage = (e: any) => {
+const onPage = (e: DataTablePageEvent) => {
   pageSize.value = e?.rows || pageSize.value;
 };
 
@@ -304,7 +304,7 @@ const loadInvites = async () => {
   try {
     const res = await authApi.adminListInvites(50, { signal: controller.signal });
     if (res.data.success && res.data.data) {
-      invites.value = res.data.data as any;
+      invites.value = res.data.data;
       return;
     }
     toast.add({
@@ -312,11 +312,11 @@ const loadInvites = async () => {
       summary: res.data.message || "获取邀请码失败",
       life: 3000,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isRequestCanceled(e)) return;
     toast.add({
       severity: "error",
-      summary: e.response?.data?.message || "获取邀请码失败",
+      summary: getApiErrorMessage(e, "获取邀请码失败"),
       life: 3000,
     });
   } finally {
@@ -354,10 +354,10 @@ const createInvite = async () => {
       summary: res.data.message || "生成邀请码失败",
       life: 3000,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     toast.add({
       severity: "error",
-      summary: e.response?.data?.message || "生成邀请码失败",
+      summary: getApiErrorMessage(e, "生成邀请码失败"),
       life: 3000,
     });
   } finally {

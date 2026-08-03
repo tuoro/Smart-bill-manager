@@ -501,7 +501,7 @@
                     :min-date="calendarMinDate"
                     :max-date="calendarMaxDate"
                     @month-change="handleCalendarMonthChange"
-                    @year-change="handleCalendarMonthChange"
+                    @year-change="handleCalendarYearChange"
                   >
                     <template #date="{ date }">
                       <div
@@ -865,6 +865,8 @@ import Column from "primevue/column";
 import DataTable, { type DataTablePageEvent } from "primevue/datatable";
 import DatePicker, {
   type DatePickerDateSlotOptions,
+  type DatePickerMonthChangeEvent,
+  type DatePickerYearChangeEvent,
 } from "primevue/datepicker";
 import Dialog from "primevue/dialog";
 import Dropdown from "primevue/dropdown";
@@ -883,6 +885,10 @@ import { useToast } from "primevue/usetoast";
 import dayjs from "dayjs";
 import { Temporal } from "@js-temporal/polyfill";
 import { invoiceApi, paymentApi, tripsApi } from "@/api";
+import {
+  primeDateSlotMonthToIndex,
+  primeMonthEventToIndex,
+} from "@/utils/calendar";
 import { debounce } from "@/utils/debounce";
 import {
   getDownloadFilename,
@@ -2049,7 +2055,6 @@ const calendarMonth = ref<{ year: number; month: number }>({
 });
 const calendarMonthPayments = ref<Payment[]>([]);
 const calendarTripFilter = ref<string | null>(null);
-const calendarMonthBase = ref<"zero" | "one" | null>(null);
 const calendarPickerKey = ref(0);
 
 const calendarActiveTrip = computed(() => {
@@ -2082,44 +2087,22 @@ const calendarTripOptions = computed(() => [
   ...trips.value.map((t) => ({ label: t.name, value: t.id })),
 ]);
 
-const normalizePrimeMonthIndex = (month: number) => {
-  if (calendarMonthBase.value === "zero") return month;
-  if (calendarMonthBase.value === "one") return Math.max(0, month - 1);
-
-  // Auto-detect base from the first observed value.
-  if (month === 0) {
-    calendarMonthBase.value = "zero";
-    return month;
-  }
-  if (month === 12) {
-    calendarMonthBase.value = "one";
-    return 11;
-  }
-
-  const nowMonth0 = dayjs().month();
-  if (month === nowMonth0) {
-    calendarMonthBase.value = "zero";
-    return month;
-  }
-  if (month === nowMonth0 + 1) {
-    calendarMonthBase.value = "one";
-    return month - 1;
-  }
-
-  calendarMonthBase.value = "zero";
-  return month;
-};
-
 const refreshCalendarMonthDebounced = debounce(() => {
   if (activeTab.value !== "calendar") return;
   void refreshCalendarMonth();
 }, 250);
 
-const handleCalendarMonthChange = (e: { month: number; year: number }) => {
+const handleCalendarMonthChange = (e: DatePickerMonthChangeEvent) => {
   calendarMonth.value = {
     year: e.year,
-    month: normalizePrimeMonthIndex(e.month),
+    month: primeMonthEventToIndex(e.month),
   };
+  refreshCalendarMonthDebounced();
+};
+
+const handleCalendarYearChange = (e: DatePickerYearChangeEvent) => {
+  // PrimeVue 不同年份切换路径的 month 基数不一致，沿用已跟踪的可见月份。
+  calendarMonth.value = { ...calendarMonth.value, year: e.year };
   refreshCalendarMonthDebounced();
 };
 
@@ -2185,7 +2168,7 @@ const calendarFilteredPayments = computed(() => {
 });
 
 const calendarSlotToDay = (slotDate: DatePickerDateSlotOptions) => {
-  const monthIndex = normalizePrimeMonthIndex(slotDate.month);
+  const monthIndex = primeDateSlotMonthToIndex(slotDate.month);
   return dayjs().year(slotDate.year).month(monthIndex).date(slotDate.day);
 };
 

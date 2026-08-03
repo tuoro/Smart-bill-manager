@@ -2,6 +2,14 @@
 
 本项目从 `v0.2.0` 起按语义化版本记录面向使用者和维护者的重要变化。
 
+## [0.2.3] - 2026-08-03
+
+### 行程日历正确性
+
+- 修复 PrimeVue 月份切换事件使用 1 基、日期插槽使用 0 基，却共用自动推断状态导致的月份偏移。
+- 月份事件和日期插槽改用各自明确的转换路径；年份切换保留当前可见月份，规避组件不同交互路径返回不一致的月份基数。
+- 新增月份边界与异常值测试，前端测试增至 58 项；本版本不包含数据库迁移。
+
 ## [0.2.2] - 2026-08-03
 
 ### 前端类型与生命周期
@@ -86,6 +94,7 @@
 - 提供支付、发票、邮箱、行程、多用户和异步 OCR 的既有功能。
 - 保存可回退 Git 标签和 GHCR 容器镜像。
 
+[0.2.3]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tuoro/Smart-bill-manager/compare/v0.1.0...v0.2.0

@@ -393,17 +393,17 @@ func (r *InvoiceRepository) LinkPayment(ownerUserID string, invoiceID, paymentID
 	invoiceID = strings.TrimSpace(invoiceID)
 	paymentID = strings.TrimSpace(paymentID)
 	if ownerUserID == "" || invoiceID == "" || paymentID == "" {
-		return fmt.Errorf("missing fields")
+		return gorm.ErrRecordNotFound
 	}
 
 	// Verify ownership for both sides.
 	var inv models.Invoice
 	if err := r.db.Select("id").Where("id = ? AND owner_user_id = ?", invoiceID, ownerUserID).First(&inv).Error; err != nil {
-		return fmt.Errorf("invoice not found")
+		return err
 	}
 	var pay models.Payment
 	if err := r.db.Select("id").Where("id = ? AND owner_user_id = ?", paymentID, ownerUserID).First(&pay).Error; err != nil {
-		return fmt.Errorf("payment not found")
+		return err
 	}
 
 	// Enforce invoice -> 0/1 payment (DB has a unique index on invoice_id).

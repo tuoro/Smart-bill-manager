@@ -12,6 +12,11 @@ type UploadInvoiceAsyncResult = {
   invoice: Invoice
 }
 
+export type InvoiceOcrTaskResult = {
+  invoice?: Invoice
+  dedup?: DedupHint | null
+}
+
 export const invoiceApi = {
   getAll: (
     params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; includeDraft?: boolean },

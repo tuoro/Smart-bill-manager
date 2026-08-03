@@ -16,6 +16,11 @@ type UploadScreenshotAsyncResult = {
   screenshot_path: string
 }
 
+export type PaymentOcrTaskResult<TExtracted = unknown> = {
+  extracted?: TExtracted | null
+  dedup?: DedupHint | null
+}
+
 export const paymentApi = {
   getAll: (
     params?: { limit?: number; offset?: number; startDate?: string; endDate?: string; category?: string; includeDraft?: boolean },

@@ -7,16 +7,6 @@
       "count": 3
     }
   },
-  "src/views/Invoices.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 18
-    }
-  },
-  "src/views/Payments.vue": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    }
-  },
   "src/views/Trips.vue": {
     "@typescript-eslint/no-explicit-any": {
       "count": 45

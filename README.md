@@ -25,15 +25,19 @@ Smart Bill Manager 是一个面向个人与小团队的自托管账单系统，�
 
 ### Docker Compose
 
-首次部署先创建环境文件，并为 `JWT_SECRET` 填写至少 32 个字符的持久密钥：
+生产部署使用 `docker-compose.production.yml` override。它固定 `NODE_ENV=production`，并在 `JWT_SECRET` 为空时拒绝创建容器；后端还会拒绝少于 32 个字符的密钥。
+
+首次部署先创建环境文件，用 `openssl rand -hex 32`（或密码管理器）生成密钥，将输出写入 `.env` 的 `JWT_SECRET`，并长期保存该文件或对应的密钥管理项：
 
 ```bash
 cp .env.example .env
 openssl rand -hex 32
-docker compose up -d --build
+# 将上一步输出写入 .env 的 JWT_SECRET 后执行
+docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
 ```
 
-Windows PowerShell 可使用 `Copy-Item .env.example .env`。启动后访问 <http://localhost>，首次进入 `/setup` 创建管理员账户。
+Windows PowerShell 可使用 `Copy-Item .env.example .env`。`config --quiet` 只校验配置而不打印密钥；启动后访问 <http://localhost>，首次进入 `/setup` 创建管理员账户。本地 Compose 开发仍可直接运行 `docker compose up --build`，基础文件在未设置 `NODE_ENV` 时默认使用 `development`，不要将该入口用于生产。
 
 默认持久化卷：
 
@@ -43,8 +47,8 @@ Windows PowerShell 可使用 `Copy-Item .env.example .env`。启动后访问 <ht
 查看运行状态：
 
 ```bash
-docker compose ps
-docker compose logs -f smart-bill-manager
+docker compose -f docker-compose.yml -f docker-compose.production.yml ps
+docker compose -f docker-compose.yml -f docker-compose.production.yml logs -f smart-bill-manager
 ```
 
 ### 预构建镜像
@@ -69,7 +73,7 @@ docker run -d --name smart-bill-manager -p 80:80 \
 升级前先备份两个持久卷，至少应保存 `bills.db`、`email_password.key` 和整个上传目录。Compose 会为卷名添加项目名前缀，最稳妥的方式是停止服务后从现有容器复制数据：
 
 ```bash
-docker compose stop
+docker compose -f docker-compose.yml -f docker-compose.production.yml stop
 mkdir -p backup-v0.1.0
 docker cp smart-bill-manager:/app/backend/data ./backup-v0.1.0/data
 docker cp smart-bill-manager:/app/backend/uploads ./backup-v0.1.0/uploads
@@ -79,7 +83,7 @@ docker cp smart-bill-manager:/app/backend/uploads ./backup-v0.1.0/uploads
 
 ```bash
 git pull --ff-only
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
 ```
 
 服务启动时会自动执行版本化迁移：
@@ -96,8 +100,8 @@ docker compose up -d --build
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `PORT` | `3001` | 后端监听端口 |
-| `NODE_ENV` | `development` | 生产环境必须设为 `production` |
-| `JWT_SECRET` | 无 | 生产环境必填，至少 32 个字符 |
+| `NODE_ENV` | 基础 Compose 为 `development` | 生产 override 固定为 `production` |
+| `JWT_SECRET` | 无 | 生产 override 必填，后端要求至少 32 个字符；必须跨重启持久保存 |
 | `JWT_EXPIRES_IN` | `168h` | JWT 有效期 |
 | `CORS_ALLOWED_ORIGINS` | 开发地址 | 跨域来源白名单，生产环境禁止 `*` |
 | `DATA_DIR` | `./data` | SQLite 和本地密钥目录 |
@@ -142,12 +146,15 @@ go tool cover -func=coverage.out
 go vet ./...
 
 cd ../frontend
+npm audit --audit-level=high
 npm run lint:ci
 npm run test:run
 npm run build
 ```
 
 CI 要求前端 ESLint 零警告、后端整体覆盖率不低于 35%，并完成统一 Docker 镜像构建。v0.2.3 沿用的后端整体语句覆盖率为 35.9%；关键认证、代操作、文件访问、支付与发票关联已通过真实 HTTP 契约覆盖，但不能将整体数字理解为所有接口都已充分覆盖。
+
+> 交付后续项：`Dockerfile` 当前只把 RapidOCR 限制在 `3.x`，`onnxruntime`、Pillow 和 PyMuPDF 仍由 pip 解析最新兼容版本。精确锁定这些 Python/OCR 依赖前，必须在可用的 Docker daemon 上完成目标架构镜像构建、`/api/health` 检查和一次真实 OCR 冒烟；在这些验证完成前不做无依据的批量升级。
 
 ## 项目结构
 
@@ -169,7 +176,8 @@ Smart-bill-manager/
 |  `- views/               # 路由页面
 |- docs/architecture.md
 |- Dockerfile
-`- docker-compose.yml
+|- docker-compose.yml
+`- docker-compose.production.yml
 ```
 
 ## 安全边界

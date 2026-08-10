@@ -98,6 +98,62 @@ func (r *PaymentRepository) FindAll(filter PaymentFilter) ([]models.Payment, err
 	return payments, err
 }
 
+func (r *PaymentRepository) FindRecentForOwnerCtx(ctx context.Context, ownerUserID string, limit int) ([]models.Payment, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	payments := make([]models.Payment, 0)
+	if limit <= 0 {
+		return payments, nil
+	}
+	err := r.db.WithContext(ctx).
+		Model(&models.Payment{}).
+		Where("owner_user_id = ?", strings.TrimSpace(ownerUserID)).
+		Where("is_draft = 0").
+		Order("transaction_time_ts DESC, created_at DESC").
+		Limit(limit).
+		Find(&payments).Error
+	return payments, err
+}
+
+func (r *PaymentRepository) CountLinkedInvoicesByPaymentIDsCtx(
+	ctx context.Context,
+	ownerUserID string,
+	paymentIDs []string,
+) (map[string]int, error) {
+	counts := make(map[string]int)
+	if len(paymentIDs) == 0 {
+		return counts, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	type row struct {
+		PaymentID string `gorm:"column:payment_id"`
+		Count     int    `gorm:"column:invoice_count"`
+	}
+	var rows []row
+	err := r.db.WithContext(ctx).
+		Table("invoice_payment_links AS links").
+		Select("links.payment_id, COUNT(invoices.id) AS invoice_count").
+		Joins("JOIN payments ON payments.id = links.payment_id").
+		Joins("JOIN invoices ON invoices.id = links.invoice_id").
+		Where("links.payment_id IN ?", paymentIDs).
+		Where("payments.owner_user_id = ?", strings.TrimSpace(ownerUserID)).
+		Where("invoices.owner_user_id = ?", strings.TrimSpace(ownerUserID)).
+		Where("invoices.is_draft = 0").
+		Group("links.payment_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[strings.TrimSpace(row.PaymentID)] = row.Count
+	}
+	return counts, nil
+}
+
 func (r *PaymentRepository) FindAllPaged(filter PaymentFilter, selectCols []string) ([]models.Payment, int64, error) {
 	return r.FindAllPagedCtx(context.Background(), filter, selectCols)
 }

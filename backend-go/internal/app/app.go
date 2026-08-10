@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	itemsParserRevision   = 3
-	invoiceParserRevision = 1
+	itemsParserRevision      = 3
+	invoiceParserRevision    = 1
+	ocrWorkerShutdownTimeout = 5 * time.Second
 )
 
 type Application struct {
@@ -29,16 +30,30 @@ type Application struct {
 	uploadsDir        string
 	taskService       *services.TaskService
 	regressionService *services.RegressionSampleService
+	ocrWorker         services.OCRWorker
 	startOnce         sync.Once
 	done              chan struct{}
 }
 
 func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, error) {
+	return NewWithOCRWorker(cfg, db, uploadsDir, services.NewRapidOCRWorker())
+}
+
+func NewWithOCRWorker(
+	cfg *config.Config,
+	db *gorm.DB,
+	uploadsDir string,
+	ocrWorker services.OCRWorker,
+) (*Application, error) {
 	if cfg == nil {
 		return nil, errors.New("应用配置不能为空")
 	}
 	if db == nil {
 		return nil, errors.New("数据库连接不能为空")
+	}
+
+	if ocrWorker == nil {
+		ocrWorker = services.NewRapidOCRWorker()
 	}
 
 	tokenManager, err := utils.NewTokenManager(cfg.JWTSecret, cfg.JWTExpiresIn)
@@ -47,8 +62,9 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 	}
 
 	authService := services.NewAuthService(db, tokenManager)
-	paymentService := services.NewPaymentService(db, uploadsDir)
-	invoiceService := services.NewInvoiceService(db, uploadsDir)
+	ocrService := services.NewOCRServiceWithWorker(ocrWorker)
+	paymentService := services.NewPaymentServiceWithOCRService(db, uploadsDir, ocrService)
+	invoiceService := services.NewInvoiceServiceWithOCRService(db, uploadsDir, ocrService)
 	emailService := services.NewEmailService(db, uploadsDir, invoiceService)
 	tripService := services.NewTripService(db, uploadsDir)
 	taskService := services.NewTaskService(db, paymentService, invoiceService)
@@ -83,7 +99,7 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 	handlers.NewEmailHandler(emailService).RegisterRoutes(protectedGroup.Group("/email"))
 	handlers.NewTripHandler(tripService).RegisterRoutes(protectedGroup.Group("/trips"))
 	handlers.NewTaskHandler(taskService).RegisterRoutes(protectedGroup.Group("/tasks"))
-	handlers.NewDashboardHandler(db, paymentService, invoiceService, emailService).RegisterRoutes(protectedGroup)
+	handlers.NewDashboardHandler(paymentService, invoiceService, emailService).RegisterRoutes(protectedGroup)
 
 	logsGroup := protectedGroup.Group("/logs")
 	logsGroup.Use(middleware.RequireAdmin())
@@ -101,6 +117,7 @@ func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, erro
 		uploadsDir:        uploadsDir,
 		taskService:       taskService,
 		regressionService: regressionService,
+		ocrWorker:         ocrWorker,
 		done:              make(chan struct{}),
 	}, nil
 }
@@ -113,7 +130,7 @@ func (a *Application) Start(ctx context.Context) {
 		taskDone := a.taskService.StartWorker(ctx)
 		cleanupDone := services.StartDraftCleanup(ctx, a.db, a.uploadsDir)
 
-		if started, err := services.StartOCRWorkerIfEnabled(); err != nil {
+		if started, err := a.ocrWorker.StartIfEnabled(); err != nil {
 			log.Printf("[OCR] worker not started: %v", err)
 		} else if started {
 			log.Printf("[OCR] worker mode: enabled")
@@ -124,7 +141,11 @@ func (a *Application) Start(ctx context.Context) {
 		go func() {
 			defer close(ocrDone)
 			<-ctx.Done()
-			services.StopOCRWorker()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), ocrWorkerShutdownTimeout)
+			defer cancel()
+			if err := a.ocrWorker.Shutdown(shutdownCtx); err != nil {
+				log.Printf("[OCR] worker shutdown failed: %v", err)
+			}
 		}()
 		go func() {
 			<-taskDone

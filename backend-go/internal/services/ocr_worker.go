@@ -3,6 +3,7 @@ package services
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -18,17 +19,31 @@ import (
 	"time"
 )
 
+const rapidOCRWorkerShutdownTimeout = 5 * time.Second
+
 type rapidOCRWorkerProcess struct {
 	mu     sync.Mutex
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
-	waitCh chan error
+	waitCh chan struct{}
 
 	reqCount int64
 }
 
-var globalRapidOCRWorker rapidOCRWorkerProcess
+type OCRWorker interface {
+	StartIfEnabled() (bool, error)
+	Recognize(scriptPath string, imagePath string, profile string) ([]byte, error)
+	Shutdown(ctx context.Context) error
+}
+
+type RapidOCRWorker struct {
+	process rapidOCRWorkerProcess
+}
+
+func NewRapidOCRWorker() *RapidOCRWorker {
+	return &RapidOCRWorker{}
+}
 
 func ocrWorkerEnabled() bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_OCR_WORKER")))
@@ -110,27 +125,44 @@ func (w *rapidOCRWorkerProcess) shouldRestartLocked() (bool, string) {
 	return false, ""
 }
 
-func StartOCRWorkerIfEnabled() (bool, error) {
+func (w *RapidOCRWorker) StartIfEnabled() (bool, error) {
 	if !ocrWorkerEnabled() {
 		return false, nil
 	}
-	svc := NewOCRService()
-	scriptPath := svc.findOCRWorkerScript()
+	if w == nil {
+		return false, fmt.Errorf("ocr worker is nil")
+	}
+	scriptPath := findOCRWorkerScript()
 	if strings.TrimSpace(scriptPath) == "" {
 		return false, fmt.Errorf("ocr worker enabled but scripts/ocr_worker.py not found")
 	}
-	globalRapidOCRWorker.mu.Lock()
-	defer globalRapidOCRWorker.mu.Unlock()
-	if err := globalRapidOCRWorker.ensureStartedLocked(scriptPath); err != nil {
+	w.process.mu.Lock()
+	defer w.process.mu.Unlock()
+	if err := w.process.ensureStartedLocked(scriptPath); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func StopOCRWorker() {
-	globalRapidOCRWorker.mu.Lock()
-	defer globalRapidOCRWorker.mu.Unlock()
-	globalRapidOCRWorker.stopLocked()
+func (w *RapidOCRWorker) Recognize(scriptPath string, imagePath string, profile string) ([]byte, error) {
+	if w == nil {
+		return nil, fmt.Errorf("ocr worker is nil")
+	}
+	w.process.mu.Lock()
+	defer w.process.mu.Unlock()
+	return w.process.recognizeLocked(scriptPath, imagePath, profile)
+}
+
+func (w *RapidOCRWorker) Shutdown(ctx context.Context) error {
+	if w == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	w.process.mu.Lock()
+	defer w.process.mu.Unlock()
+	return w.process.stopAndWaitLocked(ctx)
 }
 
 func randHex(nBytes int) string {
@@ -159,6 +191,10 @@ func parseOCRProfileFromArgs(extraArgs []string) string {
 }
 
 func (s *OCRService) findOCRWorkerScript() string {
+	return findOCRWorkerScript()
+}
+
+func findOCRWorkerScript() string {
 	locations := []string{
 		"scripts/ocr_worker.py",
 		"../scripts/ocr_worker.py",
@@ -186,17 +222,35 @@ func (w *rapidOCRWorkerProcess) isRunningLocked() bool {
 }
 
 func (w *rapidOCRWorkerProcess) stopLocked() {
+	ctx, cancel := context.WithTimeout(context.Background(), rapidOCRWorkerShutdownTimeout)
+	defer cancel()
+	if err := w.stopAndWaitLocked(ctx); err != nil {
+		log.Printf("[OCRWorker] process shutdown failed: %v", err)
+	}
+}
+
+func (w *rapidOCRWorkerProcess) stopAndWaitLocked(ctx context.Context) error {
 	if w.stdin != nil {
 		_ = w.stdin.Close()
-		w.stdin = nil
 	}
 	if w.cmd != nil && w.cmd.Process != nil {
 		_ = w.cmd.Process.Kill()
 	}
+
+	var waitErr error
+	if w.waitCh != nil {
+		select {
+		case <-w.waitCh:
+		case <-ctx.Done():
+			waitErr = ctx.Err()
+		}
+	}
 	w.cmd = nil
+	w.stdin = nil
 	w.stdout = nil
 	w.waitCh = nil
 	w.reqCount = 0
+	return waitErr
 }
 
 func (w *rapidOCRWorkerProcess) startLocked(python string, scriptPath string) error {
@@ -225,9 +279,10 @@ func (w *rapidOCRWorkerProcess) startLocked(python string, scriptPath string) er
 		_, _ = io.Copy(io.Discard, stderrPipe)
 	}()
 
-	waitCh := make(chan error, 1)
+	waitCh := make(chan struct{})
 	go func() {
-		waitCh <- cmd.Wait()
+		_ = cmd.Wait()
+		close(waitCh)
 	}()
 
 	w.cmd = cmd
@@ -330,10 +385,4 @@ func (w *rapidOCRWorkerProcess) recognizeLocked(scriptPath string, imagePath str
 		w.stopLocked()
 		return nil, fmt.Errorf("ocr worker timeout")
 	}
-}
-
-func recognizeWithRapidOCRWorker(scriptPath string, imagePath string, profile string) ([]byte, error) {
-	globalRapidOCRWorker.mu.Lock()
-	defer globalRapidOCRWorker.mu.Unlock()
-	return globalRapidOCRWorker.recognizeLocked(scriptPath, imagePath, profile)
 }

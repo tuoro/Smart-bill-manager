@@ -3,6 +3,8 @@
 package services
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"gorm.io/gorm"
@@ -29,6 +31,24 @@ func TestTripServiceUsesInjectedDatabase(t *testing.T) {
 
 	assertTripCount(t, primaryDB, 1)
 	assertTripCount(t, secondaryDB, 0)
+}
+
+func TestPrepareTripExportZipReturnsNamedErrorWhenTripIsEmpty(t *testing.T) {
+	db := openServiceTestDB(t)
+	service := NewTripService(db, t.TempDir())
+	trip, _, err := service.Create("owner-1", CreateTripInput{
+		Name:      "空行程",
+		StartTime: "2026-08-01T08:00:00+08:00",
+		EndTime:   "2026-08-02T18:00:00+08:00",
+	})
+	if err != nil {
+		t.Fatalf("创建空行程失败: %v", err)
+	}
+
+	_, err = service.PrepareTripExportZip(context.Background(), "owner-1", trip.ID)
+	if !errors.Is(err, ErrTripHasNoPaymentsToExport) {
+		t.Fatalf("空行程导出应返回具名错误，实际为: %v", err)
+	}
 }
 
 func assertTripCount(t *testing.T, db *gorm.DB, want int64) {

@@ -26,12 +26,19 @@ type InvoiceService struct {
 }
 
 func NewInvoiceService(db *gorm.DB, uploadsDir string) *InvoiceService {
+	return NewInvoiceServiceWithOCRService(db, uploadsDir, NewOCRService())
+}
+
+func NewInvoiceServiceWithOCRService(db *gorm.DB, uploadsDir string, ocrService *OCRService) *InvoiceService {
+	if ocrService == nil {
+		ocrService = NewOCRService()
+	}
 	return &InvoiceService{
 		db:         db,
 		repo:       repository.NewInvoiceRepository(db),
 		blobRepo:   repository.NewOCRBlobRepository(db),
 		attachRepo: repository.NewInvoiceAttachmentRepository(db),
-		ocrService: NewOCRService(),
+		ocrService: ocrService,
 		uploadsDir: uploadsDir,
 	}
 }

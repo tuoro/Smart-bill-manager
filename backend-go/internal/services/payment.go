@@ -28,12 +28,19 @@ type PaymentService struct {
 }
 
 func NewPaymentService(db *gorm.DB, uploadsDir string) *PaymentService {
+	return NewPaymentServiceWithOCRService(db, uploadsDir, NewOCRService())
+}
+
+func NewPaymentServiceWithOCRService(db *gorm.DB, uploadsDir string, ocrService *OCRService) *PaymentService {
+	if ocrService == nil {
+		ocrService = NewOCRService()
+	}
 	return &PaymentService{
 		db:          db,
 		repo:        repository.NewPaymentRepository(db),
 		invoiceRepo: repository.NewInvoiceRepository(db),
 		blobRepo:    repository.NewOCRBlobRepository(db),
-		ocrService:  NewOCRService(),
+		ocrService:  ocrService,
 		uploadsDir:  uploadsDir,
 	}
 }
@@ -371,46 +378,35 @@ type PaymentListItem struct {
 }
 
 func (s *PaymentService) GetAllWithInvoiceCounts(ownerUserID string, filter PaymentFilterInput) ([]PaymentListItem, error) {
-	payments, err := s.GetAll(strings.TrimSpace(ownerUserID), filter)
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	payments, err := s.GetAll(ownerUserID, filter)
 	if err != nil {
 		return nil, err
 	}
-	if len(payments) == 0 {
+	return s.attachInvoiceCountsCtx(context.Background(), ownerUserID, payments)
+}
+
+func (s *PaymentService) GetRecentWithInvoiceCountsCtx(
+	ctx context.Context,
+	ownerUserID string,
+	limit int,
+) ([]PaymentListItem, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("missing owner_user_id")
+	}
+	if limit <= 0 {
 		return []PaymentListItem{}, nil
 	}
-
-	ids := make([]string, 0, len(payments))
-	for _, p := range payments {
-		ids = append(ids, p.ID)
+	if limit > 100 {
+		limit = 100
 	}
 
-	type row struct {
-		PaymentID string `gorm:"column:payment_id"`
-		Cnt       int    `gorm:"column:cnt"`
-	}
-	var rows []row
-	if err := s.db.
-		Table("invoice_payment_links").
-		Select("payment_id, COUNT(*) AS cnt").
-		Where("payment_id IN ?", ids).
-		Group("payment_id").
-		Scan(&rows).Error; err != nil {
+	payments, err := s.repo.FindRecentForOwnerCtx(ctx, ownerUserID, limit)
+	if err != nil {
 		return nil, err
 	}
-
-	counts := make(map[string]int, len(rows))
-	for _, r := range rows {
-		counts[strings.TrimSpace(r.PaymentID)] = r.Cnt
-	}
-
-	out := make([]PaymentListItem, 0, len(payments))
-	for _, p := range payments {
-		out = append(out, PaymentListItem{
-			Payment:      p,
-			InvoiceCount: counts[p.ID],
-		})
-	}
-	return out, nil
+	return s.attachInvoiceCountsCtx(ctx, ownerUserID, payments)
 }
 
 func (s *PaymentService) ListWithInvoiceCounts(ownerUserID string, filter PaymentFilterInput) ([]PaymentListItem, int64, error) {
@@ -489,38 +485,38 @@ func (s *PaymentService) ListWithInvoiceCountsCtx(ctx context.Context, ownerUser
 		return []PaymentListItem{}, total, nil
 	}
 
-	ids := make([]string, 0, len(payments))
-	for _, p := range payments {
-		ids = append(ids, p.ID)
-	}
-
-	type row struct {
-		PaymentID string `gorm:"column:payment_id"`
-		Cnt       int    `gorm:"column:cnt"`
-	}
-	var rows []row
-	if err := s.db.WithContext(ctx).
-		Table("invoice_payment_links").
-		Select("payment_id, COUNT(*) AS cnt").
-		Where("payment_id IN ?", ids).
-		Group("payment_id").
-		Scan(&rows).Error; err != nil {
+	out, err := s.attachInvoiceCountsCtx(ctx, strings.TrimSpace(ownerUserID), payments)
+	if err != nil {
 		return nil, 0, err
 	}
+	return out, total, nil
+}
 
-	counts := make(map[string]int, len(rows))
-	for _, r := range rows {
-		counts[strings.TrimSpace(r.PaymentID)] = r.Cnt
+func (s *PaymentService) attachInvoiceCountsCtx(
+	ctx context.Context,
+	ownerUserID string,
+	payments []models.Payment,
+) ([]PaymentListItem, error) {
+	if len(payments) == 0 {
+		return []PaymentListItem{}, nil
+	}
+	ids := make([]string, 0, len(payments))
+	for _, payment := range payments {
+		ids = append(ids, payment.ID)
+	}
+	counts, err := s.repo.CountLinkedInvoicesByPaymentIDsCtx(ctx, strings.TrimSpace(ownerUserID), ids)
+	if err != nil {
+		return nil, err
 	}
 
 	out := make([]PaymentListItem, 0, len(payments))
-	for _, p := range payments {
+	for _, payment := range payments {
 		out = append(out, PaymentListItem{
-			Payment:      p,
-			InvoiceCount: counts[p.ID],
+			Payment:      payment,
+			InvoiceCount: counts[payment.ID],
 		})
 	}
-	return out, total, nil
+	return out, nil
 }
 
 func (s *PaymentService) GetByID(ownerUserID string, id string) (*models.Payment, error) {

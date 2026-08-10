@@ -26,7 +26,9 @@ import (
 )
 
 // OCRService provides OCR functionality
-type OCRService struct{}
+type OCRService struct {
+	worker OCRWorker
+}
 
 var (
 	rapidOCRModulesOnce sync.Once
@@ -130,7 +132,14 @@ var paymentInvisibleSpaceReplacer = strings.NewReplacer(
 )
 
 func NewOCRService() *OCRService {
-	return &OCRService{}
+	return NewOCRServiceWithWorker(NewRapidOCRWorker())
+}
+
+func NewOCRServiceWithWorker(worker OCRWorker) *OCRService {
+	if worker == nil {
+		worker = NewRapidOCRWorker()
+	}
+	return &OCRService{worker: worker}
 }
 
 func getOCREngine() string {
@@ -302,9 +311,11 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 		workerScript := s.findOCRWorkerScript()
 		if workerScript == "" {
 			fmt.Printf("[OCR] OCR worker enabled but scripts/ocr_worker.py not found; falling back to CLI\n")
+		} else if s.worker == nil {
+			fmt.Printf("[OCR] OCR worker enabled but not configured; falling back to CLI\n")
 		} else {
 			fmt.Printf("[OCR] Running OCR worker for: %s (engine=%s profile=%s)\n", imagePath, getOCREngine(), reqProfile)
-			out, err := recognizeWithRapidOCRWorker(workerScript, imagePath, reqProfile)
+			out, err := s.worker.Recognize(workerScript, imagePath, reqProfile)
 			if err == nil {
 				var result OCRCLIResponse
 				parseErr := unmarshalPossiblyNoisyJSON(out, &result)

@@ -2,7 +2,7 @@
 **/node_modules
 
 # Build outputs
-frontend/dist
+/frontend/dist
 
 # Development files
 **/.git
@@ -30,6 +30,20 @@ frontend/dist
 **/*.log
 **/npm-debug.log*
 
-# Local data (will be mounted as volumes)
-backend-go/data
-backend-go/uploads
+# Local runtime data (mounted as volumes)
+/backend-go/data/
+/backend-go/uploads/
+/data/
+/uploads/
+/backend-go/*.db
+/backend-go/*.db-shm
+/backend-go/*.db-wal
+
+# Development-only deterministic regression fixtures never enter image builds
+/backend-go/internal/services/testdata/regression/
+
+# Local secrets and recoverable backups
+/.env
+/.env.*
+/backend-go/email_password.key
+/backup-*/

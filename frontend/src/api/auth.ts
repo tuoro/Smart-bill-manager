@@ -24,7 +24,6 @@ export type AdminDeleteUserResult = {
   emailConfigsDeleted: number
   emailLogsDeleted: number
   tasksDeleted: number
-  regressionSamplesDeleted: number
   paymentOCRDeleted: number
   invoiceOCRDeleted: number
   linksDeleted: number

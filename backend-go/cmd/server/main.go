@@ -19,6 +19,8 @@ import (
 	"smart-bill-manager/internal/migrations"
 	"smart-bill-manager/internal/services"
 	"smart-bill-manager/pkg/database"
+
+	"gorm.io/gorm"
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -59,11 +61,8 @@ func run() error {
 		}
 	}()
 
-	if err := migrations.Run(db); err != nil {
-		return fmt.Errorf("执行数据库迁移失败: %w", err)
-	}
-	if err := services.EnsureEmailConfigPasswordsEncrypted(db); err != nil {
-		return fmt.Errorf("加密历史邮箱密码失败: %w", err)
+	if err := prepareDatabase(db); err != nil {
+		return err
 	}
 
 	uploadsDir := cfg.UploadsDir
@@ -112,6 +111,22 @@ func run() error {
 		stop()
 		return shutdown(server, application)
 	}
+}
+
+type databaseStartupStep func(*gorm.DB) error
+
+func prepareDatabase(db *gorm.DB) error {
+	return prepareDatabaseWith(db, migrations.Run, services.EnsureEmailConfigPasswordsEncrypted)
+}
+
+func prepareDatabaseWith(db *gorm.DB, migrate, encryptEmailPasswords databaseStartupStep) error {
+	if err := migrate(db); err != nil {
+		return fmt.Errorf("执行数据库迁移失败: %w", err)
+	}
+	if err := encryptEmailPasswords(db); err != nil {
+		return fmt.Errorf("加密历史邮箱密码失败: %w", err)
+	}
+	return nil
 }
 
 func shutdown(server *http.Server, application *app.Application) error {

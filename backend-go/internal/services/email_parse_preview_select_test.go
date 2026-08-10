@@ -51,13 +51,13 @@ func TestBestInvoicePreviewURLFromBody_HTMLAnchorAfterLabel(t *testing.T) {
 }
 
 func TestBestInvoicePreviewURLFromBody_DecodesBase64Runs(t *testing.T) {
-	html := `<div><span>点击链接查看发票：</span><a href="https://nnfp.jss.com.cn/8_CszRwjaw-FBnv">下载发票</a></div>`
+	html := `<div>SYNTHETIC / 纯合成测试数据<span>点击链接查看发票：</span><a href="https://nnfp.jss.com.cn/synthetic-preview-token-0001">下载发票</a></div>`
 	b64 := base64.StdEncoding.EncodeToString([]byte(html))
 	// Split into chunks similar to base64 email body lines.
 	body := b64[:40] + "\n" + b64[40:]
 
 	got := bestInvoicePreviewURLFromBody(body)
-	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
+	if got != "https://nnfp.jss.com.cn/synthetic-preview-token-0001" {
 		t.Fatalf("unexpected decoded preview url: %q", got)
 	}
 }
@@ -66,29 +66,29 @@ func TestBestInvoicePreviewURLFromBody_PrefersNonTrackingLinkOverTrackingCTA(t *
 	body := `
 <div>
   <a href="http://linktrace.triggerdelivery.com/u/o1/xxx">下载发票</a>
-  <div><span>点击链接查看发票：</span><a href="https://nnfp.jss.com.cn/8_CszRwjaw-FBnv">https://nnfp.jss.com.cn/8_CszRwjaw-FBnv</a></div>
+  <div><span>点击链接查看发票：</span><a href="https://nnfp.jss.com.cn/synthetic-preview-token-0001">https://nnfp.jss.com.cn/synthetic-preview-token-0001</a></div>
   <a href="https://nst.nuonuo.com/#/">诺税通</a>
 </div>
 `
 	got := bestInvoicePreviewURLFromBody(body)
-	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
+	if got != "https://nnfp.jss.com.cn/synthetic-preview-token-0001" {
 		t.Fatalf("unexpected preview url: %q", got)
 	}
 }
 
 func TestBestPreviewURLFromText_DoesNotPickLinktracePixel(t *testing.T) {
 	body := `
-Pixel: http://linktrace.triggerdelivery.com/u/o1/N132-XXX
-Invoice: https://nnfp.jss.com.cn/8_CszRwjaw-FBnv
+Pixel: http://linktrace.triggerdelivery.com/u/o1/SYNTHETIC-PIXEL
+Invoice: https://nnfp.jss.com.cn/synthetic-preview-token-0001
 `
 	got := bestPreviewURLFromText(body)
-	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
+	if got != "https://nnfp.jss.com.cn/synthetic-preview-token-0001" {
 		t.Fatalf("unexpected preview url: %q", got)
 	}
 }
 
 func TestIsBadEmailPreviewURL_DoesNotDiscardTrackingLink(t *testing.T) {
-	u := "http://linktrace.triggerdelivery.com/u/o1/N132-XXX"
+	u := "http://linktrace.triggerdelivery.com/u/o1/SYNTHETIC-PIXEL"
 	if isBadEmailPreviewURL(u) {
 		t.Fatalf("tracking links should not be hard-discarded; keep as last-resort candidates")
 	}

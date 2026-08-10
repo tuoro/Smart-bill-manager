@@ -12,13 +12,14 @@ import (
 
 func TestExtractInvoiceArtifactsFromEmail_ZipAttachmentWithXML(t *testing.T) {
 	xmlPayload := `<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC / 纯合成测试数据 -->
 <Invoice>
-  <fphm>25317000003387982028</fphm>
-  <kprq>2025-12-30</kprq>
-  <jshj>88.00</jshj>
-  <hjse>4.99</hjse>
-  <xfmc>上海星巴克咖啡经营有限公司</xfmc>
-  <gfmc>个人（个人）</gfmc>
+  <fphm>99000000000000000202</fphm>
+  <kprq>2026-08-06</kprq>
+  <jshj>52.00</jshj>
+  <hjse>3.12</hjse>
+  <xfmc>纯合成咖啡服务有限公司</xfmc>
+  <gfmc>纯合成购买方丁</gfmc>
 </Invoice>`
 
 	var buf bytes.Buffer
@@ -49,7 +50,7 @@ func TestExtractInvoiceArtifactsFromEmail_ZipAttachmentWithXML(t *testing.T) {
 		"",
 		"--z",
 		"Content-Type: application/zip",
-		"Content-Disposition: attachment; filename=\"25317000003387982028.zip\"",
+		"Content-Disposition: attachment; filename=\"synthetic_invoice.zip\"",
 		"Content-Transfer-Encoding: base64",
 		"",
 		zipB64,
@@ -78,13 +79,13 @@ func TestExtractInvoiceArtifactsFromEmail_ZipAttachmentWithXML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseInvoiceXMLToExtracted: %v", err)
 	}
-	if extracted.Amount == nil || *extracted.Amount != 88.00 {
-		t.Fatalf("expected amount 88.00, got %+v", extracted.Amount)
+	if extracted.Amount == nil || *extracted.Amount != 52.00 {
+		t.Fatalf("expected synthetic amount 52.00, got %+v", extracted.Amount)
 	}
-	if extracted.TaxAmount == nil || *extracted.TaxAmount != 4.99 {
-		t.Fatalf("expected tax 4.99, got %+v", extracted.TaxAmount)
+	if extracted.TaxAmount == nil || *extracted.TaxAmount != 3.12 {
+		t.Fatalf("expected synthetic tax 3.12, got %+v", extracted.TaxAmount)
 	}
-	if extracted.InvoiceNumber == nil || strings.TrimSpace(*extracted.InvoiceNumber) != "25317000003387982028" {
+	if extracted.InvoiceNumber == nil || strings.TrimSpace(*extracted.InvoiceNumber) != "99000000000000000202" {
 		t.Fatalf("expected invoice number, got %+v", extracted.InvoiceNumber)
 	}
 }

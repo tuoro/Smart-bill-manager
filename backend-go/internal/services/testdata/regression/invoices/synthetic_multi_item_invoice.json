@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "provenance": "SYNTHETIC_FIXED_CONSTANTS",
+  "scenario": "synthetic_multi_item_invoice",
+  "kind": "invoice",
+  "name": "synthetic_multi_item_invoice",
+  "raw_text": "SYNTHETIC / 纯合成测试数据\n电子发票（普通发票）\n发票号码：99000000000000000002\n开票日期：2026年08月02日\n购买方名称：纯合成采购方乙\n销售方名称：纯合成多项目商店\n项目名称 规格型号 单位 数量 单价 金额 税率 税额\n*纯合成用品*测试记录本 A1 本 2 12.00 24.00 3% 0.72\n*纯合成服务*测试配送 标准 次 1 8.00 8.00 3% 0.24\n合计 ¥32.00 ¥0.96\n价税合计（小写）¥32.96",
+  "expected": {
+    "amount": 32.96,
+    "invoice_number": "99000000000000000002",
+    "invoice_date": "2026年08月02日",
+    "tax_amount": 0.96,
+    "seller_name": "纯合成多项目商店",
+    "buyer_name": "纯合成采购方乙",
+    "items": [
+      {
+        "name_contains": [
+          "纯合成用品",
+          "测试记录本"
+        ]
+      },
+      {
+        "name_contains": [
+          "纯合成服务",
+          "测试配送"
+        ]
+      }
+    ]
+  }
+}

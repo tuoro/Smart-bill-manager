@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "provenance": "SYNTHETIC_FIXED_CONSTANTS",
+  "scenario": "synthetic_basic_invoice",
+  "kind": "invoice",
+  "name": "synthetic_basic_invoice",
+  "raw_text": "SYNTHETIC / 纯合成测试数据\n电子发票（普通发票）\n发票号码：99000000000000000001\n开票日期：2026年08月01日\n购买方名称：纯合成采购方甲\n销售方名称：纯合成开票服务有限公司\n项目名称 规格型号 单位 数量 单价 金额 税率 税额\n*纯合成服务*基础服务 标准 套 1 100.00 100.00 6% 6.00\n合计 ¥100.00 ¥6.00\n价税合计（小写）¥106.00",
+  "expected": {
+    "amount": 106,
+    "invoice_number": "99000000000000000001",
+    "invoice_date": "2026年08月01日",
+    "tax_amount": 6,
+    "seller_name": "纯合成开票服务有限公司",
+    "buyer_name": "纯合成采购方甲",
+    "items": [
+      {
+        "name_contains": [
+          "纯合成服务",
+          "基础服务"
+        ],
+        "unit": "套",
+        "quantity": 1
+      }
+    ]
+  }
+}

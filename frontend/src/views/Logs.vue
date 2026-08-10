@@ -148,7 +148,6 @@ const inferCategory = (evt: LogEvent): string => {
   // Prefer known subsystem tags regardless of other bracket fragments.
   if (msg.includes('[Email Monitor]')) return 'email_monitor'
   if (msg.includes('[DB]')) return 'db'
-  if (msg.includes('[Regression]')) return 'regression'
 
   // Parse bracket tags, skipping gorm timing/rows markers like "[0.013ms]" or "[rows:0]".
   const re = /\[([^\]]+)\]/g

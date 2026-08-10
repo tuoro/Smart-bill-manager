@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "provenance": "SYNTHETIC_FIXED_CONSTANTS",
+  "scenario": "synthetic_payment",
+  "kind": "payment_screenshot",
+  "name": "synthetic_payment",
+  "raw_text": "SYNTHETIC / 纯合成测试数据\n支付成功\n¥42.36\n商户全称：纯合成便利店\n支付时间：2026-08-03 12:34:56\n付款方式：纯合成测试余额\n订单号：999999990001",
+  "expected": {
+    "amount": 42.36,
+    "merchant": "纯合成便利店",
+    "transaction_time": "2026-08-03 12:34:56",
+    "payment_method": "纯合成测试余额",
+    "order_number": "999999990001"
+  }
+}

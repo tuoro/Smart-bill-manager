@@ -5,17 +5,19 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"smart-bill-manager/internal/devtools/regressionfixtures"
 )
 
 func TestParseInvoiceData_NewlineFormat(t *testing.T) {
 	service := NewOCRService()
 
-	// Sample OCR text with newline-separated fields
-	sampleText := `电子发票（普通发票）
+	sampleText := `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
 发票号码：
-25312000000336194167
+99000000000000000501
 开票日期：
-2025年10月21日
+2026年08月17日
 购
 买
 方
@@ -23,16 +25,16 @@ func TestParseInvoiceData_NewlineFormat(t *testing.T) {
 息
 统一社会信用代码/纳税人识别号：
 名称：
-个人
+星河采购有限公司
 销
 售
 方
 信
 息
 统一社会信用代码/纳税人识别号：
-92310109MA1KMFLM1K
+91110000SYNTH00001
 名称：
-上海市虹口区鹏侠百货商店
+云海百货有限公司
 项目名称
 规格型号
 单 位
@@ -41,37 +43,37 @@ func TestParseInvoiceData_NewlineFormat(t *testing.T) {
 金 额
 税率/征收率
 税 额
-*酒*白酒 汾酒青花30
-53°*6
+*纯合成用品*测试饮品甲
+SYN-A*6
 瓶
 2
-841.584158415842
-1683.17
-1%
-16.83
-*酒*葡萄酒 奔富407
-750ml*6
+40.00
+80.00
+6%
+4.80
+*纯合成用品*测试饮品乙
+SYN-B*6
 瓶
 2
-683.168316831683
-1366.34
-1%
-13.66
+20.00
+40.00
+6%
+2.40
 合
 计
 ¥
-3049.51
+120.00
 ¥
-30.49
+7.20
 价税合计（大写）
-叁仟零捌拾圆整
+壹佰贰拾柒圆贰角
 （小写）
 ¥
-3080.00
+127.20
 备
 注
 开票人：
-江祜璆`
+纯合成开票人`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -81,22 +83,22 @@ func TestParseInvoiceData_NewlineFormat(t *testing.T) {
 	// Test invoice number
 	if data.InvoiceNumber == nil {
 		t.Error("InvoiceNumber is nil")
-	} else if *data.InvoiceNumber != "25312000000336194167" {
-		t.Errorf("Expected InvoiceNumber '25312000000336194167', got '%s'", *data.InvoiceNumber)
+	} else if *data.InvoiceNumber != "99000000000000000501" {
+		t.Errorf("Expected synthetic InvoiceNumber, got '%s'", *data.InvoiceNumber)
 	}
 
 	// Test invoice date
 	if data.InvoiceDate == nil {
 		t.Error("InvoiceDate is nil")
-	} else if *data.InvoiceDate != "2025年10月21日" {
-		t.Errorf("Expected InvoiceDate '2025年10月21日', got '%s'", *data.InvoiceDate)
+	} else if *data.InvoiceDate != "2026年08月17日" {
+		t.Errorf("Expected synthetic InvoiceDate, got '%s'", *data.InvoiceDate)
 	}
 
 	// Test amount
 	if data.Amount == nil {
 		t.Error("Amount is nil")
 	} else {
-		expectedAmount := 3080.00
+		expectedAmount := 127.20
 		if *data.Amount != expectedAmount {
 			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
 		}
@@ -105,15 +107,15 @@ func TestParseInvoiceData_NewlineFormat(t *testing.T) {
 	// Test seller name
 	if data.SellerName == nil {
 		t.Error("SellerName is nil")
-	} else if *data.SellerName != "上海市虹口区鹏侠百货商店" {
-		t.Errorf("Expected SellerName '上海市虹口区鹏侠百货商店', got '%s'", *data.SellerName)
+	} else if *data.SellerName != "云海百货有限公司" {
+		t.Errorf("Expected synthetic SellerName, got '%s'", *data.SellerName)
 	}
 
 	// Test buyer name
 	if data.BuyerName == nil {
 		t.Error("BuyerName is nil")
-	} else if *data.BuyerName != "个人" {
-		t.Errorf("Expected BuyerName '个人', got '%s'", *data.BuyerName)
+	} else if *data.BuyerName != "星河采购有限公司" {
+		t.Errorf("Expected synthetic BuyerName, got '%s'", *data.BuyerName)
 	}
 }
 
@@ -121,12 +123,14 @@ func TestParseInvoiceData_TraditionalFormat(t *testing.T) {
 	service := NewOCRService()
 
 	// Test traditional format (fields on same line) to ensure backward compatibility
-	sampleText := `电子发票（普通发票）
-发票号码：12345678901234567890
-开票日期：2024年12月01日
-销售方名称：测试公司
-购买方名称：购买公司
-价税合计（小写）¥1234.56`
+	sampleText := syntheticOCRText(
+		"电子发票（普通发票）",
+		"发票号码：99000000000000000502",
+		"开票日期：2026年08月18日",
+		"销售方名称：云海服务有限公司",
+		"购买方名称：星河采购有限公司",
+		"价税合计（小写）¥106.00",
+	)
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -136,22 +140,22 @@ func TestParseInvoiceData_TraditionalFormat(t *testing.T) {
 	// Test invoice number
 	if data.InvoiceNumber == nil {
 		t.Error("InvoiceNumber is nil")
-	} else if *data.InvoiceNumber != "12345678901234567890" {
-		t.Errorf("Expected InvoiceNumber '12345678901234567890', got '%s'", *data.InvoiceNumber)
+	} else if *data.InvoiceNumber != "99000000000000000502" {
+		t.Errorf("Expected synthetic InvoiceNumber, got '%s'", *data.InvoiceNumber)
 	}
 
 	// Test invoice date
 	if data.InvoiceDate == nil {
 		t.Error("InvoiceDate is nil")
-	} else if *data.InvoiceDate != "2024年12月01日" {
-		t.Errorf("Expected InvoiceDate '2024年12月01日', got '%s'", *data.InvoiceDate)
+	} else if *data.InvoiceDate != "2026年08月18日" {
+		t.Errorf("Expected synthetic InvoiceDate, got '%s'", *data.InvoiceDate)
 	}
 
 	// Test amount
 	if data.Amount == nil {
 		t.Error("Amount is nil")
 	} else {
-		expectedAmount := 1234.56
+		expectedAmount := 106.00
 		if *data.Amount != expectedAmount {
 			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
 		}
@@ -160,23 +164,24 @@ func TestParseInvoiceData_TraditionalFormat(t *testing.T) {
 	// Test seller name
 	if data.SellerName == nil {
 		t.Error("SellerName is nil")
-	} else if *data.SellerName != "测试公司" {
-		t.Errorf("Expected SellerName '测试公司', got '%s'", *data.SellerName)
+	} else if *data.SellerName != "云海服务有限公司" {
+		t.Errorf("Expected synthetic SellerName, got '%s'", *data.SellerName)
 	}
 
 	// Test buyer name
 	if data.BuyerName == nil {
 		t.Error("BuyerName is nil")
-	} else if *data.BuyerName != "购买公司" {
-		t.Errorf("Expected BuyerName '购买公司', got '%s'", *data.BuyerName)
+	} else if *data.BuyerName != "星河采购有限公司" {
+		t.Errorf("Expected synthetic BuyerName, got '%s'", *data.BuyerName)
 	}
 }
 
-func TestParseInvoiceData_RealWorldFormat(t *testing.T) {
+func TestParseInvoiceData_SyntheticSeparatedValuesFormat(t *testing.T) {
 	service := NewOCRService()
 
-	// EXACT OCR format from real invoice - labels and data are completely separated
-	sampleText := `电子发票（普通发票）
+	// Synthetic OCR layout with labels and values completely separated.
+	sampleText := `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
 发票号码：
 开票日期：
 购
@@ -208,35 +213,35 @@ func TestParseInvoiceData_RealWorldFormat(t *testing.T) {
 备
 注
 开票人：
-25312000000336194167
-2025年10月21日
-个人
-上海市虹口区鹏侠百货商店
-92310109MA1KMFLM1K
+99000000000000000503
+2026年08月19日
+星河女士
+云海百货有限公司
+91110000SYNTH00002
 ¥
-3049.51
+120.00
 ¥
-30.49
-叁仟零捌拾圆整
+7.20
+壹佰贰拾柒圆贰角
 ¥
-3080.00
-江祜璆
-江祜璆
-*酒*白酒 汾酒青花30
-53°*6
-1%
+127.20
+纯合成开票人
+纯合成开票人
+*纯合成用品*测试饮品甲
+SYN-A*6
+6%
 瓶
-1683.17
-16.83
-841.584158415842
+80.00
+4.80
+40.00
 2
-*酒*葡萄酒 奔富407
-750ml*6
-1%
+*纯合成用品*测试饮品乙
+SYN-B*6
+6%
 瓶
-1366.34
-13.66
-683.168316831683
+40.00
+2.40
+20.00
 2`
 
 	data, err := service.ParseInvoiceData(sampleText)
@@ -247,41 +252,41 @@ func TestParseInvoiceData_RealWorldFormat(t *testing.T) {
 	// Test invoice number
 	if data.InvoiceNumber == nil {
 		t.Error("InvoiceNumber is nil")
-	} else if *data.InvoiceNumber != "25312000000336194167" {
-		t.Errorf("Expected InvoiceNumber '25312000000336194167', got '%s'", *data.InvoiceNumber)
+	} else if *data.InvoiceNumber != "99000000000000000503" {
+		t.Errorf("Expected synthetic InvoiceNumber, got '%s'", *data.InvoiceNumber)
 	}
 
 	// Test invoice date - SHOULD extract the date from OCR text
 	if data.InvoiceDate == nil {
-		t.Error("InvoiceDate is nil - should extract '2025年10月21日'")
-	} else if *data.InvoiceDate != "2025年10月21日" {
-		t.Errorf("Expected InvoiceDate '2025年10月21日', got '%s'", *data.InvoiceDate)
+		t.Error("InvoiceDate is nil for synthetic separated layout")
+	} else if *data.InvoiceDate != "2026年08月19日" {
+		t.Errorf("Expected synthetic InvoiceDate, got '%s'", *data.InvoiceDate)
 	}
 
 	// Test amount
 	if data.Amount == nil {
 		t.Error("Amount is nil")
 	} else {
-		expectedAmount := 3080.00
+		expectedAmount := 127.20
 		if *data.Amount != expectedAmount {
 			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
 		}
 	}
 
-	// Test seller name - SHOULD extract '上海市虹口区鹏侠百货商店'
+	// Test seller name from the synthetic separated layout.
 	if data.SellerName == nil {
-		t.Error("SellerName is nil - should extract '上海市虹口区鹏侠百货商店'")
-	} else if *data.SellerName != "上海市虹口区鹏侠百货商店" {
-		t.Errorf("Expected SellerName '上海市虹口区鹏侠百货商店', got '%s'", *data.SellerName)
+		t.Error("SellerName is nil for synthetic separated layout")
+	} else if *data.SellerName != "云海百货有限公司" {
+		t.Errorf("Expected synthetic SellerName, got '%s'", *data.SellerName)
 	}
 
-	// Test buyer name - SHOULD extract '个人' NOT '名称：'
+	// Test buyer name and ensure a label is not selected as the value.
 	if data.BuyerName == nil {
-		t.Error("BuyerName is nil - should extract '个人'")
+		t.Error("BuyerName is nil for synthetic separated layout")
 	} else if *data.BuyerName == "名称：" || *data.BuyerName == "名称:" {
-		t.Errorf("BuyerName incorrectly extracted as '%s' - should be '个人'", *data.BuyerName)
-	} else if *data.BuyerName != "个人" {
-		t.Errorf("Expected BuyerName '个人', got '%s'", *data.BuyerName)
+		t.Errorf("BuyerName incorrectly extracted as label %q", *data.BuyerName)
+	} else if *data.BuyerName != "星河女士" {
+		t.Errorf("Expected synthetic BuyerName, got '%s'", *data.BuyerName)
 	}
 }
 
@@ -291,8 +296,9 @@ func TestParseInvoiceData_PreferTaxInclusiveAmount(t *testing.T) {
 	// Some invoices contain both:
 	// - 合计金额(小写): tax-exclusive subtotal
 	// - 价税合计(小写): tax-inclusive total (desired)
-	sampleText := `合计金额(小写)：100.00
-价税合计(小写)：107.79`
+	sampleText := `SYNTHETIC / 纯合成测试数据
+合计金额(小写)：100.00
+价税合计(小写)：106.00`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -300,32 +306,33 @@ func TestParseInvoiceData_PreferTaxInclusiveAmount(t *testing.T) {
 	}
 
 	if data.Amount == nil {
-		t.Fatal("Amount is nil, expected 107.79")
+		t.Fatal("Amount is nil, expected 106.00")
 	}
-	if *data.Amount != 107.79 {
-		t.Fatalf("Expected Amount 107.79, got %.2f", *data.Amount)
+	if *data.Amount != 106.00 {
+		t.Fatalf("Expected Amount 106.00, got %.2f", *data.Amount)
 	}
 }
 
 func TestParseInvoiceData_ItemsExtraction(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `货物或应税劳务、服务名称
+	sampleText := `SYNTHETIC / 纯合成测试数据
+货物或应税劳务、服务名称
 规格型号 单位 数量 单价 金额 税率 税额
-*乳制品*希腊式酸奶 1.23kg(410g*3)
-3X410g
+*纯合成食品*SYNTHETIC测试乳品 1.20kg(300g*4)
+4X300g
 组
 2
-53.01
-106.02
-13%
-13.78
-*日用杂品*包装费配送费
-1.77
-1.77
-13%
-0.23
-价税合计(小写) ¥121.80`
+12.00
+24.00
+3%
+0.72
+*纯合成服务*测试配送
+8.00
+8.00
+3%
+0.24
+价税合计(小写) ¥32.96`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -335,8 +342,11 @@ func TestParseInvoiceData_ItemsExtraction(t *testing.T) {
 	if len(data.Items) != 2 {
 		t.Fatalf("Expected 2 items, got %d", len(data.Items))
 	}
-	if data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
-		t.Fatalf("Expected first item quantity 2, got %+v", data.Items[0].Quantity)
+	if data.Items[0].Quantity == nil {
+		t.Fatal("Expected first item quantity 2, got nil")
+	}
+	if *data.Items[0].Quantity != 2 {
+		t.Fatalf("Expected first item quantity 2, got %.2f (item=%+v)", *data.Items[0].Quantity, data.Items[0])
 	}
 	if data.Items[1].Quantity == nil || *data.Items[1].Quantity != 1 {
 		t.Fatalf("Expected second item quantity 1, got %+v", data.Items[1].Quantity)
@@ -356,7 +366,8 @@ func TestParseInvoiceData_ItemsExtraction_PDFTextNoisy(t *testing.T) {
 	// - spaced-out headers like "税 额"
 	// - invoice meta inserted between header and rows
 	// Ensure we anchor on the first tax-rate line and backtrack to the real item rows.
-	sampleText := `货物或应税劳务、服务名称
+	sampleText := `SYNTHETIC / 纯合成测试数据
+货物或应税劳务、服务名称
 规 格 型 号
 单 位
 数 量
@@ -364,27 +375,27 @@ func TestParseInvoiceData_ItemsExtraction_PDFTextNoisy(t *testing.T) {
 金 额
 税 率
 税 额
-厦门增值税电子普通发票
-机器编号：661911919489
-发票代码：035021700111
-发票号码：31126517
-开票日期：2025 年 11 月 16 日
-校 验 码：59872 35946 41356 16868
-*乳制品*Member's Mark 希腊式酸奶 1.23kg(410g*3)
-3X410g
+纯合成增值税电子普通发票
+机器编号：999999990501
+发票代码：990000000501
+发票号码：99000501
+开票日期：2026 年 08 月 17 日
+校 验 码：99999 00000 00501 00000
+*纯合成食品*SYNTHETIC 测试乳品 1.20kg(300g*4)
+4X300g
 组
 2
-53.01
-106.02
-13%
-13.78
-*日用杂品*包装费配送费
+12.00
+24.00
+3%
+0.72
+*纯合成服务*测试配送
 1
-1.77
-1.77
-13%
-0.23
-价税合计(小写) ¥121.80`
+8.00
+8.00
+3%
+0.24
+价税合计(小写) ¥32.96`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -403,7 +414,7 @@ func TestParseInvoiceData_ItemsExtraction_PDFTextNoisy(t *testing.T) {
 		if it.Name == "" {
 			t.Fatalf("Expected non-empty item name: %+v", data.Items)
 		}
-		if it.Name == "税额" || it.Name == "厦门增值税电子普通发票" {
+		if it.Name == "税额" || it.Name == "纯合成增值税电子普通发票" {
 			t.Fatalf("Unexpected meta/header captured as item: %+v", data.Items)
 		}
 	}
@@ -414,7 +425,8 @@ func TestParseInvoiceData_PyMuPDFZoned_SellerAndItemUnitQty(t *testing.T) {
 
 	// PyMuPDF zoned layout: section headers are present, and some item lines may merge unit+qty into the name token.
 	// Also ensure we can recover the full seller company name from the tax-id line even if a shorter nearby name exists.
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【明细】
 货物或应税劳务、服务名称
 规格型号
@@ -424,7 +436,7 @@ func TestParseInvoiceData_PyMuPDFZoned_SellerAndItemUnitQty(t *testing.T) {
 金额
 税率
 税额
-*电信服务*话费充值元1
+*纯合成服务*测试充值元1
 200.00
 200.00
 *
@@ -432,21 +444,21 @@ func TestParseInvoiceData_PyMuPDFZoned_SellerAndItemUnitQty(t *testing.T) {
 合计 价税合计(大写)
 (小写) ¥200.00
 【销售方】
-上海有限公司
-方 售 销 名 称: 开户行及账号: 地 址、电 话: 纳税人识别号: 中国移动通信集团上海有限公司91310000132149237G 上海市长寿路200号13800210021`
+纯合成短名称有限公司
+方 售 销 名 称: 开户行及账号: 地 址、电 话: 纳税人识别号: 纯合成通信服务有限公司91110000SYNTH00501 纯合成大道501号19900000501`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.SellerName == nil || *data.SellerName != "中国移动通信集团上海有限公司" {
-		t.Fatalf("Expected seller name %q, got %+v (source=%q conf=%v)", "中国移动通信集团上海有限公司", data.SellerName, data.SellerNameSource, data.SellerNameConfidence)
+	if data.SellerName == nil || *data.SellerName != "纯合成通信服务有限公司" {
+		t.Fatalf("Expected seller name %q, got %+v (source=%q conf=%v)", "纯合成通信服务有限公司", data.SellerName, data.SellerNameSource, data.SellerNameConfidence)
 	}
 
 	if len(data.Items) != 1 {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
 	}
-	if !strings.Contains(data.Items[0].Name, "电信服务") || !strings.Contains(data.Items[0].Name, "话费充值") {
+	if !strings.Contains(data.Items[0].Name, "纯合成服务") || !strings.Contains(data.Items[0].Name, "测试充值") {
 		t.Fatalf("Unexpected item name: %+v", data.Items[0])
 	}
 	if data.Items[0].Unit != "元" {
@@ -465,21 +477,22 @@ func TestParseInvoiceData_PyMuPDFZoned_SellerAndItemUnitQty(t *testing.T) {
 func TestParseInvoiceData_PyMuPDFZoned_MergedBuyerSellerAndPackedItemRow(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票号码： 25312000000341067672
-开票日期： 2025年10月24日
+发票号码： 99000000000000000502
+开票日期： 2026年08月20日
 电子发票（普通发票）
 【购买方】
 购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
 项目名称规格型号单位数量
 【密码区】
-统一社会信用代码/纳税人识别号： 单价上海市虹口区鹏侠百货商店1683.17金额92310109MA1KMFLM1K 税率/征收率1% 税额16.83下载次数：1
+统一社会信用代码/纳税人识别号： 单价纯合成百货商店490.10金额91110000SYNTH00502 税率/征收率1% 税额4.90下载次数：1
 【明细】
-*酒*白酒汾酒30 53°*500ml 瓶2 841.584158415842
-价税合计（大写） 合计壹仟柒佰圆整 ￥ 1683.17 （小写） ￥ 1700.00 ￥ 16.83
+*纯合成饮品*测试饮品甲 53°*500ml 瓶2 245.049504950495
+价税合计（大写） 合计肆佰玖拾伍圆整 ￥ 490.10 （小写） ￥ 495.00 ￥ 4.90
 【备注/其他】
-开票人： 江祜璆`
+开票人： 纯合成开票人`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -490,17 +503,17 @@ func TestParseInvoiceData_PyMuPDFZoned_MergedBuyerSellerAndPackedItemRow(t *test
 		t.Fatalf("Expected buyer %q, got %+v (source=%q conf=%v)", "个人", data.BuyerName, data.BuyerNameSource, data.BuyerNameConfidence)
 	}
 	if data.SellerName == nil {
-		t.Fatalf("Expected seller %q, got nil", "上海市虹口区鹏侠百货商店")
+		t.Fatalf("Expected seller %q, got nil", "纯合成百货商店")
 	}
-	if *data.SellerName != "上海市虹口区鹏侠百货商店" {
-		t.Fatalf("Expected seller %q, got %q (source=%q conf=%v)", "上海市虹口区鹏侠百货商店", *data.SellerName, data.SellerNameSource, data.SellerNameConfidence)
+	if *data.SellerName != "纯合成百货商店" {
+		t.Fatalf("Expected seller %q, got %q (source=%q conf=%v)", "纯合成百货商店", *data.SellerName, data.SellerNameSource, data.SellerNameConfidence)
 	}
 
 	if len(data.Items) != 1 {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
 	}
 	it := data.Items[0]
-	if !strings.Contains(it.Name, "白酒") || !strings.Contains(it.Name, "汾酒") {
+	if !strings.Contains(it.Name, "纯合成饮品") || !strings.Contains(it.Name, "测试饮品甲") {
 		t.Fatalf("Unexpected item name: %+v", it)
 	}
 	if it.Spec != "53°×500ml" {
@@ -521,42 +534,43 @@ func TestParseInvoiceData_PyMuPDFZoned_MergedBuyerSellerAndPackedItemRow(t *test
 func TestParseInvoiceData_PyMuPDFZoned_TwoItemsAndCorrectTotalAmount(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票号码： 25312000000336194167
-开票日期： 2025年10月21日
+发票号码： 99000000000000000503
+开票日期： 2026年08月21日
 电子发票（普通发票）
 【购买方】
 购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
 项目名称规格型号单位数量
 【密码区】
-统一社会信用代码/纳税人识别号： 单价上海市虹口区鹏侠百货商店1683.17 1366.34金额92310109MA1KMFLM1K 税率/征收率1% 1% 税额16.83 13.66下载次数：1
+统一社会信用代码/纳税人识别号： 单价纯合成百货商店600.00 380.20金额91110000SYNTH00503 税率/征收率1% 1% 税额6.00 3.80下载次数：1
 【明细】
-*酒*白酒汾酒青花30 *酒*葡萄酒奔富407 53°*6 750ml*6瓶瓶2 2 841.584158415842 683.168316831683
-价税合计（大写） 合计叁仟零捌拾圆整 ￥ 3049.51 （小写） ￥ 3080.00 ￥ 30.49
+*纯合成饮品*测试饮品甲 *纯合成饮品*测试饮品乙 53°*6 750ml*6瓶瓶2 2 300.000000000000 190.100000000000
+价税合计（大写） 合计玖佰玖拾圆整 ￥ 980.20 （小写） ￥ 990.00 ￥ 9.80
 【备注/其他】
-开票人： 江祜璆`
+开票人： 纯合成开票人`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.Amount == nil || *data.Amount != 3080 {
-		t.Fatalf("Expected amount 3080, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 990 {
+		t.Fatalf("Expected amount 990, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || fmt.Sprintf("%.2f", *data.TaxAmount) != "30.49" {
-		t.Fatalf("Expected tax_amount 30.49, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || fmt.Sprintf("%.2f", *data.TaxAmount) != "9.80" {
+		t.Fatalf("Expected tax_amount 9.80, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 	if len(data.Items) != 2 {
 		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
 	}
-	if !strings.Contains(data.Items[0].Name, "汾酒") || data.Items[0].Unit != "瓶" || data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
+	if !strings.Contains(data.Items[0].Name, "测试饮品甲") || data.Items[0].Unit != "瓶" || data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
 		t.Fatalf("Unexpected item 0: %+v", data.Items[0])
 	}
 	if data.Items[0].Spec == "" || !strings.Contains(data.Items[0].Spec, "53") {
 		t.Fatalf("Unexpected item 0 spec: %+v", data.Items[0])
 	}
-	if !strings.Contains(data.Items[1].Name, "奔富") || data.Items[1].Unit != "瓶" || data.Items[1].Quantity == nil || *data.Items[1].Quantity != 2 {
+	if !strings.Contains(data.Items[1].Name, "测试饮品乙") || data.Items[1].Unit != "瓶" || data.Items[1].Quantity == nil || *data.Items[1].Quantity != 2 {
 		t.Fatalf("Unexpected item 1: %+v", data.Items[1])
 	}
 	if data.Items[1].Spec == "" || !strings.Contains(strings.ToLower(data.Items[1].Spec), "ml") {
@@ -567,36 +581,37 @@ func TestParseInvoiceData_PyMuPDFZoned_TwoItemsAndCorrectTotalAmount(t *testing.
 func TestParseInvoiceData_ItemsExtraction_PDFTextStopsBeforePartyInfo(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `货物或应税劳务、服务名称
+	sampleText := `SYNTHETIC / 纯合成测试数据
+货物或应税劳务、服务名称
 规格型号   单位
 数 量
 单 价
 金 额
 税率
 税额
-*乳制品*Member's Mark 希腊式酸奶 1.23kg(410g*3)
-3X410g
+*纯合成食品*SYNTHETIC测试乳品 1.20kg(300g*4)
+4X300g
 组
 2
-53.01
-106.02
-13%
-13.78
-*日用杂品*包装费配送费
+12.00
+24.00
+3%
+0.72
+*纯合成服务*测试配送
 1
-1.77
-1.77
-13%
-0.23
+8.00
+8.00
+3%
+0.24
 名称:
 纳税人识别号:
 地址、电话:
 开户行及账号:
-沃尔玛（厦门）商业零售有限公司
-收款人：沃尔玛
-复核：黄寿全
-开票人：林燕红
-订单号[3087538259083065845]
+纯合成零售有限公司
+收款人：纯合成收款人
+复核：纯合成复核人
+开票人：纯合成开票人
+订单号[999999990504]
 发票专用章`
 
 	data, err := service.ParseInvoiceData(sampleText)
@@ -627,7 +642,8 @@ func TestParseInvoiceData_ItemsExtraction_PDFLongDecimalUnitPrice(t *testing.T) 
 
 	// Some PDF text extractions list unit price with many decimals before the quantity.
 	// Ensure we don't treat long-decimal numbers as quantity, and stop before footer noise.
-	sampleText := `项目名称
+	sampleText := `SYNTHETIC / 纯合成测试数据
+项目名称
 规格型号
 单 位
 数 量
@@ -635,21 +651,21 @@ func TestParseInvoiceData_ItemsExtraction_PDFLongDecimalUnitPrice(t *testing.T) 
 金 额
 税率/征收率
 税 额
-*酒*白酒 汾酒青花30
+*纯合成饮品*测试饮品甲
 53°*6
 1%
 瓶
-1683.17
-16.83
-841.584158415842
+600.00
+6.00
+300.000000000000
 2
-*酒*葡萄酒 奔富407
+*纯合成饮品*测试饮品乙
 750ml*6
 1%
 瓶
-1366.34
-13.66
-683.168316831683
+380.20
+3.80
+190.100000000000
 2
 下载次数：1`
 
@@ -678,11 +694,12 @@ func TestParseInvoiceData_ItemsExtraction_PDFHeaderRegionScoring_MetaBeforeHeade
 
 	// Some PDF text extractions include a lot of metadata before the table header.
 	// Ensure we still find the table header region and only extract real line items.
-	sampleText := `电子发票（普通发票）
+	sampleText := `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
 发票号码：
-25312000000336194167
+99000000000000000505
 开票日期：
-2025年10月21日
+2026年08月21日
 购
 买
 方
@@ -696,7 +713,7 @@ func TestParseInvoiceData_ItemsExtraction_PDFHeaderRegionScoring_MetaBeforeHeade
 信
 息
 名称：
-上海市虹口区鹏侠百货商店
+纯合成百货商店
 
 项目名称
 规 格 型 号
@@ -706,21 +723,21 @@ func TestParseInvoiceData_ItemsExtraction_PDFHeaderRegionScoring_MetaBeforeHeade
 金 额
 税率/征收率
 税 额
-*酒*白酒 汾酒青花30
+*纯合成饮品*测试饮品甲
 53°*6
 1%
 瓶
-1683.17
-16.83
-841.584158415842
+600.00
+6.00
+300.000000000000
 2
-*酒*葡萄酒 奔富407
+*纯合成饮品*测试饮品乙
 750ml*6
 1%
 瓶
-1366.34
-13.66
-683.168316831683
+380.20
+3.80
+190.100000000000
 2
 下载次数：1`
 
@@ -748,35 +765,36 @@ func TestParseInvoiceData_ItemsExtraction_ImageTextStopsOnInlineLabelsAndTotals(
 	service := NewOCRService()
 
 	// Image OCR sometimes merges labels with values and splits totals across multiple lines:
-	// - "价税合计(大写)" then "壹佰..." then "（小写）￥121.80"
+	// - "价税合计(大写)" then a written total, then "（小写）￥32.96"
 	// - "名称：xxx" on the same line
 	// Ensure these are not captured as line items.
-	sampleText := `货物或应税劳务、服务名称
+	sampleText := `SYNTHETIC / 纯合成测试数据
+货物或应税劳务、服务名称
 规格型号   单位
 数 量
 单 价
 金 额
 税率
 税额
-*乳制品*Member's Mark 希腊式酸奶 1.23kg(410g*3)
-3X410g
+*纯合成食品*SYNTHETIC测试乳品 1.20kg(300g*4)
+4X300g
 组
 2
-53.01
-106.02
-13%
-13.78
-*日用杂品*包装费配送费
+12.00
+24.00
+3%
+0.72
+*纯合成服务*测试配送
 1
-1.77
-1.77
-13%
-0.23
+8.00
+8.00
+3%
+0.24
 价税合计(大写)
-壹佰贰拾壹圆捌角
-（小写）￥121.80
-名称：沃尔玛（厦门）商业零售有限公司
-纳税人识别号：913502005750394918`
+叁拾贰圆玖角陆分
+（小写）￥32.96
+名称：纯合成零售有限公司
+纳税人识别号：91110000SYNTH00506`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -801,18 +819,19 @@ func TestParseInvoiceData_ItemsExtraction_ImageTextStopsOnInlineLabelsAndTotals(
 func TestParseInvoiceData_ItemsExtraction_ImageText_SplitHejiAndSellerLines(t *testing.T) {
 	service := NewOCRService()
 
-	// A real-world image OCR case where:
+	// Synthetic image OCR layout where:
 	// - "合计" is split across lines ("合" then "计")
 	// - seller fields are split ("名" then "称：xxx")
 	// Ensure we still extract both items and stop before seller/footer blocks.
-	sampleText := `发票代码：035021700111
-厦门增值税电子普通发票
-发票号码：31126517
-开票日期：2025年11月16日
-校验码：59872359464135616868
+	sampleText := `SYNTHETIC / 纯合成测试数据
+发票代码：990000000507
+纯合成增值税电子普通发票
+发票号码：99000507
+开票日期：2026年08月22日
+校验码：99999000000005070000
 购
 名
-称：邬先生
+称：纯合成购买人甲
 货物或应税劳务、服务名称
 规格型号
 单位
@@ -821,31 +840,31 @@ func TestParseInvoiceData_ItemsExtraction_ImageText_SplitHejiAndSellerLines(t *t
 金额
 税率
 税额
-*乳制品*Member'sMark希腊式酸奶1.23kg（410g*3)
-3X410g
+*纯合成食品*SYNTHETIC测试乳品1.20kg（300g*4)
+4X300g
 组
 2
-53.01
-106.02
-13%
-13.78
-*日用杂品*包装费配送费
-1.77
-1.77
-13%
-0.23
+12.00
+24.00
+3%
+0.72
+*纯合成服务*测试配送
+8.00
+8.00
+3%
+0.24
 合
 计
-￥107.79
-￥14.01
+￥32.00
+￥0.96
 价税合计(大写)
-壹佰贰拾壹圆捌角
-（小写）￥121.80
+叁拾贰圆玖角陆分
+（小写）￥32.96
 名
-称：沃尔玛（厦门）商业零售有限公司
-订单号[3087538259083065845]
+称：纯合成零售有限公司
+订单号[999999990507]
 销售方
-纳税人识别号：913502005750394918
+纳税人识别号：91110000SYNTH00507
 发票专用章`
 
 	data, err := service.ParseInvoiceData(sampleText)
@@ -861,54 +880,57 @@ func TestParseInvoiceData_ItemsExtraction_ImageText_SplitHejiAndSellerLines(t *t
 	if data.Items[1].Quantity == nil || *data.Items[1].Quantity != 1 {
 		t.Fatalf("Expected second item quantity 1, got %+v", data.Items[1].Quantity)
 	}
-	if !strings.Contains(data.Items[0].Name, "乳制品") {
-		t.Fatalf("Expected first item to contain 乳制品, got %q", data.Items[0].Name)
+	if !strings.Contains(data.Items[0].Name, "纯合成食品") {
+		t.Fatalf("Expected first item to contain 纯合成食品, got %q", data.Items[0].Name)
 	}
-	if !strings.Contains(data.Items[0].Name, "Member's Mark") {
-		t.Fatalf("Expected first item to contain \"Member's Mark\", got %q", data.Items[0].Name)
+	if !strings.Contains(data.Items[0].Name, "SYNTHETIC") {
+		t.Fatalf("Expected first item to contain SYNTHETIC, got %q", data.Items[0].Name)
 	}
-	if !strings.Contains(data.Items[1].Name, "包装费配送费") {
-		t.Fatalf("Expected second item to contain 包装费配送费, got %q", data.Items[1].Name)
+	if !strings.Contains(data.Items[1].Name, "测试配送") {
+		t.Fatalf("Expected second item to contain 测试配送, got %q", data.Items[1].Name)
 	}
 	for _, it := range data.Items {
-		if strings.Contains(it.Name, "价税合计") || strings.Contains(it.Name, "沃尔玛（厦门）商业零售有限公司") {
+		if strings.Contains(it.Name, "价税合计") || strings.Contains(it.Name, "纯合成零售有限公司") {
 			t.Fatalf("Unexpected non-item captured as item: %+v", data.Items)
 		}
 	}
 }
 
 func TestExtractPartyFromROICandidate_NameLabels(t *testing.T) {
-	buyerText := `购买方名称：张三
-购买方纳税人识别号：91310000132149237G
-地址电话：上海`
+	buyerText := `SYNTHETIC / 纯合成测试数据
+购买方名称：纯合成购买人甲
+购买方纳税人识别号：91110000SYNTH00508
+地址电话：纯合成地址`
 	buyerName, buyerTax := extractPartyFromROICandidate(buyerText, "buyer")
-	if buyerName != "张三" {
-		t.Fatalf("Expected buyer name 张三, got %q", buyerName)
+	if buyerName != "纯合成购买人甲" {
+		t.Fatalf("Expected synthetic buyer name, got %q", buyerName)
 	}
-	if buyerTax != "91310000132149237G" {
-		t.Fatalf("Expected buyer tax 91310000132149237G, got %q", buyerTax)
+	if buyerTax != "91110000SYNTH00508" {
+		t.Fatalf("Expected synthetic buyer tax ID, got %q", buyerTax)
 	}
 
-	sellerText := `销售方名称：测试公司
-销售方纳税人识别号：91310000132149237G`
+	sellerText := `SYNTHETIC / 纯合成测试数据
+销售方名称：纯合成销售公司
+销售方纳税人识别号：91110000SYNTH00509`
 	sellerName, sellerTax := extractPartyFromROICandidate(sellerText, "seller")
-	if sellerName != "测试公司" {
-		t.Fatalf("Expected seller name 测试公司, got %q", sellerName)
+	if sellerName != "纯合成销售公司" {
+		t.Fatalf("Expected synthetic seller name, got %q", sellerName)
 	}
-	if sellerTax != "91310000132149237G" {
-		t.Fatalf("Expected seller tax 91310000132149237G, got %q", sellerTax)
+	if sellerTax != "91110000SYNTH00509" {
+		t.Fatalf("Expected synthetic seller tax ID, got %q", sellerTax)
 	}
 }
 
-func TestParseInvoiceData_DidiInvoice(t *testing.T) {
+func TestParseInvoiceData_SyntheticLegacyTransportInvoice(t *testing.T) {
 	service := NewOCRService()
 
-	// Real OCR text from Didi invoice with 8-digit invoice number and full-width ￥ symbol
-	sampleText := `合
+	// Synthetic OCR layout with an 8-digit invoice number and full-width ￥ symbol.
+	sampleText := `SYNTHETIC / 纯合成测试数据
+合
 计
 备
 注
-上海增值税电子普通发票
+纯合成增值税电子普通发票
 价税合计（大写）
 （小写）
 货物或应税劳务、服务名称
@@ -949,64 +971,62 @@ func TestParseInvoiceData_DidiInvoice(t *testing.T) {
 码:
 电 话:
 电 话:
-￥19.01
-￥0.57
-*运输服务*客运服务费
+￥41.16
+￥1.20
+*纯合成服务*测试路程费用
 无
 次
 1
-24
-24.00
+50
+50.00
 3%
-0.72
-*运输服务*客运服务费
--4.99
+-8.84
 3%
--0.15
-499098504973
-壹拾玖圆不角扌分
-杜洪亮
-张唯
-于秋红
-03<5>/42>5541143639+79737-<*
-59765*+75/>89+/47732281674/2
-15<5>/42>5541143631>239-3/<5
-+7*9>//<310193<219+4/8-4528-
+-0.30
+999999990509
+肆拾贰圆叁角陆分
+纯合成收款人
+纯合成复核人
+纯合成开票人
+99<9>/99>9999999999+99999-<*
+99999*+99/>99+/99999999999/9
+99<9>/99>9999999999>999-9/<9
++9*9>//<999999<999+9/9-9999-
 个人
-上海滴滴畅行科技有限公司
-91310114MA1GW61J6U
-上海市静安区万荣路777弄12号202-7室010-83456275
-招商银行股份有限公司上海东方支行121932981110606
-031002300211
-70739906
-2024年07月06日
-07908 63166 90581 33371
-￥19.58`
+纯合成出行服务有限公司
+91110000SYNTH00510
+纯合成大道510号19900000510
+纯合成测试银行999999990510
+990000000510
+99000510
+2026年08月23日
+99999 00000 00510 00000
+￥42.36`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
 
-	// Test invoice number - should extract 8-digit number
+	// Test invoice number - should extract the synthetic 8-digit number.
 	if data.InvoiceNumber == nil {
-		t.Error("InvoiceNumber is nil - should extract '70739906'")
-	} else if *data.InvoiceNumber != "70739906" {
-		t.Errorf("Expected InvoiceNumber '70739906', got '%s'", *data.InvoiceNumber)
+		t.Error("InvoiceNumber is nil")
+	} else if *data.InvoiceNumber != "99000510" {
+		t.Errorf("Expected synthetic InvoiceNumber, got '%s'", *data.InvoiceNumber)
 	}
 
 	// Test invoice date
 	if data.InvoiceDate == nil {
 		t.Error("InvoiceDate is nil")
-	} else if *data.InvoiceDate != "2024年07月06日" {
-		t.Errorf("Expected InvoiceDate '2024年07月06日', got '%s'", *data.InvoiceDate)
+	} else if *data.InvoiceDate != "2026年08月23日" {
+		t.Errorf("Expected synthetic InvoiceDate, got '%s'", *data.InvoiceDate)
 	}
 
-	// Test amount - should extract 19.58 with full-width ￥ symbol
+	// Test amount with the full-width symbol.
 	if data.Amount == nil {
-		t.Error("Amount is nil - should extract '19.58'")
+		t.Error("Amount is nil")
 	} else {
-		expectedAmount := 19.58
+		expectedAmount := 42.36
 		if *data.Amount != expectedAmount {
 			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
 		}
@@ -1015,8 +1035,8 @@ func TestParseInvoiceData_DidiInvoice(t *testing.T) {
 	// Test seller name
 	if data.SellerName == nil {
 		t.Error("SellerName is nil")
-	} else if *data.SellerName != "上海滴滴畅行科技有限公司" {
-		t.Errorf("Expected SellerName '上海滴滴畅行科技有限公司', got '%s'", *data.SellerName)
+	} else if *data.SellerName != "纯合成出行服务有限公司" {
+		t.Errorf("Expected synthetic SellerName, got '%s'", *data.SellerName)
 	}
 
 	// Test buyer name
@@ -1027,40 +1047,44 @@ func TestParseInvoiceData_DidiInvoice(t *testing.T) {
 	}
 }
 
-func TestParseInvoiceData_DidiInvoice_PyMuPDFZoned(t *testing.T) {
+func TestParseInvoiceData_SyntheticTransportInvoice_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票代码: 发票号码: 开票日期: 校验码: 031002300211 70739906 2024 07908 63166 90581 33371年07月06日
-上海增值税电子普通发票
-机器编号: 499098504973
+发票代码: 发票号码: 开票日期: 校验码: 990000000510 99000510 2026 99999 00000 00510 00000年08月23日
+纯合成增值税电子普通发票
+机器编号: 999999990510
 【购买方】
-购买方名 称: 纳税人识别号: 地址、 开户行及账号: 电话: 个人
+购买方名 称: 纳税人识别号: 地址、 SYNTHETIC 开户行及账号: 电话: 个人
 货物或应税劳务、服务名称规格型号单位数量
 【明细】
-* * 运输服务运输服务 * * 客运服务费客运服务费无次1
-价税合计（大写） 合计壹拾玖圆伍角捌分 ￥ 19.01 （小写） ￥ 19.58 ￥ 0.57
+* * 运输服务SYNTHETIC运输服务 * * 客运服务费SYNTHETIC客运服务费无次1
+价税合计（大写） 合计肆拾贰圆叁角陆分 ￥ 41.16 （小写） ￥ 42.36 ￥ 1.20
 【销售方】
-销售方收款人: 名 称: 纳税人识别号: 地址、 开户行及账号: 电话: 杜洪亮上海滴滴畅行科技有限公司91310114MA1GW61J6U
+销售方
+名 称: 纯合成出行服务有限公司
+纳税人识别号: 91110000SYNTH00510
+地址、 开户行及账号: 电话:
 【备注/其他】
-于秋红 销售方:（章）`
+纯合成开票人 销售方:（章）`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.InvoiceDate == nil || *data.InvoiceDate != "2024年07月06日" {
-		t.Fatalf("Expected InvoiceDate %q, got %+v (src=%q)", "2024年07月06日", data.InvoiceDate, data.InvoiceDateSource)
+	if data.InvoiceDate == nil || *data.InvoiceDate != "2026年08月23日" {
+		t.Fatalf("Expected InvoiceDate %q, got %+v (src=%q)", "2026年08月23日", data.InvoiceDate, data.InvoiceDateSource)
 	}
 	if data.BuyerName == nil || *data.BuyerName != "个人" {
 		t.Fatalf("Expected BuyerName %q, got %+v (src=%q)", "个人", data.BuyerName, data.BuyerNameSource)
 	}
-	if data.SellerName == nil || *data.SellerName != "上海滴滴畅行科技有限公司" {
-		t.Fatalf("Expected SellerName %q, got %+v (src=%q)", "上海滴滴畅行科技有限公司", data.SellerName, data.SellerNameSource)
+	if data.SellerName == nil || *data.SellerName != "纯合成出行服务有限公司" {
+		t.Fatalf("Expected SellerName %q, got %+v (src=%q)", "纯合成出行服务有限公司", data.SellerName, data.SellerNameSource)
 	}
-	if data.Amount == nil || fmt.Sprintf("%.2f", *data.Amount) != "19.58" {
-		t.Fatalf("Expected Amount 19.58, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || fmt.Sprintf("%.2f", *data.Amount) != "42.36" {
+		t.Fatalf("Expected Amount 42.36, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
 	if len(data.Items) != 2 {
 		t.Fatalf("Expected 2 items, got %d: %+v", len(data.Items), data.Items)
@@ -1085,18 +1109,18 @@ func TestIsGarbledText(t *testing.T) {
 	service := NewOCRService()
 
 	// Test valid Chinese text
-	validText := "上海增值税电子普通发票 发票号码：12345678"
+	validText := "纯合成增值税电子普通发票 发票号码：99000511"
 	if service.isGarbledText(validText) {
 		t.Error("Valid Chinese text incorrectly detected as garbled")
 	}
 
 	// Test valid English text
-	validEnglishText := "Invoice Number: 12345678 Amount: $100.00"
+	validEnglishText := "Invoice Number: 99000511 Amount: $42.36"
 	if service.isGarbledText(validEnglishText) {
 		t.Error("Valid English text incorrectly detected as garbled")
 	}
 
-	// Test garbled text (from problem statement)
+	// Test a fixed synthetic garbled string.
 	garbledText := "T ��N�zT��(Y'Q�)(\\Q�)�T y�:~�zN���R+S�:W0 W@0u5 ��:_b7�LSʍ&S�:e6k>N�:Y"
 	if !service.isGarbledText(garbledText) {
 		t.Error("Garbled text not detected as garbled")
@@ -1125,19 +1149,19 @@ func TestIsLikelyUsefulInvoicePDFText_IncludesItineraries(t *testing.T) {
 	service := NewOCRService()
 
 	// Airline itinerary markers (short text that would normally fail the minChars heuristic).
-	air := "航空运输电子客票行程单\n电子客票号码: 7812 3456 7890\n旅客姓名: 张三\n填开日期: 2025年01月01日"
+	air := "SYNTHETIC / 纯合成测试数据\n航空运输电子客票行程单\n电子客票号码: SYNTHETIC-AIR-TEST\n旅客姓名: 纯合成旅客甲\n填开日期: 2026年08月01日"
 	if !service.isLikelyUsefulInvoicePDFText(air) {
 		t.Error("Air ticket itinerary text should be treated as useful PDF text")
 	}
 
 	// Airline variant without the full title.
-	air2 := "航空运输电子客票\n电子客票号码: 781234567890\n填开日期: 2025年01月01日"
+	air2 := "SYNTHETIC / 纯合成测试数据\n航空运输电子客票\n电子客票号码: SYNTHETIC-AIR-TEST\n填开日期: 2026年08月01日"
 	if !service.isLikelyUsefulInvoicePDFText(air2) {
 		t.Error("Air ticket itinerary (no full title) should be treated as useful PDF text")
 	}
 
 	// Railway e-ticket markers.
-	rail := "电子发票（铁路电子客票）\n票价: 123.00\n开票日期: 2025年01月01日"
+	rail := "SYNTHETIC / 纯合成测试数据\n电子发票（铁路电子客票）\n票价: 88.00\n开票日期: 2026年08月04日"
 	if !service.isLikelyUsefulInvoicePDFText(rail) {
 		t.Error("Railway e-ticket text should be treated as useful PDF text")
 	}
@@ -1255,12 +1279,12 @@ func TestExtractAmounts(t *testing.T) {
 		},
 		{
 			name:     "Multiple amounts",
-			text:     "合计 ¥3049.51 税额 ¥30.49 总计 ¥3080.00",
+			text:     "合计 ¥32.00 税额 ¥0.96 总计 ¥32.96",
 			expected: 3,
 		},
 		{
 			name:     "Amount with full-width symbol",
-			text:     "价税合计（小写）￥19.58",
+			text:     "价税合计（小写）￥42.36",
 			expected: 1,
 		},
 		{
@@ -1295,17 +1319,17 @@ func TestExtractTaxIDs(t *testing.T) {
 	}{
 		{
 			name:     "Single 18-char tax ID",
-			text:     "纳税人识别号：91310000132149237G",
+			text:     "纳税人识别号：91110000SYNTH00511",
 			expected: 1,
 		},
 		{
 			name:     "Single 20-char tax ID",
-			text:     "统一社会信用代码：92310109MA1KMFLM1K",
+			text:     "统一社会信用代码：91110000SYNTH00512",
 			expected: 1,
 		},
 		{
 			name:     "Multiple tax IDs",
-			text:     "销售方：91310000132149237G 购买方：92310109MA1KMFLM1K",
+			text:     "销售方：91110000SYNTH00511 购买方：91110000SYNTH00512",
 			expected: 2,
 		},
 		{
@@ -1335,22 +1359,22 @@ func TestExtractDates(t *testing.T) {
 	}{
 		{
 			name:     "Chinese format YYYY年MM月DD日",
-			text:     "开票日期：2025年07月02日",
+			text:     "开票日期：2026年08月02日",
 			expected: 1,
 		},
 		{
 			name:     "Space-separated format",
-			text:     "日期：2025 07 02",
+			text:     "日期：2026 08 02",
 			expected: 1,
 		},
 		{
 			name:     "Dash-separated format",
-			text:     "2025-07-02",
+			text:     "2026-08-02",
 			expected: 1,
 		},
 		{
 			name:     "Multiple dates",
-			text:     "开票日期：2025年07月02日 到期日：2025年08月02日",
+			text:     "开票日期：2026年08月02日 到期日：2026年09月02日",
 			expected: 2,
 		},
 		{
@@ -1373,12 +1397,13 @@ func TestExtractDates(t *testing.T) {
 func TestExtractBuyerAndSellerByPosition(t *testing.T) {
 	service := NewOCRService()
 
-	// Test case 1: Left-right layout (buyer left, seller right) - Invoice One from problem statement
+	// Synthetic left-right party layout.
 	t.Run("LeftRightLayout", func(t *testing.T) {
-		text1 := `购 名称：个人                                       销 名称：上海市虹口区鹏侠百货商店
+		text1 := `SYNTHETIC / 纯合成测试数据
+购 名称：个人                                       销 名称：纯合成百货商店
 买                                             售
 方                                             方
-信 统一社会信用代码/纳税人识别号：                            信 统一社会信用代码/纳税人识别号：92310109MA1KMFLM1K`
+信 统一社会信用代码/纳税人识别号：                            信 统一社会信用代码/纳税人识别号：91110000SYNTH00513`
 
 		buyer1, seller1 := service.extractBuyerAndSellerByPosition(text1)
 
@@ -1389,42 +1414,44 @@ func TestExtractBuyerAndSellerByPosition(t *testing.T) {
 		}
 
 		if seller1 == nil {
-			t.Error("Seller is nil, expected '上海市虹口区鹏侠百货商店'")
-		} else if *seller1 != "上海市虹口区鹏侠百货商店" {
-			t.Errorf("Expected seller '上海市虹口区鹏侠百货商店', got '%s'", *seller1)
+			t.Error("Seller is nil, expected synthetic seller")
+		} else if *seller1 != "纯合成百货商店" {
+			t.Errorf("Expected synthetic seller, got '%s'", *seller1)
 		}
 	})
 
-	// Test case 2: Top-bottom layout (buyer top, seller bottom) - Invoice Two from problem statement
+	// Synthetic top-bottom party layout.
 	t.Run("TopBottomLayout", func(t *testing.T) {
-		text2 := `    名       称: 武亚峰                                             密       *14<<...
+		text2 := `SYNTHETIC / 纯合成测试数据
+    名       称: 星河先生                                             密       *99<<...
 购
     纳税人识别号:                                                            ...
 买
 ...
-    名       称:中国移动通信集团上海有限公司                                        业务流水号...
+    名       称:云海通信服务有限公司
 销
-    纳税人识别号:91310000132149237G
+    纳税人识别号:99000000000000514X
 售`
 
 		buyer2, seller2 := service.extractBuyerAndSellerByPosition(text2)
 
 		if buyer2 == nil {
-			t.Error("Buyer is nil, expected '武亚峰'")
-		} else if *buyer2 != "武亚峰" {
-			t.Errorf("Expected buyer '武亚峰', got '%s'", *buyer2)
+			t.Error("Buyer is nil, expected synthetic buyer")
+		} else if *buyer2 != "星河先生" {
+			t.Errorf("Expected synthetic buyer, got '%s'", *buyer2)
 		}
 
 		if seller2 == nil {
-			t.Error("Seller is nil, expected '中国移动通信集团上海有限公司'")
-		} else if *seller2 != "中国移动通信集团上海有限公司" {
-			t.Errorf("Expected seller '中国移动通信集团上海有限公司', got '%s'", *seller2)
+			t.Error("Seller is nil, expected synthetic seller")
+		} else if *seller2 != "云海通信服务有限公司" {
+			t.Errorf("Expected synthetic seller, got '%s'", *seller2)
 		}
 	})
 
 	// Test case 3: No markers found
 	t.Run("NoMarkers", func(t *testing.T) {
-		text3 := `名称：测试公司`
+		text3 := `SYNTHETIC / 纯合成测试数据
+名称：纯合成测试公司`
 
 		buyer3, seller3 := service.extractBuyerAndSellerByPosition(text3)
 
@@ -1436,15 +1463,16 @@ func TestExtractBuyerAndSellerByPosition(t *testing.T) {
 
 	// Test case 4: Only buyer marker
 	t.Run("OnlyBuyerMarker", func(t *testing.T) {
-		text4 := `购买方
-名称：张三`
+		text4 := `SYNTHETIC / 纯合成测试数据
+购买方
+名称：纯合成购买人丙`
 
 		buyer4, seller4 := service.extractBuyerAndSellerByPosition(text4)
 
 		if buyer4 == nil {
-			t.Error("Buyer is nil, expected '张三'")
-		} else if *buyer4 != "张三" {
-			t.Errorf("Expected buyer '张三', got '%s'", *buyer4)
+			t.Error("Buyer is nil, expected synthetic buyer")
+		} else if *buyer4 != "纯合成购买人丙" {
+			t.Errorf("Expected synthetic buyer, got '%s'", *buyer4)
 		}
 
 		// Seller should be nil
@@ -1455,15 +1483,16 @@ func TestExtractBuyerAndSellerByPosition(t *testing.T) {
 
 	// Test case 5: Only seller marker
 	t.Run("OnlySellerMarker", func(t *testing.T) {
-		text5 := `销售方
-名称：某某公司`
+		text5 := `SYNTHETIC / 纯合成测试数据
+销售方
+名称：纯合成销售公司`
 
 		buyer5, seller5 := service.extractBuyerAndSellerByPosition(text5)
 
 		if seller5 == nil {
-			t.Error("Seller is nil, expected '某某公司'")
-		} else if *seller5 != "某某公司" {
-			t.Errorf("Expected seller '某某公司', got '%s'", *seller5)
+			t.Error("Seller is nil, expected synthetic seller")
+		} else if *seller5 != "纯合成销售公司" {
+			t.Errorf("Expected synthetic seller, got '%s'", *seller5)
 		}
 
 		// Buyer should be nil
@@ -1473,52 +1502,53 @@ func TestExtractBuyerAndSellerByPosition(t *testing.T) {
 	})
 }
 
-func TestParseInvoiceData_WalmartXiamen_BuyerAndItems_PyMuPDFZoned(t *testing.T) {
+func TestParseInvoiceData_SyntheticRetailBuyerAndItems_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票代码: 035021700111
-发票号码: 31126517
-开票日期: 2025年11月16日
-校验码: 59872 35946 41356 16868
-厦门增值税电子普通发票
-机器编号： 661911919489
+发票代码: 990000000515
+发票号码: 99000515
+开票日期: 2026年08月25日
+校验码: 99999 00000 00515 00000
+纯合成增值税电子普通发票
+机器编号： 999999990515
 【购买方】
-买方购名称: 地  址 、电  话: 纳税人识别号: 开户行及账号: 邬先生
+买方购名称: 地  址 、电  话: 纳税人识别号: 开户行及账号: 纯合成购买人丁
 货物或应税劳务、服务名称规格型号   单位数量单价
 【密码区】
-密码区 *1*+6-<4-01>76<43*33+-2442>
-53.01金  额106.02税率13% 税  额13.78
-1.77 1.77 13% 0.23
+密码区 *9*+9-<9-99>99<99*99+-9999>
+12.00金  额24.00税率3% 税  额0.72
+8.00 8.00 3% 0.24
 【明细】
-*乳制品*Member's Mark 希腊式酸奶1.23kg(410g*3) 3X410g 组2
-*日用杂品*包装费配送费1
-合计 ￥107.79 ￥14.01
-价税合计(大写) 壹佰贰拾壹圆捌角 (小写) ￥121.80
+*纯合成食品*SYNTHETIC测试乳品1.20kg(300g*4) 4X300g 组2
+*纯合成服务*测试配送1
+合计 ￥32.00 ￥0.96
+价税合计(大写) 叁拾贰圆玖角陆分 (小写) ￥32.96
 【销售方】
-方售销名称: 沃尔玛（厦门）商业零售有限公司
+方售销名称: 纯合成零售有限公司
 【备注/其他】
-备订单号[3087538259083065845]
+备订单号[999999990515]
 注
-林燕红销售方:(章)`
+纯合成开票人销售方:(章)`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
 
-	if data.BuyerName == nil || *data.BuyerName != "邬先生" {
-		t.Fatalf("Expected BuyerName '邬先生', got %+v (src=%q)", data.BuyerName, data.BuyerNameSource)
+	if data.BuyerName == nil || *data.BuyerName != "纯合成购买人丁" {
+		t.Fatalf("Expected synthetic BuyerName, got %+v (src=%q)", data.BuyerName, data.BuyerNameSource)
 	}
-	if data.SellerName == nil || *data.SellerName != "沃尔玛（厦门）商业零售有限公司" {
-		t.Fatalf("Expected SellerName '沃尔玛（厦门）商业零售有限公司', got %+v (src=%q)", data.SellerName, data.SellerNameSource)
+	if data.SellerName == nil || *data.SellerName != "纯合成零售有限公司" {
+		t.Fatalf("Expected synthetic SellerName, got %+v (src=%q)", data.SellerName, data.SellerNameSource)
 	}
-	if data.Amount == nil || *data.Amount != 121.80 {
-		t.Fatalf("Expected Amount 121.80, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 32.96 {
+		t.Fatalf("Expected Amount 32.96, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || *data.TaxAmount != 14.01 {
-		t.Fatalf("Expected TaxAmount 14.01, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || *data.TaxAmount != 0.96 {
+		t.Fatalf("Expected TaxAmount 0.96, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 
 	if len(data.Items) != 2 {
@@ -1535,55 +1565,56 @@ func TestParseInvoiceData_WalmartXiamen_BuyerAndItems_PyMuPDFZoned(t *testing.T)
 	}
 }
 
-func TestParseInvoiceData_JDModelCodeMergedIntoName_PyMuPDFZoned(t *testing.T) {
+func TestParseInvoiceData_SyntheticModelCodeMergedIntoName_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-开票日期: 发票号码: 25327000001734142366 2025年12月29日
+开票日期: 发票号码: 99000000000000000516 2026年08月26日
 电子发票(普通发票)
 【购买方】
-购买方信息名统一社会信用代码称项目名称 : 乌洪军 / 纳税人识别号规格型号 : 单位数量销售方信息名称 :
+购买方信息名统一社会信用代码称项目名称 : 纯合成购买人戊 / 纳税人识别号规格型号 : 单位数量销售方信息名称 :
 【密码区】
-南京京东朝禾贸易有限公司
-统一社会信用代码 / 纳税人识别号 : 91320117MA20DA7DX5
-6459.29单价6459.29金  额   税率/征收率13% 839.71税  额
+纯合成设备贸易有限公司
+统一社会信用代码 / 纳税人识别号 : 91110000SYNTH00516
+1000.00单价1000.00金  额   税率/征收率6% 60.00税  额
 【明细】
-*空调*格力空调云锦Ⅲ 3匹新一级能效变频纯铜管冷酷外机节能省电客厅柜机国家补贴 KFR-72LW/NhBa1BAj KFR-72LW/NhBa1BAj 套1
-合计 ￥6459.29 ￥839.71
-价税合计(大写) 柒仟贰佰玖拾玖圆整 (小写) ￥7299.00
+*纯合成设备*测试温控设备 大型节能测试机 SYN-9000/AB12 SYN-9000/AB12 套1
+合计 ￥1000.00 ￥60.00
+价税合计(大写) 壹仟零陆拾圆整 (小写) ￥1060.00
 【销售方】
-备订单号:3359217008454242
+备订单号:999999990516
 注
-开票人: 王梅`
+开票人: 纯合成开票人`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.BuyerName == nil || *data.BuyerName != "乌洪军" {
+	if data.BuyerName == nil || *data.BuyerName != "纯合成购买人戊" {
 		got := "<nil>"
 		if data.BuyerName != nil {
 			got = *data.BuyerName
 		}
-		t.Fatalf("Expected BuyerName '乌洪军', got %q (src=%q)", got, data.BuyerNameSource)
+		t.Fatalf("Expected synthetic BuyerName, got %q (src=%q)", got, data.BuyerNameSource)
 	}
-	if data.SellerName == nil || *data.SellerName != "南京京东朝禾贸易有限公司" {
-		t.Fatalf("Expected SellerName '南京京东朝禾贸易有限公司', got %+v (src=%q)", data.SellerName, data.SellerNameSource)
+	if data.SellerName == nil || *data.SellerName != "纯合成设备贸易有限公司" {
+		t.Fatalf("Expected synthetic SellerName, got %+v (src=%q)", data.SellerName, data.SellerNameSource)
 	}
-	if data.Amount == nil || *data.Amount != 7299.00 {
-		t.Fatalf("Expected Amount 7299.00, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 1060.00 {
+		t.Fatalf("Expected Amount 1060.00, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || *data.TaxAmount != 839.71 {
-		t.Fatalf("Expected TaxAmount 839.71, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || *data.TaxAmount != 60.00 {
+		t.Fatalf("Expected TaxAmount 60.00, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 	if len(data.Items) != 1 {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
 	}
-	if data.Items[0].Spec == "" || data.Items[0].Spec != "KFR-72LW/NhBa1BAj" {
-		t.Fatalf("Expected item spec 'KFR-72LW/NhBa1BAj', got %+v", data.Items[0])
+	if data.Items[0].Spec == "" || data.Items[0].Spec != "SYN-9000/AB12" {
+		t.Fatalf("Expected synthetic item spec, got %+v", data.Items[0])
 	}
-	if strings.Contains(data.Items[0].Name, "KFR-72LW") {
+	if strings.Contains(data.Items[0].Name, "SYN-9000") {
 		t.Fatalf("Expected model code peeled from item name, got %+v", data.Items[0])
 	}
 	if data.Items[0].Unit != "套" || data.Items[0].Quantity == nil || *data.Items[0].Quantity != 1 {
@@ -1591,34 +1622,35 @@ func TestParseInvoiceData_JDModelCodeMergedIntoName_PyMuPDFZoned(t *testing.T) {
 	}
 }
 
-func TestParseInvoiceData_JDItemNamePrefixLeakedIntoBuyer_PyMuPDFZoned(t *testing.T) {
+func TestParseInvoiceData_SyntheticItemNamePrefixLeakedIntoBuyer_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-开票日期: 发票号码: 25327000001739485410 2025年12月29日
+开票日期: 发票号码: 99000000000000000517 2026年08月27日
 电子发票(普通发票)
 【购买方】
-*制冷空调设备*格力空调云锦Ⅲ 1.5匹新一级能效变频纯铜管购买方信息名统一社会信用代码称项目名称 : 乌洪军 / 纳税人识别号规格型号 : 单位数量销售方信息名称 :
+*纯合成设备*测试温控设备前缀 小型节能测试机购买方信息名统一社会信用代码称项目名称 : 纯合成购买人己 / 纳税人识别号规格型号 : 单位数量销售方信息名称 :
 【密码区】
-昆山京东尚信贸易有限公司
-统一社会信用代码 / 纳税人识别号 : 913205830880018839
-2919.47单价5838.94金  额   税率/征收率13% 759.06税  额
+纯合成设备销售有限公司
+统一社会信用代码 / 纳税人识别号 : 91110000SYNTH00517
+500.00单价1000.00金  额   税率/征收率6% 60.00税  额
 【明细】
-省电舒适风搭载冷酷外机挂机国家补贴 KFR-35GW/NhAe1BAj KFR-35GW/NhAe1BAj 套2
-合计 ￥5838.94 ￥759.06
-价税合计(大写) 陆仟伍佰玖拾捌圆整 (小写) ￥6598.00
+测试温控设备后缀 SYN-3500/AB12 SYN-3500/AB12 套2
+合计 ￥1000.00 ￥60.00
+价税合计(大写) 壹仟零陆拾圆整 (小写) ￥1060.00
 【销售方】
-备订单号:3359217008438740
+备订单号:999999990517
 注
-开票人: 王梅`
+开票人: 纯合成开票人`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.InvoiceNumber == nil || *data.InvoiceNumber != "25327000001739485410" {
-		t.Fatalf("Expected InvoiceNumber '25327000001739485410', got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
+	if data.InvoiceNumber == nil || *data.InvoiceNumber != "99000000000000000517" {
+		t.Fatalf("Expected synthetic InvoiceNumber, got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
 	}
 	gotDate := "<nil>"
 	if data.InvoiceDate != nil {
@@ -1630,29 +1662,29 @@ func TestParseInvoiceData_JDItemNamePrefixLeakedIntoBuyer_PyMuPDFZoned(t *testin
 			normalizedDate = d
 		}
 	}
-	if normalizedDate != "2025-12-29" {
-		t.Fatalf("Expected InvoiceDate normalized to '2025-12-29', got %q (raw=%q src=%q)", normalizedDate, gotDate, data.InvoiceDateSource)
+	if normalizedDate != "2026-08-27" {
+		t.Fatalf("Expected InvoiceDate normalized to '2026-08-27', got %q (raw=%q src=%q)", normalizedDate, gotDate, data.InvoiceDateSource)
 	}
-	if data.BuyerName == nil || *data.BuyerName != "乌洪军" {
-		t.Fatalf("Expected BuyerName '乌洪军', got %+v (src=%q)", data.BuyerName, data.BuyerNameSource)
+	if data.BuyerName == nil || *data.BuyerName != "纯合成购买人己" {
+		t.Fatalf("Expected synthetic BuyerName, got %+v (src=%q)", data.BuyerName, data.BuyerNameSource)
 	}
-	if data.SellerName == nil || *data.SellerName != "昆山京东尚信贸易有限公司" {
-		t.Fatalf("Expected SellerName '昆山京东尚信贸易有限公司', got %+v (src=%q)", data.SellerName, data.SellerNameSource)
+	if data.SellerName == nil || *data.SellerName != "纯合成设备销售有限公司" {
+		t.Fatalf("Expected synthetic SellerName, got %+v (src=%q)", data.SellerName, data.SellerNameSource)
 	}
-	if data.Amount == nil || *data.Amount != 6598.00 {
-		t.Fatalf("Expected Amount 6598.00, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 1060.00 {
+		t.Fatalf("Expected Amount 1060.00, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || *data.TaxAmount != 759.06 {
-		t.Fatalf("Expected TaxAmount 759.06, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || *data.TaxAmount != 60.00 {
+		t.Fatalf("Expected TaxAmount 60.00, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 
 	if len(data.Items) != 1 {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
 	}
-	if data.Items[0].Spec != "KFR-35GW/NhAe1BAj" || data.Items[0].Unit != "套" || data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
+	if data.Items[0].Spec != "SYN-3500/AB12" || data.Items[0].Unit != "套" || data.Items[0].Quantity == nil || *data.Items[0].Quantity != 2 {
 		t.Fatalf("Unexpected item parsed: %+v", data.Items[0])
 	}
-	if !strings.Contains(data.Items[0].Name, "格力空调云锦Ⅲ") || !strings.Contains(data.Items[0].Name, "省电舒适风") {
+	if !strings.Contains(data.Items[0].Name, "测试温控设备前缀") || !strings.Contains(data.Items[0].Name, "测试温控设备后缀") {
 		t.Fatalf("Expected item name to include leaked prefix + tail, got %+v", data.Items[0])
 	}
 	if strings.Contains(data.Items[0].Name, "购买方信息") {
@@ -1660,37 +1692,38 @@ func TestParseInvoiceData_JDItemNamePrefixLeakedIntoBuyer_PyMuPDFZoned(t *testin
 	}
 }
 
-func TestParseInvoiceData_TobaccoTwoItemsAndGrossTotal_PyMuPDFZoned(t *testing.T) {
+func TestParseInvoiceData_SyntheticTwoItemsAndGrossTotal_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票号码： 25312000000374653683
-开票日期： 2025年11月18日
+发票号码： 99000000000000000518
+开票日期： 2026年08月28日
 电子发票（普通发票）
 【购买方】
 购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
 项目名称规格型号单位数量
 【密码区】
-统一社会信用代码/纳税人识别号： 单价上海市徐汇区闽辉杂货店198.02 198.02金额92310104MA1KB05E3B 税率/征收率1% 1% 税额1.98 1.98下载次数：2
+统一社会信用代码/纳税人识别号： 单价纯合成耗材商店59.40 59.40金额91110000SYNTH00518 税率/征收率1% 1% 税额0.60 0.60下载次数：2
 【明细】
-*烟草制品*细支和天下 *烟草制品*南京九五包包2 2 99.009900990099 99.009900990099
-价税合计（大写） 合计肆佰圆整 ￥ （小写） 396.04 ￥ 400.00 ￥ 3.96
+*纯合成耗材*测试耗材甲 *纯合成耗材*测试耗材乙包包2 2 29.700000000000 29.700000000000
+价税合计（大写） 合计壹佰贰拾圆整 ￥ （小写） 118.80 ￥ 120.00 ￥ 1.20
 【销售方】
-上海市徐汇区闽辉杂货店`
+纯合成耗材商店`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.InvoiceNumber == nil || *data.InvoiceNumber != "25312000000374653683" {
-		t.Fatalf("Expected InvoiceNumber '25312000000374653683', got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
+	if data.InvoiceNumber == nil || *data.InvoiceNumber != "99000000000000000518" {
+		t.Fatalf("Expected synthetic InvoiceNumber, got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
 	}
-	if data.Amount == nil || *data.Amount != 400.00 {
-		t.Fatalf("Expected Amount 400.00, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 120.00 {
+		t.Fatalf("Expected Amount 120.00, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || *data.TaxAmount != 3.96 {
-		t.Fatalf("Expected TaxAmount 3.96, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || *data.TaxAmount != 1.20 {
+		t.Fatalf("Expected TaxAmount 1.20, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 
 	if len(data.Items) != 2 {
@@ -1701,7 +1734,7 @@ func TestParseInvoiceData_TobaccoTwoItemsAndGrossTotal_PyMuPDFZoned(t *testing.T
 			t.Fatalf("Unexpected item parsed: %+v", it)
 		}
 	}
-	if !strings.Contains(data.Items[0].Name+data.Items[1].Name, "细支和天下") || !strings.Contains(data.Items[0].Name+data.Items[1].Name, "南京九五") {
+	if !strings.Contains(data.Items[0].Name+data.Items[1].Name, "测试耗材甲") || !strings.Contains(data.Items[0].Name+data.Items[1].Name, "测试耗材乙") {
 		t.Fatalf("Expected both item names present, got %+v", data.Items)
 	}
 }
@@ -1709,44 +1742,45 @@ func TestParseInvoiceData_TobaccoTwoItemsAndGrossTotal_PyMuPDFZoned(t *testing.T
 func TestParseInvoiceData_OneItemWithDimensionSpecAndUnit_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票号码： 25312000000396949692
-开票日期： 2025年12月03日
+发票号码： 99000000000000000519
+开票日期： 2026年08月29日
 电子发票（普通发票）
 【购买方】
 购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
 项目名称规格型号单位数量
 【密码区】
-统一社会信用代码/纳税人识别号： 单价上海形章文化传媒有限公司3982.30金额91310118MA1JN11M0Q 税率/征收率13% 税额517.70下载次数：1
+统一社会信用代码/纳税人识别号： 单价纯合成文具有限公司800.00金额91110000SYNTH00519 税率/征收率6% 税额48.00下载次数：1
 【明细】
-*工艺品*《日照金山》文具套装（钢笔组合、笔记本、帆布袋、咖啡礼盒） 360*380*190mm 套4 995.575221238938
-价税合计（大写） 合计肆仟伍佰圆整 ￥ 3982.30 （小写） ￥ 4500.00 ￥ 517.70
+*纯合成组件*测试装置组合（测试部件甲、测试部件乙） 320*240*180mm 套4 200.000000000000
+价税合计（大写） 合计捌佰肆拾捌圆整 ￥ 800.00 （小写） ￥ 848.00 ￥ 48.00
 【销售方】
-上海形章文化传媒有限公司`
+纯合成文具有限公司`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.InvoiceNumber == nil || *data.InvoiceNumber != "25312000000396949692" {
-		t.Fatalf("Expected InvoiceNumber '25312000000396949692', got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
+	if data.InvoiceNumber == nil || *data.InvoiceNumber != "99000000000000000519" {
+		t.Fatalf("Expected synthetic InvoiceNumber, got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
 	}
-	if data.Amount == nil || *data.Amount != 4500.00 {
-		t.Fatalf("Expected Amount 4500.00, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 848.00 {
+		t.Fatalf("Expected Amount 848.00, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || *data.TaxAmount != 517.70 {
-		t.Fatalf("Expected TaxAmount 517.70, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || *data.TaxAmount != 48.00 {
+		t.Fatalf("Expected TaxAmount 48.00, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 	if len(data.Items) != 1 {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
 	}
 	it := data.Items[0]
-	if !strings.Contains(it.Name, "日照金山") || !strings.Contains(it.Name, "文具套装") {
+	if !strings.Contains(it.Name, "纯合成组件") || !strings.Contains(it.Name, "测试装置组合") {
 		t.Fatalf("Unexpected item name: %+v", it)
 	}
-	if it.Spec != "360×380×190mm" {
-		t.Fatalf("Expected spec '360×380×190mm', got %+v", it)
+	if it.Spec != "320×240×180mm" {
+		t.Fatalf("Expected synthetic dimension spec, got %+v", it)
 	}
 	if it.Unit != "套" || it.Quantity == nil || *it.Quantity != 4 {
 		t.Fatalf("Unexpected unit/qty: %+v", it)
@@ -1756,21 +1790,22 @@ func TestParseInvoiceData_OneItemWithDimensionSpecAndUnit_PyMuPDFZoned(t *testin
 func TestParseInvoiceData_OneItemWithSimpleMLSpec_PyMuPDFZoned(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `【第1页-分区】
+	sampleText := `SYNTHETIC / 纯合成测试数据
+【第1页-分区】
 【发票信息】
-发票号码： 25312000000411964864
-开票日期： 2025年12月13日
+发票号码： 99000000000000000520
+开票日期： 2026年08月30日
 电子发票（普通发票）
 【购买方】
 购买方信息统一社会信用代码/纳税人识别号： 名称： 个人销售方信息名称：
 项目名称规格型号单位数量
 【密码区】
-统一社会信用代码/纳税人识别号： 单价上海鑫之河商贸有限公司3026.55金额91310112MA1GC07H2C 税率/征收率13% 税额393.45下载次数：1
+统一社会信用代码/纳税人识别号： 单价纯合成饮品商贸有限公司240.00金额91110000SYNTH00520 税率/征收率6% 税额14.40下载次数：1
 【明细】
-*酒*酒53度汾25 500ml 瓶6 504.424778761062
-价税合计（大写） 合计叁仟肆佰贰拾圆整 ￥ 3026.55 （小写） ￥ 3420.00 ￥ 393.45
+*纯合成饮品*测试饮品丙99 480ml 瓶6 40.000000000000
+价税合计（大写） 合计贰佰伍拾肆圆肆角 ￥ 240.00 （小写） ￥ 254.40 ￥ 14.40
 【销售方】
-上海鑫之河商贸有限公司`
+纯合成饮品商贸有限公司`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -1780,8 +1815,8 @@ func TestParseInvoiceData_OneItemWithSimpleMLSpec_PyMuPDFZoned(t *testing.T) {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
 	}
 	it := data.Items[0]
-	if it.Spec != "500ml" {
-		t.Fatalf("Expected spec '500ml', got %+v", it)
+	if it.Spec != "480ml" {
+		t.Fatalf("Expected spec '480ml', got %+v", it)
 	}
 	if it.Unit != "瓶" || it.Quantity == nil || *it.Quantity != 6 {
 		t.Fatalf("Unexpected unit/qty: %+v", it)
@@ -1791,18 +1826,19 @@ func TestParseInvoiceData_OneItemWithSimpleMLSpec_PyMuPDFZoned(t *testing.T) {
 func TestParseInvoiceData_AirTicketItinerary_RapidOCR(t *testing.T) {
 	service := NewOCRService()
 
-	sampleText := `乌洪军
+	sampleText := fmt.Sprintf(`%s
+纯合成旅客甲
 旅客姓名
 国内国际标识：国内
 有效身份证件号码
-231083********3233
+SYNTHETIC-ID-AIR-01
 电子发票
 航空运输电子客票行程单）
-上海市税务局
+纯合成税务标识
 签注
 Q/改期退票收费
 开票状态：正常
-发票号码：25318781112038121208
+发票号码：99000000000000000003
 承运人
 航班号
 座位等级
@@ -1810,64 +1846,64 @@ Q/改期退票收费
 时间
 客票级别/客票类别
 客票生效日期有效截止日期免费行李
-自：北京首都 T2
-东航
-MU5156
+自：%s T1
+纯合成航空
+%s
 Y
-2025年10月17日
-13:30
+2026年08月02日
+09:30
 Y
 20K
-至:上海虹桥 T2
+至:%s T2
 票价
-CNY 1972.48
+CNY 420.00
 燃油附加费
-CNY 18.35
+CNY 24.44
 增值税税率
-%6
+%%6
 增值税税额
-CNY 179.17
+CNY 12.34
 民航发展基金
-CNY 50.00
+CNY 12.34
 其他税费
 CNY 0.00
 合计
-CNY 2220.00
-电子客票号码：7812103964567
-验证码：1208
+CNY 456.78
+电子客票号码：SYNTHETIC-AIR-0001
+验证码：9001
 提示信息：
-保险费：XXX
-销售网点代号：SHA155/08677392
-填开单位：中国东方航空股份有限公司
-填开日期：2025年10月18日
+保险费：SYNTHETIC
+销售网点代号：SYNTHETIC-AIR-DESK
+填开单位：纯合成航空服务有限公司
+填开日期：2026年08月01日
 购买方名称：个人
-统一社会信用代码/纳税人识别号：`
+统一社会信用代码/纳税人识别号：`, regressionfixtures.SyntheticMarker, regressionfixtures.SyntheticAirOrigin, regressionfixtures.SyntheticFlightNo, regressionfixtures.SyntheticAirDest)
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
 		t.Fatalf("ParseInvoiceData returned error: %v", err)
 	}
-	if data.InvoiceNumber == nil || *data.InvoiceNumber != "25318781112038121208" {
-		t.Fatalf("Expected InvoiceNumber '25318781112038121208', got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
+	if data.InvoiceNumber == nil || *data.InvoiceNumber != "99000000000000000003" {
+		t.Fatalf("Expected synthetic InvoiceNumber, got %+v (src=%q)", data.InvoiceNumber, data.InvoiceNumberSource)
 	}
-	if data.InvoiceDate == nil || *data.InvoiceDate != "2025年10月18日" {
-		t.Fatalf("Expected InvoiceDate '2025年10月18日', got %+v (src=%q)", data.InvoiceDate, data.InvoiceDateSource)
+	if data.InvoiceDate == nil || *data.InvoiceDate != "2026年08月01日" {
+		t.Fatalf("Expected synthetic InvoiceDate, got %+v (src=%q)", data.InvoiceDate, data.InvoiceDateSource)
 	}
-	if data.BuyerName == nil || *data.BuyerName != "乌洪军" {
+	if data.BuyerName == nil || *data.BuyerName != "纯合成旅客甲" {
 		got := "<nil>"
 		if data.BuyerName != nil {
 			got = *data.BuyerName
 		}
-		t.Fatalf("Expected BuyerName '乌洪军', got %q (src=%q)", got, data.BuyerNameSource)
+		t.Fatalf("Expected synthetic BuyerName, got %q (src=%q)", got, data.BuyerNameSource)
 	}
-	if data.SellerName == nil || *data.SellerName != "中国东方航空股份有限公司" {
-		t.Fatalf("Expected SellerName '中国东方航空股份有限公司', got %+v (src=%q)", data.SellerName, data.SellerNameSource)
+	if data.SellerName == nil || *data.SellerName != "纯合成航空服务有限公司" {
+		t.Fatalf("Expected synthetic SellerName, got %+v (src=%q)", data.SellerName, data.SellerNameSource)
 	}
-	if data.Amount == nil || *data.Amount != 2220.00 {
-		t.Fatalf("Expected Amount 2220.00, got %+v (src=%q)", data.Amount, data.AmountSource)
+	if data.Amount == nil || *data.Amount != 456.78 {
+		t.Fatalf("Expected Amount 456.78, got %+v (src=%q)", data.Amount, data.AmountSource)
 	}
-	if data.TaxAmount == nil || *data.TaxAmount != 179.17 {
-		t.Fatalf("Expected TaxAmount 179.17, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
+	if data.TaxAmount == nil || *data.TaxAmount != 12.34 {
+		t.Fatalf("Expected TaxAmount 12.34, got %+v (src=%q)", data.TaxAmount, data.TaxAmountSource)
 	}
 	if len(data.Items) != 1 {
 		t.Fatalf("Expected 1 item, got %d: %+v", len(data.Items), data.Items)
@@ -1876,7 +1912,7 @@ CNY 2220.00
 	if it.Unit != "次" || it.Quantity == nil || *it.Quantity != 1 {
 		t.Fatalf("Unexpected item unit/qty: %+v", it)
 	}
-	if !strings.Contains(it.Name, "MU5156") || !strings.Contains(it.Name, "北京") || !strings.Contains(it.Name, "上海") {
+	if !strings.Contains(it.Name, regressionfixtures.SyntheticFlightNo) || !strings.Contains(it.Name, regressionfixtures.SyntheticAirOrigin) || !strings.Contains(it.Name, regressionfixtures.SyntheticAirDest) {
 		t.Fatalf("Unexpected item name: %+v", it)
 	}
 }
@@ -1884,20 +1920,21 @@ CNY 2220.00
 func TestParseInvoiceData_SpaceSeparatedDate(t *testing.T) {
 	service := NewOCRService()
 
-	// Test case for Invoice Two from problem statement with space-separated date
-	sampleText := `电子发票（普通发票）
-开票日期: 2025 年07 月02 日
-名       称: 武亚峰
+	// Synthetic case with a space-separated date.
+	sampleText := `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
+开票日期: 2026 年08 月28 日
+名       称: 纯合成购买人庚
 购
 买
 方
 纳税人识别号:
-名       称:中国移动通信集团上海有限公司
+名       称:纯合成通信服务有限公司
 销
 售
 方
-纳税人识别号:91310000132149237G
-价税合计（小写）¥100.00`
+纳税人识别号:91110000SYNTH00521
+价税合计（小写）¥42.36`
 
 	data, err := service.ParseInvoiceData(sampleText)
 	if err != nil {
@@ -1906,30 +1943,30 @@ func TestParseInvoiceData_SpaceSeparatedDate(t *testing.T) {
 
 	// Test invoice date - should parse space-separated format
 	if data.InvoiceDate == nil {
-		t.Error("InvoiceDate is nil - should extract '2025年07月02日'")
-	} else if *data.InvoiceDate != "2025年07月02日" {
-		t.Errorf("Expected InvoiceDate '2025年07月02日', got '%s'", *data.InvoiceDate)
+		t.Error("InvoiceDate is nil")
+	} else if *data.InvoiceDate != "2026年08月28日" {
+		t.Errorf("Expected synthetic InvoiceDate, got '%s'", *data.InvoiceDate)
 	}
 
 	// Test buyer name - should extract using position-based method
 	if data.BuyerName == nil {
-		t.Error("BuyerName is nil - should extract '武亚峰'")
-	} else if *data.BuyerName != "武亚峰" {
-		t.Errorf("Expected BuyerName '武亚峰', got '%s'", *data.BuyerName)
+		t.Error("BuyerName is nil")
+	} else if *data.BuyerName != "纯合成购买人庚" {
+		t.Errorf("Expected synthetic BuyerName, got '%s'", *data.BuyerName)
 	}
 
 	// Test seller name - should extract using position-based method
 	if data.SellerName == nil {
-		t.Error("SellerName is nil - should extract '中国移动通信集团上海有限公司'")
-	} else if *data.SellerName != "中国移动通信集团上海有限公司" {
-		t.Errorf("Expected SellerName '中国移动通信集团上海有限公司', got '%s'", *data.SellerName)
+		t.Error("SellerName is nil")
+	} else if *data.SellerName != "纯合成通信服务有限公司" {
+		t.Errorf("Expected synthetic SellerName, got '%s'", *data.SellerName)
 	}
 
 	// Test amount
 	if data.Amount == nil {
 		t.Error("Amount is nil")
 	} else {
-		expectedAmount := 100.00
+		expectedAmount := 42.36
 		if *data.Amount != expectedAmount {
 			t.Errorf("Expected Amount %.2f, got %.2f", expectedAmount, *data.Amount)
 		}
@@ -1948,29 +1985,33 @@ func TestMergeExtractionResults(t *testing.T) {
 	}{
 		{
 			name: "OCR has more Chinese - use OCR",
-			pdftotextText: `2025   07   02
-*14<<*>07/6>27/*88780<>*>45
-¥200.00
-91310000132149237G`,
-			ocrText: `电子发票（普通发票）
-发票号码：25312000000336194167
-开票日期：2025年07月02日
-金额：¥200.00
-销售方名称：上海公司
+			pdftotextText: `SYNTHETIC
+2026   08   02
+*99<<*>99/9>99/*99999<>*>99
+¥42.36
+91110000SYNTH00522`,
+			ocrText: `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
+发票号码：99000000000000000522
+开票日期：2026年08月02日
+金额：¥42.36
+销售方名称：纯合成销售公司
 购买方名称：个人`,
 			expectOCR:   true,
 			description: "When OCR has Chinese text and pdftotext doesn't, use OCR",
 		},
 		{
 			name: "pdftotext has sufficient Chinese - use pdftotext",
-			pdftotextText: `电子发票（普通发票）
-发票号码：12345678901234567890
-开票日期：2024年12月01日
-销售方名称：测试公司
-购买方名称：购买公司
-价税合计（小写）¥1234.56`,
-			ocrText: `电子发票（普通发票）
-发票号码：12345678901234567890`,
+			pdftotextText: `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
+发票号码：99000000000000000523
+开票日期：2026年08月03日
+销售方名称：纯合成销售公司
+购买方名称：纯合成购买公司
+价税合计（小写）¥84.72`,
+			ocrText: `SYNTHETIC / 纯合成测试数据
+电子发票（普通发票）
+发票号码：99000000000000000523`,
 			expectOCR:   false,
 			description: "When pdftotext has more Chinese, use pdftotext",
 		},
@@ -2009,19 +2050,19 @@ func TestParsePaymentScreenshot_NegativeAmount(t *testing.T) {
 		expectedAmount float64
 	}{
 		{
-			name:           "Negative amount -1700.00",
-			text:           "支付成功\n-1700.00\n商户：测试店",
-			expectedAmount: 1700.00,
+			name:           "Negative amount -42.36",
+			text:           "SYNTHETIC / 纯合成测试数据\n支付成功\n-42.36\n商户：纯合成测试店",
+			expectedAmount: 42.36,
 		},
 		{
-			name:           "Negative amount with symbol -¥1700.00",
-			text:           "支付成功\n-¥1700.00\n商户：测试店",
-			expectedAmount: 1700.00,
+			name:           "Negative amount with symbol -¥42.36",
+			text:           "SYNTHETIC / 纯合成测试数据\n支付成功\n-¥42.36\n商户：纯合成测试店",
+			expectedAmount: 42.36,
 		},
 		{
-			name:           "Standard amount ¥1700.00",
-			text:           "支付成功\n¥1700.00\n商户：测试店",
-			expectedAmount: 1700.00,
+			name:           "Standard amount ¥42.36",
+			text:           "SYNTHETIC / 纯合成测试数据\n支付成功\n¥42.36\n商户：纯合成测试店",
+			expectedAmount: 42.36,
 		},
 	}
 
@@ -2058,8 +2099,8 @@ func TestRemoveChineseSpaces(t *testing.T) {
 		},
 		{
 			name:     "Mixed Chinese and numbers with spaces",
-			input:    "2025 年 10 月 23 日",
-			expected: "2025年10月23日",
+			input:    "2026 年 08 月 23 日",
+			expected: "2026年08月23日",
 		},
 		{
 			name:     "Preserve spaces between English words",

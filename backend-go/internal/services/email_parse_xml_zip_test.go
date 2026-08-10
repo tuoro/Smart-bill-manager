@@ -8,30 +8,31 @@ import (
 
 func TestNormalizeInvoiceXMLBytes_ZipContainsXML(t *testing.T) {
 	xmlStr := `
+<!-- SYNTHETIC / 纯合成测试数据 -->
 <EInvoice>
   <Header>
-    <EIid>25327000001739485410</EIid>
-    <EInvoiceTag>SWEI3200</EInvoiceTag>
+    <EIid>99000000000000000201</EIid>
+    <EInvoiceTag>SYNTHETIC-TAG-01</EInvoiceTag>
     <Version>0.2</Version>
   </Header>
   <EInvoiceData>
     <SellerInformation>
-      <SellerIdNum>913205830880018839</SellerIdNum>
-      <SellerName>昆山京东尚信贸易有限公司</SellerName>
+      <SellerIdNum>91110000SYNTH00001</SellerIdNum>
+      <SellerName>纯合成电器销售有限公司</SellerName>
     </SellerInformation>
     <BuyerInformation>
-      <BuyerName>乌洪军</BuyerName>
+      <BuyerName>纯合成购买方丙</BuyerName>
     </BuyerInformation>
     <BasicInformation>
-      <TotalAmWithoutTax>5838.94</TotalAmWithoutTax>
-      <TotalTaxAm>759.06</TotalTaxAm>
-      <TotalTax-includedAmount>6598.00</TotalTax-includedAmount>
-      <RequestTime>2025-12-29 13:02:50</RequestTime>
+      <TotalAmWithoutTax>100.00</TotalAmWithoutTax>
+      <TotalTaxAm>6.00</TotalTaxAm>
+      <TotalTax-includedAmount>106.00</TotalTax-includedAmount>
+      <RequestTime>2026-08-05 13:02:50</RequestTime>
     </BasicInformation>
   </EInvoiceData>
   <TaxSupervisionInfo>
-    <InvoiceNumber>25327000001739485410</InvoiceNumber>
-    <IssueTime>2025-12-29 13:02:50</IssueTime>
+    <InvoiceNumber>99000000000000000201</InvoiceNumber>
+    <IssueTime>2026-08-05 13:02:50</IssueTime>
   </TaxSupervisionInfo>
 </EInvoice>
 `
@@ -61,8 +62,7 @@ func TestNormalizeInvoiceXMLBytes_ZipContainsXML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseInvoiceXMLToExtracted: %v", err)
 	}
-	if extracted.InvoiceNumber == nil || *extracted.InvoiceNumber != "25327000001739485410" {
+	if extracted.InvoiceNumber == nil || *extracted.InvoiceNumber != "99000000000000000201" {
 		t.Fatalf("invoice number mismatch: %#v", extracted.InvoiceNumber)
 	}
 }
-

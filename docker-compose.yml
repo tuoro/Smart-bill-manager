@@ -24,8 +24,6 @@ services:
       - SBM_OCR_DATA_DIR=/app/backend/data
       # Performance: keep a persistent RapidOCR worker process (avoid per-request Python startup)
       - SBM_OCR_WORKER=1
-      # Regression samples: path used by "sync from repo" (built into the image by default)
-      - SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression
     volumes:
       - app-data:/app/backend/data
       - app-uploads:/app/backend/uploads

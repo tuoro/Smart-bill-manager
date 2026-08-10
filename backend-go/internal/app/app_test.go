@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,6 +56,31 @@ func TestHealthCheck(t *testing.T) {
 	}
 	if body["items_parser_rev"] != float64(itemsParserRevision) {
 		t.Fatalf("支付解析器版本异常: %#v", body["items_parser_rev"])
+	}
+}
+
+func TestNewDoesNotRegisterRegressionSampleRoutes(t *testing.T) {
+	application, err := New(testConfig(t), &gorm.DB{}, t.TempDir())
+	if err != nil {
+		t.Fatalf("创建测试应用失败: %v", err)
+	}
+	for _, route := range application.Router.Routes() {
+		if strings.Contains(strings.ToLower(route.Path), "regression") {
+			t.Fatalf("生产路由不应暴露回归样本接口: %s %s", route.Method, route.Path)
+		}
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/regression-samples", nil)
+	application.Router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("旧回归样本接口应不可达，实际状态码为 %d", recorder.Code)
+	}
+	response := strings.ToLower(recorder.Body.String())
+	for _, internalField := range []string{"raw_text", "expected_json", "source_hash"} {
+		if strings.Contains(response, internalField) {
+			t.Fatalf("不可达接口响应泄露回归内部字段 %q", internalField)
+		}
 	}
 }
 

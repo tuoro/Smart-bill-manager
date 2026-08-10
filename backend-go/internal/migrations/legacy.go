@@ -201,10 +201,6 @@ func createIndexes(db *gorm.DB) error {
 		"CREATE INDEX IF NOT EXISTS idx_payment_ocr_blobs_owner_payment ON payment_ocr_blobs(owner_user_id, payment_id)",
 		"CREATE INDEX IF NOT EXISTS idx_tasks_status_created_at ON tasks(status, created_at)",
 		"CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by)",
-		"CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_source ON regression_samples(source_type, source_id, kind)",
-		"CREATE INDEX IF NOT EXISTS idx_regression_samples_kind_created_at ON regression_samples(kind, created_at)",
-		"CREATE INDEX IF NOT EXISTS idx_regression_samples_name ON regression_samples(name)",
-		"CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_kind_rawhash ON regression_samples(kind, raw_hash) WHERE raw_hash != ''",
 		"CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_payment_links_invoice_id ON invoice_payment_links(invoice_id)",
 		"DROP INDEX IF EXISTS ux_invoice_payment_links_payment_id",
 		"CREATE INDEX IF NOT EXISTS idx_invoice_payment_links_payment_id ON invoice_payment_links(payment_id)",
@@ -213,6 +209,19 @@ func createIndexes(db *gorm.DB) error {
 	for _, statement := range statements {
 		if err := execSQL(db, "创建数据库索引", statement); err != nil {
 			return err
+		}
+	}
+	if db.Migrator().HasTable("regression_samples") {
+		legacyRegressionIndexes := []string{
+			"CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_source ON regression_samples(source_type, source_id, kind)",
+			"CREATE INDEX IF NOT EXISTS idx_regression_samples_kind_created_at ON regression_samples(kind, created_at)",
+			"CREATE INDEX IF NOT EXISTS idx_regression_samples_name ON regression_samples(name)",
+			"CREATE UNIQUE INDEX IF NOT EXISTS ux_regression_samples_kind_rawhash ON regression_samples(kind, raw_hash) WHERE raw_hash != ''",
+		}
+		for _, statement := range legacyRegressionIndexes {
+			if err := execSQL(db, "创建旧回归样本索引", statement); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

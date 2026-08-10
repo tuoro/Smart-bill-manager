@@ -13,7 +13,7 @@ Smart Bill Manager 是一个面向个人与小团队的自托管账单系统，�
 - IMAP 邮箱监控、附件及正文票据链接解析
 - 差旅行程归属、待分配处理、报销与坏账状态管理
 - 邀请码注册、多用户数据隔离、管理员代操作二次确认
-- 异步 OCR 任务、任务取消、回归样本管理
+- 异步 OCR 任务与任务取消
 - 鉴权文件预览和下载，上传文件按用户目录隔离
 
 ## 技术栈
@@ -62,7 +62,6 @@ docker run -d --name smart-bill-manager -p 80:80 \
   -e JWT_SECRET="replace-with-a-persistent-32-char-secret" \
   -e SBM_OCR_DATA_DIR=/app/backend/data \
   -e SBM_OCR_WORKER=1 \
-  -e SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
   ghcr.io/tuoro/smart-bill-manager:0.2.4

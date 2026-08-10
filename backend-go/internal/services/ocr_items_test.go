@@ -7,8 +7,8 @@ func TestStripTrailingMoneyTokensFromItemField(t *testing.T) {
 		in   string
 		want string
 	}{
-		{"*运输服务*客运服务费68.34", "*运输服务*客运服务费"},
-		{"*运输服务*客运服务费 68.34", "*运输服务*客运服务费"},
+		{"*纯合成服务*测试路程费42.36", "*纯合成服务*测试路程费"},
+		{"*纯合成服务*测试路程费 42.36", "*纯合成服务*测试路程费"},
 		{"iPhone 15.00", "iPhone 15.00"}, // do not strip non-Chinese item names blindly
 	}
 
@@ -19,4 +19,3 @@ func TestStripTrailingMoneyTokensFromItemField(t *testing.T) {
 		}
 	}
 }
-

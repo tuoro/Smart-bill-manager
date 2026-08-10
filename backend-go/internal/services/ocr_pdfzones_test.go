@@ -13,15 +13,15 @@ func TestExtractSellerNameFromPDFZones_TaxIDContext(t *testing.T) {
 					Region: "password",
 					Y0:     260,
 					Y1:     290,
-					Text:   "\u7edf\u4e00\u793e\u4f1a\u4fe1\u7528\u4ee3\u7801/\u7eb3\u7a0e\u4eba\u8bc6\u522b\u53f7: \u5355\u4ef7 \u4e49\u4e4c\u5e02\u5927\u8fdb\u767e\u8d27\u6709\u9650\u516c\u53f8 1211.50 \u91d1\u989d 913307827450870674 \u7a0e\u7387/\u5f81\u6536\u7387 13% \u7a0e\u989d 157.50",
+					Text:   "SYNTHETIC / 纯合成测试数据 统一社会信用代码/纳税人识别号: 单价 纯合成长名称百货有限公司 100.00 金额 91110000SYNTH00001 税率/征收率 6% 税额 6.00",
 				},
 			},
 		},
 	}
 
 	got := extractSellerNameFromPDFZones(pages)
-	if got != "\u4e49\u4e4c\u5e02\u5927\u8fdb\u767e\u8d27\u6709\u9650\u516c\u53f8" {
-		t.Fatalf("expected seller=\u4e49\u4e4c\u5e02\u5927\u8fdb\u767e\u8d27\u6709\u9650\u516c\u53f8 got %q", got)
+	if got != "纯合成长名称百货有限公司" {
+		t.Fatalf("expected synthetic seller, got %q", got)
 	}
 }
 
@@ -40,7 +40,7 @@ func TestExtractBuyerNameFromPDFZones_FallbackFromBankFieldWhenNameIsGarbage(t *
 						{X0: 50, Y0: 220, X1: 100, Y1: 250, T: "\u540d\u79f0:"},
 						{X0: 110, Y0: 220, X1: 125, Y1: 250, T: "\u5730"},
 						{X0: 200, Y0: 220, X1: 300, Y1: 250, T: "\u5f00\u6237\u884c\u53ca\u8d26\u53f7:"},
-						{X0: 310, Y0: 220, X1: 380, Y1: 250, T: "\u90ac\u5148\u751f"},
+						{X0: 310, Y0: 220, X1: 380, Y1: 250, T: "纯合成先生"},
 					},
 				},
 			},
@@ -51,8 +51,8 @@ func TestExtractBuyerNameFromPDFZones_FallbackFromBankFieldWhenNameIsGarbage(t *
 	if !ok {
 		t.Fatalf("expected buyer candidate, got ok=false")
 	}
-	if got.val != "\u90ac\u5148\u751f" {
-		t.Fatalf("expected buyer=\u90ac\u5148\u751f got %q (src=%s)", got.val, got.src)
+	if got.val != "纯合成先生" {
+		t.Fatalf("expected synthetic buyer, got %q (src=%s)", got.val, got.src)
 	}
 }
 
@@ -93,12 +93,12 @@ func TestExtractInvoiceTotalsFromPDFZones_PicksXiaoxieAndTax(t *testing.T) {
 					Region: "items",
 					Y0:     820,
 					Y1:     850,
-					Text:   "\u4ef7\u7a0e\u5408\u8ba1\uff08\u5927\u5199\uff09 \u5408\u8ba1\u58f9\u4edf\u53c1\u4f70\u9646\u5341\u4e5d\u5706\u6574 \uff08\u5c0f\u5199\uff09 \uffe5 1369.00 \uffe5 157.50",
+					Text:   "价税合计（大写） 合计壹佰零陆圆整 （小写） ￥ 106.00 ￥ 6.00",
 					Spans: []PDFTextZonesSpan{
 						{X0: 120, Y0: 820, X1: 200, Y1: 850, T: "\u4ef7\u7a0e\u5408\u8ba1"},
 						{X0: 380, Y0: 820, X1: 430, Y1: 850, T: "\u5c0f\u5199"},
-						{X0: 450, Y0: 820, X1: 520, Y1: 850, T: "1369.00"},
-						{X0: 650, Y0: 820, X1: 710, Y1: 850, T: "157.50"},
+						{X0: 450, Y0: 820, X1: 520, Y1: 850, T: "106.00"},
+						{X0: 650, Y0: 820, X1: 710, Y1: 850, T: "6.00"},
 					},
 				},
 			},
@@ -106,11 +106,11 @@ func TestExtractInvoiceTotalsFromPDFZones_PicksXiaoxieAndTax(t *testing.T) {
 	}
 
 	total, _, _, tax, _, _ := extractInvoiceTotalsFromPDFZones(pages)
-	if total == nil || *total != 1369.00 {
-		t.Fatalf("expected total=1369.00 got %+v", total)
+	if total == nil || *total != 106.00 {
+		t.Fatalf("expected synthetic total=106.00 got %+v", total)
 	}
-	if tax == nil || *tax != 157.50 {
-		t.Fatalf("expected tax=157.50 got %+v", tax)
+	if tax == nil || *tax != 6.00 {
+		t.Fatalf("expected synthetic tax=6.00 got %+v", tax)
 	}
 }
 
@@ -125,13 +125,13 @@ func TestExtractInvoiceTotalsFromPDFZones_MultiAmountsAfterXiaoxiePrefersMax(t *
 					Region: "items",
 					Y0:     820,
 					Y1:     850,
-					Text:   "价税合计（大写） 合计捌拾捌圆整 （小写） 83.01 88.00 4.99",
+					Text:   "价税合计（大写） 合计伍拾贰圆整 （小写） 48.88 52.00 3.12",
 					Spans: []PDFTextZonesSpan{
 						{X0: 120, Y0: 820, X1: 200, Y1: 850, T: "价税合计"},
 						{X0: 380, Y0: 820, X1: 430, Y1: 850, T: "小写"},
-						{X0: 440, Y0: 820, X1: 520, Y1: 850, T: "83.01"},
-						{X0: 560, Y0: 820, X1: 640, Y1: 850, T: "88.00"},
-						{X0: 760, Y0: 820, X1: 830, Y1: 850, T: "4.99"},
+						{X0: 440, Y0: 820, X1: 520, Y1: 850, T: "48.88"},
+						{X0: 560, Y0: 820, X1: 640, Y1: 850, T: "52.00"},
+						{X0: 760, Y0: 820, X1: 830, Y1: 850, T: "3.12"},
 					},
 				},
 			},
@@ -139,11 +139,11 @@ func TestExtractInvoiceTotalsFromPDFZones_MultiAmountsAfterXiaoxiePrefersMax(t *
 	}
 
 	total, src, _, tax, _, _ := extractInvoiceTotalsFromPDFZones(pages)
-	if total == nil || *total != 88.00 {
-		t.Fatalf("expected total=88.00 got %+v (src=%s)", total, src)
+	if total == nil || *total != 52.00 {
+		t.Fatalf("expected synthetic total=52.00 got %+v (src=%s)", total, src)
 	}
-	if tax == nil || *tax != 4.99 {
-		t.Fatalf("expected tax=4.99 got %+v", tax)
+	if tax == nil || *tax != 3.12 {
+		t.Fatalf("expected synthetic tax=3.12 got %+v", tax)
 	}
 }
 
@@ -170,9 +170,9 @@ func TestExtractInvoiceLineItemsFromPDFZones_SplitsColumns(t *testing.T) {
 					Region: "items",
 					Y0:     430,
 					Y1:     450,
-					Text:   "*\u975e\u91d1\u5c5e\u77ff\u7269\u5236\u54c1*\u679c\u76d8 - \u4e2a 2",
+					Text:   "*纯合成用品*测试托盘 - 个 2",
 					Spans: []PDFTextZonesSpan{
-						{X0: 80, Y0: 430, X1: 320, Y1: 450, T: "*\u975e\u91d1\u5c5e\u77ff\u7269\u5236\u54c1*\u679c\u76d8"},
+						{X0: 80, Y0: 430, X1: 320, Y1: 450, T: "*纯合成用品*测试托盘"},
 						{X0: 360, Y0: 430, X1: 380, Y1: 450, T: "-"},
 						{X0: 620, Y0: 430, X1: 635, Y1: 450, T: "\u4e2a"},
 						{X0: 720, Y0: 430, X1: 730, Y1: 450, T: "2"},
@@ -186,7 +186,7 @@ func TestExtractInvoiceLineItemsFromPDFZones_SplitsColumns(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("expected 1 item, got %+v", items)
 	}
-	if items[0].Name != "*\u975e\u91d1\u5c5e\u77ff\u7269\u5236\u54c1*\u679c\u76d8" {
+	if items[0].Name != "*纯合成用品*测试托盘" {
 		t.Fatalf("expected name parsed, got %q", items[0].Name)
 	}
 	if items[0].Spec != "-" {
@@ -224,9 +224,9 @@ func TestExtractInvoiceLineItemsFromPDFZones_DiscountRowsNotMerged(t *testing.T)
 					Region: "items",
 					Y0:     160,
 					Y1:     170,
-					Text:   "*餐饮服务*餐饮服务 1 109.43 6%",
+					Text:   "*纯合成服务*测试主项目 1 40.00 6%",
 					Spans: []PDFTextZonesSpan{
-						{X0: 20, Y0: 160, X1: 140, Y1: 170, T: "*餐饮服务*餐饮服务"},
+						{X0: 20, Y0: 160, X1: 140, Y1: 170, T: "*纯合成服务*测试主项目"},
 						{X0: 286, Y0: 160, X1: 292, Y1: 170, T: "1"},
 						{X0: 340, Y0: 160, X1: 380, Y1: 170, T: "109.43"},
 						{X0: 480, Y0: 160, X1: 500, Y1: 170, T: "6%"},
@@ -238,9 +238,9 @@ func TestExtractInvoiceLineItemsFromPDFZones_DiscountRowsNotMerged(t *testing.T)
 					Region: "items",
 					Y0:     172,
 					Y1:     182,
-					Text:   "*餐饮服务*餐饮服务 -28.30 6% -1.70",
+					Text:   "*纯合成服务*测试主项目 -8.00 6% -0.48",
 					Spans: []PDFTextZonesSpan{
-						{X0: 20, Y0: 172, X1: 140, Y1: 182, T: "*餐饮服务*餐饮服务"},
+						{X0: 20, Y0: 172, X1: 140, Y1: 182, T: "*纯合成服务*测试主项目"},
 						{X0: 420, Y0: 172, X1: 460, Y1: 182, T: "-28.30"},
 						{X0: 480, Y0: 172, X1: 500, Y1: 182, T: "6%"},
 						{X0: 560, Y0: 172, X1: 590, Y1: 182, T: "-1.70"},
@@ -251,9 +251,9 @@ func TestExtractInvoiceLineItemsFromPDFZones_DiscountRowsNotMerged(t *testing.T)
 					Region: "items",
 					Y0:     184,
 					Y1:     194,
-					Text:   "*物流辅助服务*配送相关费用 1 9.43 6% 0.57",
+					Text:   "*纯合成服务*测试附加项目 1 12.00 6% 0.72",
 					Spans: []PDFTextZonesSpan{
-						{X0: 20, Y0: 184, X1: 200, Y1: 194, T: "*物流辅助服务*配送相关费用"},
+						{X0: 20, Y0: 184, X1: 200, Y1: 194, T: "*纯合成服务*测试附加项目"},
 						{X0: 286, Y0: 184, X1: 292, Y1: 194, T: "1"},
 						{X0: 360, Y0: 184, X1: 390, Y1: 194, T: "9.43"},
 						{X0: 480, Y0: 184, X1: 500, Y1: 194, T: "6%"},
@@ -265,9 +265,9 @@ func TestExtractInvoiceLineItemsFromPDFZones_DiscountRowsNotMerged(t *testing.T)
 					Region: "items",
 					Y0:     196,
 					Y1:     206,
-					Text:   "*物流辅助服务*配送相关费用 -7.55 6% -0.45",
+					Text:   "*纯合成服务*测试附加项目 -2.00 6% -0.12",
 					Spans: []PDFTextZonesSpan{
-						{X0: 20, Y0: 196, X1: 200, Y1: 206, T: "*物流辅助服务*配送相关费用"},
+						{X0: 20, Y0: 196, X1: 200, Y1: 206, T: "*纯合成服务*测试附加项目"},
 						{X0: 420, Y0: 196, X1: 450, Y1: 206, T: "-7.55"},
 						{X0: 480, Y0: 196, X1: 500, Y1: 206, T: "6%"},
 						{X0: 560, Y0: 196, X1: 590, Y1: 206, T: "-0.45"},

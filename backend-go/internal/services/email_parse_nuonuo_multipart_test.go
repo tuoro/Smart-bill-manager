@@ -9,16 +9,16 @@ import (
 )
 
 func TestExtractInvoiceArtifactsFromEmail_MultipartAlternativeBase64BodyContainsInvoiceLink(t *testing.T) {
-	plain := "点击链接查看发票：https://nnfp.jss.com.cn/8_CszRwjaw-FBnv"
+	plain := "SYNTHETIC / 纯合成测试数据\n点击链接查看发票：https://nnfp.jss.com.cn/synthetic-preview-token-0001"
 	html := `<div>
-  <a href="https://nnfp.jss.com.cn/8_CszRwjaw-FBnv">下载发票</a>
+  <a href="https://nnfp.jss.com.cn/synthetic-preview-token-0001">下载发票</a>
   <a href="https://fp.nuonuo.com/#/">诺诺发票</a>
-  <img src="http://linktrace.triggerdelivery.com/u/o1/N132-XXX" height="1" width="1">
+  <img src="http://linktrace.triggerdelivery.com/u/o1/SYNTHETIC-PIXEL" height="1" width="1">
 </div>`
 
 	raw := strings.ReplaceAll(`From: invoice@info.nuonuo.com
 To: user@example.com
-Subject: test
+Subject: synthetic test
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="b"
 
@@ -44,13 +44,12 @@ Content-Transfer-Encoding: base64
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(bodyText, "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv") {
+	if !strings.Contains(bodyText, "https://nnfp.jss.com.cn/synthetic-preview-token-0001") {
 		t.Fatalf("expected invoice link in extracted body text, got: %q", bodyText)
 	}
 
 	got := bestInvoicePreviewURLFromBody(bodyText)
-	if got != "https://nnfp.jss.com.cn/8_CszRwjaw-FBnv" {
+	if got != "https://nnfp.jss.com.cn/synthetic-preview-token-0001" {
 		t.Fatalf("unexpected preview url: %q", got)
 	}
 }
-

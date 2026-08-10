@@ -76,12 +76,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/AdminUsers.vue'),
         meta: { title: '用户', requiresAdmin: true },
       },
-      {
-        path: 'admin/regression-samples',
-        name: 'AdminRegressionSamples',
-        component: () => import('@/views/AdminRegressionSamples.vue'),
-        meta: { title: '回归样本', requiresAdmin: true },
-      },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/dashboard' },

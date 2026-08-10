@@ -567,15 +567,6 @@
           </div>
           <div class="actions">
             <Button
-              v-if="isAdmin && !invoiceDetailEditing"
-              class="p-button-outlined"
-              severity="secondary"
-              icon="pi pi-verified"
-              :label="'\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c'"
-              :loading="markingRegressionSample"
-              @click="markInvoiceRegressionSample(previewInvoice.id)"
-            />
-            <Button
               v-if="!invoiceDetailEditing"
               class="p-button-outlined"
               severity="secondary"
@@ -1113,9 +1104,8 @@ import Message from 'primevue/message'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
-import { invoiceApi, regressionSamplesApi } from '@/api'
+import { invoiceApi } from '@/api'
 import type { InvoiceOcrTaskResult } from '@/api/invoices'
-import type { SampleQualityIssue } from '@/api/regressionSamples'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useTaskPolling } from '@/composables/useTaskPolling'
 import { useNotificationStore } from '@/stores/notifications'
@@ -1214,29 +1204,6 @@ const confirmForceSave = (message: string) =>
       message,
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: '\u4ecd\u7136\u4fdd\u5b58',
-      rejectLabel: '\u53d6\u6d88',
-      accept: () => resolve(true),
-      reject: () => resolve(false),
-    })
-  })
-
-const summarizeSampleIssues = (issues: SampleQualityIssue[]) => {
-  const parts = issues.slice(0, 6).map((it) => {
-    const level = String(it?.level || '').toLowerCase()
-    const label = level === 'error' ? '\u9519\u8bef' : '\u8b66\u544a'
-    return `${label}\uff1a${it?.message || it?.code || '\u672a\u77e5\u95ee\u9898'}`
-  })
-  const suffix = issues.length > 6 ? '\u2026' : ''
-  return parts.join('\uff1b') + suffix
-}
-
-const confirmForceMarkRegressionSample = (issues: SampleQualityIssue[]) =>
-  new Promise<boolean>(resolve => {
-    confirm.require({
-      header: '\u6837\u672c\u8d28\u91cf\u63d0\u793a',
-      message: `\u6837\u672c\u8d28\u91cf\u68c0\u67e5\u53d1\u73b0\uff1a${summarizeSampleIssues(issues)}\n\u4ecd\u7136\u8981\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c\u5417\uff1f`,
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '\u4ecd\u7136\u6807\u8bb0',
       rejectLabel: '\u53d6\u6d88',
       accept: () => resolve(true),
       reject: () => resolve(false),
@@ -1490,7 +1457,6 @@ watch(
 const parseStatusPending = ref(false)
 const invoiceDetailEditing = ref(false)
 const savingInvoiceDetail = ref(false)
-const markingRegressionSample = ref(false)
 const invoiceDetailForm = reactive({
   invoice_number: '',
   invoice_date: null as Date | null,
@@ -2030,47 +1996,6 @@ const cancelInvoiceEditMode = () => {
   invoiceDetailForm.seller_name = previewInvoice.value.seller_name || ''
   invoiceDetailForm.buyer_name = previewInvoice.value.buyer_name || ''
   invoiceDetailEditing.value = false
-}
-
-const markInvoiceRegressionSample = async (id: string) => {
-  if (!isAdmin.value) return
-  if (!id) return
-  markingRegressionSample.value = true
-  try {
-    const res = await regressionSamplesApi.markInvoice(id)
-    if (res.data.success) {
-      const issues = res.data.data?.issues ?? []
-      const warnIssues = issues.filter((it) => String(it?.level || '').toLowerCase() === 'warn')
-      const nonPiiWarnIssues = warnIssues.filter((it) => !String(it?.code || '').toLowerCase().startsWith('pii_'))
-      const hasWarn = nonPiiWarnIssues.length > 0
-      const hasOnlyPiiWarn = warnIssues.length > 0 && nonPiiWarnIssues.length === 0
-      toast.add({
-        severity: hasWarn ? 'warn' : hasOnlyPiiWarn ? 'info' : 'success',
-        summary: hasWarn
-          ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u6709\u8b66\u544a\uff09'
-          : hasOnlyPiiWarn
-            ? '\u5df2\u6807\u8bb0\u56de\u5f52\u6837\u672c\uff08\u542b\u9690\u79c1\u5b57\u6bb5\u63d0\u793a\uff09'
-            : '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c',
-        life: 2500,
-      })
-      return
-    }
-    toast.add({ severity: 'error', summary: res.data.message || '\u6807\u8bb0\u5931\u8d25', life: 3000 })
-  } catch (e: unknown) {
-    const { status, data } = getApiErrorDetails<{ issues?: SampleQualityIssue[] }>(e)
-    if (status === 422) {
-      const ok = await confirmForceMarkRegressionSample(data?.issues ?? [])
-      if (!ok) return
-      const res = await regressionSamplesApi.markInvoice(id, { force: true })
-      if (res.data.success) {
-        toast.add({ severity: 'success', summary: '\u5df2\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c', life: 2500 })
-        return
-      }
-    }
-    toast.add({ severity: 'error', summary: getApiErrorMessage(e, '\u6807\u8bb0\u5931\u8d25'), life: 3000 })
-  } finally {
-    markingRegressionSample.value = false
-  }
 }
 
 const saveInvoiceEditMode = async () => {

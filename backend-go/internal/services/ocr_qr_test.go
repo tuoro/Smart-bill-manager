@@ -3,42 +3,41 @@ package services
 import "testing"
 
 func TestParseInvoiceQRPayload_CombinedCodeNumber20Digits(t *testing.T) {
-	payload := "foo 25117000000677781736 20250512 70.39"
+	payload := "SYNTHETIC 99000000000123456789 20260801 42.36"
 	f := parseInvoiceQRPayload(payload)
-	if f.InvoiceCode != "251170000006" {
-		t.Fatalf("expected code %q, got %q", "251170000006", f.InvoiceCode)
+	if f.InvoiceCode != "990000000001" {
+		t.Fatalf("expected synthetic code %q, got %q", "990000000001", f.InvoiceCode)
 	}
-	if f.InvoiceNumber != "77781736" {
-		t.Fatalf("expected number %q, got %q", "77781736", f.InvoiceNumber)
+	if f.InvoiceNumber != "23456789" {
+		t.Fatalf("expected synthetic number %q, got %q", "23456789", f.InvoiceNumber)
 	}
 	if f.CheckCode != "" {
 		t.Fatalf("expected empty check code, got %q", f.CheckCode)
 	}
-	if f.InvoiceDate != "2025年5月12日" {
-		t.Fatalf("expected date %q, got %q", "2025年5月12日", f.InvoiceDate)
+	if f.InvoiceDate != "2026年8月1日" {
+		t.Fatalf("expected synthetic date %q, got %q", "2026年8月1日", f.InvoiceDate)
 	}
-	if f.Amount != "70.39" {
-		t.Fatalf("expected amount %q, got %q", "70.39", f.Amount)
+	if f.Amount != "42.36" {
+		t.Fatalf("expected synthetic amount %q, got %q", "42.36", f.Amount)
 	}
 }
 
 func TestParseInvoiceQRPayload_StandardTokens(t *testing.T) {
-	payload := "01,10,251170000006,77781736,70.39,20250512,12345678901234567890"
+	payload := "01,10,990000000001,23456789,42.36,20260801,99999999999999999999"
 	f := parseInvoiceQRPayload(payload)
-	if f.InvoiceCode != "251170000006" {
-		t.Fatalf("expected code %q, got %q", "251170000006", f.InvoiceCode)
+	if f.InvoiceCode != "990000000001" {
+		t.Fatalf("expected synthetic code %q, got %q", "990000000001", f.InvoiceCode)
 	}
-	if f.InvoiceNumber != "77781736" {
-		t.Fatalf("expected number %q, got %q", "77781736", f.InvoiceNumber)
+	if f.InvoiceNumber != "23456789" {
+		t.Fatalf("expected synthetic number %q, got %q", "23456789", f.InvoiceNumber)
 	}
-	if f.InvoiceDate != "2025年5月12日" {
-		t.Fatalf("expected date %q, got %q", "2025年5月12日", f.InvoiceDate)
+	if f.InvoiceDate != "2026年8月1日" {
+		t.Fatalf("expected synthetic date %q, got %q", "2026年8月1日", f.InvoiceDate)
 	}
-	if f.Amount != "70.39" {
-		t.Fatalf("expected amount %q, got %q", "70.39", f.Amount)
+	if f.Amount != "42.36" {
+		t.Fatalf("expected synthetic amount %q, got %q", "42.36", f.Amount)
 	}
-	if f.CheckCode != "12345678901234567890" {
-		t.Fatalf("expected check code %q, got %q", "12345678901234567890", f.CheckCode)
+	if f.CheckCode != "99999999999999999999" {
+		t.Fatalf("expected synthetic check code %q, got %q", "99999999999999999999", f.CheckCode)
 	}
 }
-

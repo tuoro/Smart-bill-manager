@@ -77,7 +77,7 @@ func (*noopOCRWorker) StartIfEnabled() (bool, error) {
 	return false, nil
 }
 
-func (*noopOCRWorker) Recognize(string, string, string) ([]byte, error) {
+func (*noopOCRWorker) Recognize(context.Context, string, string, string) ([]byte, error) {
 	return nil, nil
 }
 

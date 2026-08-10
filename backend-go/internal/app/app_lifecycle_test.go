@@ -103,7 +103,7 @@ func (w *blockingOCRWorker) StartIfEnabled() (bool, error) {
 	return true, nil
 }
 
-func (w *blockingOCRWorker) Recognize(string, string, string) ([]byte, error) {
+func (w *blockingOCRWorker) Recognize(context.Context, string, string, string) ([]byte, error) {
 	return nil, errors.New("unexpected OCR request")
 }
 

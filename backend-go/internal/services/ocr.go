@@ -315,7 +315,7 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 			fmt.Printf("[OCR] OCR worker enabled but not configured; falling back to CLI\n")
 		} else {
 			fmt.Printf("[OCR] Running OCR worker for: %s (engine=%s profile=%s)\n", imagePath, getOCREngine(), reqProfile)
-			out, err := s.worker.Recognize(workerScript, imagePath, reqProfile)
+			out, err := s.worker.Recognize(ctx, workerScript, imagePath, reqProfile)
 			if err == nil {
 				var result OCRCLIResponse
 				parseErr := unmarshalPossiblyNoisyJSON(out, &result)

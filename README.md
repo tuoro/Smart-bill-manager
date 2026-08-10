@@ -1,5 +1,7 @@
 # 智能账单管理系统 (Smart Bill Manager)
 
+> **English documentation:** [README_EN.md](README_EN.md)
+
 Smart Bill Manager 是一个面向个人与小团队的自托管账单系统，统一管理支付记录、电子发票、差旅行程和邮箱票据。系统支持 OCR 自动提取、多用户账本隔离、管理员代操作和异步任务处理。
 
 当前稳定版本：`v0.2.4`。本版本收紧启动迁移与服务边界，确保邮件日志无损去重、邮箱密钥一致性和 OCR worker 可中断停机，并补齐生产 Compose 门禁；升级说明见 [CHANGELOG.md](CHANGELOG.md)，设计边界见 [架构说明](docs/architecture.md)。
@@ -188,6 +190,8 @@ Smart-bill-manager/
 ```
 
 ## 安全边界
+
+安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告，请勿在公开 Issue 中披露。
 
 - 所有业务数据按 `owner_user_id` 查询，管理员代操作写请求必须二次确认。
 - 上传目录不作为公开静态目录；预览和下载必须经过鉴权接口。

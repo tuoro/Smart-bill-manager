@@ -143,9 +143,10 @@ npm run dev
 cd backend-go
 CGO_ENABLED=1 go test -count=1 -coverprofile=coverage.out ./...
 go tool cover -func=coverage.out
-go vet ./...
+CGO_ENABLED=1 go vet ./...
 
 cd ../frontend
+npm ci
 npm audit --audit-level=high
 npm run lint:ci
 npm run test:run

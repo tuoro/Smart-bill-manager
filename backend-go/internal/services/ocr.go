@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -344,6 +345,10 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 				} else if !result.Success {
 					fmt.Printf("[OCR] OCR worker returned error: %s\n", result.Error)
 				}
+			} else if errors.Is(err, ErrOCRWorkerClosed) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) {
+				return "", err
 			} else {
 				fmt.Printf("[OCR] OCR worker failed: %v; falling back to CLI\n", err)
 			}

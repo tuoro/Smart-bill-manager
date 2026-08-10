@@ -62,7 +62,8 @@ func TestEnsureEmailConfigPasswordsEncryptedRejectsMissingKeyForExistingCipherte
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY_FILE", keyPath)
 	db := openServiceTestDB(t)
 	existingEncrypted := encryptEmailPasswordForMigrationTest(t, "stored-password", testEmailPasswordKey)
-	if err := db.Create(newEmailConfigMigrationTestRow("config-encrypted", existingEncrypted)).Error; err != nil {
+	config := newEmailConfigMigrationTestRow("config-encrypted", existingEncrypted)
+	if err := db.Create(&config).Error; err != nil {
 		t.Fatalf("写入已有密文失败: %v", err)
 	}
 
@@ -83,7 +84,8 @@ func TestEnsureEmailConfigPasswordsEncryptedRejectsWrongKey(t *testing.T) {
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY", strings.Repeat("a", 64))
 	db := openServiceTestDB(t)
 	existingEncrypted := encryptEmailPasswordForMigrationTest(t, "stored-password", testEmailPasswordKey)
-	if err := db.Create(newEmailConfigMigrationTestRow("config-encrypted", existingEncrypted)).Error; err != nil {
+	config := newEmailConfigMigrationTestRow("config-encrypted", existingEncrypted)
+	if err := db.Create(&config).Error; err != nil {
 		t.Fatalf("写入已有密文失败: %v", err)
 	}
 
@@ -106,7 +108,8 @@ func TestEnsureEmailConfigPasswordsEncryptedRejectsUnreadableKeyFile(t *testing.
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY_FILE", keyPath)
 	db := openServiceTestDB(t)
 	existingEncrypted := encryptEmailPasswordForMigrationTest(t, "stored-password", testEmailPasswordKey)
-	if err := db.Create(newEmailConfigMigrationTestRow("config-encrypted", existingEncrypted)).Error; err != nil {
+	config := newEmailConfigMigrationTestRow("config-encrypted", existingEncrypted)
+	if err := db.Create(&config).Error; err != nil {
 		t.Fatalf("写入已有密文失败: %v", err)
 	}
 
@@ -149,7 +152,8 @@ func TestEnsureEmailConfigPasswordsEncryptedGeneratesKeyForFirstPlaintextMigrati
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY", "")
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY_FILE", keyPath)
 	db := openServiceTestDB(t)
-	if err := db.Create(newEmailConfigMigrationTestRow("config-plain", "legacy-password")).Error; err != nil {
+	config := newEmailConfigMigrationTestRow("config-plain", "legacy-password")
+	if err := db.Create(&config).Error; err != nil {
 		t.Fatalf("写入明文邮箱密码失败: %v", err)
 	}
 

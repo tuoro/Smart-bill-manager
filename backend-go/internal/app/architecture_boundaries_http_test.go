@@ -14,6 +14,8 @@ import (
 )
 
 func TestDashboardRecentPaymentsAreTenantScopedAndKeepContract(t *testing.T) {
+	const expectedDashboardRecentPaymentLimit = 6
+
 	application := newTestApplication(t)
 	admin := setupContractAdmin(t, application)
 	member := registerContractMember(t, application, admin.Token)
@@ -76,8 +78,8 @@ func TestDashboardRecentPaymentsAreTenantScopedAndKeepContract(t *testing.T) {
 	if adminDashboard.Invoices.TotalCount != 2 {
 		t.Fatalf("管理员发票数量应为 2，实际为 %d", adminDashboard.Invoices.TotalCount)
 	}
-	if len(adminDashboard.RecentPayments) != dashboardRecentPaymentLimit {
-		t.Fatalf("最近支付应保持 %d 条上限，实际为 %d", dashboardRecentPaymentLimit, len(adminDashboard.RecentPayments))
+	if len(adminDashboard.RecentPayments) != expectedDashboardRecentPaymentLimit {
+		t.Fatalf("最近支付应保持 %d 条上限，实际为 %d", expectedDashboardRecentPaymentLimit, len(adminDashboard.RecentPayments))
 	}
 	if adminDashboard.RecentPayments[0].ID != adminPayments[0].ID || adminDashboard.RecentPayments[0].InvoiceCount != 2 {
 		t.Fatalf("最近支付排序或同所有者发票计数错误: %#v", adminDashboard.RecentPayments[0])

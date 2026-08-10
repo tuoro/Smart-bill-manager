@@ -107,6 +107,10 @@ func (w *blockingOCRWorker) Recognize(context.Context, string, string, string) (
 	return nil, errors.New("unexpected OCR request")
 }
 
+func (w *blockingOCRWorker) RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error) {
+	return fallback(ctx)
+}
+
 func (w *blockingOCRWorker) Shutdown(ctx context.Context) error {
 	close(w.shutdownStarted)
 	select {

@@ -48,6 +48,10 @@ type rapidOCRWorkerRun struct {
 	terminateFn   func()
 }
 
+type rapidOCRFallback struct {
+	cancel context.CancelCauseFunc
+}
+
 type rapidOCRWorkerProcess struct {
 	initOnce    sync.Once
 	requestGate chan struct{}
@@ -58,6 +62,9 @@ type rapidOCRWorkerProcess struct {
 	state     rapidOCRWorkerState
 	run       *rapidOCRWorkerRun
 	startDone chan struct{}
+	fallbacks map[*rapidOCRFallback]struct{}
+	// fallbackDone 在存在在途 CLI fallback 时保持未关闭，最后一个 fallback 回收后关闭。
+	fallbackDone chan struct{}
 
 	reqCount int64
 
@@ -67,6 +74,8 @@ type rapidOCRWorkerProcess struct {
 type OCRWorker interface {
 	StartIfEnabled() (bool, error)
 	Recognize(ctx context.Context, scriptPath string, imagePath string, profile string) ([]byte, error)
+	// RunFallback 必须把开始判定、关闭取消和回收等待纳入与 Shutdown 相同的生命周期。
+	RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error)
 	Shutdown(ctx context.Context) error
 }
 
@@ -191,6 +200,13 @@ func (w *RapidOCRWorker) Recognize(ctx context.Context, scriptPath string, image
 	}
 	defer w.process.releaseRequest()
 	return w.process.recognize(ctx, scriptPath, imagePath, profile)
+}
+
+func (w *RapidOCRWorker) RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error) {
+	if w == nil {
+		return "", fmt.Errorf("ocr worker is nil")
+	}
+	return w.process.runFallback(ctx, fallback)
 }
 
 func (w *RapidOCRWorker) Shutdown(ctx context.Context) error {
@@ -364,9 +380,13 @@ func (w *rapidOCRWorkerProcess) refreshLocked() {
 	case rapidOCRWorkerRunning, rapidOCRWorkerStopping:
 		w.state = rapidOCRWorkerIdle
 	case rapidOCRWorkerClosing:
-		if w.startDone == nil {
-			w.state = rapidOCRWorkerClosed
-		}
+		w.closeIfDrainedLocked()
+	}
+}
+
+func (w *rapidOCRWorkerProcess) closeIfDrainedLocked() {
+	if w.state == rapidOCRWorkerClosing && w.startDone == nil && w.run == nil && len(w.fallbacks) == 0 {
+		w.state = rapidOCRWorkerClosed
 	}
 }
 
@@ -379,7 +399,7 @@ func (w *rapidOCRWorkerProcess) finishRun(run *rapidOCRWorkerRun) {
 	w.run = nil
 	w.reqCount = 0
 	if w.state == rapidOCRWorkerClosing {
-		w.state = rapidOCRWorkerClosed
+		w.closeIfDrainedLocked()
 		return
 	}
 	w.state = rapidOCRWorkerIdle
@@ -394,21 +414,91 @@ func (w *rapidOCRWorkerProcess) markStopping(run *rapidOCRWorkerRun) {
 	run.terminate()
 }
 
+func (w *rapidOCRWorkerProcess) beginFallback(ctx context.Context) (context.Context, *rapidOCRFallback, error) {
+	ctx = nonNilContext(ctx)
+	w.init()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.refreshLocked()
+	if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+		return nil, nil, err
+	}
+	if w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed {
+		return nil, nil, ErrOCRWorkerClosed
+	}
+
+	fallbackCtx, cancel := context.WithCancelCause(ctx)
+	active := &rapidOCRFallback{cancel: cancel}
+	if w.fallbacks == nil {
+		w.fallbacks = make(map[*rapidOCRFallback]struct{})
+	}
+	if len(w.fallbacks) == 0 {
+		w.fallbackDone = make(chan struct{})
+	}
+	w.fallbacks[active] = struct{}{}
+	return fallbackCtx, active, nil
+}
+
+func (w *rapidOCRWorkerProcess) finishFallback(active *rapidOCRFallback) bool {
+	if active == nil {
+		return false
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, registered := w.fallbacks[active]
+	if !registered {
+		return w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed
+	}
+	delete(w.fallbacks, active)
+	active.cancel(context.Canceled)
+	if len(w.fallbacks) == 0 && w.fallbackDone != nil {
+		close(w.fallbackDone)
+		w.fallbackDone = nil
+	}
+	w.closeIfDrainedLocked()
+	return w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed
+}
+
+func (w *rapidOCRWorkerProcess) runFallback(
+	ctx context.Context,
+	fallback func(context.Context) (string, error),
+) (text string, err error) {
+	if fallback == nil {
+		return "", fmt.Errorf("ocr fallback is nil")
+	}
+	fallbackCtx, active, err := w.beginFallback(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if w.finishFallback(active) {
+			text = ""
+			err = ErrOCRWorkerClosed
+		}
+	}()
+	return fallback(fallbackCtx)
+}
+
 func (w *rapidOCRWorkerProcess) shutdown(ctx context.Context) error {
 	ctx = nonNilContext(ctx)
 	w.init()
-	w.closeOnce.Do(func() {
-		close(w.closingCh)
-	})
 
 	for {
 		w.mu.Lock()
+		w.closeOnce.Do(func() {
+			close(w.closingCh)
+		})
 		w.refreshLocked()
 		if w.state == rapidOCRWorkerClosed {
 			w.mu.Unlock()
 			return nil
 		}
 		w.state = rapidOCRWorkerClosing
+		for fallback := range w.fallbacks {
+			fallback.cancel(ErrOCRWorkerClosed)
+		}
 		if w.startDone != nil {
 			startDone := w.startDone
 			w.mu.Unlock()
@@ -418,19 +508,25 @@ func (w *rapidOCRWorkerProcess) shutdown(ctx context.Context) error {
 			continue
 		}
 		run := w.run
-		if run == nil {
-			w.state = rapidOCRWorkerClosed
+		fallbackDone := w.fallbackDone
+		w.closeIfDrainedLocked()
+		if w.state == rapidOCRWorkerClosed {
 			w.mu.Unlock()
 			return nil
 		}
 		w.mu.Unlock()
 
-		run.terminate()
-		if err := waitForRapidOCRWorker(ctx, run.waitCh, nil); err != nil {
-			return fmt.Errorf("ocr worker shutdown waiting for process: %w", err)
+		if run != nil {
+			run.terminate()
+			if err := waitForRapidOCRWorker(ctx, run.waitCh, nil); err != nil {
+				return fmt.Errorf("ocr worker shutdown waiting for process: %w", err)
+			}
+			w.finishRun(run)
+			continue
 		}
-		w.finishRun(run)
-		return nil
+		if err := waitForRapidOCRWorker(ctx, fallbackDone, nil); err != nil {
+			return fmt.Errorf("ocr worker shutdown waiting for CLI fallback: %w", err)
+		}
 	}
 }
 

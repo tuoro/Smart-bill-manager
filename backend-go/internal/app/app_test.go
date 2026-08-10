@@ -81,6 +81,10 @@ func (*noopOCRWorker) Recognize(context.Context, string, string, string) ([]byte
 	return nil, nil
 }
 
+func (*noopOCRWorker) RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error) {
+	return fallback(ctx)
+}
+
 func (*noopOCRWorker) Shutdown(context.Context) error {
 	return nil
 }

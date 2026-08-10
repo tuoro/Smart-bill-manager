@@ -30,17 +30,47 @@ func EnsureEmailConfigPasswordsEncrypted(db *gorm.DB) error {
 			Model(&models.EmailConfig{}).
 			Select("id", "password").
 			Where("password IS NOT NULL AND TRIM(password) != ''").
-			Where("password NOT LIKE ?", emailPasswordEncPrefix+"%").
 			Order("id ASC").
 			Find(&rows).Error; err != nil {
-			return fmt.Errorf("读取旧版明文邮箱密码失败: %w", err)
+			return fmt.Errorf("读取邮箱密码失败: %w", err)
+		}
+
+		hasEncrypted := false
+		for _, row := range rows {
+			if strings.TrimSpace(row.ID) == "" {
+				return errors.New("邮箱密码记录缺少 ID")
+			}
+			if isEncryptedEmailPassword(row.Password) {
+				hasEncrypted = true
+			}
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+
+		key, err := getEmailPasswordKeyWithGeneration(!hasEncrypted)
+		if err != nil {
+			if hasEncrypted {
+				return fmt.Errorf("加载已有加密邮箱密码的密钥失败: %w", err)
+			}
+			return fmt.Errorf("加载邮箱密码加密密钥失败: %w", err)
+		}
+
+		// 在写入任何明文迁移结果前验证全部历史密文，避免混合数据使用不同密钥。
+		for _, row := range rows {
+			if !isEncryptedEmailPassword(row.Password) {
+				continue
+			}
+			if _, err := decryptEmailPasswordWithKey(row.Password, key); err != nil {
+				return fmt.Errorf("验证已有加密邮箱密码失败 (id=%s): %w", row.ID, err)
+			}
 		}
 
 		for _, row := range rows {
-			if strings.TrimSpace(row.ID) == "" {
-				return errors.New("旧版明文邮箱密码记录缺少 ID")
+			if isEncryptedEmailPassword(row.Password) {
+				continue
 			}
-			encrypted, err := encryptEmailPassword(row.Password)
+			encrypted, err := encryptEmailPasswordWithKey(row.Password, key)
 			if err != nil {
 				return fmt.Errorf("加密邮箱密码失败 (id=%s): %w", row.ID, err)
 			}

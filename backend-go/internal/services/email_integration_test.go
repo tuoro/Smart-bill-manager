@@ -11,6 +11,7 @@ import (
 )
 
 func TestEmailServiceUsesInjectedDatabase(t *testing.T) {
+	resetEmailPasswordKeyCache(t)
 	t.Setenv("SBM_EMAIL_PASSWORD_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	primaryDB := openServiceTestDB(t)
 	secondaryDB := openServiceTestDB(t)

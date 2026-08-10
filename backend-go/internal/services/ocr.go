@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -26,7 +27,12 @@ import (
 )
 
 // OCRService provides OCR functionality
-type OCRService struct{}
+type OCRService struct {
+	worker    OCRWorker
+	cliRunner func(context.Context, string, string, []string) ([]byte, error)
+	// beforeWorkerFallback 仅用于确定性控制 worker 结果与 fallback 注册之间的测试交错。
+	beforeWorkerFallback func()
+}
 
 var (
 	rapidOCRModulesOnce sync.Once
@@ -130,7 +136,14 @@ var paymentInvisibleSpaceReplacer = strings.NewReplacer(
 )
 
 func NewOCRService() *OCRService {
-	return &OCRService{}
+	return NewOCRServiceWithWorker(NewRapidOCRWorker())
+}
+
+func NewOCRServiceWithWorker(worker OCRWorker) *OCRService {
+	if worker == nil {
+		worker = NewRapidOCRWorker()
+	}
+	return &OCRService{worker: worker}
 }
 
 func getOCREngine() string {
@@ -298,13 +311,17 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 	// Prefer a persistent worker to avoid per-request Python startup overhead.
 	// Falls back to the CLI when the worker is disabled or unavailable.
 	reqProfile := parseOCRProfileFromArgs(extraArgs)
+	var fallbackWorker OCRWorker
 	if ocrWorkerEnabled() {
+		fallbackWorker = s.worker
 		workerScript := s.findOCRWorkerScript()
 		if workerScript == "" {
 			fmt.Printf("[OCR] OCR worker enabled but scripts/ocr_worker.py not found; falling back to CLI\n")
+		} else if s.worker == nil {
+			fmt.Printf("[OCR] OCR worker enabled but not configured; falling back to CLI\n")
 		} else {
 			fmt.Printf("[OCR] Running OCR worker for: %s (engine=%s profile=%s)\n", imagePath, getOCREngine(), reqProfile)
-			out, err := recognizeWithRapidOCRWorker(workerScript, imagePath, reqProfile)
+			out, err := s.worker.Recognize(ctx, workerScript, imagePath, reqProfile)
 			if err == nil {
 				var result OCRCLIResponse
 				parseErr := unmarshalPossiblyNoisyJSON(out, &result)
@@ -333,12 +350,29 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 				} else if !result.Success {
 					fmt.Printf("[OCR] OCR worker returned error: %s\n", result.Error)
 				}
+			} else if errors.Is(err, ErrOCRWorkerClosed) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) {
+				return "", err
 			} else {
 				fmt.Printf("[OCR] OCR worker failed: %v; falling back to CLI\n", err)
 			}
 		}
 	}
 
+	runCLI := func(fallbackCtx context.Context) (string, error) {
+		return s.recognizeWithRapidOCRCLI(fallbackCtx, imagePath, extraArgs)
+	}
+	if fallbackWorker != nil {
+		if s.beforeWorkerFallback != nil {
+			s.beforeWorkerFallback()
+		}
+		return fallbackWorker.RunFallback(ctx, runCLI)
+	}
+	return runCLI(ctx)
+}
+
+func (s *OCRService) recognizeWithRapidOCRCLI(ctx context.Context, imagePath string, extraArgs []string) (string, error) {
 	fmt.Printf("[OCR] Running OCR CLI for: %s (engine=%s)\n", imagePath, getOCREngine())
 
 	// Find the OCR CLI script
@@ -347,23 +381,11 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 		return "", fmt.Errorf("ocr_cli.py script not found")
 	}
 
-	// Execute Python script
-	run := func(python string) ([]byte, error) {
-		args := []string{scriptPath}
-		args = append(args, extraArgs...)
-		args = append(args, imagePath)
-		cmd := exec.CommandContext(ctx, python, args...)
-		return cmd.CombinedOutput()
+	runner := s.cliRunner
+	if runner == nil {
+		runner = runRapidOCRCLICommand
 	}
-
-	output, execErr := run("python3")
-	if execErr != nil {
-		// Try with "python" if "python3" fails
-		if altOut, altErr := run("python"); altErr == nil || len(altOut) > 0 {
-			output = altOut
-			execErr = altErr
-		}
-	}
+	output, execErr := runner(ctx, scriptPath, imagePath, extraArgs)
 
 	// Parse JSON output
 	var result OCRCLIResponse
@@ -410,6 +432,30 @@ func (s *OCRService) recognizeWithRapidOCRArgs(imagePath string, extraArgs []str
 		fmt.Printf("[OCR] OCR extracted %d lines, %d characters (engine=%s profile=%s backend=%s)\n", result.LineCount, len(result.Text), engine, profile, be)
 	}
 	return result.Text, nil
+}
+
+func runRapidOCRCLICommand(ctx context.Context, scriptPath string, imagePath string, extraArgs []string) ([]byte, error) {
+	ctx = nonNilContext(ctx)
+	run := func(python string) ([]byte, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		args := []string{scriptPath}
+		args = append(args, extraArgs...)
+		args = append(args, imagePath)
+		cmd := exec.CommandContext(ctx, python, args...)
+		return cmd.CombinedOutput()
+	}
+
+	output, execErr := run("python3")
+	if execErr != nil && ctx.Err() == nil {
+		// python3 不可用时才尝试 python；生命周期取消后不得再启动替代进程。
+		if altOut, altErr := run("python"); altErr == nil || len(altOut) > 0 {
+			output = altOut
+			execErr = altErr
+		}
+	}
+	return output, execErr
 }
 
 func stripANSIEscapes(s string) string {

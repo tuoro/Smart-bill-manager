@@ -25,12 +25,15 @@ type migration struct {
 	up      func(*gorm.DB) error
 }
 
+const emailLogIdentityMigrationVersion int64 = 2026081001
+
 var registeredMigrations = []migration{
 	{version: 2026080301, name: "legacy_data_and_indexes", up: migrateLegacyDataAndIndexes},
 	{version: 2026080302, name: "money_cents", up: migrateMoneyCents},
+	{version: emailLogIdentityMigrationVersion, name: "email_log_identity", up: migrateEmailLogIdentity},
 }
 
-// Run 先同步表结构，再按版本顺序执行尚未应用的数据迁移。
+// Run 先拒绝程序不支持的未来数据库，再同步表结构并执行尚未应用的数据迁移。
 func Run(db *gorm.DB) error {
 	if db == nil {
 		return errors.New("数据库连接为空")
@@ -38,20 +41,14 @@ func Run(db *gorm.DB) error {
 	if err := validateRegistry(registeredMigrations); err != nil {
 		return err
 	}
+	if err := rejectFutureDatabaseVersion(db); err != nil {
+		return err
+	}
 	if err := migrateSchema(db); err != nil {
 		return fmt.Errorf("同步数据库结构失败: %w", err)
 	}
 	if err := db.AutoMigrate(&schemaMigration{}); err != nil {
 		return fmt.Errorf("创建迁移记录表失败: %w", err)
-	}
-
-	var latestApplied int64
-	if err := db.Model(&schemaMigration{}).Select("COALESCE(MAX(version), 0)").Scan(&latestApplied).Error; err != nil {
-		return fmt.Errorf("读取数据库迁移版本失败: %w", err)
-	}
-	latestKnown := registeredMigrations[len(registeredMigrations)-1].version
-	if latestApplied > latestKnown {
-		return fmt.Errorf("数据库版本 %d 高于程序支持的最新版本 %d", latestApplied, latestKnown)
 	}
 
 	for _, item := range registeredMigrations {
@@ -81,6 +78,22 @@ func Run(db *gorm.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func rejectFutureDatabaseVersion(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&schemaMigration{}) {
+		return nil
+	}
+
+	var latestApplied int64
+	if err := db.Model(&schemaMigration{}).Select("COALESCE(MAX(version), 0)").Scan(&latestApplied).Error; err != nil {
+		return fmt.Errorf("读取数据库迁移版本失败: %w", err)
+	}
+	latestKnown := registeredMigrations[len(registeredMigrations)-1].version
+	if latestApplied > latestKnown {
+		return fmt.Errorf("数据库版本 %d 高于程序支持的最新版本 %d", latestApplied, latestKnown)
+	}
 	return nil
 }
 

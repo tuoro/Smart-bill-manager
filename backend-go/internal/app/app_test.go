@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,17 @@ func TestNewRejectsMissingDependencies(t *testing.T) {
 	cfg := testConfig(t)
 	if _, err := New(cfg, nil, t.TempDir()); err == nil {
 		t.Fatal("数据库为空时应返回错误")
+	}
+}
+
+func TestNewUsesInjectedOCRWorker(t *testing.T) {
+	worker := &noopOCRWorker{}
+	application, err := NewWithOCRWorker(testConfig(t), &gorm.DB{}, t.TempDir(), worker)
+	if err != nil {
+		t.Fatalf("创建注入 OCR worker 的应用失败: %v", err)
+	}
+	if application.ocrWorker != worker {
+		t.Fatal("应用未保留注入的 OCR worker 生命周期")
 	}
 }
 
@@ -57,4 +69,22 @@ func testConfig(t *testing.T) *config.Config {
 		UploadsDir:         t.TempDir(),
 		CORSAllowedOrigins: []string{"http://localhost:5173"},
 	}
+}
+
+type noopOCRWorker struct{}
+
+func (*noopOCRWorker) StartIfEnabled() (bool, error) {
+	return false, nil
+}
+
+func (*noopOCRWorker) Recognize(context.Context, string, string, string) ([]byte, error) {
+	return nil, nil
+}
+
+func (*noopOCRWorker) RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error) {
+	return fallback(ctx)
+}
+
+func (*noopOCRWorker) Shutdown(context.Context) error {
+	return nil
 }

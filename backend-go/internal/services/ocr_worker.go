@@ -3,9 +3,11 @@ package services
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,17 +20,72 @@ import (
 	"time"
 )
 
-type rapidOCRWorkerProcess struct {
-	mu     sync.Mutex
+const rapidOCRWorkerShutdownTimeout = 5 * time.Second
+
+// ErrOCRWorkerClosed 表示 Shutdown 已开始；关闭是终态，后续启动和识别都会返回该错误。
+var ErrOCRWorkerClosed = errors.New("ocr worker is closing or closed")
+
+type rapidOCRWorkerState uint8
+
+// 状态机：idle -> starting -> running；失败或自动重启经 stopping -> idle；
+// Shutdown 可从任意非终态进入 closing，并在唯一 Wait 完成后进入 closed。
+const (
+	rapidOCRWorkerIdle rapidOCRWorkerState = iota
+	rapidOCRWorkerStarting
+	rapidOCRWorkerRunning
+	rapidOCRWorkerStopping
+	rapidOCRWorkerClosing
+	rapidOCRWorkerClosed
+)
+
+type rapidOCRWorkerRun struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	stdout *bufio.Reader
-	waitCh chan error
+	waitCh <-chan struct{}
 
-	reqCount int64
+	terminateOnce sync.Once
+	terminateFn   func()
 }
 
-var globalRapidOCRWorker rapidOCRWorkerProcess
+type rapidOCRFallback struct {
+	cancel context.CancelCauseFunc
+}
+
+type rapidOCRWorkerProcess struct {
+	initOnce    sync.Once
+	requestGate chan struct{}
+	closingCh   chan struct{}
+	closeOnce   sync.Once
+
+	mu        sync.Mutex
+	state     rapidOCRWorkerState
+	run       *rapidOCRWorkerRun
+	startDone chan struct{}
+	fallbacks map[*rapidOCRFallback]struct{}
+	// fallbackDone 在存在在途 CLI fallback 时保持未关闭，最后一个 fallback 回收后关闭。
+	fallbackDone chan struct{}
+
+	reqCount int64
+
+	startProcess func(python string, scriptPath string) (*rapidOCRWorkerRun, error)
+}
+
+type OCRWorker interface {
+	StartIfEnabled() (bool, error)
+	Recognize(ctx context.Context, scriptPath string, imagePath string, profile string) ([]byte, error)
+	// RunFallback 必须把开始判定、关闭取消和回收等待纳入与 Shutdown 相同的生命周期。
+	RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error)
+	Shutdown(ctx context.Context) error
+}
+
+type RapidOCRWorker struct {
+	process rapidOCRWorkerProcess
+}
+
+func NewRapidOCRWorker() *RapidOCRWorker {
+	return &RapidOCRWorker{}
+}
 
 func ocrWorkerEnabled() bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv("SBM_OCR_WORKER")))
@@ -93,7 +150,7 @@ func readLinuxRSSBytes(pid int) (int64, error) {
 }
 
 func (w *rapidOCRWorkerProcess) shouldRestartLocked() (bool, string) {
-	if !w.isRunningLocked() || w.cmd == nil || w.cmd.Process == nil {
+	if w.state != rapidOCRWorkerRunning || w.run == nil || rapidOCRWorkerRunFinished(w.run) {
 		return false, ""
 	}
 
@@ -101,8 +158,8 @@ func (w *rapidOCRWorkerProcess) shouldRestartLocked() (bool, string) {
 		return true, fmt.Sprintf("request_count=%d threshold=%d", w.reqCount, every)
 	}
 
-	if maxRSS := ocrWorkerMaxRSSBytes(); maxRSS > 0 && runtime.GOOS == "linux" {
-		if rss, err := readLinuxRSSBytes(w.cmd.Process.Pid); err == nil && rss > maxRSS {
+	if maxRSS := ocrWorkerMaxRSSBytes(); maxRSS > 0 && runtime.GOOS == "linux" && w.run.cmd != nil && w.run.cmd.Process != nil {
+		if rss, err := readLinuxRSSBytes(w.run.cmd.Process.Pid); err == nil && rss > maxRSS {
 			return true, fmt.Sprintf("rss_bytes=%d threshold=%d", rss, maxRSS)
 		}
 	}
@@ -110,27 +167,56 @@ func (w *rapidOCRWorkerProcess) shouldRestartLocked() (bool, string) {
 	return false, ""
 }
 
-func StartOCRWorkerIfEnabled() (bool, error) {
+func (w *RapidOCRWorker) StartIfEnabled() (bool, error) {
 	if !ocrWorkerEnabled() {
 		return false, nil
 	}
-	svc := NewOCRService()
-	scriptPath := svc.findOCRWorkerScript()
+	if w == nil {
+		return false, fmt.Errorf("ocr worker is nil")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), rapidOCRWorkerShutdownTimeout)
+	defer cancel()
+	if err := w.process.acquireRequest(ctx); err != nil {
+		return false, err
+	}
+	defer w.process.releaseRequest()
+	scriptPath := findOCRWorkerScript()
 	if strings.TrimSpace(scriptPath) == "" {
 		return false, fmt.Errorf("ocr worker enabled but scripts/ocr_worker.py not found")
 	}
-	globalRapidOCRWorker.mu.Lock()
-	defer globalRapidOCRWorker.mu.Unlock()
-	if err := globalRapidOCRWorker.ensureStartedLocked(scriptPath); err != nil {
+	if _, err := w.process.ensureStarted(ctx, scriptPath); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func StopOCRWorker() {
-	globalRapidOCRWorker.mu.Lock()
-	defer globalRapidOCRWorker.mu.Unlock()
-	globalRapidOCRWorker.stopLocked()
+func (w *RapidOCRWorker) Recognize(ctx context.Context, scriptPath string, imagePath string, profile string) ([]byte, error) {
+	if w == nil {
+		return nil, fmt.Errorf("ocr worker is nil")
+	}
+	ctx = nonNilContext(ctx)
+	if err := w.process.acquireRequest(ctx); err != nil {
+		return nil, err
+	}
+	defer w.process.releaseRequest()
+	return w.process.recognize(ctx, scriptPath, imagePath, profile)
+}
+
+func (w *RapidOCRWorker) RunFallback(ctx context.Context, fallback func(context.Context) (string, error)) (string, error) {
+	if w == nil {
+		return "", fmt.Errorf("ocr worker is nil")
+	}
+	return w.process.runFallback(ctx, fallback)
+}
+
+func (w *RapidOCRWorker) Shutdown(ctx context.Context) error {
+	if w == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return w.process.shutdown(ctx)
 }
 
 func randHex(nBytes int) string {
@@ -159,6 +245,10 @@ func parseOCRProfileFromArgs(extraArgs []string) string {
 }
 
 func (s *OCRService) findOCRWorkerScript() string {
+	return findOCRWorkerScript()
+}
+
+func findOCRWorkerScript() string {
 	locations := []string{
 		"scripts/ocr_worker.py",
 		"../scripts/ocr_worker.py",
@@ -173,94 +263,456 @@ func (s *OCRService) findOCRWorkerScript() string {
 	return ""
 }
 
-func (w *rapidOCRWorkerProcess) isRunningLocked() bool {
-	if w.cmd == nil || w.waitCh == nil {
-		return false
+func nonNilContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+func (w *rapidOCRWorkerProcess) init() {
+	w.initOnce.Do(func() {
+		w.requestGate = make(chan struct{}, 1)
+		w.requestGate <- struct{}{}
+		w.closingCh = make(chan struct{})
+	})
+}
+
+func (w *rapidOCRWorkerProcess) acquireRequest(ctx context.Context) error {
+	ctx = nonNilContext(ctx)
+	w.init()
+	if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+		return err
 	}
 	select {
-	case <-w.waitCh:
-		return false
-	default:
+	case <-w.requestGate:
+		if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+			w.requestGate <- struct{}{}
+			return err
+		}
+		return nil
+	case <-w.closingCh:
+		return ErrOCRWorkerClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (w *rapidOCRWorkerProcess) releaseRequest() {
+	w.requestGate <- struct{}{}
+}
+
+func (r *rapidOCRWorkerRun) terminate() {
+	if r == nil {
+		return
+	}
+	r.terminateOnce.Do(func() {
+		if r.terminateFn != nil {
+			r.terminateFn()
+		}
+	})
+}
+
+func rapidOCRWorkerRunFinished(run *rapidOCRWorkerRun) bool {
+	if run == nil || run.waitCh == nil {
 		return true
 	}
+	select {
+	case <-run.waitCh:
+		return true
+	default:
+		return false
+	}
 }
 
-func (w *rapidOCRWorkerProcess) stopLocked() {
-	if w.stdin != nil {
-		_ = w.stdin.Close()
-		w.stdin = nil
+func rapidOCRWorkerRequestInterruption(ctx context.Context, closingCh <-chan struct{}) error {
+	ctx = nonNilContext(ctx)
+	if closingCh != nil {
+		select {
+		case <-closingCh:
+			return ErrOCRWorkerClosed
+		default:
+		}
 	}
-	if w.cmd != nil && w.cmd.Process != nil {
-		_ = w.cmd.Process.Kill()
+	return ctx.Err()
+}
+
+func waitForRapidOCRWorker(ctx context.Context, done <-chan struct{}, interrupt <-chan struct{}) error {
+	ctx = nonNilContext(ctx)
+	if done == nil {
+		return nil
 	}
-	w.cmd = nil
-	w.stdout = nil
-	w.waitCh = nil
+	select {
+	case <-done:
+		return nil
+	default:
+	}
+	if interrupt != nil {
+		select {
+		case <-interrupt:
+			return ErrOCRWorkerClosed
+		default:
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case <-done:
+		return nil
+	case <-interrupt:
+		return ErrOCRWorkerClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// refreshLocked 只清理由唯一 Wait goroutine 已确认回收的进程句柄。
+func (w *rapidOCRWorkerProcess) refreshLocked() {
+	if w.run != nil && rapidOCRWorkerRunFinished(w.run) {
+		w.run = nil
+		w.reqCount = 0
+	}
+	if w.run != nil {
+		return
+	}
+	switch w.state {
+	case rapidOCRWorkerRunning, rapidOCRWorkerStopping:
+		w.state = rapidOCRWorkerIdle
+	case rapidOCRWorkerClosing:
+		w.closeIfDrainedLocked()
+	}
+}
+
+func (w *rapidOCRWorkerProcess) closeIfDrainedLocked() {
+	if w.state == rapidOCRWorkerClosing && w.startDone == nil && w.run == nil && len(w.fallbacks) == 0 {
+		w.state = rapidOCRWorkerClosed
+	}
+}
+
+func (w *rapidOCRWorkerProcess) finishRun(run *rapidOCRWorkerRun) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.run != run {
+		return
+	}
+	w.run = nil
 	w.reqCount = 0
+	if w.state == rapidOCRWorkerClosing {
+		w.closeIfDrainedLocked()
+		return
+	}
+	w.state = rapidOCRWorkerIdle
 }
 
-func (w *rapidOCRWorkerProcess) startLocked(python string, scriptPath string) error {
+func (w *rapidOCRWorkerProcess) markStopping(run *rapidOCRWorkerRun) {
+	w.mu.Lock()
+	if w.run == run && w.state == rapidOCRWorkerRunning {
+		w.state = rapidOCRWorkerStopping
+	}
+	w.mu.Unlock()
+	run.terminate()
+}
+
+func (w *rapidOCRWorkerProcess) beginFallback(ctx context.Context) (context.Context, *rapidOCRFallback, error) {
+	ctx = nonNilContext(ctx)
+	w.init()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.refreshLocked()
+	if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+		return nil, nil, err
+	}
+	if w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed {
+		return nil, nil, ErrOCRWorkerClosed
+	}
+
+	fallbackCtx, cancel := context.WithCancelCause(ctx)
+	active := &rapidOCRFallback{cancel: cancel}
+	if w.fallbacks == nil {
+		w.fallbacks = make(map[*rapidOCRFallback]struct{})
+	}
+	if len(w.fallbacks) == 0 {
+		w.fallbackDone = make(chan struct{})
+	}
+	w.fallbacks[active] = struct{}{}
+	return fallbackCtx, active, nil
+}
+
+func (w *rapidOCRWorkerProcess) finishFallback(active *rapidOCRFallback) bool {
+	if active == nil {
+		return false
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, registered := w.fallbacks[active]
+	if !registered {
+		return w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed
+	}
+	delete(w.fallbacks, active)
+	active.cancel(context.Canceled)
+	if len(w.fallbacks) == 0 && w.fallbackDone != nil {
+		close(w.fallbackDone)
+		w.fallbackDone = nil
+	}
+	w.closeIfDrainedLocked()
+	return w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed
+}
+
+func (w *rapidOCRWorkerProcess) runFallback(
+	ctx context.Context,
+	fallback func(context.Context) (string, error),
+) (text string, err error) {
+	if fallback == nil {
+		return "", fmt.Errorf("ocr fallback is nil")
+	}
+	fallbackCtx, active, err := w.beginFallback(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if w.finishFallback(active) {
+			text = ""
+			err = ErrOCRWorkerClosed
+		}
+	}()
+	return fallback(fallbackCtx)
+}
+
+func (w *rapidOCRWorkerProcess) shutdown(ctx context.Context) error {
+	ctx = nonNilContext(ctx)
+	w.init()
+
+	for {
+		w.mu.Lock()
+		w.closeOnce.Do(func() {
+			close(w.closingCh)
+		})
+		w.refreshLocked()
+		if w.state == rapidOCRWorkerClosed {
+			w.mu.Unlock()
+			return nil
+		}
+		w.state = rapidOCRWorkerClosing
+		for fallback := range w.fallbacks {
+			fallback.cancel(ErrOCRWorkerClosed)
+		}
+		if w.startDone != nil {
+			startDone := w.startDone
+			w.mu.Unlock()
+			if err := waitForRapidOCRWorker(ctx, startDone, nil); err != nil {
+				return fmt.Errorf("ocr worker shutdown waiting for start: %w", err)
+			}
+			continue
+		}
+		run := w.run
+		fallbackDone := w.fallbackDone
+		w.closeIfDrainedLocked()
+		if w.state == rapidOCRWorkerClosed {
+			w.mu.Unlock()
+			return nil
+		}
+		w.mu.Unlock()
+
+		if run != nil {
+			run.terminate()
+			if err := waitForRapidOCRWorker(ctx, run.waitCh, nil); err != nil {
+				return fmt.Errorf("ocr worker shutdown waiting for process: %w", err)
+			}
+			w.finishRun(run)
+			continue
+		}
+		if err := waitForRapidOCRWorker(ctx, fallbackDone, nil); err != nil {
+			return fmt.Errorf("ocr worker shutdown waiting for CLI fallback: %w", err)
+		}
+	}
+}
+
+func startRapidOCRWorkerProcess(python string, scriptPath string) (*rapidOCRWorkerRun, error) {
 	cmd := exec.Command(python, scriptPath)
 	cmd.Env = append(os.Environ(), "PYTHONUNBUFFERED=1")
+	return startRapidOCRWorkerCommand(cmd)
+}
 
+func startRapidOCRWorkerCommand(cmd *exec.Cmd) (*rapidOCRWorkerRun, error) {
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		return err
+		_ = stdoutPipe.Close()
+		return nil, err
 	}
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		_ = stdoutPipe.Close()
+		_ = stderrPipe.Close()
+		return nil, err
 	}
-
 	if err := cmd.Start(); err != nil {
-		return err
+		_ = stdinPipe.Close()
+		_ = stdoutPipe.Close()
+		_ = stderrPipe.Close()
+		return nil, err
 	}
 
-	// Drain stderr to avoid blocking the child if it writes a lot.
+	// 持续排空 stderr，避免子进程因日志管道写满而阻塞。
 	go func() {
 		_, _ = io.Copy(io.Discard, stderrPipe)
 	}()
 
-	waitCh := make(chan error, 1)
+	waitCh := make(chan struct{})
+	run := &rapidOCRWorkerRun{
+		cmd:    cmd,
+		stdin:  stdinPipe,
+		stdout: bufio.NewReaderSize(stdoutPipe, 1024*1024),
+		waitCh: waitCh,
+	}
+	run.terminateFn = func() {
+		_ = stdinPipe.Close()
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = stdoutPipe.Close()
+	}
 	go func() {
-		waitCh <- cmd.Wait()
+		_ = cmd.Wait()
+		close(waitCh)
 	}()
-
-	w.cmd = cmd
-	w.stdin = stdinPipe
-	w.stdout = bufio.NewReaderSize(stdoutPipe, 1024*1024)
-	w.waitCh = waitCh
-	return nil
+	return run, nil
 }
 
-func (w *rapidOCRWorkerProcess) ensureStartedLocked(scriptPath string) error {
-	if w.isRunningLocked() {
-		if ok, reason := w.shouldRestartLocked(); ok {
-			log.Printf("[OCRWorker] restarting python worker (%s)", reason)
-			w.stopLocked()
-		} else {
-			return nil
-		}
+func (w *rapidOCRWorkerProcess) startNew(ctx context.Context, scriptPath string) (*rapidOCRWorkerRun, error) {
+	starter := w.startProcess
+	if starter == nil {
+		starter = startRapidOCRWorkerProcess
 	}
-	w.stopLocked()
-
 	var lastErr error
 	for _, python := range []string{"python3", "python"} {
-		if err := w.startLocked(python, scriptPath); err == nil {
-			w.reqCount = 0
-			return nil
-		} else {
-			lastErr = err
+		if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+			return nil, err
 		}
+		run, err := starter(python, scriptPath)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if run == nil || run.stdin == nil || run.stdout == nil || run.waitCh == nil {
+			if run != nil {
+				run.terminate()
+			}
+			lastErr = fmt.Errorf("ocr worker starter returned incomplete process handles")
+			continue
+		}
+		return run, nil
 	}
 	if lastErr == nil {
 		lastErr = fmt.Errorf("failed to start ocr worker")
 	}
-	return lastErr
+	return nil, lastErr
+}
+
+// ensureStarted 在请求闸门内调用；进程启动和 Wait 均不持有生命周期锁。
+func (w *rapidOCRWorkerProcess) ensureStarted(ctx context.Context, scriptPath string) (*rapidOCRWorkerRun, error) {
+	ctx = nonNilContext(ctx)
+	w.init()
+	for {
+		w.mu.Lock()
+		w.refreshLocked()
+		if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+			w.mu.Unlock()
+			return nil, err
+		}
+		switch w.state {
+		case rapidOCRWorkerClosing, rapidOCRWorkerClosed:
+			w.mu.Unlock()
+			return nil, ErrOCRWorkerClosed
+		case rapidOCRWorkerStarting:
+			startDone := w.startDone
+			w.mu.Unlock()
+			if err := waitForRapidOCRWorker(ctx, startDone, w.closingCh); err != nil {
+				return nil, err
+			}
+			continue
+		case rapidOCRWorkerRunning:
+			run := w.run
+			shouldRestart, reason := w.shouldRestartLocked()
+			if !shouldRestart {
+				w.mu.Unlock()
+				return run, nil
+			}
+			w.state = rapidOCRWorkerStopping
+			w.mu.Unlock()
+			log.Printf("[OCRWorker] restarting python worker (%s)", reason)
+			run.terminate()
+			if err := waitForRapidOCRWorker(ctx, run.waitCh, w.closingCh); err != nil {
+				return nil, fmt.Errorf("ocr worker restart waiting for process: %w", err)
+			}
+			w.finishRun(run)
+			continue
+		case rapidOCRWorkerStopping:
+			run := w.run
+			w.mu.Unlock()
+			run.terminate()
+			if err := waitForRapidOCRWorker(ctx, run.waitCh, w.closingCh); err != nil {
+				return nil, fmt.Errorf("ocr worker recovery waiting for process: %w", err)
+			}
+			w.finishRun(run)
+			continue
+		case rapidOCRWorkerIdle:
+			startDone := make(chan struct{})
+			w.state = rapidOCRWorkerStarting
+			w.startDone = startDone
+			w.mu.Unlock()
+
+			run, startErr := w.startNew(ctx, scriptPath)
+			interruption := rapidOCRWorkerRequestInterruption(ctx, w.closingCh)
+
+			w.mu.Lock()
+			terminal := errors.Is(interruption, ErrOCRWorkerClosed) || w.state == rapidOCRWorkerClosing || w.state == rapidOCRWorkerClosed
+			if run != nil {
+				w.run = run
+			}
+			switch {
+			case terminal:
+				w.state = rapidOCRWorkerClosing
+			case interruption != nil && run != nil:
+				w.state = rapidOCRWorkerStopping
+			case startErr != nil:
+				w.state = rapidOCRWorkerIdle
+			default:
+				w.state = rapidOCRWorkerRunning
+				w.reqCount = 0
+			}
+			w.startDone = nil
+			close(startDone)
+			w.mu.Unlock()
+
+			if terminal {
+				if run != nil {
+					run.terminate()
+				}
+				return nil, ErrOCRWorkerClosed
+			}
+			if interruption != nil {
+				if run != nil {
+					run.terminate()
+				}
+				return nil, fmt.Errorf("ocr worker start canceled: %w", interruption)
+			}
+			if startErr != nil {
+				return nil, startErr
+			}
+			return run, nil
+		default:
+			invalidState := w.state
+			w.mu.Unlock()
+			return nil, fmt.Errorf("ocr worker has invalid lifecycle state %d", invalidState)
+		}
+	}
 }
 
 type ocrWorkerBaseResponse struct {
@@ -269,11 +721,88 @@ type ocrWorkerBaseResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
-func (w *rapidOCRWorkerProcess) recognizeLocked(scriptPath string, imagePath string, profile string) ([]byte, error) {
-	if err := w.ensureStartedLocked(scriptPath); err != nil {
+func writeRapidOCRWorkerRequest(ctx context.Context, closingCh <-chan struct{}, run *rapidOCRWorkerRun, payload []byte) error {
+	if err := rapidOCRWorkerRequestInterruption(ctx, closingCh); err != nil {
+		return err
+	}
+	resultCh := make(chan error, 1)
+	go func() {
+		n, err := run.stdin.Write(payload)
+		if err == nil && n != len(payload) {
+			err = io.ErrShortWrite
+		}
+		resultCh <- err
+	}()
+	select {
+	case err := <-resultCh:
+		if interruption := rapidOCRWorkerRequestInterruption(ctx, closingCh); interruption != nil {
+			return interruption
+		}
+		return err
+	case <-closingCh:
+		return ErrOCRWorkerClosed
+	case <-ctx.Done():
+		return rapidOCRWorkerRequestInterruption(ctx, closingCh)
+	}
+}
+
+type rapidOCRWorkerReadResult struct {
+	line []byte
+	err  error
+}
+
+func readRapidOCRWorkerResponse(ctx context.Context, closingCh <-chan struct{}, run *rapidOCRWorkerRun) ([]byte, error) {
+	if err := rapidOCRWorkerRequestInterruption(ctx, closingCh); err != nil {
 		return nil, err
 	}
-	w.reqCount += 1
+	resultCh := make(chan rapidOCRWorkerReadResult, 1)
+	go func() {
+		line, err := run.stdout.ReadBytes('\n')
+		resultCh <- rapidOCRWorkerReadResult{line: line, err: err}
+	}()
+	select {
+	case result := <-resultCh:
+		if interruption := rapidOCRWorkerRequestInterruption(ctx, closingCh); interruption != nil {
+			return nil, interruption
+		}
+		return result.line, result.err
+	case <-closingCh:
+		return nil, ErrOCRWorkerClosed
+	case <-ctx.Done():
+		return nil, rapidOCRWorkerRequestInterruption(ctx, closingCh)
+	}
+}
+
+func rapidOCRWorkerRequestError(operation string, err error) error {
+	switch {
+	case errors.Is(err, ErrOCRWorkerClosed):
+		return fmt.Errorf("ocr worker request interrupted: %w", ErrOCRWorkerClosed)
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("ocr worker request canceled during %s: %w", operation, err)
+	default:
+		return fmt.Errorf("ocr worker %s failed: %w", operation, err)
+	}
+}
+
+func (w *rapidOCRWorkerProcess) recognize(ctx context.Context, scriptPath string, imagePath string, profile string) ([]byte, error) {
+	run, err := w.ensureStarted(ctx, scriptPath)
+	if err != nil {
+		return nil, err
+	}
+
+	w.mu.Lock()
+	w.refreshLocked()
+	interruption := rapidOCRWorkerRequestInterruption(ctx, w.closingCh)
+	if interruption != nil || w.state != rapidOCRWorkerRunning || w.run != run {
+		w.mu.Unlock()
+		if interruption != nil {
+			w.markStopping(run)
+			return nil, rapidOCRWorkerRequestError("start", interruption)
+		}
+		return nil, fmt.Errorf("ocr worker process exited before request")
+	}
+	w.reqCount++
+	w.mu.Unlock()
 
 	reqID := randHex(12)
 	req := map[string]any{
@@ -282,58 +811,46 @@ func (w *rapidOCRWorkerProcess) recognizeLocked(scriptPath string, imagePath str
 		"image_path": imagePath,
 		"profile":    profile,
 	}
-	b, _ := json.Marshal(req)
+	b, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal ocr worker request: %w", err)
+	}
 	b = append(b, '\n')
 
-	if _, err := w.stdin.Write(b); err != nil {
-		w.stopLocked()
-		return nil, fmt.Errorf("ocr worker write failed: %w", err)
+	if err := writeRapidOCRWorkerRequest(ctx, w.closingCh, run, b); err != nil {
+		w.markStopping(run)
+		return nil, rapidOCRWorkerRequestError("write", err)
 	}
 
-	type readRes struct {
-		line []byte
-		err  error
+	response, err := readRapidOCRWorkerResponse(ctx, w.closingCh, run)
+	if err != nil {
+		w.markStopping(run)
+		return nil, rapidOCRWorkerRequestError("read", err)
 	}
-	ch := make(chan readRes, 1)
-	go func() {
-		line, err := w.stdout.ReadBytes('\n')
-		ch <- readRes{line: line, err: err}
-	}()
-
-	select {
-	case r := <-ch:
-		if r.err != nil {
-			w.stopLocked()
-			return nil, fmt.Errorf("ocr worker read failed: %w", r.err)
-		}
-		line := bytes.TrimSpace(r.line)
-		if len(line) == 0 {
-			return nil, fmt.Errorf("ocr worker returned empty response")
-		}
-
-		var base ocrWorkerBaseResponse
-		if err := unmarshalPossiblyNoisyJSON(line, &base); err != nil {
-			return nil, fmt.Errorf("ocr worker returned invalid json: %w", err)
-		}
-		if strings.TrimSpace(base.ID) != reqID {
-			return nil, fmt.Errorf("ocr worker response id mismatch")
-		}
-		if !base.Success {
-			if strings.TrimSpace(base.Error) == "" {
-				return nil, fmt.Errorf("ocr worker failed")
-			}
-			return nil, fmt.Errorf("ocr worker failed: %s", strings.TrimSpace(base.Error))
-		}
-
-		return line, nil
-	case <-time.After(rapidOCRTimeout + 10*time.Second):
-		w.stopLocked()
-		return nil, fmt.Errorf("ocr worker timeout")
+	line := bytes.TrimSpace(response)
+	if len(line) == 0 {
+		w.markStopping(run)
+		return nil, fmt.Errorf("ocr worker returned empty response")
 	}
-}
 
-func recognizeWithRapidOCRWorker(scriptPath string, imagePath string, profile string) ([]byte, error) {
-	globalRapidOCRWorker.mu.Lock()
-	defer globalRapidOCRWorker.mu.Unlock()
-	return globalRapidOCRWorker.recognizeLocked(scriptPath, imagePath, profile)
+	var base ocrWorkerBaseResponse
+	if err := unmarshalPossiblyNoisyJSON(line, &base); err != nil {
+		w.markStopping(run)
+		return nil, fmt.Errorf("ocr worker returned invalid json: %w", err)
+	}
+	if strings.TrimSpace(base.ID) != reqID {
+		w.markStopping(run)
+		return nil, fmt.Errorf("ocr worker response id mismatch")
+	}
+	if !base.Success {
+		if strings.TrimSpace(base.Error) == "" {
+			return nil, fmt.Errorf("ocr worker failed")
+		}
+		return nil, fmt.Errorf("ocr worker failed: %s", strings.TrimSpace(base.Error))
+	}
+	if err := rapidOCRWorkerRequestInterruption(ctx, w.closingCh); err != nil {
+		w.markStopping(run)
+		return nil, rapidOCRWorkerRequestError("read", err)
+	}
+	return line, nil
 }

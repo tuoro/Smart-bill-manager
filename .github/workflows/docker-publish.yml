@@ -113,12 +113,96 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push image
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
+          load: ${{ github.event_name == 'pull_request' }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify built image health
+        if: github.event_name == 'pull_request'
+        env:
+          BUILT_IMAGE_ID: ${{ steps.build.outputs.imageid }}
+          JWT_SECRET: ci-health-check-only-not-for-production-0123456789abcdef
+        run: |
+          set -Eeuo pipefail
+
+          project_name="sbm-health-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          compose=(
+            docker compose
+            --project-name "$project_name"
+            -f docker-compose.yml
+            -f docker-compose.production.yml
+          )
+
+          cleanup() {
+            local exit_code=$?
+            trap - EXIT
+            "${compose[@]}" down --volumes --remove-orphans || true
+            exit "$exit_code"
+          }
+          diagnose_container() {
+            local diagnostic_container_id
+            "${compose[@]}" ps --all || true
+            diagnostic_container_id="$("${compose[@]}" ps --all --quiet smart-bill-manager 2>/dev/null || true)"
+            if [ -n "$diagnostic_container_id" ]; then
+              docker inspect --format 'state={{json .State}}' "$diagnostic_container_id" || true
+            fi
+            "${compose[@]}" logs --no-color --timestamps smart-bill-manager || true
+          }
+          trap cleanup EXIT
+
+          if [ -z "$BUILT_IMAGE_ID" ]; then
+            echo "::error::Buildx did not return an image ID for the loaded PR image"
+            exit 1
+          fi
+
+          mapfile -t compose_images < <("${compose[@]}" config --images)
+          if [ "${#compose_images[@]}" -ne 1 ] || [ -z "${compose_images[0]:-}" ]; then
+            echo "::error::Expected exactly one image from the production Compose configuration"
+            printf 'Resolved images: %s\n' "${compose_images[*]:-<none>}"
+            exit 1
+          fi
+          compose_image="${compose_images[0]}"
+
+          docker image inspect "$BUILT_IMAGE_ID" >/dev/null
+          docker tag "$BUILT_IMAGE_ID" "$compose_image"
+          loaded_image_id="$(docker image inspect --format '{{.Id}}' "$compose_image")"
+          if [ "$loaded_image_id" != "$BUILT_IMAGE_ID" ]; then
+            echo "::error::Compose image does not reference this workflow's Buildx result"
+            echo "Buildx image: $BUILT_IMAGE_ID"
+            echo "Compose image: $loaded_image_id"
+            exit 1
+          fi
+
+          if ! "${compose[@]}" up \
+            --no-build \
+            --pull never \
+            --wait \
+            --wait-timeout 180 \
+            smart-bill-manager; then
+            echo "::error::Built container did not become healthy within 180 seconds"
+            diagnose_container
+            exit 1
+          fi
+
+          container_id="$("${compose[@]}" ps --quiet smart-bill-manager)"
+          if [ -z "$container_id" ]; then
+            echo "::error::Compose reported success without a running container"
+            diagnose_container
+            exit 1
+          fi
+          health_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$container_id")"
+          if [ "$health_status" != "healthy" ]; then
+            echo "::error::Compose returned before the container was healthy: $health_status"
+            diagnose_container
+            exit 1
+          fi
+          echo "Verified healthy container from Buildx image $BUILT_IMAGE_ID"
+          "${compose[@]}" ps

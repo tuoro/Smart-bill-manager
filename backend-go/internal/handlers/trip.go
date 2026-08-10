@@ -164,7 +164,7 @@ func (h *TripHandler) ExportZip(c *gin.Context) {
 			utils.Error(c, 404, "行程不存在", err)
 			return
 		}
-		if strings.Contains(err.Error(), "no payments") {
+		if errors.Is(err, services.ErrTripHasNoPaymentsToExport) {
 			utils.Error(c, 400, "行程内没有可导出的支付记录", err)
 			return
 		}

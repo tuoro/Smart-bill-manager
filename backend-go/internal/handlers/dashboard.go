@@ -5,29 +5,26 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"smart-bill-manager/internal/middleware"
-	"smart-bill-manager/internal/models"
 	"smart-bill-manager/internal/services"
 	"smart-bill-manager/internal/utils"
 )
 
+const dashboardRecentPaymentLimit = 6
+
 type DashboardHandler struct {
-	db             *gorm.DB
 	paymentService *services.PaymentService
 	invoiceService *services.InvoiceService
 	emailService   *services.EmailService
 }
 
 func NewDashboardHandler(
-	db *gorm.DB,
 	paymentService *services.PaymentService,
 	invoiceService *services.InvoiceService,
 	emailService *services.EmailService,
 ) *DashboardHandler {
 	return &DashboardHandler{
-		db:             db,
 		paymentService: paymentService,
 		invoiceService: invoiceService,
 		emailService:   emailService,
@@ -69,21 +66,12 @@ func (h *DashboardHandler) Get(c *gin.Context) {
 		return
 	}
 
-	type recentPaymentRow struct {
-		models.Payment
-		InvoiceCount int `json:"invoiceCount" gorm:"column:invoice_count"`
-	}
-	recentPayments := make([]recentPaymentRow, 0)
-	if err := h.db.WithContext(ctx).
-		Table("payments AS p").
-		Select(`p.*, COUNT(l.invoice_id) AS invoice_count`).
-		Joins("LEFT JOIN invoice_payment_links AS l ON l.payment_id = p.id").
-		Where("p.is_draft = 0").
-		Where("p.owner_user_id = ?", ownerUserID).
-		Group("p.id").
-		Order("p.transaction_time_ts DESC, p.created_at DESC").
-		Limit(6).
-		Scan(&recentPayments).Error; err != nil {
+	recentPayments, err := h.paymentService.GetRecentWithInvoiceCountsCtx(
+		ctx,
+		ownerUserID,
+		dashboardRecentPaymentLimit,
+	)
+	if err != nil {
 		h.internalError(c, "recent payments", err)
 		return
 	}

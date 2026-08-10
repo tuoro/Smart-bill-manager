@@ -26,13 +26,17 @@ var (
 )
 
 func getEmailPasswordKey() ([]byte, error) {
+	return getEmailPasswordKeyWithGeneration(true)
+}
+
+func getEmailPasswordKeyWithGeneration(allowGenerate bool) ([]byte, error) {
 	emailPasswordKeyOnce.Do(func() {
-		emailPasswordKey, emailPasswordKeyErr = loadEmailPasswordKey()
+		emailPasswordKey, emailPasswordKeyErr = loadEmailPasswordKey(allowGenerate)
 	})
 	return emailPasswordKey, emailPasswordKeyErr
 }
 
-func loadEmailPasswordKey() ([]byte, error) {
+func loadEmailPasswordKey(allowGenerate bool) ([]byte, error) {
 	// 1) Explicit key
 	if raw := strings.TrimSpace(os.Getenv("SBM_EMAIL_PASSWORD_KEY")); raw != "" {
 		k, err := parseEmailPasswordKey(raw)
@@ -54,6 +58,9 @@ func loadEmailPasswordKey() ([]byte, error) {
 		return k, nil
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read email password key file %s: %w", keyPath, err)
+	}
+	if !allowGenerate {
+		return nil, fmt.Errorf("email password key file %s does not exist", keyPath)
 	}
 
 	// Generate + persist a new key.
@@ -141,13 +148,24 @@ func encryptEmailPassword(plain string) (string, error) {
 		return "", nil
 	}
 	// Already encrypted.
-	if strings.HasPrefix(plain, emailPasswordEncPrefix) {
+	if isEncryptedEmailPassword(plain) {
 		return plain, nil
 	}
 
 	key, err := getEmailPasswordKey()
 	if err != nil {
 		return "", err
+	}
+	return encryptEmailPasswordWithKey(plain, key)
+}
+
+func encryptEmailPasswordWithKey(plain string, key []byte) (string, error) {
+	plain = strings.TrimSpace(plain)
+	if plain == "" {
+		return "", nil
+	}
+	if isEncryptedEmailPassword(plain) {
+		return plain, nil
 	}
 	if len(key) == 0 {
 		return "", errors.New("email password encryption key is not configured")
@@ -175,7 +193,7 @@ func decryptEmailPassword(stored string) (string, error) {
 	if stored == "" {
 		return "", nil
 	}
-	if !strings.HasPrefix(stored, emailPasswordEncPrefix) {
+	if !isEncryptedEmailPassword(stored) {
 		// Forced: refuse using plaintext storage (legacy DBs should be migrated on startup).
 		return "", errors.New("email password is stored in plaintext; please restart to migrate or re-save the email config")
 	}
@@ -183,6 +201,17 @@ func decryptEmailPassword(stored string) (string, error) {
 	key, err := getEmailPasswordKey()
 	if err != nil {
 		return "", err
+	}
+	return decryptEmailPasswordWithKey(stored, key)
+}
+
+func decryptEmailPasswordWithKey(stored string, key []byte) (string, error) {
+	stored = strings.TrimSpace(stored)
+	if stored == "" {
+		return "", nil
+	}
+	if !isEncryptedEmailPassword(stored) {
+		return "", errors.New("email password is not encrypted")
 	}
 	if len(key) == 0 {
 		return "", errors.New("email password encryption key is not configured")
@@ -212,4 +241,8 @@ func decryptEmailPassword(stored string) (string, error) {
 		return "", err
 	}
 	return string(plain), nil
+}
+
+func isEncryptedEmailPassword(stored string) bool {
+	return strings.HasPrefix(strings.TrimSpace(stored), emailPasswordEncPrefix)
 }

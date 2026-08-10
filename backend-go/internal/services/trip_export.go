@@ -3,6 +3,7 @@ package services
 import (
 	"archive/zip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,8 @@ import (
 
 	"smart-bill-manager/internal/models"
 )
+
+var ErrTripHasNoPaymentsToExport = errors.New("no payments to export")
 
 type tripExportInvoice struct {
 	ID            string
@@ -73,7 +76,7 @@ func (s *TripService) PrepareTripExportZip(ctx context.Context, ownerUserID stri
 		return nil, err
 	}
 	if len(payments) == 0 {
-		return nil, fmt.Errorf("no payments to export")
+		return nil, ErrTripHasNoPaymentsToExport
 	}
 
 	paymentIDs := make([]string, 0, len(payments))

@@ -1,0 +1,6 @@
+# 生产部署必须与 docker-compose.yml 叠加使用。
+services:
+  smart-bill-manager:
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: "${JWT_SECRET:?请在 .env 中配置至少 32 个字符的持久 JWT_SECRET}"

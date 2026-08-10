@@ -134,11 +134,8 @@ func TestRunMigratesLegacyDataIdempotently(t *testing.T) {
 	}
 }
 
-func TestRunRejectsNewerDatabaseVersion(t *testing.T) {
+func TestRunRejectsNewerDatabaseVersionBeforeBusinessSchemaSync(t *testing.T) {
 	db := openTestDB(t)
-	if err := migrateSchema(db); err != nil {
-		t.Fatalf("初始化结构失败: %v", err)
-	}
 	if err := db.AutoMigrate(&schemaMigration{}); err != nil {
 		t.Fatalf("初始化迁移表失败: %v", err)
 	}
@@ -150,6 +147,9 @@ func TestRunRejectsNewerDatabaseVersion(t *testing.T) {
 	err := Run(db)
 	if err == nil || !strings.Contains(err.Error(), "高于程序支持") {
 		t.Fatalf("应拒绝未来数据库版本，实际错误为 %v", err)
+	}
+	if db.Migrator().HasTable(&models.User{}) || db.Migrator().HasTable(&models.EmailLog{}) {
+		t.Fatal("拒绝未来数据库版本前不应创建或同步业务表")
 	}
 }
 

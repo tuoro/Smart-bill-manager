@@ -62,7 +62,6 @@ func run() error {
 	if err := migrations.Run(db); err != nil {
 		return fmt.Errorf("执行数据库迁移失败: %w", err)
 	}
-	services.EnsureEmailLogUniqueIndex(db)
 	if err := services.EnsureEmailConfigPasswordsEncrypted(db); err != nil {
 		return fmt.Errorf("加密历史邮箱密码失败: %w", err)
 	}

@@ -833,7 +833,6 @@
     <PaymentDetailDialog
       v-model:visible="paymentDetailVisible"
       :payment="detailPayment"
-      :is-admin="isAdmin"
       @changed="handlePaymentDetailChanged"
     />
   </div>

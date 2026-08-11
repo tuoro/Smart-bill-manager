@@ -13,7 +13,7 @@ Current stable version: `v0.2.4`. This release tightens startup migrations and s
 - Monitor IMAP mailboxes and parse receipts from attachments and links in message bodies
 - Assign business trips, process unassigned items, and track reimbursement and bad-debt status
 - Register with invitation codes, isolate multi-user data, and require secondary confirmation for administrator actions on behalf of users
-- Run asynchronous OCR jobs, cancel tasks, and manage regression samples
+- Run asynchronous OCR jobs and cancel tasks
 - Preview and download files through authenticated endpoints, with uploads isolated by user directory
 
 ## Technology Stack
@@ -62,7 +62,6 @@ docker run -d --name smart-bill-manager -p 80:80 \
   -e JWT_SECRET="replace-with-a-persistent-32-char-secret" \
   -e SBM_OCR_DATA_DIR=/app/backend/data \
   -e SBM_OCR_WORKER=1 \
-  -e SBM_REGRESSION_SAMPLES_DIR=/app/backend/internal/services/testdata/regression \
   -v smart-bill-data:/app/backend/data \
   -v smart-bill-uploads:/app/backend/uploads \
   ghcr.io/tuoro/smart-bill-manager:0.2.4

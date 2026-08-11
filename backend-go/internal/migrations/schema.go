@@ -12,7 +12,6 @@ func migrateSchema(db *gorm.DB) error {
 		&models.User{},
 		&models.Invite{},
 		&models.Task{},
-		&models.RegressionSample{},
 		&models.Payment{},
 		&models.Trip{},
 		&models.Invoice{},

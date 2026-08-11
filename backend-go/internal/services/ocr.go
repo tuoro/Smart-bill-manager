@@ -99,7 +99,7 @@ var (
 	}
 
 	// Payment parsing - compiled regex patterns for reuse
-	// Negative amounts in screenshots usually include decimals (e.g. "-400.00", "-13,897.00").
+	// Negative amounts in screenshots usually include decimals.
 	// Avoid matching non-money ids like "ZZHK-0007-..." where "-0007" is not an amount.
 	negativeAmountRegex   = regexp.MustCompile("[-\u2212]\\s*(?:[\u00A5￥]\\s*)?(\\d+(?:,\\d{3})*(?:\\.\\d{1,2}))")
 	merchantFullNameRegex = regexp.MustCompile(`商户全称[：:]?[\s]*([^\n收单机构支付方式]+?)[\s]*(?:收单机构|支付方式|\n|$)`)
@@ -115,10 +115,10 @@ var (
 	alipayOrderNumberRegex = regexp.MustCompile(`(?i)alipay\d{6,}`)
 
 	// Amount detection patterns for merging OCR results
-	// Note: First pattern uses \d{3,} to prioritize large amounts (e.g., 1700.00)
+	// The first pattern uses \d{3,} to prioritize large amounts.
 	// which are more likely to be the main transaction amount in payment screenshots
 	amountDetectionPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`), // Large amounts like 1700.00 or -1700.00
+		regexp.MustCompile(`-?\d{3,}\.?\d{0,2}`), // Large signed or unsigned amounts.
 		regexp.MustCompile(`[¥￥]-?\d+\.?\d*`),    // Currency symbol with amount (any size)
 	}
 
@@ -1268,7 +1268,7 @@ func extractPartyFromROICandidate(text string, role string) (name string, taxID 
 	}
 
 	// Some OCR outputs place the actual name at the end of a "multi-label" line,
-	// e.g. "名称: ... 纳税人识别号: 中国移动通信集团上海有限公司". Prefer the last label value.
+	// Prefer the final value in a merged multi-label party row.
 	if name == "" {
 		for _, line := range strings.Split(text, "\n") {
 			line = strings.TrimSpace(line)
@@ -1352,7 +1352,7 @@ func pickBestPartyNameHeuristic(text string, role string) string {
 		"地址", "电话", "开户行", "账号", "纳税人识别号", "统一社会信用代码",
 	}
 
-	sellerBonus := []string{"公司", "有限", "集团", "商贸", "商业", "零售", "超市", "沃尔玛", "门店"}
+	sellerBonus := []string{"公司", "有限", "集团", "商贸", "商业", "零售", "超市", "门店"}
 	buyerBonus := []string{"先生", "女士", "个人"}
 
 	containsAny := func(s string, arr []string) bool {
@@ -2176,14 +2176,12 @@ func removeChineseSpaces(text string) string {
 }
 
 // convertChineseDateToISO converts Chinese date format to ISO format
-// Example: "2025年10月23日 14:59:46" -> "2025-10-23 14:59:46"
-// Example: "2025年10月23日14:59:46" -> "2025-10-23 14:59:46"
-// Example: "2025年10月23日" -> "2025-10-23"
+// Chinese date/time input is normalized to ISO date/time output.
 func convertChineseDateToISO(dateStr string) string {
-	// Fix missing space between ISO date and time: "2025-11-2812:57" -> "2025-11-28 12:57"
+	// Fix a missing separator between an ISO date and time.
 	dateStr = isoDateTimePattern.ReplaceAllString(dateStr, "$1 $2")
 	// If 日 is directly followed by a digit (time), insert a space
-	// This handles cases like "2025年10月23日14:59:46" -> "2025年10月23日 14:59:46"
+	// This handles Chinese dates directly followed by a time.
 	dateStr = chineseDateTimePattern.ReplaceAllString(dateStr, "日 $1")
 
 	// Replace Chinese date separators with dashes
@@ -2493,11 +2491,11 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 	// Extract amount with support for negative numbers and large amounts (4+ digits)
 	// Priority: negative numbers > amounts with ¥ symbol > large amounts (4+ digits)
 	amountRegexes := []*regexp.Regexp{
-		// Negative amount with optional currency symbol: -1700.00 or -¥1700.00
+		// Negative amount with an optional currency symbol.
 		negativeAmountRegex,
 		// Standard format with currency symbol: ¥123.45
 		regexp.MustCompile(`[¥￥][\s]*[-−]?[\s]*([\d,]+\.?\d*)`),
-		// Large amounts (4+ digits with decimals): 1700.00
+		// Large amounts with four or more digits and decimals.
 		regexp.MustCompile(`([\d]{4,}\.[\d]{2})`),
 		regexp.MustCompile(`金额[：:]?[\s]*[¥￥]?[\s]*[-−]?[\s]*([\d,]+\.?\d*)`),
 		regexp.MustCompile(`支付金额[：:]?[\s]*[¥￥]?[\s]*[-−]?[\s]*([\d,]+\.?\d*)`),
@@ -2545,7 +2543,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 
 	extractWeChatTitleMerchant := func(lines []string) (string, bool) {
 		// Heuristic for WeChat bill detail:
-		// merchant/store name is usually the last non-empty line before the main amount line (e.g. "-3420.00").
+		// The merchant/store name is usually the last non-empty line before the main amount line.
 		amountLineRe := regexp.MustCompile(`^\s*[-−]\s*[¥￥]?\s*[\d,]+(?:\.\d{1,2})?\s*$`)
 		timeOnlyRe := regexp.MustCompile(`^\d{1,2}:\d{2}$`)
 		isBadTitle := func(v string) bool {
@@ -2823,7 +2821,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		// Standard format: 2024-01-01 12:00:00
 		regexp.MustCompile(`支付时间[：:]?[\s]*([\d]{4}-[\d]{1,2}-[\d]{1,2}\s[\d]{1,2}:[\d]{2}:[\d]{2})`),
 		regexp.MustCompile(`转账时间[：:]?[\s]*([\d]{4}-[\d]{1,2}-[\d]{1,2}\s[\d]{1,2}:[\d]{2}:[\d]{2})`),
-		// Chinese format with optional spaces after 日: matches "2025年10月23日14:59:46" and "2025年10月23日 14:59:46"
+		// Chinese format with optional spaces between the date and time.
 		regexp.MustCompile(`支付时间[：:]?[\s]*([\d]{4}年[\d]{1,2}月[\d]{1,2}日\s*[\d]{1,2}:[\d]{2}:[\d]{2})`),
 		// Generic Chinese date-time format with space
 		regexp.MustCompile(`([\d]{4}年[\d]{1,2}月[\d]{1,2}日)\s+([\d]{1,2}:[\d]{2}:[\d]{2})`),
@@ -2909,7 +2907,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 					if cand == "" || isWeChatBillDetailLabel(cand) {
 						continue
 					}
-					// Avoid mistaking time/date for an order id (e.g. "2025年11月15日23:02:47").
+					// Avoid mistaking a compact date/time for an order ID.
 					if strings.ContainsRune(cand, '年') || strings.ContainsRune(cand, '月') || strings.ContainsRune(cand, '日') || strings.ContainsRune(cand, ':') {
 						continue
 					}
@@ -2991,7 +2989,7 @@ func (s *OCRService) parseWeChatPay(text string, data *PaymentExtractedData) {
 		}
 	}
 	paymentMethodRegexes := []*regexp.Regexp{
-		// 支付方式：<换行>招商银行信用卡(2506)
+		// 支付方式标签和值可能位于相邻行。
 		regexp.MustCompile(`支付方式[：:]?\s*(?:\r?\n\s*)?([^\n\r]+?)(?:\s*由|$)`),
 	}
 	if data.PaymentMethod == nil {
@@ -4201,9 +4199,9 @@ func extractAlipayMerchantFromBillDetail(text string) string {
 func (s *OCRService) extractAmount(text string, data *PaymentExtractedData) {
 	// Try various amount patterns
 	patterns := []*regexp.Regexp{
-		// Negative amounts: -1700.00
+		// Negative amounts.
 		negativeAmountRegex,
-		// Large amounts with decimals (4+ digits): 1700.00
+		// Large amounts with four or more digits and decimals.
 		regexp.MustCompile(`([\d]{4,}\.[\d]{2})`),
 		// Amounts with currency symbols
 		regexp.MustCompile(`[¥￥][\s]*([\d,]+\.?\d*)`),
@@ -4253,7 +4251,7 @@ func abs(x int) int {
 // cleanupName removes trailing noise from extracted names
 func cleanupName(name string) string {
 	// Remove common trailing patterns
-	// e.g., "上海市虹口区鹏侠百货商店\n售" -> "上海市虹口区鹏侠百货商店"
+	// Remove a trailing standalone section marker from an extracted company name.
 	name = strings.TrimSpace(name)
 	name = strings.Trim(name, ":：")
 
@@ -4273,8 +4271,8 @@ func cleanupName(name string) string {
 		name = parts[0]
 	}
 
-	// Strip leading personal name when a city-prefixed company name follows (e.g. "杜洪亮上海滴滴畅行科技有限公司").
-	// Keep this conservative to avoid damaging legitimate company names like "中国移动通信集团..." or address-prefixed sellers.
+	// Strip a leading personal name when a city-prefixed company name follows.
+	// Keep this conservative to avoid damaging legitimate regional or address-prefixed company names.
 	if regexp.MustCompile(`(?:有限责任公司|有限公司|公司|集团|商店|企业|中心|厂|店|行|社|院|局)`).MatchString(name) {
 		if m := regexp.MustCompile(`^([\p{Han}]{2,3})\s*([\p{Han}].+)$`).FindStringSubmatch(name); len(m) > 2 {
 			rest := strings.TrimSpace(m[2])
@@ -4297,7 +4295,7 @@ func cleanupName(name string) string {
 	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{11}\b`).FindStringSubmatch(name); len(m) > 1 {
 		name = strings.TrimSpace(m[1])
 	}
-	// Masked phone patterns like "135******11" sometimes appear in redacted regression samples.
+	// Masked phone patterns may appear in OCR text after upstream privacy processing.
 	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{3}\*+\d{2,8}\b`).FindStringSubmatch(name); len(m) > 1 {
 		name = strings.TrimSpace(m[1])
 	}
@@ -4315,7 +4313,7 @@ func cleanupName(name string) string {
 	// Remove trailing whitespace and newlines
 	name = strings.TrimRight(name, " \t\n\r")
 
-	// Trim common trailing separators that appear in OCR (e.g. "乌洪军 /").
+	// Trim common trailing separators that appear after an extracted name.
 	name = strings.TrimRightFunc(name, func(r rune) bool {
 		return unicode.IsSpace(r) || r == '/' || r == '／' || r == '|' || r == '｜'
 	})
@@ -4666,8 +4664,7 @@ func extractCompanyNameNearTaxID(text string) string {
 			continue
 		}
 		// Prefer the longest company-like match in the window.
-		// Some strings contain nested matches (e.g. "北京易行出行旅游有限公司" also matches "旅游有限公司"),
-		// and picking the "last" occurrence would incorrectly truncate the company name.
+		// Some strings contain nested company-suffix matches; choosing the last one would truncate the name.
 		cand := ""
 		candLen := 0
 		for _, mm := range matches {
@@ -4883,7 +4880,7 @@ func extractNameFromTaxIDLabelLine(line string) string {
 	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{11}\b`).FindStringSubmatch(val); len(m) > 1 {
 		val = strings.TrimSpace(m[1])
 	}
-	// Or cut at masked phones like "135******11".
+	// Or cut at a masked phone suffix.
 	if m := regexp.MustCompile(`^([\p{Han}]{2,20})\s*\d{3}\*+\d{2,8}\b`).FindStringSubmatch(val); len(m) > 1 {
 		val = strings.TrimSpace(m[1])
 	}
@@ -4960,7 +4957,7 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 				}
 			}
 			// Prefer explicit "items" region spans; only fall back to buyer spans when items are missing.
-			// Buyer blocks are noisy and can easily be mistaken as line items (e.g. Didi invoices).
+			// Buyer blocks are noisy and can easily be mistaken for line items.
 			if len(itemsOut) > 0 {
 				out = itemsOut
 			} else {
@@ -5248,7 +5245,7 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 				}
 			}
 		}
-		// Some templates (e.g. Didi transportation service e-invoice) omit a unit column and look like
+		// Some transport-service templates omit a unit column and look like
 		// "<name> <amount> <qty>"; accept qty+money as a fallback.
 		return hasQty && hasNameLike && (hasUnit || hasMoney)
 	}
@@ -5314,7 +5311,7 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 				break
 			}
 		}
-		// Didi-like rows sometimes render as "<name><amount> <qty>" without a unit, and the qty token
+		// Some merged rows render as "<name><amount> <qty>" without a unit, and the qty token
 		// may end up left of the quantity column boundary. Infer qty from a right-side numeric token
 		// when we see money in the row.
 		if qty == nil && rowHasMoney {
@@ -5469,7 +5466,7 @@ func extractInvoiceLineItemsFromPDFZones(pages []PDFTextZonesPage) []InvoiceLine
 				break
 			}
 			s = strings.TrimSpace(strings.Join(fields, " "))
-			// Strip glued suffix prices like "客运服务费68.34".
+			// Strip a decimal price glued to an item-name suffix.
 			if loc := regexp.MustCompile(`(?i)([¥￥]?-?\d+(?:,\d{3})*\.\d{1,2})$`).FindStringIndex(s); loc != nil && loc[0] > 0 {
 				prefix := strings.TrimSpace(s[:loc[0]])
 				// Only apply when the prefix has at least one Han rune (avoid stripping real specs like "3.5mm").
@@ -5707,7 +5704,7 @@ func stripTrailingMoneyTokensFromItemField(s string) string {
 	}
 	s = strings.TrimSpace(strings.Join(fields, " "))
 
-	// Strip glued suffix prices like "客运服务费68.34".
+	// Strip glued suffix prices from transport-service item names.
 	if loc := invoiceItemMoneySuffixRe.FindStringIndex(s); loc != nil && loc[0] > 0 {
 		prefix := strings.TrimSpace(s[:loc[0]])
 		if prefix != "" {
@@ -5840,7 +5837,7 @@ func isBadPartyNameCandidate(name string) bool {
 		}
 	}
 	// Long merged rows that contain money/tax labels + numbers are not party names.
-	// Example: "单价上海市虹口区鹏侠百货商店1683.17金额...".
+	// A merged price/seller/amount row is not a party name.
 	if strings.Contains(compact, "单价") || strings.Contains(compact, "金额") || strings.Contains(compact, "税额") || strings.Contains(compact, "税率") || strings.Contains(compact, "征收率") {
 		if regexp.MustCompile(`\d`).MatchString(compact) || strings.Contains(compact, "%") {
 			return true
@@ -6662,7 +6659,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 	simpleMeasureSpecSplitRe := regexp.MustCompile(`(?i)^(\d+(?:\.\d+)?)(ml|l|g|kg|mm|cm|m)$`)
 	simpleMeasureUnitRe := regexp.MustCompile(`(?i)^(ml|l|g|kg|mm|cm|m)$`)
 	labelLineRe := regexp.MustCompile(`^(?:名称|名\s*称|纳税人识别号|地址|地址、电话|地址,电话|电话|开户行|开户行及账号|账号)[:：]?$`)
-	// Some OCR results merge labels and values on the same line (e.g. "名称：沃尔玛…").
+	// Some OCR results merge a name label and value on the same line.
 	labelPrefixRe := regexp.MustCompile(`^(?:名称|名\s*称|纳税人识别号|统一社会信用代码/纳税人识别号|地址|地址、电话|地址,电话|电话|开户行|开户行及账号|开户行|账号)\s*[:：]\s*\S+`)
 
 	categoryPrefixRe := regexp.MustCompile(`^\*([^*]+)\*`)
@@ -6677,7 +6674,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		s = strings.ReplaceAll(s, "*", "×")
 		// Normalize common punctuation variants for consistent display.
 		s = strings.NewReplacer("（", "(", "）", ")", "，", ",").Replace(s)
-		// Improve readability for OCR that merges English tokens (e.g. "Member'sMark希腊式...").
+		// Improve readability when OCR merges English tokens and Chinese text.
 		s = latinCamelSplitRe.ReplaceAllString(s, "$1 $2")
 		s = latinHanBoundaryRe.ReplaceAllString(s, "$1 $2")
 		s = hanLatinBoundaryRe.ReplaceAllString(s, "$1 $2")
@@ -6686,15 +6683,14 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		return strings.TrimSpace(s)
 	}
 
-	// Peel trailing model codes from an item name, e.g.:
-	// "... KFR-72LW/NhBa1BAj KFR-72LW/NhBa1BAj" -> (name="...", spec="KFR-72LW/NhBa1BAj").
+	// Peel repeated trailing model codes from an item name into the specification field.
 	peelTrailingModelCodes := func(name string) (cleanName, spec string) {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			return "", ""
 		}
-		// Match codes that contain both letters+digits and a separator (- or /), like "KFR-72LW/NhBa1BAj".
-		// Some OCR split the tail code into multiple tokens, e.g. "KFR-72LW/Nh Ba1BAj", so we also
+		// Match codes that contain both letters+digits and a separator (- or /).
+		// OCR may split a tail code into multiple tokens, so we also
 		// try concatenating the last two tokens.
 		modelRe := regexp.MustCompile(`(?i)^[A-Z]{2,}[A-Z0-9]*[-/][A-Z0-9][A-Z0-9/.-]{3,}$`)
 		digitRe := regexp.MustCompile(`\d`)
@@ -6810,8 +6806,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		return n >= 2 && n <= 120
 	}
 
-	// Some PDF text extractions merge unit+qty into the same token as the item name,
-	// e.g. "*电信服务*话费充值元1" or "... 元 1". Peel them off early so we don't lose them.
+	// Some PDF text extractions merge unit and quantity into the item-name token; peel them off early.
 	unitQtySuffixRe := regexp.MustCompile(`^(.*?)(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|项|項|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)$`)
 	unitQtyInlineRe := regexp.MustCompile(`(元|件|个|箱|袋|包|瓶|罐|盒|组|台|次|张|套|份|支|双|只|项|項|米|公斤|千克|克)\s*(\d+(?:\.\d+)?)`)
 	specInlineRe := regexp.MustCompile(`(?:\d+(?:\.\d+)?\s*°\s*(?:[×x\*])\s*\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)?|\d+(?:\.\d+)?\s*(?:kg|ml|mm|cm|m|g|l)\s*(?:[×x\*])\s*\d+(?:\.\d+)?)`)
@@ -6832,7 +6827,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 		if len(cats) < 2 {
 			return nil
 		}
-		// Filter out false "*...*" matches caused by dimension specs like "360*380*190mm" (e.g. "*380*").
+		// Filter out false category matches caused by asterisk-delimited dimension specifications.
 		// Keep only markers that look like real categories (contain Han or at least 2 ASCII letters).
 		{
 			onlyDigits := regexp.MustCompile(`^\d+$`)
@@ -7086,7 +7081,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			}
 		}
 
-		// Extract trailing dimension specs like "360*380*190mm" when spec column is missing.
+		// Extract a trailing dimension specification when its column is missing.
 		if spec == "" {
 			dimTailRe := regexp.MustCompile(`(?i)(\d+(?:\.\d+)?(?:\s*[*x×]\s*\d+(?:\.\d+)?){1,2}\s*(?:mm|cm|m|g|kg|ml|l)?)$`)
 			if loc := dimTailRe.FindStringSubmatchIndex(rest); len(loc) >= 4 {
@@ -7585,7 +7580,7 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 			if currentName != "" {
 				flush()
 			}
-			// Didi-style merged rows: repeated service names in one line.
+			// Merged transport rows may repeat service names in one line.
 			if strings.Contains(s, "运输服务") && strings.Contains(s, "客运服务费") &&
 				(strings.Count(s, "运输服务") >= 2 || strings.Count(s, "客运服务费") >= 2) {
 				clean := strings.NewReplacer("*", "", " ", "").Replace(s)
@@ -7625,8 +7620,8 @@ func extractInvoiceLineItems(text string) []InvoiceLineItem {
 				currentSawMoney = false
 				continue
 			}
-			// Category-prefixed rows sometimes end with a bare quantity without a unit
-			// (e.g. "*日用杂品*包装费配送费1"). Only apply when the name part contains no other digits.
+			// Category-prefixed rows sometimes end with a bare quantity without a unit.
+			// Only apply when the name part contains no other digits.
 			if strings.HasPrefix(s, "*") {
 				trimmed := strings.TrimSpace(s)
 				cat := ""
@@ -7877,7 +7872,7 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 		}
 	}
 
-	// Extract embedded personal names that appear inside noisy lines, e.g. "武亚峰13512168111"
+	// Extract an embedded personal name that appears immediately before an 11-digit phone number
 	// where the line may also contain password symbols and be rejected by line-level heuristics.
 	phoneNameRe := regexp.MustCompile(`([\p{Han}]{2,6})\s*\d{11}`)
 	phoneNameMatches := phoneNameRe.FindAllStringSubmatchIndex(text, -1)
@@ -7888,8 +7883,7 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 		addName(text[m[2]:m[3]], m[0])
 	}
 
-	// Extract company/person names that appear at the tail of multi-label lines like:
-	// "名称: 开户行及账号: 地址、电话: 纳税人识别号: 中国移动通信集团上海有限公司"
+	// Extract company/person names at the tail of multi-label lines.
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -8027,7 +8021,7 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 		}
 
 		// Prefer names within the relevant section window to avoid picking footer names
-		// (e.g. "复核: 张唯...") as the buyer.
+		// (for example, a footer reviewer field) as the buyer.
 		if cand := pickFrom(true); cand != nil {
 			return cand
 		}
@@ -8047,7 +8041,7 @@ func (s *OCRService) extractBuyerAndSellerByPosition(text string) (buyer, seller
 			buyerMax = sellerMarkerIndex
 		}
 		// When buyer/seller sections are far apart (top-bottom layout), avoid picking names
-		// that are very close to the seller marker (often footer fields like "复核: 张唯").
+		// that are very close to the seller marker, such as footer reviewer fields.
 		if sellerMarkerIndex != -1 && sellerMarkerIndex > buyerMarkerIndex && sellerMarkerIndex-buyerMarkerIndex > 500 {
 			cut := sellerMarkerIndex - 220
 			if cut > buyerMin {
@@ -8483,7 +8477,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 			setStringWithSourceAndConfidence(&data.InvoiceDate, &data.InvoiceDateSource, &data.InvoiceDateConfidence, match[1], "standalone", 0.7)
 		}
 	}
-	// Repair implausible years (common in Didi invoices where check code digits stick to the year).
+	// Repair implausible years when check-code digits stick to the year.
 	if data.InvoiceDate != nil {
 		if yy, mo, dd, ok := extractYMD(*data.InvoiceDate); ok && !isPlausibleInvoiceYear(yy) {
 			// Find a plausible 4-digit year in the "开票日期" header line.
@@ -8531,7 +8525,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 	}
 
 	// Some invoices print a "价税合计(小写)" line that includes multiple numeric amounts after 小写,
-	// e.g. "... (小写) 396.04 ￥ 400.00 ￥ 3.96". Prefer the largest as total, and when possible
+	// Prefer the largest amount after the lowercase-total label, and when possible
 	// derive tax from (total - net) by matching another extracted number.
 	if data.Amount == nil || data.TaxAmount == nil {
 		decimal2Re := regexp.MustCompile(`\d+\.\d{2}`)
@@ -8606,7 +8600,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 	}
 
 	// Prefer totals line parsing that contains both net amount, total amount, and tax amount, e.g.:
-	// "价税合计（大写） ... ¥ 3049.51 （小写） ¥ 3080.00 ¥ 30.49"
+	// Read net, gross, and tax amounts from a combined totals row.
 	// Some PDF text merges multiple item rows and also glues "（小写）" without a colon, so we handle it explicitly.
 	taxTotalThreeRe := regexp.MustCompile(`(?s)价税合计.{0,200}?(?:[¥￥]\s*([\d,.]+)).{0,200}?(?:[（(]?\s*小写\s*[）)])\s*(?:[¥￥]\s*([\d,.]+)).{0,80}?(?:[¥￥]\s*([\d,.]+))`)
 	if m := taxTotalThreeRe.FindStringSubmatch(parsedText); len(m) > 3 {
@@ -8637,7 +8631,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 	}
 
 	// Some invoices have a dedicated net/tax summary line like:
-	// "合计 ￥107.79 ￥14.01"
+	// Read amount and tax from a compact totals row.
 	// Prefer this over per-line item "税额" matches.
 	if data.TaxAmount == nil {
 		netTaxLineRe := regexp.MustCompile(`(?m)^合计\s*[¥￥]?\s*([\d,.]+)\s*[¥￥]?\s*([\d,.]+)\s*$`)
@@ -8678,7 +8672,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 			}
 		}
 	}
-	// Very last resort: "金额: 123.45" (guard against tax-id like "金额92310109MA...").
+	// Very last resort: a labeled amount, guarded against merged tax IDs.
 	if data.Amount == nil {
 		amountLabelRe := regexp.MustCompile(`金额\s*[:：]?\s*[\n\r]?\s*[¥￥]?\s*[\n\r]?\s*([\d,.]+)`)
 		matches := amountLabelRe.FindAllStringSubmatchIndex(parsedText, -1)
@@ -8883,7 +8877,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 	// Recover buyer/seller names from merged-label PDF text (e.g. "名称：个人 销售方信息 名称：").
 	// This happens with PyMuPDF text extraction where buyer/seller blocks are on the same line.
 	if !airTicketDetected {
-		// Buyer: extract from buyer block. Even if a plausible name was picked by position (e.g. footer "张唯"),
+		// Buyer: extract from the buyer block even if a plausible footer name was picked by position.
 		// override when the buyer block explicitly indicates "电话: 个人".
 		buyerText := parsedText
 		if loc := regexp.MustCompile(`(?m)^购买方\s*$`).FindStringIndex(parsedText); loc != nil {
@@ -8954,8 +8948,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 			if val == "个人" && old != "个人" {
 				shouldOverride = true
 			}
-			// Upgrade generic "个人" to a more specific personal name found in the buyer block,
-			// e.g. "邬先生（个人）".
+			// Upgrade generic "个人" to a more specific personal name found in the buyer block.
 			if !shouldOverride && old == "个人" && val != "个人" {
 				looksPersonal := func(s string) bool {
 					s = strings.TrimSpace(s)
@@ -9135,7 +9128,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 				continue
 			}
 			n2, sp2, un2 := peelTrailingUnitSpecTokensFromItemName(n, data.Items[i].Spec, data.Items[i].Unit)
-			// Also strip leaked amount/unit-price tokens (common in Didi invoices: "*运输服务*客运服务费68.34 1").
+			// Also strip leaked amount/unit-price tokens from transport-service rows.
 			n2 = stripTrailingMoneyTokensFromItemField(n2)
 			sp2 = stripTrailingMoneyTokensFromItemField(sp2)
 			data.Items[i].Name = strings.TrimSpace(n2)
@@ -9180,7 +9173,7 @@ func (s *OCRService) ParseInvoiceDataWithMeta(text string, meta *PDFTextCLIRespo
 			}
 		}
 
-		// Totals: avoid picking huge numbers from tax IDs (e.g. 92310109...) by reading the totals row.
+		// Totals: avoid picking large tax-ID numbers by reading the totals row.
 		{
 			total, totalSrc, totalConf, tax, taxSrc, taxConf := extractInvoiceTotalsFromPDFZones(meta.Zones)
 			if total != nil && totalSrc != "" && *total > 0 {

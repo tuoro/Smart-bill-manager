@@ -37,6 +37,11 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: |
+          fixture_dir="$(mktemp -d)"
+          trap 'rm -rf "$fixture_dir"' EXIT
+          go run ./cmd/generate_regression_fixtures -out "$fixture_dir"
+          diff --recursive --unified internal/services/testdata/regression "$fixture_dir"
+
           go test -count=1 -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
 
@@ -124,6 +129,26 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify final image excludes regression testdata
+        if: github.event_name == 'pull_request'
+        env:
+          BUILT_IMAGE_ID: ${{ steps.build.outputs.imageid }}
+        run: |
+          set -Eeuo pipefail
+          container_id="$(docker create "$BUILT_IMAGE_ID")"
+          image_listing="$(mktemp)"
+          cleanup() {
+            docker rm "$container_id" >/dev/null
+            rm -f "$image_listing"
+          }
+          trap cleanup EXIT
+
+          docker export "$container_id" | tar -tf - >"$image_listing"
+          if grep -E '(^|/)app/backend/internal/services/testdata/regression(/|$)' "$image_listing"; then
+            echo "::error::Production image contains regression testdata"
+            exit 1
+          fi
 
       - name: Verify built image health
         if: github.event_name == 'pull_request'

@@ -26,11 +26,13 @@ type migration struct {
 }
 
 const emailLogIdentityMigrationVersion int64 = 2026081001
+const removeRepoRegressionSamplesMigrationVersion int64 = 2026081101
 
 var registeredMigrations = []migration{
 	{version: 2026080301, name: "legacy_data_and_indexes", up: migrateLegacyDataAndIndexes},
 	{version: 2026080302, name: "money_cents", up: migrateMoneyCents},
 	{version: emailLogIdentityMigrationVersion, name: "email_log_identity", up: migrateEmailLogIdentity},
+	{version: removeRepoRegressionSamplesMigrationVersion, name: "remove_repo_regression_samples", up: removeRepoRegressionSamples},
 }
 
 // Run 先拒绝程序不支持的未来数据库，再同步表结构并执行尚未应用的数据迁移。

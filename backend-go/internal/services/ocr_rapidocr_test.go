@@ -86,11 +86,11 @@ import json
 
 result = {
     "success": True,
-    "text": "WECHAT_PAY\\n-1700.00\\nTEST_MERCHANT",
+    "text": "SYNTHETIC_WECHAT_PAY\\n-42.36\\nSYNTHETIC_MERCHANT",
     "lines": [
-        {"text": "WECHAT_PAY", "confidence": 0.95},
-        {"text": "-1700.00", "confidence": 0.98},
-        {"text": "TEST_MERCHANT", "confidence": 0.92}
+        {"text": "SYNTHETIC_WECHAT_PAY", "confidence": 0.95},
+        {"text": "-42.36", "confidence": 0.98},
+        {"text": "SYNTHETIC_MERCHANT", "confidence": 0.92}
     ],
     "line_count": 3
 }
@@ -117,14 +117,14 @@ print(json.dumps(result, ensure_ascii=False))
 			t.Fatalf("RecognizeWithRapidOCR returned error: %v", err)
 		}
 
-		if !strings.Contains(text, "WECHAT_PAY") {
-			t.Error("Expected text to contain 'WECHAT_PAY'")
+		if !strings.Contains(text, "SYNTHETIC_WECHAT_PAY") {
+			t.Error("Expected text to contain the synthetic payment marker")
 		}
-		if !strings.Contains(text, "-1700.00") {
-			t.Error("Expected text to contain '-1700.00'")
+		if !strings.Contains(text, "-42.36") {
+			t.Error("Expected text to contain the synthetic amount")
 		}
-		if !strings.Contains(text, "TEST_MERCHANT") {
-			t.Error("Expected text to contain 'TEST_MERCHANT'")
+		if !strings.Contains(text, "SYNTHETIC_MERCHANT") {
+			t.Error("Expected text to contain the synthetic merchant")
 		}
 	})
 

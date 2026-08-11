@@ -1,21 +1,21 @@
 # Binaries
-server
-*.exe
+/server
+/*.exe
 
 # Database
-data/
+/data/
 
 # Uploads
-uploads/
+/uploads/
 
 # IDE
-.idea/
-.vscode/
+/.idea/
+/.vscode/
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Debug
-debug
-*.log
+/debug
+/*.log

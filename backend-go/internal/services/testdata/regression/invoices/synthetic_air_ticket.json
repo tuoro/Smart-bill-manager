@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "provenance": "SYNTHETIC_FIXED_CONSTANTS",
+  "scenario": "synthetic_air_ticket",
+  "kind": "invoice",
+  "name": "synthetic_air_ticket",
+  "raw_text": "SYNTHETIC / 纯合成测试数据\n航空运输电子客票行程单\n发票号码：99000000000000000003\n电子客票号码：SYNTHETIC-AIR-0001\n旅客姓名：纯合成旅客甲\n自：星河市\n至：云海市\n航班 ZZ9001\nZZ9001 2026年08月02日 09:30\n填开单位：纯合成航空服务有限公司\n填开日期：2026年08月01日\n合计 CNY 456.78\n增值税税额 CNY 12.34",
+  "expected": {
+    "amount": 456.78,
+    "invoice_number": "99000000000000000003",
+    "invoice_date": "2026年08月01日",
+    "tax_amount": 12.34,
+    "seller_name": "纯合成航空服务有限公司",
+    "buyer_name": "纯合成旅客甲",
+    "items": [
+      {
+        "name_contains": [
+          "星河市",
+          "云海市",
+          "ZZ9001"
+        ],
+        "unit": "次",
+        "quantity": 1
+      }
+    ]
+  }
+}

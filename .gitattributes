@@ -1,0 +1,3 @@
+# Keep generated regression fixtures byte-identical on every checkout.
+backend-go/internal/services/testdata/regression/*.json text eol=lf
+backend-go/internal/services/testdata/regression/**/*.json text eol=lf

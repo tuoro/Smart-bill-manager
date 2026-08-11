@@ -26,15 +26,6 @@
         </div>
         <div class="actions">
           <Button
-            v-if="isAdmin && !editing"
-            class="p-button-outlined"
-            severity="secondary"
-            icon="pi pi-verified"
-            :label="'\u6807\u8bb0\u4e3a\u56de\u5f52\u6837\u672c'"
-            :loading="markingRegressionSample"
-            @click="markRegressionSample(currentPayment.id)"
-          />
-          <Button
             v-if="!editing"
             class="p-button-outlined"
             severity="secondary"
@@ -286,17 +277,14 @@ import Message from 'primevue/message'
 import OverlayPanel from 'primevue/overlaypanel'
 import Tag from 'primevue/tag'
 import Textarea from 'primevue/textarea'
-import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { paymentApi } from '@/api/payments'
-import { regressionSamplesApi, type SampleQualityIssue } from '@/api/regressionSamples'
 import { useNotificationStore } from '@/stores/notifications'
 import type { Payment } from '@/types'
 
 const props = defineProps<{
   visible: boolean
   payment: Payment | null
-  isAdmin: boolean
 }>()
 
 const emit = defineEmits<{
@@ -310,30 +298,18 @@ const visibleModel = computed({
 })
 
 const toast = useToast()
-const confirm = useConfirm()
 const notifications = useNotificationStore()
 const currentPayment = ref<Payment | null>(null)
 const screenshotSrc = ref('')
 const editing = ref(false)
 const saving = ref(false)
 const reparsing = ref(false)
-const markingRegressionSample = ref(false)
 const timeDraft = ref<Date | null>(null)
 const timeLastTarget = ref<HTMLElement | null>(null)
 
 type TimePanelInstance = InstanceType<typeof OverlayPanel> & {
   visible?: boolean
   container?: HTMLElement
-}
-
-type RegressionError = {
-  response?: {
-    status?: number
-    data?: {
-      message?: string
-      data?: { issues?: SampleQualityIssue[] }
-    }
-  }
 }
 
 const timePanel = ref<TimePanelInstance | null>(null)
@@ -521,74 +497,6 @@ const confirmTimePanel = () => {
   if (!timeDraft.value) return
   form.transaction_time = new Date(timeDraft.value)
   timePanel.value?.hide()
-}
-
-const summarizeIssues = (issues: SampleQualityIssue[] = []) => {
-  const parts = issues.slice(0, 6).map((issue) => {
-    const label = issue.level.toLowerCase() === 'error' ? '错误' : '警告'
-    return `${label}：${issue.message || issue.code || '未知问题'}`
-  })
-  return parts.join('；') + (issues.length > 6 ? '…' : '')
-}
-
-const confirmForceMark = (issues: SampleQualityIssue[]) =>
-  new Promise<boolean>((resolve) => {
-    confirm.require({
-      header: '样本质量提示',
-      message: `样本质量检查发现：${summarizeIssues(issues)}\n仍然要标记为回归样本吗？`,
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: '仍然标记',
-      rejectLabel: '取消',
-      accept: () => resolve(true),
-      reject: () => resolve(false),
-    })
-  })
-
-const markRegressionSample = async (id: string) => {
-  if (!props.isAdmin || !id) return
-  markingRegressionSample.value = true
-  try {
-    const response = await regressionSamplesApi.markPayment(id)
-    if (response.data.success) {
-      const issues = response.data.data?.issues || []
-      const warnings = issues.filter((issue) => issue.level.toLowerCase() === 'warn')
-      const nonPiiWarnings = warnings.filter((issue) => !issue.code.toLowerCase().startsWith('pii_'))
-      const hasWarnings = nonPiiWarnings.length > 0
-      const hasOnlyPiiWarnings = warnings.length > 0 && nonPiiWarnings.length === 0
-      toast.add({
-        severity: hasWarnings ? 'warn' : hasOnlyPiiWarnings ? 'info' : 'success',
-        summary: hasWarnings
-          ? '已标记回归样本（有警告）'
-          : hasOnlyPiiWarnings
-            ? '已标记回归样本（含隐私字段提示）'
-            : '已标记为回归样本',
-        life: 2500,
-      })
-      return
-    }
-    toast.add({ severity: 'error', summary: response.data.message || '标记失败', life: 3000 })
-  } catch (error: unknown) {
-    const regressionError = error as RegressionError
-    let errorMessage = regressionError.response?.data?.message || '标记失败'
-    if (regressionError.response?.status === 422) {
-      const issues = regressionError.response.data?.data?.issues || []
-      if (!(await confirmForceMark(issues))) return
-      try {
-        const response = await regressionSamplesApi.markPayment(id, { force: true })
-        if (response.data.success) {
-          toast.add({ severity: 'success', summary: '已标记为回归样本', life: 2500 })
-          return
-        }
-        errorMessage = response.data.message || errorMessage
-      } catch (forceError: unknown) {
-        const failedRequest = forceError as RegressionError
-        errorMessage = failedRequest.response?.data?.message || errorMessage
-      }
-    }
-    toast.add({ severity: 'error', summary: errorMessage, life: 3000 })
-  } finally {
-    markingRegressionSample.value = false
-  }
 }
 
 const enterEditMode = () => {

@@ -25,14 +25,13 @@ const (
 )
 
 type Application struct {
-	Router            *gin.Engine
-	db                *gorm.DB
-	uploadsDir        string
-	taskService       *services.TaskService
-	regressionService *services.RegressionSampleService
-	ocrWorker         services.OCRWorker
-	startOnce         sync.Once
-	done              chan struct{}
+	Router      *gin.Engine
+	db          *gorm.DB
+	uploadsDir  string
+	taskService *services.TaskService
+	ocrWorker   services.OCRWorker
+	startOnce   sync.Once
+	done        chan struct{}
 }
 
 func New(cfg *config.Config, db *gorm.DB, uploadsDir string) (*Application, error) {
@@ -68,8 +67,6 @@ func NewWithOCRWorker(
 	emailService := services.NewEmailService(db, uploadsDir, invoiceService)
 	tripService := services.NewTripService(db, uploadsDir)
 	taskService := services.NewTaskService(db, paymentService, invoiceService)
-	regressionService := services.NewRegressionSampleService(db)
-
 	if cfg.NodeEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -109,16 +106,14 @@ func NewWithOCRWorker(
 	adminGroup.Use(middleware.RequireAdmin())
 	handlers.NewAdminInvitesHandler(authService).RegisterRoutes(adminGroup.Group("/invites"))
 	handlers.NewAdminUsersHandler(authService, uploadsDir).RegisterRoutes(adminGroup.Group("/users"))
-	handlers.NewAdminRegressionSamplesHandler(regressionService).RegisterRoutes(adminGroup.Group("/regression-samples"))
 
 	return &Application{
-		Router:            router,
-		db:                db,
-		uploadsDir:        uploadsDir,
-		taskService:       taskService,
-		regressionService: regressionService,
-		ocrWorker:         ocrWorker,
-		done:              make(chan struct{}),
+		Router:      router,
+		db:          db,
+		uploadsDir:  uploadsDir,
+		taskService: taskService,
+		ocrWorker:   ocrWorker,
+		done:        make(chan struct{}),
 	}, nil
 }
 
@@ -135,8 +130,6 @@ func (a *Application) Start(ctx context.Context) {
 		} else if started {
 			log.Printf("[OCR] worker mode: enabled")
 		}
-		a.importRegressionSamples()
-
 		ocrDone := make(chan struct{})
 		go func() {
 			defer close(ocrDone)
@@ -165,26 +158,6 @@ func (a *Application) Wait(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
-	}
-}
-
-func (a *Application) importRegressionSamples() {
-	result, err := a.regressionService.ImportRepoSamples()
-	if err != nil {
-		if !errors.Is(err, services.ErrRepoSampleDirNotFound) {
-			log.Printf("[Regression] repo sample import failed: %v", err)
-		}
-		return
-	}
-	if result != nil && (result.Files > 0 || result.Inserted > 0 || result.Updated > 0 || result.Promoted > 0) {
-		log.Printf(
-			"[Regression] repo samples: scanned=%d inserted=%d updated=%d promoted=%d errors=%d",
-			result.Files,
-			result.Inserted,
-			result.Updated,
-			result.Promoted,
-			result.Errors,
-		)
 	}
 }
 

@@ -26,7 +26,6 @@ type DeleteUserResult struct {
 	EmailConfigsDeleted  int64  `json:"emailConfigsDeleted"`
 	EmailLogsDeleted     int64  `json:"emailLogsDeleted"`
 	TasksDeleted         int64  `json:"tasksDeleted"`
-	RegressionDeleted    int64  `json:"regressionSamplesDeleted"`
 	PaymentOCRDeleted    int64  `json:"paymentOCRDeleted"`
 	InvoiceOCRDeleted    int64  `json:"invoiceOCRDeleted"`
 	LinksDeleted         int64  `json:"linksDeleted"`
@@ -193,12 +192,6 @@ func (s *AuthService) DeleteUserCtx(ctx context.Context, actorUserID, targetUser
 			return res.Error
 		}
 		out.TasksDeleted = res.RowsAffected
-
-		res = tx.Where("created_by = ? AND origin = ?", targetUserID, "ui").Delete(&models.RegressionSample{})
-		if res.Error != nil {
-			return res.Error
-		}
-		out.RegressionDeleted = res.RowsAffected
 
 		// Keep invites, but return counts for UI visibility.
 		res = tx.Model(&models.Invite{}).Where("created_by = ?", targetUserID).Count(&out.InvitesCreatedByUser)

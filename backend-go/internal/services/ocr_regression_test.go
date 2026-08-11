@@ -10,13 +10,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"smart-bill-manager/internal/devtools/regressionfixtures"
 )
 
 type regressionSample struct {
-	Kind     string          `json:"kind"`
-	Name     string          `json:"name"`
-	RawText  string          `json:"raw_text"`
-	Expected json.RawMessage `json:"expected"`
+	Synthetic  bool            `json:"synthetic"`
+	Provenance string          `json:"provenance"`
+	Scenario   string          `json:"scenario"`
+	Kind       string          `json:"kind"`
+	Name       string          `json:"name"`
+	RawText    string          `json:"raw_text"`
+	Expected   json.RawMessage `json:"expected"`
 }
 
 type paymentExpected struct {
@@ -28,12 +33,19 @@ type paymentExpected struct {
 }
 
 type invoiceExpected struct {
-	InvoiceNumber *string  `json:"invoice_number,omitempty"`
-	InvoiceDate   *string  `json:"invoice_date,omitempty"`
-	Amount        *float64 `json:"amount,omitempty"`
-	TaxAmount     *float64 `json:"tax_amount,omitempty"`
-	SellerName    *string  `json:"seller_name,omitempty"`
-	BuyerName     *string  `json:"buyer_name,omitempty"`
+	InvoiceNumber *string               `json:"invoice_number,omitempty"`
+	InvoiceDate   *string               `json:"invoice_date,omitempty"`
+	Amount        *float64              `json:"amount,omitempty"`
+	TaxAmount     *float64              `json:"tax_amount,omitempty"`
+	SellerName    *string               `json:"seller_name,omitempty"`
+	BuyerName     *string               `json:"buyer_name,omitempty"`
+	Items         []invoiceItemExpected `json:"items,omitempty"`
+}
+
+type invoiceItemExpected struct {
+	NameContains []string `json:"name_contains"`
+	Unit         string   `json:"unit,omitempty"`
+	Quantity     *float64 `json:"quantity,omitempty"`
 }
 
 func TestRegressionSamples(t *testing.T) {
@@ -82,6 +94,10 @@ func TestRegressionSamples(t *testing.T) {
 			if strings.TrimSpace(s.RawText) == "" {
 				t.Fatalf("invalid sample (raw_text required)")
 			}
+			if !s.Synthetic || s.Provenance != "SYNTHETIC_FIXED_CONSTANTS" ||
+				!strings.Contains(s.RawText, regressionfixtures.SyntheticMarker) {
+				t.Fatalf("fixture must be explicitly marked as fixed synthetic data")
+			}
 
 			switch s.Kind {
 			case "payment_screenshot":
@@ -120,6 +136,7 @@ func TestRegressionSamples(t *testing.T) {
 						headLines(s.RawText, 12, 1200),
 					)
 				}
+				assertRequiredSyntheticScenario(t, s.Scenario, got)
 			default:
 				t.Fatalf("unknown kind: %s", s.Kind)
 			}
@@ -263,7 +280,62 @@ func diffInvoiceExpected(exp invoiceExpected, got *InvoiceExtractedData) []strin
 		}
 	}
 
+	if exp.Items != nil {
+		if len(got.Items) != len(exp.Items) {
+			diffs = append(diffs, fmt.Sprintf("diff: items expected_count=%d got_count=%d", len(exp.Items), len(got.Items)))
+		} else {
+			for index, expectedItem := range exp.Items {
+				actualItem := got.Items[index]
+				for _, token := range expectedItem.NameContains {
+					if !strings.Contains(actualItem.Name, token) {
+						diffs = append(diffs, fmt.Sprintf("diff: items[%d].name missing required synthetic token", index))
+					}
+				}
+				if expectedItem.Unit != "" && actualItem.Unit != expectedItem.Unit {
+					diffs = append(diffs, fmt.Sprintf("diff: items[%d].unit expected=%q got=%q", index, expectedItem.Unit, actualItem.Unit))
+				}
+				if expectedItem.Quantity != nil {
+					if actualItem.Quantity == nil || math.Abs(*actualItem.Quantity-*expectedItem.Quantity) > 0.000001 {
+						diffs = append(diffs, fmt.Sprintf("diff: items[%d].quantity mismatch", index))
+					}
+				}
+			}
+		}
+	}
+
 	return diffs
+}
+
+func assertRequiredSyntheticScenario(t *testing.T, scenario string, got *InvoiceExtractedData) {
+	t.Helper()
+	requireItemTokens := func(expectedCount int, tokens ...string) {
+		t.Helper()
+		if len(got.Items) != expectedCount {
+			t.Fatalf("scenario %q expected %d parsed items, got %d", scenario, expectedCount, len(got.Items))
+		}
+		joined := ""
+		for _, item := range got.Items {
+			joined += " " + item.Name
+		}
+		for _, token := range tokens {
+			if !strings.Contains(joined, token) {
+				t.Fatalf("scenario %q did not preserve required synthetic route/service token", scenario)
+			}
+		}
+	}
+
+	switch scenario {
+	case regressionfixtures.ScenarioBasic:
+		requireItemTokens(1, "纯合成服务", "基础服务")
+	case regressionfixtures.ScenarioMultiItem:
+		requireItemTokens(2, "测试记录本", "测试配送")
+	case regressionfixtures.ScenarioAirTicket:
+		requireItemTokens(1, regressionfixtures.SyntheticAirOrigin, regressionfixtures.SyntheticAirDest, regressionfixtures.SyntheticFlightNo)
+	case regressionfixtures.ScenarioRailTicket:
+		requireItemTokens(1, regressionfixtures.SyntheticRailOrigin, regressionfixtures.SyntheticRailDest, regressionfixtures.SyntheticTrainNo)
+	default:
+		t.Fatalf("invoice fixture has unexpected synthetic scenario %q", scenario)
+	}
 }
 
 func diffStringField(field string, exp *string, got *string, normalize func(string) string) []string {

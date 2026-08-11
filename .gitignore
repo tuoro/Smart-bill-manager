@@ -1,5 +1,5 @@
 # Dependencies
-node_modules/
+/frontend/node_modules/
 
 # Python
 __pycache__/
@@ -7,19 +7,19 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
-env/
-ENV/
+/venv/
+/env/
+/ENV/
 
 # Build outputs
-dist/
-build/
+/frontend/dist/
+/build/
 *.log
 
 # Environment
-.env
-.env.local
-.env.*.local
+/.env
+/.env.local
+/.env.*.local
 
 # IDE
 .idea/
@@ -32,9 +32,25 @@ build/
 Thumbs.db
 
 # Test coverage
-coverage/
+/coverage/
+/backend-go/coverage.out
 
 # Temporary files
-tmp/
-temp/
-.tmp_*/
+/tmp/
+/temp/
+/.tmp_*/
+
+# Runtime data and uploads; patterns are anchored so source assets remain trackable.
+/backend-go/data/
+/backend-go/uploads/
+/data/
+/uploads/
+
+# SQLite sidecars outside the runtime data directories.
+/backend-go/*.db
+/backend-go/*.db-shm
+/backend-go/*.db-wal
+
+# Local keys and recoverable deployment backups.
+/backend-go/email_password.key
+/backup-*/

@@ -107,12 +107,14 @@ func createLegacyRegressionSamplesTable(t *testing.T, db interface{ Exec(string,
 
 func insertLegacyRegressionSample(t *testing.T, db interface{ Exec(string, ...any) *gorm.DB }, id, origin, sourceType, createdBy string) {
 	t.Helper()
+	sourceID := "synthetic-source-" + id
+	rawHash := "synthetic-hash-" + id
 	if err := db.Exec(`
 		INSERT INTO regression_samples (
 			id, kind, name, origin, source_type, source_id, created_by,
 			raw_text, raw_hash, expected_json
-		) VALUES (?, 'invoice', 'synthetic-row', ?, ?, 'synthetic-source', ?, 'SYNTHETIC', 'synthetic-hash', '{}')
-	`, id, origin, sourceType, createdBy).Error; err != nil {
+		) VALUES (?, 'invoice', 'synthetic-row', ?, ?, ?, ?, 'SYNTHETIC', ?, '{}')
+	`, id, origin, sourceType, sourceID, createdBy, rawHash).Error; err != nil {
 		t.Fatalf("写入旧回归样本失败: %v", err)
 	}
 }

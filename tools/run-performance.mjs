@@ -33,6 +33,7 @@ async function main() {
       claim_set_detail: `/claim-sets/${encodeURIComponent(seed.representative_claim_set_id)}`,
       payment_list: "/payments",
       invoice_list: "/invoices",
+      fact_insights: "/insights?limit=100",
     };
     const apiResults = {};
     for (const [name, path] of Object.entries(endpoints)) {

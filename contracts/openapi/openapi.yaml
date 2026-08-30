@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Smart Bill Manager API
-  version: 1.0.0-m3
-  description: Clean Slate M3 API。所有租户资源均从服务端会话解析 TenantContext。
+  version: 1.0.0-m4
+  description: Clean Slate M4 本地 API。所有租户资源均从服务端会话解析 TenantContext。
 servers:
   - url: /api/v1
 security:
@@ -16,6 +16,7 @@ tags:
   - name: allocations
   - name: trips
   - name: reimbursements
+  - name: insights
   - name: providers
   - name: email
 paths:
@@ -746,6 +747,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReimbursementMutationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /insights:
+    get:
+      operationId: queryInsights
+      tags: [insights]
+      parameters:
+        - name: fact_type
+          in: query
+          schema: { type: string, enum: [all, payment, invoice], default: all }
+        - name: date_from
+          in: query
+          description: 必须与 date_to 同时提供，包含起始日。
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          description: 必须与 date_from 同时提供，包含结束日。
+          schema: { type: string, format: date }
+        - name: currency
+          in: query
+          schema: { $ref: "#/components/schemas/Currency" }
+        - name: allocation_status
+          in: query
+          schema:
+            {
+              type: string,
+              enum: [all, unallocated, partial, allocated],
+              default: all,
+            }
+        - name: trip_scope
+          in: query
+          schema:
+            { type: string, enum: [all, assigned, unassigned], default: all }
+        - name: trip_id
+          in: query
+          description: 仅在 trip_scope=assigned 时可用。
+          schema: { type: string, format: uuid }
+        - name: cursor
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 2048 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: 同一 SQLite 读快照内的确定性分组汇总与稳定 Fact 明细页
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InsightPage"
         "400":
           $ref: "#/components/responses/BadRequest"
         "403":
@@ -1629,6 +1686,164 @@ components:
     AllocationFactType:
       type: string
       enum: [payment, invoice]
+    InsightFactTypeFilter:
+      type: string
+      enum: [all, payment, invoice]
+    InsightAllocationStatusFilter:
+      type: string
+      enum: [all, unallocated, partial, allocated]
+    InsightTripScope:
+      type: string
+      enum: [all, assigned, unassigned]
+    InsightFilter:
+      type: object
+      additionalProperties: false
+      required: [fact_type, allocation_status, trip_scope]
+      properties:
+        fact_type: { $ref: "#/components/schemas/InsightFactTypeFilter" }
+        date_from: { type: string, format: date }
+        date_to: { type: string, format: date }
+        currency: { $ref: "#/components/schemas/Currency" }
+        allocation_status:
+          { $ref: "#/components/schemas/InsightAllocationStatusFilter" }
+        trip_scope: { $ref: "#/components/schemas/InsightTripScope" }
+        trip_id: { type: string, format: uuid }
+    InsightTrip:
+      type: object
+      additionalProperties: false
+      required: [id, destination, start_date, end_date]
+      properties:
+        id: { type: string, format: uuid }
+        destination: { type: string, minLength: 1, maxLength: 500 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+    InsightFact:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          fact_type,
+          fact_id,
+          business_date,
+          display_name,
+          amount_minor,
+          allocated_minor,
+          remaining_minor,
+          currency,
+          allocation_status,
+        ]
+      properties:
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        fact_id: { type: string, format: uuid }
+        business_date: { type: string, format: date }
+        display_name: { type: string, minLength: 1 }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocated_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        remaining_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        allocation_status:
+          { type: string, enum: [unallocated, partial, allocated] }
+        trip: { $ref: "#/components/schemas/InsightTrip" }
+    InsightAggregate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          currency,
+          fact_type,
+          count,
+          total_minor,
+          allocated_minor,
+          remaining_minor,
+          unallocated_count,
+          partial_count,
+          allocated_count,
+        ]
+      properties:
+        currency: { $ref: "#/components/schemas/Currency" }
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        count:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        total_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocated_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        remaining_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        unallocated_count:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        partial_count:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocated_count:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+    InsightPage:
+      type: object
+      additionalProperties: false
+      required: [rule_version, filter, groups, items]
+      properties:
+        rule_version: { const: fact-insights/1 }
+        filter: { $ref: "#/components/schemas/InsightFilter" }
+        groups:
+          type: array
+          items: { $ref: "#/components/schemas/InsightAggregate" }
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/InsightFact" }
+        next_cursor: { type: string, minLength: 1, maxLength: 2048 }
     AllocationFactSummary:
       type: object
       additionalProperties: false

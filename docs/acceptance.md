@@ -371,6 +371,23 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-08-31 通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，8 个 Vitest 文件共 30 项测试通过；M1/M2 状态矩阵与 M3 三个工作区浏览器组件场景 29 / 29 通过，其中 5 项报销场景覆盖三类提示、混合币种、无提示、快照/版本冲突、四角色、键盘及 768px/384px 回流；关键不变量 104 / 104（100%）通过；领域/应用层覆盖率 85.42%（2,900 / 3,395），基础设施/传输层覆盖率 75.13%（3,417 / 4,548）。本轮只使用纯合成数据，未调用真实 Provider、未连接真实邮箱或外部账号。可机读摘要见 `tests/evidence/m3/reimbursement-workflow-gate-summary.json`，M3 收口见 `tests/evidence/m3/m3-closure-gate-summary.json`。
 
+## M4 首切片：确定性 Fact 洞察与筛选查询
+
+本切片以 `docs/decisions/0017-deterministic-fact-insights-and-query.md` 为冻结决策。实现与验收只读取当前未删除 Payment/Invoice、活动本地 Link、活动 Trip 归属和纯合成数据；不得调用模型、写回业务状态、连接外部系统或持久化统计副本。
+
+- `GET /api/v1/insights` 只接受封闭、单值查询参数：`fact_type=all|payment|invoice`、成对且包含边界的 `date_from/date_to`、`currency=CNY|USD|EUR|JPY`、`allocation_status=all|unallocated|partial|allocated`、`trip_scope=all|assigned|unassigned`、仅在 assigned 下可用的 `trip_id`、不透明 `cursor` 和默认 50/最大 100 的 `limit`。未知、重复、空值、非法日期/范围/枚举/ID/上限或参数组合必须明确拒绝。
+- Payment 日期唯一读取确认时持久化的 `business_date`，Invoice 读取 `invoice_date`；过滤包含起止日。当前分配只聚合活动 PaymentInvoiceLink，当前行程只读取活动 TripFactAssignment；软删除 Fact 或 Trip、已终止 Link/Assignment 不进入当前结果。
+- 投影逐项返回 Fact 类型/ID、业务日期、安全显示名、整数最小单位总额/已分配/剩余、币种、`unallocated|partial|allocated` 和可选当前 Trip 摘要；同一 Fact 不重复。已分配必须在 0 到总额之间，任何无效持久化状态或超过安全整数累计上限返回显式安全错误，不截断、不饱和、不伪成功。
+- 汇总按币种和 Fact 类型分别返回 `count`、`total_minor`、`allocated_minor`、`remaining_minor` 及三种分配状态数量；禁止生成 Payment+Invoice 总金额或跨币种总金额。空结果返回空汇总和空明细。
+- 排序固定为 `business_date DESC, fact_type DESC, fact_id DESC`。游标版本为 `fact-insight-cursor/1`，绑定规范筛选 hash 与最后一项排序键；未知字段、错误版本/编码/身份、筛选不匹配或不存在的边界必须拒绝，不回退第一页。
+- 汇总与当前页必须来自同一 SQLite 读事务快照。实现不得新增统计表、触发器维护统计、运行时缓存或后台聚合；所有 SQL 使用参数化接口并按租户过滤。
+- `insights.read` 只允许 Owner/Finance/Viewer；Reviewer 拒绝且不能据此枚举 Fact、Trip 或金额。端点只读，不创建 AuditEvent；错误不得泄露 SQL、跨租户存在性、名称、金额、Provider、邮件或凭据数据。
+- Web `/insights` 必须覆盖完整筛选、清除、多币种/多类型分组、三种分配状态、已/未归属、具体 Trip、空结果、加载更多、失败重试、离线和权限不足。键盘、错误关联、可见焦点、768px 与 384px 等效 200% 回流不得依赖横向滚动；禁止无决策价值图表或把不同币种/类型视觉合并为单一金额。
+
+最小纯合成场景固定包含：Payment/Invoice 同日及日期边界、四币种、无/部分/全额分配、多对多 Link、活动与已终止 Link、无归属/活动归属/已终止归属、软删除 Fact/Trip、具体 Trip、空结果、多页稳定游标、筛选不匹配游标、非法查询组合、累计溢出、并发读快照、四角色、跨租户、Web 键盘与响应式。领域、SQLite/应用、HTTP/OpenAPI、Web 单元与浏览器场景、关键不变量、两层覆盖率和完整工程门禁必须全部通过。
+
+验收结果：2026-08-31 通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，9 个 Vitest 文件共 38 项测试通过；M1/M3 状态矩阵与 M4 洞察浏览器组件场景 33 / 33 通过，其中 4 项新增洞察场景覆盖筛选、分组、分页、失败恢复、四角色、键盘及 768px/384px 回流；关键不变量 113 / 113（100%）通过；领域/应用层覆盖率 85.71%（3,101 / 3,618），基础设施/传输层覆盖率 75.24%（3,477 / 4,621）。10,000 个纯合成 Fact 的 SQLite 查询与领域投影基准为 70.58 ms/op（20 次固定运行）；完整 HTTP 并发 p95 已纳入 M4 性能运行器，仍在后续运行质量切片统一重跑。本轮只使用纯合成数据，未调用真实 Provider、未连接真实邮箱或外部账号。可机读摘要见 `tests/evidence/m4/fact-insights-gate-summary.json`。
+
 ## 八、租户与安全验收
 
 ### 租户
@@ -413,7 +430,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 ### 性能测量协议
 
 - 证据记录构建 SHA、Compose 配置、CPU/内存限制、数据库/对象存储位置、数据种子、请求脚本版本和 Provider 延迟；除明确的 AI 项外，测试使用本机回环网络。
-- 10,000 条 Fact 固定为 5,000 Payment 与 5,000 Invoice，并包含至少 1,000 条对应 Document/Claim/Review 链。非 AI JSON API 集合固定为收件箱列表、Document 详情、ClaimSet 详情、Payment 列表和 Invoice 列表；每个端点预热 100 次，再以并发 10 测量至少 1,000 次，逐端点 p95 均不得超过 300 ms。
+- 10,000 条 Fact 固定为 5,000 Payment 与 5,000 Invoice，并包含至少 1,000 条对应 Document/Claim/Review 链。非 AI JSON API 集合固定为收件箱列表、Document 详情、ClaimSet 详情、Payment 列表、Invoice 列表和 M4 的 Fact 洞察；每个端点预热 100 次，再以并发 10 测量至少 1,000 次，逐端点 p95 均不得超过 300 ms。
 - Document 创建使用预载入内存的 1 MiB 固定合成 PNG。服务端计时从请求体完整接收并通过字节数检查后开始，到 Document 与 ProcessingJob 事务提交结束；预热 20 次，再以并发 2 测量 200 次。
 - 审核确认使用 200 个彼此独立、已就绪的纯合成 ClaimSet；预热 20 个后，以并发 2 测量 200 个首次确认事务。幂等重放另行验证，不混入首提交流量。
 - Lighthouse 使用生产构建、全新无扩展浏览器配置和固定桌面预设，对四页各独立运行 3 次；Accessibility 与 Performance 均以三次最低分判定。

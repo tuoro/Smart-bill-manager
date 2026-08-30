@@ -25,6 +25,13 @@ export type ReimbursementPage = components['schemas']['ReimbursementPage']
 export type ReimbursementDetail = components['schemas']['ReimbursementDetail']
 export type ReimbursementStatusRequest = components['schemas']['ReimbursementStatusRequest']
 export type ReimbursementMutationResult = components['schemas']['ReimbursementMutationResult']
+export type InsightFactTypeFilter = components['schemas']['InsightFactTypeFilter']
+export type InsightAllocationStatusFilter = components['schemas']['InsightAllocationStatusFilter']
+export type InsightTripScope = components['schemas']['InsightTripScope']
+export type InsightFilter = components['schemas']['InsightFilter']
+export type InsightFact = components['schemas']['InsightFact']
+export type InsightAggregate = components['schemas']['InsightAggregate']
+export type InsightPage = components['schemas']['InsightPage']
 export type AllocationFactType = components['schemas']['AllocationFactType']
 export type AllocationWorkspace = components['schemas']['AllocationWorkspace']
 export type AllocationAdjustmentRequest = components['schemas']['AllocationAdjustmentRequest']
@@ -229,6 +236,20 @@ export const api = {
   },
   reimbursement(reimbursementId: string): Promise<ReimbursementDetail> {
     return request(`/reimbursements/${encodeURIComponent(reimbursementId)}`)
+  },
+  insights(filter: InsightFilter, cursor = '', limit = 50): Promise<InsightPage> {
+    const query = new URLSearchParams({
+      fact_type: filter.fact_type,
+      allocation_status: filter.allocation_status,
+      trip_scope: filter.trip_scope,
+      limit: String(limit),
+    })
+    if (filter.date_from) query.set('date_from', filter.date_from)
+    if (filter.date_to) query.set('date_to', filter.date_to)
+    if (filter.currency) query.set('currency', filter.currency)
+    if (filter.trip_id) query.set('trip_id', filter.trip_id)
+    if (cursor) query.set('cursor', cursor)
+    return request(`/insights?${query.toString()}`)
   },
   changeReimbursementStatus(
     reimbursementId: string,

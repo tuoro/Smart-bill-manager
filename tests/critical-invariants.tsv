@@ -103,3 +103,12 @@ reimbursement-audit-privacy	安全审计只含允许的动作/状态/数量，�
 reimbursement-permission-tenant	owner/finance 管理、viewer 只读、reviewer 拒绝且跨租户详情/预检统一不泄露	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
 reimbursement-http-boundary	严格 JSON、CSRF、幂等头、游标上限、四角色和安全不存在性经 HTTP 固定	./internal/transport/httpapi	TestHTTPReimbursementContractAndPermissionBoundaries
 reimbursement-http-lifecycle	真实纯合成资源经 HTTP 完成预检、完整提示、提交重放、列表、详情、Finance 状态变化与跨租户安全错误	./internal/transport/httpapi	TestHTTPReimbursementSuccessfulLifecycleAndTenantIsolation
+insight-filter-contract	无隐藏日期默认值；类型、成对日期、币种、分配状态、行程范围与具体 Trip 组合均封闭规范化并绑定稳定身份	./internal/domain	TestCanonicalInsightFilterDefaultsAndIdentity
+insight-aggregate-separation	Payment/Invoice 与不同币种只分别聚合，整数总额、已分配、剩余和三种状态数量保持确定性	./internal/domain	TestBuildInsightPageFiltersAggregatesAndPaginatesWithoutMutation
+insight-safe-boundary	非法投影、重复 Fact、过分配、坏 Trip、陈旧边界和安全整数累计溢出均明确失败且不修改输入	./internal/domain	TestBuildInsightPageRejectsInvalidProjectionCursorAndOverflow
+insight-cursor-identity	fact-insight-cursor/1 绑定完整筛选 hash 与最后排序键，跨筛选复用及封闭 JSON 违规均拒绝	./internal/application/insights	TestServiceQueryPaginatesAndBindsCursorToFilter
+insight-current-sources	当前未删除 Fact、活动金额 Link 与活动行程归属是唯一洞察来源，删除后不保留统计副本	./internal/application/reviews	TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot
+insight-permission-tenant	owner/finance/viewer 可读、reviewer 拒绝，具体跨租户 Trip 不泄露且只读查询不写 AuditEvent	./internal/application/reviews	TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot
+insight-read-snapshot	并发提交期间同一洞察读事务的前后读取保持同一 SQLite 快照，提交后新请求可见	./internal/adapters/sqlite	TestInsightReadSnapshotStaysStableAcrossConcurrentCommit
+insight-schema-single-source	迁移只增加 Payment/Invoice 筛选索引，不创建 Insight 表、物化缓存或第二数据源	./internal/adapters/sqlite	TestFactInsightIndexesAreMigratedWithoutInsightTables
+insight-http-boundary	封闭单值查询、日期/枚举/Trip/游标/limit、四角色和安全不存在性经 GET HTTP 契约固定	./internal/transport/httpapi	TestHTTPInsightQueryContractAndPermissionBoundaries

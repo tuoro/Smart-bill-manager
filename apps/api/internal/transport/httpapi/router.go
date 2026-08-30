@@ -14,6 +14,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
@@ -59,6 +60,7 @@ type Server struct {
 	emails         applicationemails.Service
 	trips          trips.Service
 	reimbursements reimbursements.Service
+	insights       insights.Service
 	spa            http.Handler
 }
 
@@ -75,6 +77,7 @@ func NewServer(
 	emailService applicationemails.Service,
 	tripService trips.Service,
 	reimbursementService reimbursements.Service,
+	insightService insights.Service,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -97,6 +100,7 @@ func NewServer(
 		emails:         emailService,
 		trips:          tripService,
 		reimbursements: reimbursementService,
+		insights:       insightService,
 		health:         health,
 		readiness:      readiness,
 		ids:            system.IDGenerator{},
@@ -145,6 +149,7 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("GET /api/v1/reimbursements", s.requireSession(http.HandlerFunc(s.listReimbursementsHandler)))
 	router.Handle("GET /api/v1/reimbursements/{reimbursement_id}", s.requireSession(http.HandlerFunc(s.getReimbursementHandler)))
 	router.Handle("POST /api/v1/reimbursements/{reimbursement_id}/status-decisions", s.requireSession(s.requireCSRF(http.HandlerFunc(s.changeReimbursementStatusHandler))))
+	router.Handle("GET /api/v1/insights", s.requireSession(http.HandlerFunc(s.queryInsightsHandler)))
 	router.Handle("GET /api/v1/allocations/{fact_type}/{fact_id}", s.requireSession(http.HandlerFunc(s.getAllocationWorkspaceHandler)))
 	router.Handle("POST /api/v1/allocations/{fact_type}/{fact_id}/adjustments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.adjustAllocationHandler))))
 	router.Handle("GET /api/v1/provider-configs", s.requireSession(http.HandlerFunc(s.listProviderConfigsHandler)))

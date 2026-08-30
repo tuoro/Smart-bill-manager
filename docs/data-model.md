@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
+状态：M0、M1、M2、M3 已完成；M4 首切片“确定性 Fact 洞察与筛选查询”已完成，下一断点为完整备份恢复演练
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -503,6 +503,19 @@ Finding 由提交事务使用 `reimbursement-policy/1` 重算并冻结，创建�
 - audit_event_id、created_at。
 
 首次 submit 固定从空状态到 submitted、result_version 为 1；后续只允许 submitted 到 reimbursed/rejected，或两个终态重新打开到 submitted。Decision 不可更新或删除；`tenant_id + idempotency_key` 永久唯一，`tenant_id + reimbursement_id + result_version` 唯一。reason 是 1～500 字符租户私有说明，不写 AuditEvent。
+
+## FactInsightProjection（M4 首切片，只读）
+
+FactInsightProjection 不是数据库实体，只在一次 SQLite 读事务和单次 API 响应内存在：
+
+- fact_type：`payment | invoice`，以及对应唯一 fact_id；
+- business_date：Payment 使用持久化 `business_date`，Invoice 使用 `invoice_date`；
+- display_name：Payment 商户或 Invoice 卖方的当前安全摘要；
+- amount_minor、allocated_minor、remaining_minor、currency；
+- allocation_status：`unallocated | partial | allocated`；
+- 可选当前 Trip：trip_id、destination、start_date、end_date。
+
+当前 allocated_minor 只从活动 PaymentInvoiceLink 聚合；当前 Trip 只从活动 TripFactAssignment 读取。投影不保存 Source、Claim、Evidence、邮件、Provider、Reimbursement 快照或删除资源内容，不允许反向写回 Fact。汇总按币种与 fact_type 分别包含数量、总额、已分配、剩余和状态数量；它同样不是表、缓存或第二数据源。规范版本固定为 `fact-insights/1`，游标版本固定为 `fact-insight-cursor/1`。
 
 ## 删除与保留
 

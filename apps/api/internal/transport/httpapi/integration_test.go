@@ -34,6 +34,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
@@ -685,6 +686,67 @@ func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
 	}
 }
 
+func TestHTTPInsightQueryContractAndPermissionBoundaries(t *testing.T) {
+	fixture := newHTTPTestFixture(t)
+	defer fixture.store.Close()
+	ownerSession := fixture.login(t, fixture.owner.TenantID)
+	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
+	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
+	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+
+	for _, readable := range []*testSession{ownerSession, financeSession, viewerSession} {
+		response := fixture.request(http.MethodGet, "/api/v1/insights", nil, readable, false, "")
+		assertStatus(t, response, http.StatusOK)
+		body := decodeMap(t, response)
+		if body["rule_version"] != domain.InsightRuleVersion {
+			t.Fatalf("insight rule version = %#v", body["rule_version"])
+		}
+		items, itemsOK := body["items"].([]any)
+		groups, groupsOK := body["groups"].([]any)
+		filter, filterOK := body["filter"].(map[string]any)
+		if !itemsOK || len(items) != 0 || !groupsOK || len(groups) != 0 || !filterOK ||
+			filter["fact_type"] != domain.InsightFactTypeAll ||
+			filter["allocation_status"] != domain.InsightStatusAll ||
+			filter["trip_scope"] != domain.InsightTripScopeAll {
+			t.Fatalf("empty insight response = %#v", body)
+		}
+	}
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/insights", nil, reviewerSession, false, ""), http.StatusForbidden)
+
+	valid := "/api/v1/insights?fact_type=payment&date_from=2026-08-01&date_to=2026-08-31&currency=CNY&allocation_status=partial&trip_scope=unassigned&limit=100"
+	assertStatus(t, fixture.request(http.MethodGet, valid, nil, ownerSession, false, ""), http.StatusOK)
+
+	invalidQueries := []string{
+		"?unknown=value",
+		"?fact_type=payment&fact_type=invoice",
+		"?fact_type=",
+		"?fact_type=%20payment",
+		"?date_from=2026-08-01",
+		"?date_from=2026-08-31&date_to=2026-08-01",
+		"?currency=GBP",
+		"?allocation_status=unknown",
+		"?trip_scope=current",
+		"?trip_scope=unassigned&trip_id=11111111-1111-4111-8111-111111111111",
+		"?trip_scope=assigned&trip_id=not-a-uuid",
+		"?limit=0",
+		"?limit=101",
+		"?cursor=not-base64",
+	}
+	for _, query := range invalidQueries {
+		response := fixture.request(http.MethodGet, "/api/v1/insights"+query, nil, ownerSession, false, "")
+		assertStatus(t, response, http.StatusBadRequest)
+	}
+	notFound := fixture.request(
+		http.MethodGet,
+		"/api/v1/insights?trip_scope=assigned&trip_id=11111111-1111-4111-8111-111111111111",
+		nil,
+		ownerSession,
+		false,
+		"",
+	)
+	assertStatus(t, notFound, http.StatusNotFound)
+}
+
 func TestHTTPReimbursementSuccessfulLifecycleAndTenantIsolation(t *testing.T) {
 	fixture := newHTTPTestFixture(t)
 	defer fixture.store.Close()
@@ -1099,7 +1161,8 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, tripService, reimbursementService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	insightService := insights.NewService(store)
+	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, tripService, reimbursementService, insightService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

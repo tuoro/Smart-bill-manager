@@ -1,0 +1,141 @@
+{
+  "report_kind": "m4-fact-insights-gate-summary",
+  "evidence_version": "M4-FACT-INSIGHTS-SLICE-2026-08-31",
+  "recorded_date": "2026-08-31",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "da032c7a1b899ca5e2cbbbe308fb7cd0d32e36e7",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "complete",
+    "m3": "complete",
+    "m4": "in_progress",
+    "fact_insights_first_slice": "complete",
+    "next_slice": "m4_full_backup_restore_exercise_scope_freeze",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "design": {
+    "rule_version": "fact-insights/1",
+    "cursor_version": "fact-insight-cursor/1",
+    "source_of_truth": "current_undeleted_payment_invoice_active_allocation_and_trip_assignment",
+    "persistent_insight_store": false,
+    "amount_representation": "integer_minor_units_grouped_by_currency_and_fact_type",
+    "default_limit": 50,
+    "maximum_limit": 100,
+    "allowed_read_roles": ["owner", "finance", "viewer"],
+    "reviewer_access": false,
+    "writes_audit_event": false
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 9,
+      "passed": 38,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 33,
+      "failed": 0,
+      "new_fact_insight_scenarios": 4,
+      "includes_width_768": true,
+      "includes_equivalent_200_percent_reflow": true,
+      "includes_keyboard_focus_and_error_association": true,
+      "expected_failure_recovery_asserted": true
+    },
+    "generic_representative_e2e": {
+      "status": "not_run",
+      "reason": "preflight_requires_provider_or_account_environment_outside_current_authorization",
+      "counted_as_passed": false
+    },
+    "critical_invariant_branches": {
+      "passed": 113,
+      "total": 113,
+      "percentage": 100
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.71,
+      "covered": 3101,
+      "total": 3618,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 75.24,
+      "covered": 3477,
+      "total": 4621,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "ten_thousand_fact_query_projection_benchmark": {
+      "iterations": 20,
+      "nanoseconds_per_operation": 70580150,
+      "milliseconds_per_operation": 70.58,
+      "bytes_per_operation": 11367477,
+      "allocations_per_operation": 189614,
+      "shape": {
+        "payments": 5000,
+        "invoices": 5000,
+        "returned_page_size": 100
+      },
+      "scope": "sqlite_query_and_domain_projection",
+      "formal_concurrent_http_p95": "deferred_to_m4_runtime_quality_slice"
+    },
+    "repository_checkpoint": {
+      "working_tree_diff_check": "passed",
+      "staged_diff_check": "passed",
+      "staged_file_count": 42,
+      "largest_staged_file_bytes": 185217,
+      "largest_staged_file": "apps/web/package-lock.json",
+      "known_credential_prefix_scan": "passed",
+      "private_asset_path_check": "passed",
+      "binary_and_large_file_check": "passed",
+      "generated_and_temporary_artifact_check": "passed",
+      "current_slice_process_residue_check": "passed",
+      "preexisting_host_process_observation": "old_lighthouse_chromium_group_without_current_workspace_path_left_untouched",
+      "unrelated_container_observation": "shenlun_containers_left_untouched"
+    }
+  },
+  "functional_scenarios": [
+    "closed_single_value_filter_and_stable_filter_identity",
+    "inclusive_business_date_currency_allocation_and_trip_filters",
+    "current_active_link_assignment_and_soft_delete_projection",
+    "currency_and_fact_type_separated_safe_integer_aggregation",
+    "stable_cursor_filter_binding_and_stale_boundary_rejection",
+    "same_sqlite_read_snapshot_across_concurrent_commit",
+    "owner_finance_viewer_reviewer_and_cross_tenant_boundaries",
+    "strict_read_only_http_openapi_and_generated_client",
+    "empty_loading_failure_retry_offline_keyboard_and_reflow_web_states",
+    "no_insight_table_cache_second_source_or_audit_write"
+  ],
+  "excluded": {
+    "formal_real_model_accuracy_evaluation": "not_run",
+    "real_provider_calls": "not_run",
+    "real_images": "not_sent",
+    "real_mailbox_or_external_account_integration": "not_run",
+    "credentials": "not_created_or_changed",
+    "local_ocr": "not_installed_or_used",
+    "new_dependencies": "not_downloaded",
+    "legacy_compatibility": "not_added",
+    "deployment_release_or_remote_resources": "not_run"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

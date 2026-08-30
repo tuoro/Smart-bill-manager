@@ -1,6 +1,6 @@
 # 范围与非目标
 
-状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
+状态：M0、M1、M2、M3 已完成；M4 首切片“确定性 Fact 洞察与筛选查询”已完成，下一断点为完整备份恢复演练
 适用范围：Clean Slate 新架构
 
 ## 最高边界
@@ -239,6 +239,28 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 ### 退出条件
 
 退出条件已满足：三个切片的领域、数据库、API、Web、测试和证据均与冻结决策一致；Source/Claim/Fact、人工审核、活动 Link、租户和整数金额边界未改变，未增加旧兼容、第二数据源、OCR、真实 Provider 或真实邮箱连接。最终门禁见 `tests/evidence/m3/m3-closure-gate-summary.json`。M3 完成不代表正式模型正确率评测、真实外部账号联调、部署或发布通过。
+
+## M4：洞察、加固与本地发布准备
+
+状态：进行中；首切片已完成并通过验收，下一切片待冻结。
+
+### 首切片范围内：确定性 Fact 洞察与筛选查询
+
+- 从当前未删除 Payment/Invoice、活动 PaymentInvoiceLink 和活动 TripFactAssignment 的同一 SQLite 读快照派生洞察，不增加统计表、物化缓存、双写或第二数据源；
+- 支持 Fact 类型、成对起止日期、币种、分配状态、已/未归属和可选具体 Trip 筛选；Payment 只使用不可变 `business_date`，Invoice 使用 `invoice_date`；
+- 按币种与 Fact 类型分别汇总数量、总额、已分配、剩余和三种分配状态数量；金额为整数最小单位，禁止 Payment/Invoice 合并总额、跨币种相加或换汇；
+- 提供默认 50、最大 100 的稳定不透明游标分页；游标绑定完整筛选身份，筛选变化必须拒绝旧游标；
+- 新增只读 `insights.read` 能力和 `/insights` Web 工作区；Owner/Finance/Viewer 可读，Reviewer 拒绝；
+- 只使用纯合成数据完成领域、SQLite、应用、HTTP/OpenAPI、Web、浏览器、覆盖率、性能基线、权限与可访问性验证。
+
+### 首切片范围外
+
+- 自然语言查询助手、模型生成洞察、预测、趋势、同比、预算、税务、排名、图表装饰或报表导出；
+- 写回分类、Fact、Link、Trip 归属或 Reimbursement；持久化统计结果、异步聚合 Worker、搜索索引或分析数据库；
+- 汇率换算、跨币种或跨 Payment/Invoice 类型的金额合计；
+- 真实模型评测、真实邮箱/Provider/外部账号联调、部署、发布、Tag 或远端操作。
+
+完整不变量、失败边界和验收要求见 `docs/decisions/0017-deterministic-fact-insights-and-query.md` 与 `docs/acceptance.md`，验收证据见 `docs/m4-evidence.md` 与 `tests/evidence/m4/fact-insights-gate-summary.json`。后续 M4 切片仍须依次冻结备份恢复、运行质量和本地发布准备范围后实施。
 
 ## 范围变更规则
 

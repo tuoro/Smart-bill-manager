@@ -43,6 +43,11 @@ const router = createRouter({
       component: () => import('../features/reimbursements/ReimbursementsPage.vue'),
     },
     {
+      path: '/insights',
+      name: 'insights',
+      component: () => import('../features/insights/InsightsPage.vue'),
+    },
+    {
       path: '/allocations/:factType/:factId',
       name: 'allocation',
       component: () => import('../features/allocations/AllocationPage.vue'),

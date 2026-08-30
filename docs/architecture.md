@@ -1,6 +1,6 @@
 # Clean Slate 架构基线
 
-状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
+状态：M0、M1、M2、M3 已完成；M4 首切片“确定性 Fact 洞察与筛选查询”已完成，下一断点为完整备份恢复演练
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
 
@@ -214,6 +214,27 @@ flowchart LR
 ```
 
 详细选择、提示、状态和失败边界见 `docs/decisions/0016-reimbursement-workflow-policy-findings.md`。
+
+### M4 确定性 Fact 洞察与筛选查询
+
+1. `application/insights` 是独立只读用例；它不进入 AI、Claim、Review、分配、归属或报销写链，也不提供任何写回端口。
+2. SQLite 适配器在一个只读事务中，从未删除 Payment/Invoice、活动 PaymentInvoiceLink 和活动 TripFactAssignment 生成每个 Fact 唯一的当前投影；可选 `trip_id` 也在该快照内校验为同租户未删除 Trip。
+3. 领域层唯一 `fact-insights/1` 校验投影、确定分配状态、按币种与 Fact 类型分别安全聚合，并按固定排序分页；数据库只提供权威当前行，不保存汇总副本。
+4. 应用层规范化筛选，并以 `fact-insight-cursor/1` 的筛选 hash 和最后排序键保护游标。筛选变化、非法边界或不存在的游标边界明确失败，不静默回退。
+5. HTTP 只提供一个严格单值查询端点；Web `/insights` 复用同一响应中的汇总和当前页。Owner/Finance/Viewer 读取，Reviewer 拒绝；只读请求不写 AuditEvent。
+6. 金额只使用整数最小单位；Payment 与 Invoice、不同币种始终分组，不换汇、不形成总计。累计越过安全整数上限或持久化不变量破坏时整次查询失败。
+
+```mermaid
+flowchart LR
+    Fact[当前 Payment / Invoice] --> Snapshot[SQLite 同一读快照]
+    Link[活动金额 Link] --> Snapshot
+    Assignment[活动行程归属] --> Snapshot
+    Snapshot --> Domain[fact-insights/1]
+    Domain --> Summary[按币种与类型汇总]
+    Domain --> Page[稳定 Fact 明细页]
+```
+
+完整筛选、游标、权限和失败边界见 `docs/decisions/0017-deterministic-fact-insights-and-query.md`。
 
 ### M2 批量上传编排
 

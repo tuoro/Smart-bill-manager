@@ -22,6 +22,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
@@ -30,7 +31,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/transport/httpapi"
 )
 
-const version = "m3-dev"
+const version = "m4-dev"
 
 type config struct {
 	databasePath         string
@@ -170,6 +171,7 @@ func run(logger *slog.Logger) error {
 	)
 	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	reimbursementService := reimbursements.NewService(store, store, system.IDGenerator{}, system.Clock{})
+	insightService := insights.NewService(store)
 	httpServer, err := httpapi.NewServer(
 		authService,
 		uploadService,
@@ -183,6 +185,7 @@ func run(logger *slog.Logger) error {
 		emailService,
 		tripService,
 		reimbursementService,
+		insightService,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,

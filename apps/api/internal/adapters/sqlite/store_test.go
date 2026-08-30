@@ -180,8 +180,8 @@ func TestMigrationIsIdempotent(t *testing.T) {
 	if err := store.db.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
-	if versions != 1 {
-		t.Fatalf("migration versions = %d, want 1", versions)
+	if versions != 2 {
+		t.Fatalf("migration versions = %d, want 2", versions)
 	}
 }
 

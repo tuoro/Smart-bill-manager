@@ -532,6 +532,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["queryInsights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/allocations/{fact_type}/{fact_id}": {
         parameters: {
             query?: never;
@@ -949,6 +965,77 @@ export interface components {
         };
         /** @enum {string} */
         AllocationFactType: "payment" | "invoice";
+        /** @enum {string} */
+        InsightFactTypeFilter: "all" | "payment" | "invoice";
+        /** @enum {string} */
+        InsightAllocationStatusFilter: "all" | "unallocated" | "partial" | "allocated";
+        /** @enum {string} */
+        InsightTripScope: "all" | "assigned" | "unassigned";
+        InsightFilter: {
+            fact_type: components["schemas"]["InsightFactTypeFilter"];
+            /** Format: date */
+            date_from?: string;
+            /** Format: date */
+            date_to?: string;
+            currency?: components["schemas"]["Currency"];
+            allocation_status: components["schemas"]["InsightAllocationStatusFilter"];
+            trip_scope: components["schemas"]["InsightTripScope"];
+            /** Format: uuid */
+            trip_id?: string;
+        };
+        InsightTrip: {
+            /** Format: uuid */
+            id: string;
+            destination: string;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+        };
+        InsightFact: {
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            fact_id: string;
+            /** Format: date */
+            business_date: string;
+            display_name: string;
+            /** Format: int64 */
+            amount_minor: number;
+            /** Format: int64 */
+            allocated_minor: number;
+            /** Format: int64 */
+            remaining_minor: number;
+            currency: components["schemas"]["Currency"];
+            /** @enum {string} */
+            allocation_status: "unallocated" | "partial" | "allocated";
+            trip?: components["schemas"]["InsightTrip"];
+        };
+        InsightAggregate: {
+            currency: components["schemas"]["Currency"];
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: int64 */
+            count: number;
+            /** Format: int64 */
+            total_minor: number;
+            /** Format: int64 */
+            allocated_minor: number;
+            /** Format: int64 */
+            remaining_minor: number;
+            /** Format: int64 */
+            unallocated_count: number;
+            /** Format: int64 */
+            partial_count: number;
+            /** Format: int64 */
+            allocated_count: number;
+        };
+        InsightPage: {
+            /** @constant */
+            rule_version: "fact-insights/1";
+            filter: components["schemas"]["InsightFilter"];
+            groups: components["schemas"]["InsightAggregate"][];
+            items: components["schemas"]["InsightFact"][];
+            next_cursor?: string;
+        };
         AllocationFactSummary: {
             fact_type: components["schemas"]["AllocationFactType"];
             /** Format: uuid */
@@ -2385,6 +2472,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReimbursementMutationResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    queryInsights: {
+        parameters: {
+            query?: {
+                fact_type?: "all" | "payment" | "invoice";
+                /** @description 必须与 date_to 同时提供，包含起始日。 */
+                date_from?: string;
+                /** @description 必须与 date_from 同时提供，包含结束日。 */
+                date_to?: string;
+                currency?: components["schemas"]["Currency"];
+                allocation_status?: "all" | "unallocated" | "partial" | "allocated";
+                trip_scope?: "all" | "assigned" | "unassigned";
+                /** @description 仅在 trip_scope=assigned 时可用。 */
+                trip_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 同一 SQLite 读快照内的确定性分组汇总与稳定 Fact 明细页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightPage"];
                 };
             };
             400: components["responses"]["BadRequest"];

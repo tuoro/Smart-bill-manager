@@ -114,6 +114,10 @@ async function logout() {
               <span class="nav-icon" aria-hidden="true">行</span>
               <span class="nav-label">行程归属</span>
             </RouterLink>
+            <RouterLink v-if="capabilities.has('insights.read')" class="nav-item" to="/insights">
+              <span class="nav-icon" aria-hidden="true">析</span>
+              <span class="nav-label">数据洞察</span>
+            </RouterLink>
           </section>
           <section
             v-if="capabilities.has('providers.manage')"

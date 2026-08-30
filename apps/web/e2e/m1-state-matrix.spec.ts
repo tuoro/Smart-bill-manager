@@ -239,6 +239,58 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
+  test('审核工作台：疑似重复必须逐项明确保留独立记录', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    const review = readyReview('job-duplicate')
+    review.duplicate_candidates = [
+      {
+        id: '00000000-0000-4000-8000-000000000751',
+        kind: 'near_file',
+        existing_document_id: '00000000-0000-4000-8000-000000000752',
+        display_name: '近似支付截图.png',
+        dhash_distance: 1,
+        ahash_distance: 1,
+        available: true,
+        reason_codes: ['same_page_count', 'ordered_page_visual_match'],
+      },
+    ]
+    await mockDocumentContent(page, review.job.document_id)
+    await page.route(reviewURL(review.job.id), (route) => fulfillJSON(route, review))
+    let submitted: unknown
+    await page.route(confirmURL(review.job.id), async (route) => {
+      submitted = route.request().postDataJSON()
+      await fulfillJSON(route, {
+        review_decision_id: '00000000-0000-4000-8000-000000000753',
+        fact_type: 'payment',
+        fact_id: '00000000-0000-4000-8000-000000000754',
+        link_ids: [],
+        replayed: false,
+      })
+    })
+
+    await page.goto(`/reviews/${review.job.id}`)
+    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
+    await expect(page.getByRole('button', { name: '确认并生成事实' })).toBeDisabled()
+    await expect(page.locator('#duplicate-resolution-error')).toContainText(
+      '请逐项确认全部疑似重复候选',
+    )
+    await expect(page.locator('fieldset[aria-labelledby="duplicate-title"]')).toHaveAttribute(
+      'aria-describedby',
+      'duplicate-resolution-error',
+    )
+    await page.getByRole('checkbox', { name: /近似文件.*近似支付截图/ }).check()
+    await expect(page.getByRole('button', { name: '确认并生成事实' })).toBeEnabled()
+    await page.getByRole('button', { name: '确认并生成事实' }).click()
+
+    expect(submitted).toMatchObject({
+      duplicate_resolutions: [
+        { candidate_id: review.duplicate_candidates[0].id, action: 'keep_distinct' },
+      ],
+    })
+    expect(pageErrors).toEqual([])
+  })
+
   test('审核工作台：阻断状态禁止确认', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
@@ -509,6 +561,7 @@ function baseReview(label: string): Review {
     })),
     validations: [],
     candidates: [],
+    duplicate_candidates: [],
   }
 }
 

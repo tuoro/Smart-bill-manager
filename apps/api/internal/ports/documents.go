@@ -59,9 +59,10 @@ type ProcessingDocument struct {
 type NormalizedPage struct {
 	ID string
 	PageImage
-	StorageKey string
-	Width      int
-	Height     int
+	StorageKey        string
+	Width             int
+	Height            int
+	VisualFingerprint domain.PageVisualFingerprint
 }
 
 type DocumentNormalizer interface {

@@ -5,6 +5,7 @@ import { ApiError, api, type ConfirmResult, type Review } from '../../data/clien
 import {
   allocationEditors,
   buildAssociationDecision,
+  buildDuplicateResolutionDecision,
   buildRevisionRequest,
   editableFields,
   fieldLabel,
@@ -33,6 +34,7 @@ const fieldErrors = ref<Record<string, string>>({})
 const selectedPath = ref('')
 const associationMode = ref<AssociationMode>('')
 const allocationItems = ref<AllocationEditor[]>([])
+const duplicateResolutionIds = ref<string[]>([])
 const rejectPanelOpen = ref(false)
 const rejectReason = ref('')
 
@@ -68,11 +70,17 @@ const associationDecision = computed(() =>
     ? buildAssociationDecision(review.value, associationMode.value, allocationItems.value)
     : null,
 )
+const duplicateDecision = computed(() =>
+  review.value
+    ? buildDuplicateResolutionDecision(review.value, duplicateResolutionIds.value)
+    : null,
+)
 const canConfirm = computed(() =>
   Boolean(
     review.value &&
     review.value.claim_status === 'ready_for_review' &&
-    associationDecision.value?.request,
+    associationDecision.value?.request &&
+    duplicateDecision.value?.request,
   ),
 )
 const documentURL = computed(() =>
@@ -105,6 +113,7 @@ function resetEditor() {
   selectedPath.value = editors.value[0]?.path ?? 'document_type'
   associationMode.value = ''
   allocationItems.value = allocationEditors(review.value)
+  duplicateResolutionIds.value = []
   fieldErrors.value = {}
   editing.value = false
 }
@@ -165,7 +174,8 @@ async function saveRevision() {
 
 async function confirmReview() {
   const association = associationDecision.value?.request
-  if (!review.value || !canConfirm.value || !association) return
+  const duplicates = duplicateDecision.value?.request
+  if (!review.value || !canConfirm.value || !association || !duplicates) return
   confirming.value = true
   error.value = ''
   try {
@@ -175,6 +185,7 @@ async function confirmReview() {
         expected_revision: review.value.revision,
         association_mode: association.association_mode,
         allocations: association.allocations,
+        duplicate_resolutions: duplicates.duplicate_resolutions,
       },
       crypto.randomUUID(),
     )
@@ -213,11 +224,19 @@ async function rejectReview() {
 }
 
 function handleMutationError(caught: unknown) {
-  if (caught instanceof ApiError && caught.status === 409) {
+  if (caught instanceof ApiError && caught.code === 'duplicate_candidate_set_stale') {
+    error.value = '疑似重复候选已变化。请保存当前完整字段为新 revision 后重新核对。'
+  } else if (caught instanceof ApiError && caught.status === 409) {
     error.value = '审核版本已变化。请刷新最新 revision 后重新核对。'
   } else {
     error.value = caught instanceof ApiError ? caught.message : '操作失败，请检查网络后重试'
   }
+}
+
+function duplicateKindLabel(kind: Review['duplicate_candidates'][number]['kind']) {
+  if (kind === 'near_file') return '近似文件'
+  if (kind === 'cross_page') return '重复页面'
+  return '字段组合重复'
 }
 
 function validationForField(fieldId?: string) {
@@ -529,6 +548,67 @@ onMounted(() => void load())
             </ul>
           </section>
 
+          <section class="panel decision-panel" aria-labelledby="duplicate-title">
+            <div class="panel-heading">
+              <div>
+                <h2 id="duplicate-title">疑似重复</h2>
+                <p>本地确定性检测 · 不会自动合并或删除</p>
+              </div>
+            </div>
+            <fieldset
+              v-if="review.duplicate_candidates.length"
+              class="association-options duplicate-options"
+              aria-labelledby="duplicate-title"
+              :aria-describedby="
+                duplicateDecision?.error ? 'duplicate-resolution-error' : undefined
+              "
+            >
+              <legend class="visually-hidden">逐项确认疑似重复候选</legend>
+              <label
+                v-for="candidate in review.duplicate_candidates"
+                :key="candidate.id"
+                class="allocation-option"
+                :data-unavailable="!candidate.available"
+              >
+                <input
+                  v-model="duplicateResolutionIds"
+                  type="checkbox"
+                  :value="candidate.id"
+                  :disabled="!candidate.available"
+                /><span>
+                  <strong
+                    >{{ duplicateKindLabel(candidate.kind) }} ·
+                    {{ candidate.display_name || '目标已不可用' }}</strong
+                  >
+                  <small v-if="candidate.current_page_number || candidate.existing_page_number">
+                    当前第 {{ candidate.current_page_number ?? '—' }} 页 · 目标第
+                    {{ candidate.existing_page_number ?? '—' }} 页
+                  </small>
+                  <small v-if="candidate.amount_minor !== undefined">
+                    {{ candidate.business_date }} · {{ candidate.amount_minor }} 最小货币单位
+                  </small>
+                  <small>
+                    {{
+                      candidate.available
+                        ? '勾选表示仍保留为独立记录'
+                        : '目标状态已变化，请保存新 revision'
+                    }}
+                  </small>
+                  <small>{{ candidate.reason_codes.join(' · ') }}</small>
+                </span>
+              </label>
+            </fieldset>
+            <p v-else class="quiet-block">未发现近似文件、重复页面或字段组合候选。</p>
+            <p
+              v-if="duplicateDecision?.error"
+              id="duplicate-resolution-error"
+              class="danger-text"
+              role="alert"
+            >
+              {{ duplicateDecision.error }}
+            </p>
+          </section>
+
           <section class="panel decision-panel" aria-labelledby="association-title">
             <div class="panel-heading">
               <div>
@@ -633,6 +713,9 @@ onMounted(() => void load())
             <h2 id="final-title">完成审核</h2>
             <p v-if="review.claim_status === 'blocked'" class="danger-text">
               Claim 被服务端校验阻断，请先创建通过校验的新 revision。
+            </p>
+            <p v-else-if="duplicateDecision && !duplicateDecision.request">
+              {{ duplicateDecision.error }}
             </p>
             <p v-else-if="associationDecision && !associationDecision.request">
               {{ associationDecision.errors.$association || '请修正候选分配金额。' }}

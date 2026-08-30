@@ -1,0 +1,115 @@
+{
+  "report_kind": "m2-deterministic-duplicate-detection-gate-summary",
+  "evidence_version": "M2-DUPLICATE-DETECTION-SLICE-2026-08-30",
+  "recorded_date": "2026-08-30",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "e2c8e8ec44324c005a5718ef00792706761ed96d",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "in_progress",
+    "payment_invoice_allocation_first_slice": "complete",
+    "deterministic_duplicate_detection_second_slice": "complete",
+    "next_slice": "complex_multipage_pdf_item_reconstruction_and_paged_review",
+    "model_accuracy_gate": "deferred_to_m4_after_functional_development"
+  },
+  "contracts": {
+    "page_fingerprint": "page-visual-dedup/1",
+    "duplicate_rule": "duplicate-detection/1",
+    "candidate_kinds": ["near_file", "cross_page", "field_combination"],
+    "resolution_action": "keep_distinct",
+    "maximum_candidates_per_claim_revision": 50,
+    "visual_thresholds": {
+      "aspect_ratio_percent": 1,
+      "dhash_hamming": 3,
+      "ahash_hamming": 3
+    }
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 3,
+      "passed": 11,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 11,
+      "failed": 0
+    },
+    "critical_invariant_branches": {
+      "passed": 55,
+      "total": 55,
+      "percentage": 100,
+      "new_duplicate_detection_mappings": 12
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.05,
+      "covered": 1917,
+      "total": 2254,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 73.2,
+      "covered": 2144,
+      "total": 2929,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "repository_checkpoint": {
+      "working_tree_diff_check": "passed",
+      "staged_diff_check": "passed",
+      "staged_file_count": 46,
+      "largest_staged_file_bytes": 86817,
+      "known_credential_prefix_scan": "passed",
+      "private_asset_path_check": "passed"
+    }
+  },
+  "functional_scenarios": [
+    "png_jpeg_reencoding_and_equal_scaling",
+    "aspect_ratio_and_dual_hash_threshold_boundaries",
+    "tenant_scoped_band_lookup",
+    "within_document_repeated_page",
+    "cross_document_partial_page",
+    "whole_document_near_file_priority",
+    "payment_field_combination_five_minute_boundary",
+    "invoice_field_combination_with_exact_number_priority",
+    "candidate_limit_blocks_without_truncation",
+    "complete_missing_and_forged_resolution",
+    "canonical_plan_idempotent_replay_and_changed_plan_conflict",
+    "deleted_target_stale_rollback_and_revision_regeneration",
+    "concurrent_duplicate_claim_confirmation",
+    "single_confirm_decision_database_constraint",
+    "immutable_duplicate_decision",
+    "reject_without_fact_or_duplicate_decision",
+    "keyboard_labeled_resolution_and_error_description"
+  ],
+  "excluded": {
+    "cross_page_item_reconstruction": false,
+    "model_accuracy": "deferred_until_all_functional_development_is_complete",
+    "real_provider_calls": false,
+    "real_external_account_integration": false,
+    "local_ocr_installed_or_used": false,
+    "new_dependencies_downloaded": false
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

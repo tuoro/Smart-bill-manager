@@ -3,6 +3,7 @@ package sqliteadapter
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -109,7 +110,9 @@ func (s *Store) CancellationRequested(ctx context.Context, tenantID, jobID strin
 
 func (s *Store) GetDocumentPages(ctx context.Context, tenantID, documentID string) ([]ports.NormalizedPage, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, page_number, derived_image_storage_key, width, height, sha256
+		SELECT id, page_number, derived_image_storage_key, width, height, sha256,
+		       visual_fingerprint_version, dhash64, ahash64,
+		       dhash_band_0, dhash_band_1, dhash_band_2, dhash_band_3
 		FROM document_pages
 		WHERE tenant_id = ? AND document_id = ?
 		ORDER BY page_number
@@ -121,8 +124,25 @@ func (s *Store) GetDocumentPages(ctx context.Context, tenantID, documentID strin
 	pages := make([]ports.NormalizedPage, 0)
 	for rows.Next() {
 		var page ports.NormalizedPage
-		if err := rows.Scan(&page.ID, &page.PageNumber, &page.StorageKey, &page.Width, &page.Height, &page.SHA256); err != nil {
+		if err := rows.Scan(
+			&page.ID,
+			&page.PageNumber,
+			&page.StorageKey,
+			&page.Width,
+			&page.Height,
+			&page.SHA256,
+			&page.VisualFingerprint.Version,
+			&page.VisualFingerprint.DHash64,
+			&page.VisualFingerprint.AHash64,
+			&page.VisualFingerprint.DHashBands[0],
+			&page.VisualFingerprint.DHashBands[1],
+			&page.VisualFingerprint.DHashBands[2],
+			&page.VisualFingerprint.DHashBands[3],
+		); err != nil {
 			return nil, fmt.Errorf("scan document page: %w", err)
+		}
+		if err := page.VisualFingerprint.Validate(); err != nil {
+			return nil, fmt.Errorf("validate document page fingerprint: %w", err)
 		}
 		page.MIME = "image/png"
 		pages = append(pages, page)
@@ -148,11 +168,16 @@ func (s *Store) GetActiveProviderConfig(ctx context.Context, tenantID string) (p
 
 func (t transaction) InsertDocumentPages(ctx context.Context, pages []ports.DocumentPageRecord) error {
 	for _, page := range pages {
+		if err := page.VisualFingerprint.Validate(); err != nil {
+			return err
+		}
 		_, err := t.tx.ExecContext(ctx, `
 			INSERT INTO document_pages (
 				id, tenant_id, document_id, page_number, derived_image_storage_key,
-				width, height, sha256, processing_version, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				width, height, sha256, processing_version,
+				visual_fingerprint_version, dhash64, ahash64,
+				dhash_band_0, dhash_band_1, dhash_band_2, dhash_band_3, created_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (tenant_id, document_id, page_number) DO NOTHING
 		`,
 			page.ID,
@@ -164,19 +189,51 @@ func (t transaction) InsertDocumentPages(ctx context.Context, pages []ports.Docu
 			page.Height,
 			page.SHA256,
 			page.ProcessingVersion,
+			page.VisualFingerprint.Version,
+			page.VisualFingerprint.DHash64,
+			page.VisualFingerprint.AHash64,
+			page.VisualFingerprint.DHashBands[0],
+			page.VisualFingerprint.DHashBands[1],
+			page.VisualFingerprint.DHashBands[2],
+			page.VisualFingerprint.DHashBands[3],
 			page.CreatedAt.UTC().Format(time.RFC3339Nano),
 		)
 		if err != nil {
 			return fmt.Errorf("insert document page %d: %w", page.PageNumber, err)
 		}
-		var existingHash, existingKey string
+		var existingHash, existingKey, existingProcessingVersion string
+		var existingDHash, existingAHash, existingFingerprintVersion string
+		var existingWidth, existingHeight int
+		var existingBands [4]int
 		if err := t.tx.QueryRowContext(ctx, `
-			SELECT sha256, derived_image_storage_key FROM document_pages
+			SELECT sha256, derived_image_storage_key, width, height, processing_version,
+			       visual_fingerprint_version, dhash64, ahash64,
+			       dhash_band_0, dhash_band_1, dhash_band_2, dhash_band_3
+			FROM document_pages
 			WHERE tenant_id = ? AND document_id = ? AND page_number = ?
-		`, page.TenantID, page.DocumentID, page.PageNumber).Scan(&existingHash, &existingKey); err != nil {
+		`, page.TenantID, page.DocumentID, page.PageNumber).Scan(
+			&existingHash,
+			&existingKey,
+			&existingWidth,
+			&existingHeight,
+			&existingProcessingVersion,
+			&existingFingerprintVersion,
+			&existingDHash,
+			&existingAHash,
+			&existingBands[0],
+			&existingBands[1],
+			&existingBands[2],
+			&existingBands[3],
+		); err != nil {
 			return fmt.Errorf("verify document page %d: %w", page.PageNumber, err)
 		}
-		if existingHash != page.SHA256 || existingKey != page.StorageKey {
+		if existingHash != page.SHA256 || existingKey != page.StorageKey ||
+			existingWidth != page.Width || existingHeight != page.Height ||
+			existingProcessingVersion != page.ProcessingVersion ||
+			existingFingerprintVersion != page.VisualFingerprint.Version ||
+			existingDHash != page.VisualFingerprint.DHash64 ||
+			existingAHash != page.VisualFingerprint.AHash64 ||
+			existingBands != page.VisualFingerprint.DHashBands {
 			return domain.ErrConflict
 		}
 	}
@@ -458,6 +515,9 @@ func (t transaction) PersistInitialClaim(ctx context.Context, jobID string, bund
 	if err := t.insertLinkCandidates(ctx, bundle.Candidates); err != nil {
 		return err
 	}
+	if err := t.insertDuplicateCandidates(ctx, claim.TenantID, claim.ID, bundle.DuplicateCandidates); err != nil {
+		return err
+	}
 	if _, err := t.tx.ExecContext(ctx, `
 		UPDATE claim_sets SET status = ? WHERE tenant_id = ? AND id = ? AND status = 'draft'
 	`, claim.Status, claim.TenantID, claim.ID); err != nil {
@@ -508,6 +568,69 @@ func (t transaction) insertLinkCandidates(ctx context.Context, candidates []port
 			candidate.CreatedAt.UTC().Format(time.RFC3339Nano),
 		); err != nil {
 			return fmt.Errorf("insert payment/invoice link candidate: %w", err)
+		}
+	}
+	return nil
+}
+
+func (t transaction) insertDuplicateCandidates(
+	ctx context.Context,
+	tenantID, claimSetID string,
+	candidates []ports.DuplicateCandidateRecord,
+) error {
+	if len(candidates) > domain.MaxDuplicateCandidates {
+		return domain.NewRuleError("duplicate_candidate_limit_exceeded", "疑似重复候选超过 50 项", domain.ErrConflict)
+	}
+	for _, candidate := range candidates {
+		var reasons []string
+		if err := json.Unmarshal([]byte(candidate.ReasonCodesJSON), &reasons); err != nil {
+			return domain.ErrInvalidInput
+		}
+		spec := domain.DuplicateCandidateSpec{
+			Kind:                   candidate.Kind,
+			ExistingDocumentID:     candidate.ExistingDocumentID,
+			CurrentDocumentPageID:  candidate.CurrentDocumentPageID,
+			ExistingDocumentPageID: candidate.ExistingDocumentPageID,
+			ExistingPaymentID:      candidate.ExistingPaymentID,
+			ExistingInvoiceID:      candidate.ExistingInvoiceID,
+			DHashDistance:          candidate.DHashDistance,
+			AHashDistance:          candidate.AHashDistance,
+			ReasonCodes:            reasons,
+		}
+		expectedKey, err := domain.DuplicateCandidateKey(tenantID, claimSetID, spec)
+		if err != nil {
+			return err
+		}
+		if candidate.TenantID != tenantID || candidate.ClaimSetID != claimSetID ||
+			candidate.RuleVersion != domain.DuplicateDetectionRuleVersion || candidate.CandidateKey != expectedKey {
+			return domain.ErrInvalidInput
+		}
+		if _, err := t.tx.ExecContext(ctx, `
+			INSERT INTO duplicate_candidates (
+				id, tenant_id, claim_set_id, kind, existing_document_id,
+				current_document_page_id, existing_document_page_id,
+				existing_payment_id, existing_invoice_id, candidate_key,
+				rule_version, reason_codes_json, dhash_distance, ahash_distance, created_at
+			) VALUES (?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''),
+			          NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?)
+		`,
+			candidate.ID,
+			candidate.TenantID,
+			candidate.ClaimSetID,
+			candidate.Kind,
+			candidate.ExistingDocumentID,
+			candidate.CurrentDocumentPageID,
+			candidate.ExistingDocumentPageID,
+			candidate.ExistingPaymentID,
+			candidate.ExistingInvoiceID,
+			candidate.CandidateKey,
+			candidate.RuleVersion,
+			candidate.ReasonCodesJSON,
+			candidate.DHashDistance,
+			candidate.AHashDistance,
+			candidate.CreatedAt.UTC().Format(time.RFC3339Nano),
+		); err != nil {
+			return fmt.Errorf("insert duplicate candidate: %w", err)
 		}
 	}
 	return nil

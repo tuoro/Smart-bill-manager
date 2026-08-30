@@ -305,6 +305,7 @@ func (w *Worker) loadOrNormalizePages(ctx context.Context, job ports.LeasedJob) 
 				Height:            pages[index].Height,
 				SHA256:            pages[index].SHA256,
 				ProcessingVersion: inputProcessingVersion,
+				VisualFingerprint: pages[index].VisualFingerprint,
 				CreatedAt:         now,
 			})
 		}
@@ -508,6 +509,33 @@ func (w *Worker) persistClaim(
 				return err
 			}
 			built.Bundle.Candidates = candidates
+		}
+		duplicateCandidates, limitExceeded, err := claimsupport.BuildDuplicateCandidates(
+			ctx,
+			transaction,
+			validated,
+			job.TenantID,
+			job.DocumentID,
+			built.Bundle.ClaimSet.ID,
+			w.ids,
+			w.clock.Now(),
+		)
+		if err != nil {
+			return err
+		}
+		built.Bundle.DuplicateCandidates = duplicateCandidates
+		if limitExceeded {
+			validation, err := claimsupport.NewDuplicateCandidateLimitValidation(
+				job.TenantID,
+				built.Bundle.ClaimSet.ID,
+				w.ids,
+				w.clock.Now(),
+			)
+			if err != nil {
+				return err
+			}
+			built.Bundle.Validations = append(built.Bundle.Validations, validation)
+			built.Bundle.ClaimSet.Status = domain.ClaimBlocked
 		}
 		return transaction.PersistInitialClaim(ctx, job.ID, built.Bundle)
 	})

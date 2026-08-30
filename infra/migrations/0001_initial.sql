@@ -178,16 +178,42 @@ CREATE TABLE document_pages (
     height INTEGER NOT NULL,
     sha256 TEXT NOT NULL,
     processing_version TEXT NOT NULL,
+    visual_fingerprint_version TEXT NOT NULL,
+    dhash64 TEXT NOT NULL,
+    ahash64 TEXT NOT NULL,
+    dhash_band_0 INTEGER NOT NULL,
+    dhash_band_1 INTEGER NOT NULL,
+    dhash_band_2 INTEGER NOT NULL,
+    dhash_band_3 INTEGER NOT NULL,
     created_at TEXT NOT NULL,
     FOREIGN KEY (tenant_id, document_id) REFERENCES documents(tenant_id, id) ON DELETE CASCADE,
     CHECK (page_number BETWEEN 1 AND 20),
     CHECK (width BETWEEN 1 AND 8000),
     CHECK (height BETWEEN 1 AND 8000),
     CHECK (length(sha256) = 64),
+    CHECK (visual_fingerprint_version = 'page-visual-dedup/1'),
+    CHECK (length(dhash64) = 16 AND dhash64 NOT GLOB '*[^0-9a-f]*'),
+    CHECK (length(ahash64) = 16 AND ahash64 NOT GLOB '*[^0-9a-f]*'),
+    CHECK (dhash_band_0 BETWEEN 0 AND 65535),
+    CHECK (dhash_band_1 BETWEEN 0 AND 65535),
+    CHECK (dhash_band_2 BETWEEN 0 AND 65535),
+    CHECK (dhash_band_3 BETWEEN 0 AND 65535),
     UNIQUE (tenant_id, document_id, page_number),
     UNIQUE (tenant_id, derived_image_storage_key),
     UNIQUE (tenant_id, id)
 ) STRICT;
+
+CREATE INDEX document_pages_visual_band_0_idx
+ON document_pages (tenant_id, visual_fingerprint_version, dhash_band_0);
+
+CREATE INDEX document_pages_visual_band_1_idx
+ON document_pages (tenant_id, visual_fingerprint_version, dhash_band_1);
+
+CREATE INDEX document_pages_visual_band_2_idx
+ON document_pages (tenant_id, visual_fingerprint_version, dhash_band_2);
+
+CREATE INDEX document_pages_visual_band_3_idx
+ON document_pages (tenant_id, visual_fingerprint_version, dhash_band_3);
 
 CREATE TABLE processing_jobs (
     id TEXT PRIMARY KEY,
@@ -403,6 +429,7 @@ CREATE TABLE review_decisions (
     action TEXT NOT NULL,
     association_mode TEXT,
     association_plan_hash TEXT,
+    duplicate_plan_hash TEXT,
     idempotency_key TEXT NOT NULL,
     expected_revision INTEGER NOT NULL,
     reason TEXT,
@@ -420,6 +447,14 @@ CREATE TABLE review_decisions (
               OR (association_mode IN ('reject_all', 'no_candidate') AND association_plan_hash IS NULL)))
         OR
         (action IN ('reject', 'cancel') AND association_mode IS NULL AND association_plan_hash IS NULL)
+    ),
+    CHECK (
+        (action = 'confirm'
+         AND duplicate_plan_hash IS NOT NULL
+         AND length(duplicate_plan_hash) = 64
+         AND duplicate_plan_hash NOT GLOB '*[^0-9a-f]*')
+        OR
+        (action IN ('reject', 'cancel') AND duplicate_plan_hash IS NULL)
     ),
     CHECK (expected_revision >= 1),
     UNIQUE (tenant_id, idempotency_key),
@@ -458,6 +493,10 @@ CREATE TABLE payments (
 
 CREATE INDEX payments_tenant_time_active_idx
 ON payments (tenant_id, transaction_time DESC, id DESC)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX payments_duplicate_match_active_idx
+ON payments (tenant_id, currency, amount_minor)
 WHERE deleted_at IS NULL;
 
 CREATE TABLE invoices (
@@ -499,6 +538,10 @@ CREATE INDEX invoices_tenant_date_active_idx
 ON invoices (tenant_id, invoice_date DESC, id DESC)
 WHERE deleted_at IS NULL;
 
+CREATE INDEX invoices_duplicate_match_active_idx
+ON invoices (tenant_id, currency, total_minor, invoice_date)
+WHERE deleted_at IS NULL;
+
 CREATE TABLE invoice_items (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -519,6 +562,200 @@ CREATE TABLE invoice_items (
     UNIQUE (tenant_id, invoice_id, item_key),
     UNIQUE (tenant_id, id)
 ) STRICT;
+
+CREATE TABLE duplicate_candidates (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    claim_set_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    existing_document_id TEXT,
+    current_document_page_id TEXT,
+    existing_document_page_id TEXT,
+    existing_payment_id TEXT,
+    existing_invoice_id TEXT,
+    candidate_key TEXT NOT NULL,
+    rule_version TEXT NOT NULL,
+    reason_codes_json TEXT NOT NULL,
+    dhash_distance INTEGER,
+    ahash_distance INTEGER,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, claim_set_id) REFERENCES claim_sets(tenant_id, id) ON DELETE CASCADE,
+    CHECK (kind IN ('near_file', 'cross_page', 'field_combination')),
+    CHECK (rule_version = 'duplicate-detection/1'),
+    CHECK (length(candidate_key) = 64 AND candidate_key NOT GLOB '*[^0-9a-f]*'),
+    CHECK (json_valid(reason_codes_json) AND json_type(reason_codes_json) = 'array'),
+    CHECK (
+        (kind = 'near_file'
+         AND existing_document_id IS NOT NULL
+         AND current_document_page_id IS NULL
+         AND existing_document_page_id IS NULL
+         AND existing_payment_id IS NULL
+         AND existing_invoice_id IS NULL
+         AND dhash_distance BETWEEN 0 AND 3
+         AND ahash_distance BETWEEN 0 AND 3)
+        OR
+        (kind = 'cross_page'
+         AND existing_document_id IS NOT NULL
+         AND current_document_page_id IS NOT NULL
+         AND existing_document_page_id IS NOT NULL
+         AND current_document_page_id <> existing_document_page_id
+         AND existing_payment_id IS NULL
+         AND existing_invoice_id IS NULL
+         AND dhash_distance BETWEEN 0 AND 3
+         AND ahash_distance BETWEEN 0 AND 3)
+        OR
+        (kind = 'field_combination'
+         AND existing_document_id IS NULL
+         AND current_document_page_id IS NULL
+         AND existing_document_page_id IS NULL
+         AND (existing_payment_id IS NOT NULL) <> (existing_invoice_id IS NOT NULL)
+         AND dhash_distance IS NULL
+         AND ahash_distance IS NULL)
+    ),
+    UNIQUE (tenant_id, candidate_key),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE INDEX duplicate_candidates_claim_idx
+ON duplicate_candidates (tenant_id, claim_set_id, kind, candidate_key);
+
+CREATE TRIGGER duplicate_candidates_limit
+BEFORE INSERT ON duplicate_candidates
+WHEN (SELECT count(*) FROM duplicate_candidates
+      WHERE tenant_id = NEW.tenant_id AND claim_set_id = NEW.claim_set_id) >= 50
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_candidate_limit_exceeded');
+END;
+
+CREATE TRIGGER duplicate_candidates_require_draft_claim
+BEFORE INSERT ON duplicate_candidates
+WHEN NOT EXISTS (
+    SELECT 1 FROM claim_sets claim
+    WHERE claim.tenant_id = NEW.tenant_id
+      AND claim.id = NEW.claim_set_id
+      AND claim.status = 'draft'
+)
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_candidate_draft_claim_required');
+END;
+
+CREATE TRIGGER duplicate_candidates_target_scope
+BEFORE INSERT ON duplicate_candidates
+WHEN NOT (
+    (NEW.kind = 'near_file'
+     AND EXISTS (
+         SELECT 1
+         FROM claim_sets claim
+         JOIN documents target ON target.tenant_id = claim.tenant_id
+         WHERE claim.tenant_id = NEW.tenant_id
+           AND claim.id = NEW.claim_set_id
+           AND target.id = NEW.existing_document_id
+           AND target.id <> claim.document_id
+     ))
+    OR
+    (NEW.kind = 'cross_page'
+     AND EXISTS (
+         SELECT 1
+         FROM claim_sets claim
+         JOIN document_pages current_page
+           ON current_page.tenant_id = claim.tenant_id
+          AND current_page.document_id = claim.document_id
+         JOIN documents target
+           ON target.tenant_id = claim.tenant_id
+          AND target.id = NEW.existing_document_id
+         JOIN document_pages existing_page
+           ON existing_page.tenant_id = target.tenant_id
+          AND existing_page.document_id = target.id
+         WHERE claim.tenant_id = NEW.tenant_id
+           AND claim.id = NEW.claim_set_id
+           AND current_page.id = NEW.current_document_page_id
+           AND existing_page.id = NEW.existing_document_page_id
+           AND current_page.id <> existing_page.id
+     ))
+    OR
+    (NEW.kind = 'field_combination'
+     AND EXISTS (
+         SELECT 1
+         FROM claim_sets claim
+         LEFT JOIN payments payment
+           ON payment.tenant_id = claim.tenant_id
+          AND payment.id = NEW.existing_payment_id
+          AND payment.deleted_at IS NULL
+         LEFT JOIN invoices invoice
+           ON invoice.tenant_id = claim.tenant_id
+          AND invoice.id = NEW.existing_invoice_id
+          AND invoice.deleted_at IS NULL
+         WHERE claim.tenant_id = NEW.tenant_id
+           AND claim.id = NEW.claim_set_id
+           AND ((claim.document_type = 'payment' AND payment.id IS NOT NULL)
+             OR (claim.document_type = 'invoice' AND invoice.id IS NOT NULL))
+     ))
+)
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_candidate_scope_mismatch');
+END;
+
+CREATE TRIGGER duplicate_candidates_immutable
+BEFORE UPDATE ON duplicate_candidates
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_candidate_immutable');
+END;
+
+CREATE TABLE duplicate_candidate_decisions (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    candidate_id TEXT NOT NULL,
+    review_decision_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, candidate_id) REFERENCES duplicate_candidates(tenant_id, id),
+    FOREIGN KEY (tenant_id, review_decision_id) REFERENCES review_decisions(tenant_id, id),
+    CHECK (action = 'keep_distinct'),
+    UNIQUE (tenant_id, candidate_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE TRIGGER duplicate_candidate_decisions_same_claim
+BEFORE INSERT ON duplicate_candidate_decisions
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM duplicate_candidates candidate
+    JOIN review_decisions review
+      ON review.tenant_id = candidate.tenant_id
+     AND review.claim_set_id = candidate.claim_set_id
+    WHERE candidate.tenant_id = NEW.tenant_id
+      AND candidate.id = NEW.candidate_id
+      AND review.id = NEW.review_decision_id
+      AND review.action = 'confirm'
+)
+ OR EXISTS (
+    SELECT 1
+    FROM duplicate_candidate_decisions existing_decision
+    JOIN duplicate_candidates existing_candidate
+      ON existing_candidate.tenant_id = existing_decision.tenant_id
+     AND existing_candidate.id = existing_decision.candidate_id
+    JOIN duplicate_candidates new_candidate
+      ON new_candidate.tenant_id = NEW.tenant_id
+     AND new_candidate.id = NEW.candidate_id
+    WHERE existing_decision.tenant_id = NEW.tenant_id
+      AND existing_candidate.claim_set_id = new_candidate.claim_set_id
+      AND existing_decision.review_decision_id <> NEW.review_decision_id
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_decision_scope_mismatch');
+END;
+
+CREATE TRIGGER duplicate_candidate_decisions_immutable
+BEFORE UPDATE ON duplicate_candidate_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_candidate_decision_immutable');
+END;
+
+CREATE TRIGGER duplicate_candidate_decisions_delete_forbidden
+BEFORE DELETE ON duplicate_candidate_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_candidate_decision_immutable');
+END;
 
 CREATE TABLE audit_events (
     id TEXT PRIMARY KEY,
@@ -819,6 +1056,59 @@ WHEN NOT EXISTS (
 )
 BEGIN
     SELECT RAISE(ABORT, 'confirmed_invoice_review_required');
+END;
+
+CREATE TRIGGER claim_confirmation_requires_duplicate_decisions
+BEFORE UPDATE OF status ON claim_sets
+WHEN NEW.status = 'confirmed'
+ AND (
+     (SELECT count(*)
+      FROM duplicate_candidates candidate
+      WHERE candidate.tenant_id = NEW.tenant_id
+        AND candidate.claim_set_id = NEW.id)
+     <>
+     (SELECT count(*)
+      FROM duplicate_candidate_decisions decision
+      JOIN duplicate_candidates candidate
+        ON candidate.tenant_id = decision.tenant_id
+       AND candidate.id = decision.candidate_id
+      JOIN review_decisions review
+        ON review.tenant_id = decision.tenant_id
+       AND review.id = decision.review_decision_id
+      WHERE candidate.tenant_id = NEW.tenant_id
+        AND candidate.claim_set_id = NEW.id
+        AND decision.action = 'keep_distinct'
+        AND review.claim_set_id = NEW.id
+        AND review.action = 'confirm')
+     OR
+     (SELECT count(DISTINCT decision.review_decision_id)
+      FROM duplicate_candidate_decisions decision
+      JOIN duplicate_candidates candidate
+        ON candidate.tenant_id = decision.tenant_id
+       AND candidate.id = decision.candidate_id
+      WHERE candidate.tenant_id = NEW.tenant_id
+        AND candidate.claim_set_id = NEW.id) > 1
+     OR EXISTS (
+     SELECT 1
+     FROM duplicate_candidates candidate
+     WHERE candidate.tenant_id = NEW.tenant_id
+       AND candidate.claim_set_id = NEW.id
+       AND NOT EXISTS (
+           SELECT 1
+           FROM duplicate_candidate_decisions decision
+           JOIN review_decisions review
+             ON review.tenant_id = decision.tenant_id
+            AND review.id = decision.review_decision_id
+           WHERE decision.tenant_id = candidate.tenant_id
+             AND decision.candidate_id = candidate.id
+             AND decision.action = 'keep_distinct'
+             AND review.claim_set_id = NEW.id
+             AND review.action = 'confirm'
+       )
+     )
+ )
+BEGIN
+    SELECT RAISE(ABORT, 'duplicate_decisions_incomplete');
 END;
 
 INSERT INTO schema_migrations (version, name, applied_at)

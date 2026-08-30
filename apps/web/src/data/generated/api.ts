@@ -533,6 +533,29 @@ export interface components {
             date_distance_days: number;
             reason_codes: string[];
         };
+        DuplicateCandidate: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "near_file" | "cross_page" | "field_combination";
+            /** Format: uuid */
+            existing_document_id?: string;
+            /** Format: uuid */
+            existing_payment_id?: string;
+            /** Format: uuid */
+            existing_invoice_id?: string;
+            display_name: string;
+            /** Format: date */
+            business_date?: string;
+            /** Format: int64 */
+            amount_minor?: number;
+            current_page_number?: number;
+            existing_page_number?: number;
+            dhash_distance?: number;
+            ahash_distance?: number;
+            available: boolean;
+            reason_codes: string[];
+        };
         Review: {
             job: components["schemas"]["JobSummary"];
             /** Format: uuid */
@@ -546,6 +569,7 @@ export interface components {
             fields: components["schemas"]["ClaimField"][];
             validations: components["schemas"]["ValidationResult"][];
             candidates: components["schemas"]["LinkCandidate"][];
+            duplicate_candidates: components["schemas"]["DuplicateCandidate"][];
         };
         RevisionRequest: {
             expected_revision: number;
@@ -570,6 +594,12 @@ export interface components {
                 candidate_id: string;
                 /** Format: int64 */
                 allocated_minor: number;
+            }[];
+            duplicate_resolutions: {
+                /** Format: uuid */
+                candidate_id: string;
+                /** @constant */
+                action: "keep_distinct";
             }[];
         };
         ConfirmResult: {

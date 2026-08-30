@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -190,14 +191,20 @@ func performanceOwner(ctx context.Context, database *sql.DB) (string, string, er
 func prepareSeedStatements(ctx context.Context, tx *sql.Tx) (preparedStatements, error) {
 	queries := []string{
 		`INSERT INTO documents (id, tenant_id, storage_key, original_name, declared_mime, detected_mime, size_bytes, sha256, page_count, status, created_by_user_id, created_at) VALUES (?, ?, ?, ?, 'image/png', 'image/png', 1024, ?, 1, ?, ?, ?)`,
-		`INSERT INTO document_pages (id, tenant_id, document_id, page_number, derived_image_storage_key, width, height, sha256, processing_version, created_at) VALUES (?, ?, ?, 1, ?, 1200, 800, ?, 'document-normalize/2', ?)`,
+		`INSERT INTO document_pages (
+			id, tenant_id, document_id, page_number, derived_image_storage_key,
+			width, height, sha256, processing_version,
+			visual_fingerprint_version, dhash64, ahash64,
+			dhash_band_0, dhash_band_1, dhash_band_2, dhash_band_3, created_at
+		) VALUES (?, ?, ?, 1, ?, 1200, 800, ?, 'document-normalize/2',
+		          'page-visual-dedup/1', ?, ?, ?, ?, ?, ?, ?)`,
 		`INSERT INTO processing_jobs (id, tenant_id, document_id, kind, status, attempt_count, created_at, version) VALUES (?, ?, ?, 'document_process', ?, 1, ?, 1)`,
 		`INSERT INTO ai_runs (id, tenant_id, job_id, provider_config_id, provider_config_version, provider_config_fingerprint, model, prompt_version, extraction_schema_version, provider_schema_version, provider_schema_sha256, claim_schema_version, claim_mapper_version, input_processing_version, request_hash, response_hash, input_tokens, output_tokens, latency_ms, outcome, started_at, finished_at) VALUES (?, ?, ?, ?, 1, 'synthetic-performance-fingerprint', 'synthetic-performance-model', 'bill-visible-text-cn/1', 'bill-visible-text/1', 'bill-visible-text-provider/1', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'document-claim/2', 'claim-mapper/3', 'document-normalize/2', ?, ?, 10, 10, 1, 'succeeded', ?, ?)`,
 		`INSERT INTO claim_sets (id, tenant_id, document_id, origin_ai_run_id, produced_by_ai_run_id, document_type, status, revision, optimistic_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
 		`INSERT INTO field_claims (id, tenant_id, claim_set_id, field_path, value_type, presence, typed_value_json, normalized_value, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ai', ?)`,
 		`INSERT INTO evidence (id, tenant_id, field_claim_id, document_page_id, quote, evidence_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		`INSERT INTO validation_results (id, tenant_id, claim_set_id, rule_code, severity, status, safe_message, rule_version, created_at) VALUES (?, ?, ?, 'claim_snapshot_complete', 'info', 'passed', 'synthetic performance claim', 'claim-validation/1', ?)`,
-		`INSERT INTO review_decisions (id, tenant_id, claim_set_id, actor_user_id, action, association_mode, idempotency_key, expected_revision, created_at) VALUES (?, ?, ?, ?, 'confirm', 'no_candidate', ?, 1, ?)`,
+		`INSERT INTO review_decisions (id, tenant_id, claim_set_id, actor_user_id, action, association_mode, duplicate_plan_hash, idempotency_key, expected_revision, created_at) VALUES (?, ?, ?, ?, 'confirm', 'no_candidate', '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945', ?, 1, ?)`,
 		`INSERT INTO payments (id, tenant_id, source_review_decision_id, amount_minor, currency, merchant, transaction_time, source_timezone, created_at, updated_at, version) VALUES (?, ?, ?, ?, 'CNY', ?, ?, 'Asia/Shanghai', ?, ?, 1)`,
 		`INSERT INTO invoices (id, tenant_id, source_review_decision_id, invoice_number, normalized_invoice_number, invoice_date, total_minor, currency, seller_name, buyer_name, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, 'CNY', ?, ?, ?, ?, 1)`,
 		`INSERT INTO invoice_items (id, tenant_id, invoice_id, item_key, name, quantity, unit, unit_price_minor, amount_minor, sort_order) VALUES (?, ?, ?, ?, 'Synthetic performance item', '1', 'item', ?, ?, 0)`,
@@ -233,6 +240,7 @@ func (s seedContext) insertChain(ctx context.Context, index int, providerID stri
 	pageID := makeID(0x70000001, index)
 	createdAt := s.now.Add(time.Duration(index) * time.Second)
 	documentHash := hashString(fmt.Sprintf("performance-document-%d", index))
+	dhash, ahash, bands := syntheticPageFingerprint(fmt.Sprintf("performance-page-%d", index))
 	if _, err := s.queries.document.ExecContext(ctx,
 		documentID, s.tenantID, "tenants/"+s.tenantID+"/performance/"+documentID+"/original",
 		fmt.Sprintf("synthetic-performance-%05d.png", index), documentHash, "completed", s.userID, formatTime(createdAt),
@@ -241,7 +249,8 @@ func (s seedContext) insertChain(ctx context.Context, index int, providerID stri
 	}
 	if _, err := s.queries.page.ExecContext(ctx,
 		pageID, s.tenantID, documentID, "tenants/"+s.tenantID+"/performance/"+documentID+"/page-1.png",
-		hashString(fmt.Sprintf("performance-page-%d", index)), formatTime(createdAt),
+		hashString(fmt.Sprintf("performance-page-%d", index)), dhash, ahash,
+		bands[0], bands[1], bands[2], bands[3], formatTime(createdAt),
 	); err != nil {
 		return err
 	}
@@ -330,6 +339,7 @@ func (s seedContext) insertReadyPayment(ctx context.Context, index int, provider
 	claimID := makeID(0x40000001, index)
 	pageID := makeID(0x70000001, index)
 	createdAt := s.now.Add(time.Duration(index) * time.Second)
+	dhash, ahash, bands := syntheticPageFingerprint(fmt.Sprintf("performance-confirm-page-%d", index))
 	if _, err := s.queries.document.ExecContext(ctx,
 		documentID, s.tenantID, "tenants/"+s.tenantID+"/performance/"+documentID+"/original",
 		fmt.Sprintf("synthetic-confirm-%05d.png", index), hashString(fmt.Sprintf("performance-confirm-document-%d", index)),
@@ -339,7 +349,8 @@ func (s seedContext) insertReadyPayment(ctx context.Context, index int, provider
 	}
 	if _, err := s.queries.page.ExecContext(ctx,
 		pageID, s.tenantID, documentID, "tenants/"+s.tenantID+"/performance/"+documentID+"/page-1.png",
-		hashString(fmt.Sprintf("performance-confirm-page-%d", index)), formatTime(createdAt),
+		hashString(fmt.Sprintf("performance-confirm-page-%d", index)), dhash, ahash,
+		bands[0], bands[1], bands[2], bands[3], formatTime(createdAt),
 	); err != nil {
 		return "", err
 	}
@@ -496,6 +507,18 @@ func makeID(prefix uint32, sequence int) string {
 func hashString(value string) string {
 	hash := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(hash[:])
+}
+
+func syntheticPageFingerprint(value string) (string, string, [4]int) {
+	digest := sha256.Sum256([]byte(value))
+	dhash := binary.BigEndian.Uint64(digest[:8])
+	ahash := binary.BigEndian.Uint64(digest[8:16])
+	return fmt.Sprintf("%016x", dhash), fmt.Sprintf("%016x", ahash), [4]int{
+		int((dhash >> 48) & 0xffff),
+		int((dhash >> 32) & 0xffff),
+		int((dhash >> 16) & 0xffff),
+		int(dhash & 0xffff),
+	}
 }
 
 func formatTime(value time.Time) string {

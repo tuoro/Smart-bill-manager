@@ -185,6 +185,18 @@ M1 使用单个 API 进程：
 
 详细不变量见 `docs/decisions/0009-payment-invoice-allocation.md`。
 
+### M2 确定性重复检测
+
+1. `document-normalize/2` 生成页面 PNG 时，同步计算 `page-visual-dedup/1` 的 dHash、aHash 和检索 band；指纹只属于可重建 DocumentPage 元数据，不改变原图或 Provider 输入。
+2. Claim 初版持久化或用户创建完整 revision 时，应用层从当前页面和本地校验后的正式字段生成 `duplicate-detection/1` 候选：整份有序页面近似、部分跨页近似和 Payment/Invoice 字段组合三类互斥或去重的信号。
+3. 页面近似检索先用同租户、同版本的 dHash band 索引缩小集合，再以宽高比和双哈希距离作唯一判定；字段组合只使用参数化查询与确定性规范化，不调用模型或模糊文本算法。
+4. DuplicateCandidate 与 Claim revision 一起冻结。Review 展示原因、页码、距离和安全目标摘要；它是人工审核输入，不是 Document/Fact 上的可写重复状态。
+5. 用户认为当前 Document 是重复项时驳回 Claim；要确认 Fact，则必须对当前全部候选逐项提交 `keep_distinct`。完整 resolution 计划规范化后进入幂等身份。
+6. 确认事务在 immediate SQLite 写锁内重算候选键；集合变化、跨租户、旧 revision、缺失或伪造 resolution 时整体冲突。数据库在 Claim 转为 `confirmed` 前验证所有候选都由同一个确认 ReviewDecision 决定。
+7. 精确原始 SHA-256 和规范化发票号仍分别为不可绕过的上传冲突与 blocked 规则；本切片不合并 Source、不删除页面，也不进行跨页明细重建。
+
+详细算法、阈值和失败边界见 `docs/decisions/0010-deterministic-duplicate-detection.md`。
+
 ## 状态机
 
 ### ProcessingJob

@@ -230,6 +230,26 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-08-30 通过。后端全量测试、静态检查与构建、Web 完整检查、浏览器场景、43 / 43 关键不变量及两层覆盖率门禁均通过；可机读摘要见 `tests/evidence/m2/gate-summary.json`，完整说明见 `docs/m2-evidence.md`。
 
+### M2 第二切片：近似文件、字段组合和跨页重复检测
+
+本切片扩展疑似重复提示，不替代 M1 的精确 SHA-256 和规范化发票号规则，也不包含下一切片的跨页明细重建。
+
+- `page-visual-dedup/1` 必须从现有 8 位 RGBA 规范化页面确定性计算 64 位 dHash、64 位 aHash 和四个 dHash 检索 band；相同输入重复计算必须逐位一致。
+- 视觉近似页必须同时满足宽高比差异不超过 1%、dHash Hamming 距离不超过 3、aHash Hamming 距离不超过 3；四 band 检索不得漏掉定义阈值内的候选。旋转、裁切、遮挡、屏摄或低清修复不在承诺内。
+- 同租户另一个 Document 与当前页数相同且每个有序页均近似时，只生成一个 `near_file` 候选；当前 Document 内不同页或与其他 Document 的部分页近似时生成 `cross_page`，已归入整份近似的目标不再重复产生跨文档页候选。
+- Payment `field_combination` 必须要求双方未删除、金额为相同正整数最小单位、币种一致、交易时间相差不超过 5 分钟且规范化商户一致；双方非空订单号一致只增加原因代码。Invoice 必须要求双方未删除、价税合计为相同正整数最小单位、币种、开票日期及规范化销售方/购买方一致；规范化发票号完全一致仍走既有 blocked 规则。
+- 名称只允许 Unicode NFKC、trim、连续空白折叠和拉丁大小写折叠，不使用编辑距离、拼音、模型或供应商专属逻辑。
+- DuplicateCandidate 必须携带规则版本、稳定候选键、结构化原因、同租户目标和适用页码/距离；不得复制原始图片、完整模型响应或形成可写的 Document/Fact 重复状态第二数据源。
+- 每个 Claim revision 的候选按种类、距离、目标 ID 和页码稳定排序；候选超过 50 个时产生 `duplicate_candidate_limit_exceeded` blocked ValidationResult，不静默截断后允许确认。
+- Review API 和 Web 必须展示候选类型、原因、目标可用性、相关页码和安全摘要；存在候选时，确认请求必须为当前完整集合逐项提交唯一 `keep_distinct` resolution。缺失、重复、伪造、跨租户、旧 revision 或多余 resolution 必须拒绝。
+- 用户认为当前 Document 是重复项时必须走既有 Reject 工作流且不创建 Fact；系统不得自动合并、覆盖、删除、跳过、接受或把目标 Fact 复用为当前结果。
+- resolution 规范计划 SHA-256 必须进入 ReviewDecision 幂等身份；相同键和相同完整计划重放返回同一结果，同键改变任一 resolution 必须 `idempotency_key_conflict`。
+- 确认事务必须重算当前候选键；候选新增、消失或目标状态变化时返回 `duplicate_candidate_set_stale`，并保证 Fact、ReviewDecision、DuplicateCandidateDecision、PaymentInvoiceLink、AuditEvent 和 Job 均无部分写入。保存同字段的新完整 Claim revision 后必须得到新候选快照。
+- 数据库必须保证 DuplicateCandidate 生成时同租户、候选形状合法、每个候选最多一个 `keep_distinct` 决定，且 Claim 只有在全部候选决定属于同一个确认 ReviewDecision 时才能进入 `confirmed`。
+- UI 必须把重复候选与关联分配分区展示；每项确认控件有可见标签和键盘焦点，缺失确认的错误通过 `aria-describedby` 或等价关系关联，不能仅依赖颜色。
+
+最小纯合成场景固定包含：JPEG/PNG 重新编码、等比缩放、明显不同页面、宽高比和双哈希阈值边界、同文档重复页、跨文档部分页、完整多页近似去重、跨租户零可见、Payment 与 Invoice 字段组合、精确发票号优先、50 项上限、revision 重算、完整/缺失/伪造 resolution、Reject 无 Fact、幂等重放、同键改 resolution、确认时集合陈旧及两个疑似重复 Claim 并发确认。每个事务场景同时断言 Claim/Job 状态、候选与决定数、Fact/Link/AuditEvent 数和无跨租户可见性。
+
 ## 八、租户与安全验收
 
 ### 租户
@@ -318,6 +338,8 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 覆盖率不能替代关键场景测试；删除测试或降低门槛必须作为单独决策审查。
 
 覆盖率包边界固定如下：领域层为 `apps/api/internal/domain/...`，应用层为 `apps/api/internal/application/...`，基础设施层为 `apps/api/internal/adapters/...` 与 `apps/api/internal/transport/...`；生成代码、迁移文件、装配入口和纯数据声明不计入分母，排除清单必须由覆盖工具配置显式列出。关键不变量分支固定为：租户隔离、Claim 完整 revision 快照与 actor 检查、Validation 阻断、Review 才能创建 Fact、重复确认幂等、Document SHA-256 与规范化发票号精确判重、关联候选显式分配决定、同币种正数分配、双方余额不超额、同一活动对唯一、并发争用无部分写入、币种 exponent 与金额整数运算、文件签名/MIME 一致、Job 租约恢复、只允许无 ClaimSet 的失败 Job 重试、取消后禁止写入、重复模型字段路径以单一候选和 blocked Validation 持久化、Provider Schema 投影不削弱本地权威校验、Provider 原始响应先满足当前传输契约，以及能力检测 Schema 身份过期时禁止激活或调用模型。上述分支逐项 100%，不能被包级平均值掩盖。
+
+M2 第二切片新增关键分支为：视觉指纹确定性及批准的重新编码/等比缩放、宽高比与双哈希边界、同租户 band 检索、整份近似优先、同文档页对、Payment/Invoice 字段组合、精确发票号优先、50 项上限、完整且规范的 `keep_distinct` 计划、目标删除陈旧回滚、并发确认串行化、同一确认决定数据库约束、重复决定不可变和 Reject 无 Fact。它们同样逐项 100%，并进入 `tests/critical-invariants.tsv` 唯一映射。
 
 ## 十三、M1 最小场景矩阵
 

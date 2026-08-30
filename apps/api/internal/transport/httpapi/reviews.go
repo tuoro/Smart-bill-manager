@@ -101,6 +101,10 @@ func (s *Server) confirmReviewHandler(response http.ResponseWriter, request *htt
 			CandidateID    string `json:"candidate_id"`
 			AllocatedMinor int64  `json:"allocated_minor"`
 		} `json:"allocations"`
+		DuplicateResolutions *[]struct {
+			CandidateID string `json:"candidate_id"`
+			Action      string `json:"action"`
+		} `json:"duplicate_resolutions"`
 	}
 	if err := decodeJSON(response, request, &body); err != nil {
 		writeError(response, request, err)
@@ -110,13 +114,24 @@ func (s *Server) confirmReviewHandler(response http.ResponseWriter, request *htt
 		writeError(response, request, domain.NewRuleError("invalid_association", "allocations 必须是数组", domain.ErrInvalidInput))
 		return
 	}
+	if body.DuplicateResolutions == nil {
+		writeError(response, request, domain.NewRuleError("invalid_duplicate_resolution", "duplicate_resolutions 必须是数组", domain.ErrInvalidInput))
+		return
+	}
 	started := time.Now()
 	input := reviews.ConfirmInput{
-		ExpectedRevision: body.ExpectedRevision,
-		AssociationMode:  body.AssociationMode,
-		Allocations:      make([]domain.AllocationRequest, 0, len(*body.Allocations)),
-		IdempotencyKey:   request.Header.Get("Idempotency-Key"),
-		RequestID:        requestIDFromRequest(request),
+		ExpectedRevision:     body.ExpectedRevision,
+		AssociationMode:      body.AssociationMode,
+		Allocations:          make([]domain.AllocationRequest, 0, len(*body.Allocations)),
+		DuplicateResolutions: make([]domain.DuplicateResolution, 0, len(*body.DuplicateResolutions)),
+		IdempotencyKey:       request.Header.Get("Idempotency-Key"),
+		RequestID:            requestIDFromRequest(request),
+	}
+	for _, resolution := range *body.DuplicateResolutions {
+		input.DuplicateResolutions = append(input.DuplicateResolutions, domain.DuplicateResolution{
+			CandidateID: resolution.CandidateID,
+			Action:      resolution.Action,
+		})
 	}
 	for _, allocation := range *body.Allocations {
 		input.Allocations = append(input.Allocations, domain.AllocationRequest{
@@ -168,15 +183,16 @@ func (s *Server) rejectReviewHandler(response http.ResponseWriter, request *http
 
 func reviewResponse(item ports.ReviewSnapshot) map[string]any {
 	return map[string]any{
-		"job":                jobResponse(item.Job),
-		"claim_set_id":       item.ClaimSetID,
-		"document_type":      item.DocumentType,
-		"revision":           item.Revision,
-		"optimistic_version": item.OptimisticVersion,
-		"claim_status":       item.Status,
-		"fields":             reviewFieldResponses(item.Fields),
-		"validations":        validationResponses(item.Validations),
-		"candidates":         candidateResponses(item.Candidates),
+		"job":                  jobResponse(item.Job),
+		"claim_set_id":         item.ClaimSetID,
+		"document_type":        item.DocumentType,
+		"revision":             item.Revision,
+		"optimistic_version":   item.OptimisticVersion,
+		"claim_status":         item.Status,
+		"fields":               reviewFieldResponses(item.Fields),
+		"validations":          validationResponses(item.Validations),
+		"candidates":           candidateResponses(item.Candidates),
+		"duplicate_candidates": duplicateCandidateResponses(item.DuplicateCandidates),
 	}
 }
 
@@ -253,6 +269,48 @@ func candidateResponses(items []ports.LinkCandidate) []map[string]any {
 			"date_distance_days": candidate.DateDistanceDays,
 			"reason_codes":       candidate.ReasonCodes,
 		})
+	}
+	return result
+}
+
+func duplicateCandidateResponses(items []ports.DuplicateCandidate) []map[string]any {
+	result := make([]map[string]any, 0, len(items))
+	for _, candidate := range items {
+		entry := map[string]any{
+			"id":           candidate.ID,
+			"kind":         candidate.Kind,
+			"display_name": candidate.DisplayName,
+			"available":    candidate.Available,
+			"reason_codes": candidate.ReasonCodes,
+		}
+		if candidate.ExistingDocumentID != "" {
+			entry["existing_document_id"] = candidate.ExistingDocumentID
+		}
+		if candidate.ExistingPaymentID != "" {
+			entry["existing_payment_id"] = candidate.ExistingPaymentID
+		}
+		if candidate.ExistingInvoiceID != "" {
+			entry["existing_invoice_id"] = candidate.ExistingInvoiceID
+		}
+		if candidate.BusinessDate != "" {
+			entry["business_date"] = candidate.BusinessDate
+		}
+		if candidate.AmountMinor != nil {
+			entry["amount_minor"] = *candidate.AmountMinor
+		}
+		if candidate.CurrentPageNumber != nil {
+			entry["current_page_number"] = *candidate.CurrentPageNumber
+		}
+		if candidate.ExistingPageNumber != nil {
+			entry["existing_page_number"] = *candidate.ExistingPageNumber
+		}
+		if candidate.DHashDistance != nil {
+			entry["dhash_distance"] = *candidate.DHashDistance
+		}
+		if candidate.AHashDistance != nil {
+			entry["ahash_distance"] = *candidate.AHashDistance
+		}
+		result = append(result, entry)
 	}
 	return result
 }

@@ -165,6 +165,9 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 	if err := t.insertLinkCandidates(ctx, command.Candidates); err != nil {
 		return err
 	}
+	if err := t.insertDuplicateCandidates(ctx, command.TenantID, command.ClaimSet.ID, command.DuplicateCandidates); err != nil {
+		return err
+	}
 	if _, err := t.tx.ExecContext(ctx, `
 		UPDATE claim_sets SET status = ? WHERE tenant_id = ? AND id = ? AND status = 'draft'
 	`, status, command.TenantID, command.ClaimSet.ID); err != nil {

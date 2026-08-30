@@ -180,6 +180,9 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	if asInt(t, review["revision"]) != 1 || review["claim_status"] != "ready_for_review" {
 		t.Fatalf("unexpected review: %+v", review)
 	}
+	if _, ok := review["duplicate_candidates"].([]any); !ok {
+		t.Fatalf("review duplicate_candidates is not an array: %+v", review["duplicate_candidates"])
+	}
 	claimSetID := asString(t, review["claim_set_id"])
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/claim-sets/"+claimSetID, nil, ownerSession, false, ""), http.StatusOK)
 	revisionResponse := fixture.request(http.MethodPost, "/api/v1/reviews/"+firstUpload["job_id"]+"/revisions", bytes.NewReader(revisionPayload(t, review)), ownerSession, true, "application/json")
@@ -198,11 +201,21 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 		map[string]string{"Idempotency-Key": "missing-allocations"},
 	)
 	assertStatus(t, missingAllocations, http.StatusBadRequest)
+	missingDuplicateResolutions := fixture.requestWithHeaders(
+		http.MethodPost,
+		"/api/v1/reviews/"+firstUpload["job_id"]+"/confirm",
+		strings.NewReader("{\"expected_revision\":2,\"association_mode\":\"no_candidate\",\"allocations\":[]}"),
+		ownerSession,
+		true,
+		"application/json",
+		map[string]string{"Idempotency-Key": "missing-duplicate-resolutions"},
+	)
+	assertStatus(t, missingDuplicateResolutions, http.StatusBadRequest)
 
 	invalidConfirm := fixture.requestWithHeaders(
 		http.MethodPost,
 		"/api/v1/reviews/"+firstUpload["job_id"]+"/confirm",
-		strings.NewReader("{\"expected_revision\":2,\"association_mode\":\"reject_all\",\"allocations\":[]}"),
+		strings.NewReader("{\"expected_revision\":2,\"association_mode\":\"reject_all\",\"allocations\":[],\"duplicate_resolutions\":[]}"),
 		ownerSession,
 		true,
 		"application/json",
@@ -210,7 +223,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	)
 	assertStatus(t, invalidConfirm, http.StatusConflict)
 
-	confirmJSON := "{\"expected_revision\":2,\"association_mode\":\"no_candidate\",\"allocations\":[]}"
+	confirmJSON := "{\"expected_revision\":2,\"association_mode\":\"no_candidate\",\"allocations\":[],\"duplicate_resolutions\":[]}"
 	confirm := fixture.requestWithHeaders(http.MethodPost, "/api/v1/reviews/"+firstUpload["job_id"]+"/confirm", strings.NewReader(confirmJSON), ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "confirm-0001"})
 	assertStatus(t, confirm, http.StatusOK)
 	confirmed := decodeMap(t, confirm)
@@ -276,7 +289,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/claim-sets/"+asString(t, review["claim_set_id"]), nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reviews/"+secondUpload["job_id"], nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodPost, "/api/v1/jobs/"+retryUpload["job_id"]+"/cancel", nil, secondTenantSession, true, ""), http.StatusNotFound)
-	crossTenantConfirm := fixture.requestWithHeaders(http.MethodPost, "/api/v1/reviews/"+secondUpload["job_id"]+"/confirm", strings.NewReader("{\"expected_revision\":1,\"association_mode\":\"no_candidate\",\"allocations\":[]}"), secondTenantSession, true, "application/json", map[string]string{"Idempotency-Key": "tenant-0001"})
+	crossTenantConfirm := fixture.requestWithHeaders(http.MethodPost, "/api/v1/reviews/"+secondUpload["job_id"]+"/confirm", strings.NewReader("{\"expected_revision\":1,\"association_mode\":\"no_candidate\",\"allocations\":[],\"duplicate_resolutions\":[]}"), secondTenantSession, true, "application/json", map[string]string{"Idempotency-Key": "tenant-0001"})
 	assertStatus(t, crossTenantConfirm, http.StatusNotFound)
 	paymentID := asString(t, confirmed["fact_id"])
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/payments/"+paymentID, nil, secondTenantSession, true, ""), http.StatusNotFound)

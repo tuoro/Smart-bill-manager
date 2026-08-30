@@ -141,6 +141,33 @@ func (s Service) Revise(
 				return err
 			}
 		}
+		duplicateCandidates, limitExceeded, err := claimsupport.BuildDuplicateCandidates(
+			ctx,
+			transaction,
+			validated,
+			tenant.TenantID,
+			current.DocumentID,
+			command.ClaimSet.ID,
+			s.ids,
+			command.ClaimSet.CreatedAt,
+		)
+		if err != nil {
+			return err
+		}
+		command.DuplicateCandidates = duplicateCandidates
+		if limitExceeded {
+			validation, err := claimsupport.NewDuplicateCandidateLimitValidation(
+				tenant.TenantID,
+				command.ClaimSet.ID,
+				s.ids,
+				command.ClaimSet.CreatedAt,
+			)
+			if err != nil {
+				return err
+			}
+			command.Validations = append(command.Validations, validation)
+			command.ClaimSet.Status = domain.ClaimBlocked
+		}
 		return transaction.PersistRevision(ctx, command)
 	}); err != nil {
 		return ports.ReviewSnapshot{}, err

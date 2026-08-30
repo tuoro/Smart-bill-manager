@@ -9,6 +9,18 @@ review-only-fact	Fact 前后故障均全事务回滚；无审核旁路	./interna
 confirm-idempotency	首次确认原子创建；同键重放返回同一 Fact 且不重复写	./internal/application/reviews	TestConfirmPaymentIsAtomicAndIdempotent
 document-deduplication	同租户相同 SHA-256 返回 duplicate_document 且不创建第二 Job	./internal/application/documents	TestUploadCreatesOneImmutableDocumentAndJob
 invoice-number-deduplication	发票号码 NFKC、trim、空白折叠和拉丁大小写规范化后精确判重并 blocked	./internal/application/processing	TestWorkerBlocksNormalizedDuplicateInvoiceNumber
+duplicate-visual-fingerprint	相同像素、PNG/JPEG 重新编码和等比缩放按冻结算法生成确定性视觉指纹	./internal/adapters/localstorage	TestPageVisualFingerprintMatchesApprovedReencodingAndEqualScaling
+duplicate-visual-threshold	宽高比、dHash 与 aHash 阈值边界同时满足才构成近似页	./internal/domain	TestPageVisualFingerprintAndNearBoundary
+duplicate-visual-tenant-band	四个 dHash band 只检索同租户目标，整份近似优先于跨文档页候选	./internal/adapters/sqlite	TestVisualDuplicateBandLookupIsTenantScopedAndKeepsWholeDocumentPriority
+duplicate-within-document	当前 Document 内两个不同页近似时只生成明确页对的 cross_page 候选	./internal/domain	TestBuildVisualDuplicateSignalsFindsRepeatedPageWithinDocument
+duplicate-field-combination	Payment 金额/币种/商户/五分钟窗口和可选订单号按冻结规则匹配	./internal/domain	TestBuildFieldDuplicateSignalsUsesFrozenPaymentCombination
+duplicate-field-combination	Invoice 字段组合匹配不复制已由精确发票号规则阻断的同号候选	./internal/domain	TestBuildFieldDuplicateSignalsKeepsExactInvoiceNumberAsHardRule
+duplicate-candidate-limit	超过 50 项时返回显式超限结果且不静默截断候选	./internal/application/claimsupport	TestBuildDuplicateCandidatesBlocksInsteadOfTruncatingOverLimit
+duplicate-complete-resolution	缺失、伪造、重复或改变的 resolution 拒绝；完整计划可确认并幂等重放	./internal/application/reviews	TestFieldDuplicateRequiresCompleteResolutionAndReplaysSameDecision
+duplicate-stale-rollback	目标删除使候选集合陈旧并回滚 Fact、决定、Link、审计和 Job 写入	./internal/application/reviews	TestDeletedDuplicateTargetMakesCandidateSetStaleWithoutPartialConfirmation
+duplicate-concurrency	两个原先无字段重复候选的 Claim 并发确认时最多一个成功，另一事务显式陈旧且无部分写入	./internal/application/reviews	TestConcurrentDuplicateClaimsAllowOnlyOneConfirmation
+duplicate-database-decision	数据库强制同一 Claim 的全部重复决定属于同一确认决定且决定不可变	./internal/application/reviews	TestDuplicateCandidateDatabaseRequiresOneImmutableConfirmDecision
+duplicate-reject-boundary	用户把当前 Document 判为重复时走 Reject 且不创建 Fact 或重复决定	./internal/application/reviews	TestRejectDuplicateCandidateCreatesNoFactOrResolution
 association-explicit-decision	有候选必须 allocate_candidates 或 reject_all；无候选必须 no_candidate；伪造候选与错误模式拒绝	./internal/application/reviews	TestDecisionInputAndAssociationBoundaries
 association-plan-shape	空 ID、零、负数、超出安全整数和重复候选的分配计划拒绝	./internal/domain	TestCanonicalAllocationPlanRejectsInvalidItems
 association-plan-balance	候选不可用、跨币种、目标余额和新 Fact 总额超分配拒绝	./internal/domain	TestValidateAllocationPlan

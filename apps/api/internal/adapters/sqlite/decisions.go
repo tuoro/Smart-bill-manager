@@ -19,6 +19,11 @@ type persistedCandidate struct {
 	ExistingInvoiceID string
 }
 
+type persistedDuplicateCandidate struct {
+	ID           string
+	CandidateKey string
+}
+
 func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCommand) (ports.ConfirmResult, error) {
 	if replay, exists, err := t.confirmReplay(ctx, command.TenantID, command.IdempotencyKey); err != nil {
 		return ports.ConfirmResult{}, err
@@ -27,7 +32,8 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 			replay.value.ClaimSetID != command.ClaimSetID ||
 			replay.value.ExpectedRevision != command.ExpectedRevision ||
 			replay.value.AssociationMode != command.AssociationMode ||
-			replay.value.AllocationPlanHash != command.AllocationPlanHash {
+			replay.value.AllocationPlanHash != command.AllocationPlanHash ||
+			replay.value.DuplicatePlanHash != command.DuplicatePlanHash {
 			return ports.ConfirmResult{}, domain.NewRuleError("idempotency_key_conflict", "幂等键已用于不同的请求", domain.ErrConflict)
 		}
 		return replay.value.Result, nil
@@ -75,6 +81,9 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 	if err := validatePersistedAssociation(candidates, command); err != nil {
 		return ports.ConfirmResult{}, err
 	}
+	if err := t.validateDuplicateConfirmation(ctx, command, documentID); err != nil {
+		return ports.ConfirmResult{}, err
+	}
 	for _, decision := range command.CandidateDecisions {
 		if decision.Action != "accept" {
 			continue
@@ -98,8 +107,9 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO review_decisions (
 			id, tenant_id, claim_set_id, actor_user_id, action, association_mode,
-			association_plan_hash, idempotency_key, expected_revision, created_at
-		) VALUES (?, ?, ?, ?, 'confirm', ?, NULLIF(?, ''), ?, ?, ?)
+			association_plan_hash, duplicate_plan_hash, idempotency_key,
+			expected_revision, created_at
+		) VALUES (?, ?, ?, ?, 'confirm', ?, NULLIF(?, ''), ?, ?, ?, ?)
 	`,
 		command.ReviewDecisionID,
 		command.TenantID,
@@ -107,6 +117,7 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 		command.ActorUserID,
 		command.AssociationMode,
 		command.AllocationPlanHash,
+		command.DuplicatePlanHash,
 		command.IdempotencyKey,
 		command.ExpectedRevision,
 		createdAt,
@@ -117,6 +128,22 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 		ReviewDecisionID: command.ReviewDecisionID,
 		FactType:         documentType,
 		LinkIDs:          []string{},
+	}
+	for _, decision := range command.DuplicateDecisions {
+		if _, err := t.tx.ExecContext(ctx, `
+			INSERT INTO duplicate_candidate_decisions (
+				id, tenant_id, candidate_id, review_decision_id, action, created_at
+			) VALUES (?, ?, ?, ?, ?, ?)
+		`,
+			decision.ID,
+			command.TenantID,
+			decision.CandidateID,
+			command.ReviewDecisionID,
+			decision.Action,
+			createdAt,
+		); err != nil {
+			return ports.ConfirmResult{}, fmt.Errorf("insert duplicate candidate decision: %w", err)
+		}
 	}
 	itemIDs := make(map[string]string)
 	if command.Payment != nil {
@@ -185,6 +212,7 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 	metadata, _ := json.Marshal(map[string]any{
 		"association_mode": command.AssociationMode,
 		"allocation_count": len(result.LinkIDs),
+		"duplicate_count":  len(command.DuplicateDecisions),
 		"fact_type":        string(documentType),
 	})
 	if _, err := t.tx.ExecContext(ctx, `
@@ -717,6 +745,7 @@ func (t transaction) confirmReplay(
 	err := t.tx.QueryRowContext(ctx, `
 		SELECT r.action, r.id, j.id, c.id, r.expected_revision,
 		       coalesce(r.association_mode, ''), coalesce(r.association_plan_hash, ''),
+		       coalesce(r.duplicate_plan_hash, ''),
 		       c.document_type, coalesce(p.id, i.id),
 		       coalesce((SELECT json_group_array(link_id) FROM (
 		           SELECT l.id AS link_id
@@ -740,6 +769,7 @@ func (t transaction) confirmReplay(
 		&result.value.ExpectedRevision,
 		&result.value.AssociationMode,
 		&result.value.AllocationPlanHash,
+		&result.value.DuplicatePlanHash,
 		&result.value.Result.FactType,
 		&result.value.Result.FactID,
 		&linkIDsJSON,

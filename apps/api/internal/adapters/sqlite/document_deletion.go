@@ -70,7 +70,7 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 	if err := rows.Err(); err != nil {
 		return ports.DocumentDeletionPlan{}, fmt.Errorf("iterate derived document objects: %w", err)
 	}
-	var pages, jobs, runs, claims, fields, evidence, validations, candidates, decisions, audits int
+	var pages, jobs, runs, claims, fields, evidence, validations, candidates, duplicateCandidates, decisions, audits int
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT
 			(SELECT count(*) FROM document_pages WHERE tenant_id = ? AND document_id = ?),
@@ -81,6 +81,7 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 			(SELECT count(*) FROM evidence e JOIN field_claims f ON f.tenant_id = e.tenant_id AND f.id = e.field_claim_id JOIN claim_sets c ON c.tenant_id = f.tenant_id AND c.id = f.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
 			(SELECT count(*) FROM validation_results v LEFT JOIN claim_sets c ON c.tenant_id = v.tenant_id AND c.id = v.claim_set_id LEFT JOIN ai_runs a ON a.tenant_id = v.tenant_id AND a.id = v.ai_run_id LEFT JOIN processing_jobs j ON j.tenant_id = a.tenant_id AND j.id = a.job_id WHERE v.tenant_id = ? AND (c.document_id = ? OR j.document_id = ?)),
 			(SELECT count(*) FROM payment_invoice_link_candidates l JOIN claim_sets c ON c.tenant_id = l.tenant_id AND c.id = l.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
+			(SELECT count(*) FROM duplicate_candidates d JOIN claim_sets c ON c.tenant_id = d.tenant_id AND c.id = d.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
 			(SELECT count(*) FROM review_decisions r JOIN claim_sets c ON c.tenant_id = r.tenant_id AND c.id = r.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
 			(SELECT count(*) FROM audit_events e WHERE e.tenant_id = ? AND ((e.resource_type = 'claim_set' AND e.resource_id IN (SELECT id FROM claim_sets WHERE tenant_id = ? AND document_id = ?)) OR (e.resource_type = 'document' AND e.resource_id = ?)))
 	`,
@@ -93,21 +94,23 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 		tenantID, documentID, documentID,
 		tenantID, documentID,
 		tenantID, documentID,
+		tenantID, documentID,
 		tenantID, tenantID, documentID, documentID,
-	).Scan(&pages, &jobs, &runs, &claims, &fields, &evidence, &validations, &candidates, &decisions, &audits); err != nil {
+	).Scan(&pages, &jobs, &runs, &claims, &fields, &evidence, &validations, &candidates, &duplicateCandidates, &decisions, &audits); err != nil {
 		return ports.DocumentDeletionPlan{}, fmt.Errorf("count document aggregate: %w", err)
 	}
 	for name, count := range map[string]int{
-		"document_pages":     pages,
-		"processing_jobs":    jobs,
-		"ai_runs":            runs,
-		"claim_sets":         claims,
-		"field_claims":       fields,
-		"evidence":           evidence,
-		"validation_results": validations,
-		"link_candidates":    candidates,
-		"review_decisions":   decisions,
-		"audit_events":       audits,
+		"document_pages":       pages,
+		"processing_jobs":      jobs,
+		"ai_runs":              runs,
+		"claim_sets":           claims,
+		"field_claims":         fields,
+		"evidence":             evidence,
+		"validation_results":   validations,
+		"link_candidates":      candidates,
+		"duplicate_candidates": duplicateCandidates,
+		"review_decisions":     decisions,
+		"audit_events":         audits,
 	} {
 		plan.ResourceCounts[name] = count
 	}

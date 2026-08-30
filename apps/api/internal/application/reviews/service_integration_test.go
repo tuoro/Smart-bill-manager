@@ -2,6 +2,8 @@ package reviews
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -84,6 +86,451 @@ func TestConfirmPaymentIsAtomicAndIdempotent(t *testing.T) {
 	}
 	if traceable != origins {
 		t.Fatalf("traceable fields = %d, origins = %d", traceable, origins)
+	}
+}
+
+func TestFieldDuplicateRequiresCompleteResolutionAndReplaysSameDecision(t *testing.T) {
+	fixture := newReviewFixture(t)
+	clock := fixedClock{now: fixture.now.Add(3 * time.Hour)}
+	service := NewService(fixture.store, fixture.store, system.IDGenerator{}, clock)
+	ctx := context.Background()
+	initial, err := service.Get(ctx, fixture.tenant, fixture.jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstFact, err := service.Confirm(ctx, fixture.tenant, fixture.jobID, ConfirmInput{
+		ExpectedRevision: initial.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		IdempotencyKey:   "duplicate-first-confirm",
+		RequestID:        "duplicate-first-request",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := seedAdditionalReview(t, fixture, paymentEnvelope(), "field-duplicate-payment")
+	if len(second.DuplicateCandidates) != 1 {
+		t.Fatalf("duplicate candidates = %#v", second.DuplicateCandidates)
+	}
+	candidate := second.DuplicateCandidates[0]
+	if candidate.Kind != "field_combination" || candidate.ExistingPaymentID != firstFact.FactID ||
+		!candidate.Available || candidate.DisplayName != "Example Merchant" {
+		t.Fatalf("field duplicate candidate = %#v", candidate)
+	}
+	forged := ConfirmInput{
+		ExpectedRevision: second.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		DuplicateResolutions: []domain.DuplicateResolution{{
+			CandidateID: mustID(t, system.IDGenerator{}),
+			Action:      domain.DuplicateKeepDistinct,
+		}},
+		IdempotencyKey: "duplicate-forged-confirm",
+		RequestID:      "duplicate-forged-request",
+	}
+	if _, err := service.Confirm(ctx, fixture.tenant, second.Job.ID, forged); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("forged duplicate resolution error = %v", err)
+	}
+	missing := ConfirmInput{
+		ExpectedRevision: second.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		IdempotencyKey:   "duplicate-second-confirm",
+		RequestID:        "duplicate-second-request",
+	}
+	if _, err := service.Confirm(ctx, fixture.tenant, second.Job.ID, missing); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("missing duplicate resolution error = %v", err)
+	}
+	input := missing
+	input.DuplicateResolutions = []domain.DuplicateResolution{{
+		CandidateID: candidate.ID,
+		Action:      domain.DuplicateKeepDistinct,
+	}}
+	confirmed, err := service.Confirm(ctx, fixture.tenant, second.Job.ID, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := service.Confirm(ctx, fixture.tenant, second.Job.ID, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replayed.Replayed || replayed.FactID != confirmed.FactID {
+		t.Fatalf("duplicate resolution replay = %#v, first = %#v", replayed, confirmed)
+	}
+	var decisions int
+	var planHash string
+	if err := fixture.store.DB().QueryRowContext(ctx, `
+		SELECT (SELECT count(*) FROM duplicate_candidate_decisions WHERE tenant_id = ? AND candidate_id = ?),
+		       duplicate_plan_hash
+		FROM review_decisions
+		WHERE tenant_id = ? AND id = ?
+	`, fixture.tenant.TenantID, candidate.ID, fixture.tenant.TenantID, confirmed.ReviewDecisionID).Scan(
+		&decisions,
+		&planHash,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if decisions != 1 || len(planHash) != 64 {
+		t.Fatalf("duplicate decision count/hash = %d/%q", decisions, planHash)
+	}
+	input.DuplicateResolutions = nil
+	if _, err := service.Confirm(ctx, fixture.tenant, second.Job.ID, input); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("changed replay plan error = %v", err)
+	}
+}
+
+func TestDeletedDuplicateTargetMakesCandidateSetStaleWithoutPartialConfirmation(t *testing.T) {
+	fixture := newReviewFixture(t)
+	clock := fixedClock{now: fixture.now.Add(3 * time.Hour)}
+	service := NewService(fixture.store, fixture.store, system.IDGenerator{}, clock)
+	facts := NewFactService(fixture.store, fixture.store, system.IDGenerator{}, clock)
+	ctx := context.Background()
+	initial, err := service.Get(ctx, fixture.tenant, fixture.jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstFact, err := service.Confirm(ctx, fixture.tenant, fixture.jobID, ConfirmInput{
+		ExpectedRevision: initial.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		IdempotencyKey:   "stale-first-confirm",
+		RequestID:        "stale-first-request",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := seedAdditionalReview(t, fixture, paymentEnvelope(), "stale-duplicate-payment")
+	if len(second.DuplicateCandidates) != 1 {
+		t.Fatalf("duplicate candidates = %#v", second.DuplicateCandidates)
+	}
+	if err := facts.Delete(
+		ctx,
+		fixture.tenant,
+		domain.DocumentPayment,
+		firstFact.FactID,
+		"stale-delete-request",
+	); err != nil {
+		t.Fatal(err)
+	}
+	input := ConfirmInput{
+		ExpectedRevision: second.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		DuplicateResolutions: []domain.DuplicateResolution{{
+			CandidateID: second.DuplicateCandidates[0].ID,
+			Action:      domain.DuplicateKeepDistinct,
+		}},
+		IdempotencyKey: "stale-second-confirm",
+		RequestID:      "stale-second-request",
+	}
+	_, err = service.Confirm(ctx, fixture.tenant, second.Job.ID, input)
+	var ruleError *domain.RuleError
+	if !errors.As(err, &ruleError) || ruleError.Code != "duplicate_candidate_set_stale" ||
+		!errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("stale duplicate error = %v", err)
+	}
+	var reviewDecisions, duplicateDecisions, activePayments int
+	if err := fixture.store.DB().QueryRowContext(ctx, `
+		SELECT (SELECT count(*) FROM review_decisions WHERE tenant_id = ?),
+		       (SELECT count(*) FROM duplicate_candidate_decisions WHERE tenant_id = ?),
+		       (SELECT count(*) FROM payments WHERE tenant_id = ? AND deleted_at IS NULL)
+	`, fixture.tenant.TenantID, fixture.tenant.TenantID, fixture.tenant.TenantID).Scan(
+		&reviewDecisions,
+		&duplicateDecisions,
+		&activePayments,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if reviewDecisions != 1 || duplicateDecisions != 0 || activePayments != 0 {
+		t.Fatalf("failed stale confirmation left rows = reviews:%d duplicates:%d active payments:%d", reviewDecisions, duplicateDecisions, activePayments)
+	}
+	refreshed, err := service.Get(ctx, fixture.tenant, second.Job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed.DuplicateCandidates[0].Available {
+		t.Fatalf("deleted duplicate target remained available: %#v", refreshed.DuplicateCandidates[0])
+	}
+	revised, err := service.Revise(ctx, fixture.tenant, second.Job.ID, revisionInputFrom(refreshed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(revised.DuplicateCandidates) != 0 || revised.Revision != second.Revision+1 {
+		t.Fatalf("regenerated duplicate candidates = %#v", revised.DuplicateCandidates)
+	}
+	if _, err := service.Confirm(ctx, fixture.tenant, second.Job.ID, ConfirmInput{
+		ExpectedRevision: revised.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		IdempotencyKey:   "stale-revised-confirm",
+		RequestID:        "stale-revised-request",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConcurrentDuplicateClaimsAllowOnlyOneConfirmation(t *testing.T) {
+	fixture := newFileReviewFixture(t)
+	service := NewService(
+		fixture.store,
+		fixture.store,
+		system.IDGenerator{},
+		fixedClock{now: fixture.now.Add(3 * time.Hour)},
+	)
+	ctx := context.Background()
+	first, err := service.Get(ctx, fixture.tenant, fixture.jobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := seedAdditionalReview(t, fixture, paymentEnvelope(), "concurrent-duplicate-payment")
+	if len(first.DuplicateCandidates) != 0 || len(second.DuplicateCandidates) != 0 {
+		t.Fatalf("pre-confirm duplicate candidates = first:%#v second:%#v", first.DuplicateCandidates, second.DuplicateCandidates)
+	}
+
+	type outcome struct {
+		result ports.ConfirmResult
+		err    error
+	}
+	outcomes := make(chan outcome, 2)
+	confirm := func(review ports.ReviewSnapshot, key string) {
+		result, confirmErr := service.Confirm(ctx, fixture.tenant, review.Job.ID, ConfirmInput{
+			ExpectedRevision: review.Revision,
+			AssociationMode:  AssociationNoCandidate,
+			IdempotencyKey:   key,
+			RequestID:        key + "-request",
+		})
+		outcomes <- outcome{result: result, err: confirmErr}
+	}
+	go confirm(first, "concurrent-duplicate-first")
+	go confirm(second, "concurrent-duplicate-second")
+
+	succeeded, stale := 0, 0
+	for range 2 {
+		entry := <-outcomes
+		if entry.err == nil {
+			succeeded++
+			if entry.result.FactID == "" {
+				t.Fatal("successful concurrent confirmation returned no Fact")
+			}
+			continue
+		}
+		var ruleError *domain.RuleError
+		if errors.As(entry.err, &ruleError) && ruleError.Code == "duplicate_candidate_set_stale" &&
+			errors.Is(entry.err, domain.ErrConflict) {
+			stale++
+			continue
+		}
+		t.Fatalf("unexpected concurrent confirmation error: %v", entry.err)
+	}
+	if succeeded != 1 || stale != 1 {
+		t.Fatalf("concurrent outcomes = succeeded:%d stale:%d", succeeded, stale)
+	}
+
+	var facts, reviews, duplicateDecisions, audits, completedJobs int
+	if err := fixture.store.DB().QueryRowContext(ctx, `
+		SELECT (SELECT count(*) FROM payments WHERE tenant_id = ? AND deleted_at IS NULL),
+		       (SELECT count(*) FROM review_decisions WHERE tenant_id = ?),
+		       (SELECT count(*) FROM duplicate_candidate_decisions WHERE tenant_id = ?),
+		       (SELECT count(*) FROM audit_events WHERE tenant_id = ? AND action = 'fact_confirmed'),
+		       (SELECT count(*) FROM processing_jobs WHERE tenant_id = ? AND status = 'completed')
+	`,
+		fixture.tenant.TenantID,
+		fixture.tenant.TenantID,
+		fixture.tenant.TenantID,
+		fixture.tenant.TenantID,
+		fixture.tenant.TenantID,
+	).Scan(&facts, &reviews, &duplicateDecisions, &audits, &completedJobs); err != nil {
+		t.Fatal(err)
+	}
+	if facts != 1 || reviews != 1 || duplicateDecisions != 0 || audits != 1 || completedJobs != 1 {
+		t.Fatalf(
+			"concurrent writes = facts:%d reviews:%d duplicate decisions:%d audits:%d completed jobs:%d",
+			facts,
+			reviews,
+			duplicateDecisions,
+			audits,
+			completedJobs,
+		)
+	}
+}
+
+func TestNearFileCandidatePersistsWithoutCreatingCrossPageNoise(t *testing.T) {
+	fixture := newReviewFixture(t)
+	service := NewService(
+		fixture.store,
+		fixture.store,
+		system.IDGenerator{},
+		fixedClock{now: fixture.now.Add(3 * time.Hour)},
+	)
+	review := seedAdditionalReviewWithFingerprint(
+		t,
+		fixture,
+		paymentEnvelopeWithAmount(54321),
+		"near-file-payment",
+		testVisualFingerprint("fixture-page"),
+	)
+	if len(review.DuplicateCandidates) != 1 {
+		t.Fatalf("near-file duplicate candidates = %#v", review.DuplicateCandidates)
+	}
+	candidate := review.DuplicateCandidates[0]
+	if candidate.Kind != "near_file" || candidate.ExistingDocumentID != fixture.documentID ||
+		candidate.CurrentPageNumber != nil || candidate.ExistingPageNumber != nil ||
+		candidate.DHashDistance == nil || *candidate.DHashDistance != 0 || !candidate.Available {
+		t.Fatalf("near-file candidate = %#v", candidate)
+	}
+	if _, err := fixture.store.DB().ExecContext(context.Background(), `
+		UPDATE claim_sets SET status = 'confirmed'
+		WHERE tenant_id = ? AND id = ?
+	`, fixture.tenant.TenantID, review.ClaimSetID); err == nil {
+		t.Fatal("database allowed Claim confirmation without duplicate candidate decisions")
+	}
+	if _, err := service.Confirm(context.Background(), fixture.tenant, review.Job.ID, ConfirmInput{
+		ExpectedRevision: review.Revision,
+		AssociationMode:  AssociationNoCandidate,
+		DuplicateResolutions: []domain.DuplicateResolution{{
+			CandidateID: candidate.ID,
+			Action:      domain.DuplicateKeepDistinct,
+		}},
+		IdempotencyKey: "near-file-confirm",
+		RequestID:      "near-file-request",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDuplicateCandidateDatabaseRequiresOneImmutableConfirmDecision(t *testing.T) {
+	fixture := newReviewFixture(t)
+	fingerprint := testVisualFingerprint("fixture-page")
+	_ = seedAdditionalReviewWithFingerprint(
+		t,
+		fixture,
+		paymentEnvelopeWithAmount(22345),
+		"database-duplicate-target",
+		fingerprint,
+	)
+	review := seedAdditionalReviewWithFingerprint(
+		t,
+		fixture,
+		paymentEnvelopeWithAmount(32345),
+		"database-duplicate-current",
+		fingerprint,
+	)
+	if len(review.DuplicateCandidates) != 2 {
+		t.Fatalf("database invariant candidates = %#v", review.DuplicateCandidates)
+	}
+	ctx := context.Background()
+	ids := system.IDGenerator{}
+	firstReviewID := mustID(t, ids)
+	secondReviewID := mustID(t, ids)
+	for index, reviewID := range []string{firstReviewID, secondReviewID} {
+		if _, err := fixture.store.DB().ExecContext(ctx, `
+			INSERT INTO review_decisions (
+				id, tenant_id, claim_set_id, actor_user_id, action, association_mode,
+				duplicate_plan_hash, idempotency_key, expected_revision, created_at
+			) VALUES (?, ?, ?, ?, 'confirm', 'no_candidate', ?, ?, ?, ?)
+		`,
+			reviewID,
+			fixture.tenant.TenantID,
+			review.ClaimSetID,
+			fixture.tenant.UserID,
+			strings.Repeat(string(rune('a'+index)), 64),
+			"database-duplicate-review-"+strconv.Itoa(index),
+			review.Revision,
+			fixture.now.UTC().Format(time.RFC3339Nano),
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	decisionID := mustID(t, ids)
+	if _, err := fixture.store.DB().ExecContext(ctx, `
+		INSERT INTO duplicate_candidate_decisions (
+			id, tenant_id, candidate_id, review_decision_id, action, created_at
+		) VALUES (?, ?, ?, ?, 'keep_distinct', ?)
+	`,
+		decisionID,
+		fixture.tenant.TenantID,
+		review.DuplicateCandidates[0].ID,
+		firstReviewID,
+		fixture.now.UTC().Format(time.RFC3339Nano),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.DB().ExecContext(ctx, `
+		INSERT INTO duplicate_candidate_decisions (
+			id, tenant_id, candidate_id, review_decision_id, action, created_at
+		) VALUES (?, ?, ?, ?, 'keep_distinct', ?)
+	`,
+		mustID(t, ids),
+		fixture.tenant.TenantID,
+		review.DuplicateCandidates[1].ID,
+		secondReviewID,
+		fixture.now.UTC().Format(time.RFC3339Nano),
+	); err == nil {
+		t.Fatal("database allowed one Claim's duplicate decisions to use multiple confirm decisions")
+	}
+	if _, err := fixture.store.DB().ExecContext(ctx, `
+		UPDATE duplicate_candidate_decisions SET review_decision_id = ?
+		WHERE tenant_id = ? AND id = ?
+	`, secondReviewID, fixture.tenant.TenantID, decisionID); err == nil {
+		t.Fatal("database allowed a duplicate candidate decision to change")
+	}
+	if _, err := fixture.store.DB().ExecContext(ctx, `
+		DELETE FROM duplicate_candidate_decisions WHERE tenant_id = ? AND id = ?
+	`, fixture.tenant.TenantID, decisionID); err == nil {
+		t.Fatal("database allowed a duplicate candidate decision to be deleted")
+	}
+	if _, err := fixture.store.DB().ExecContext(ctx, `
+		UPDATE claim_sets SET status = 'confirmed'
+		WHERE tenant_id = ? AND id = ?
+	`, fixture.tenant.TenantID, review.ClaimSetID); err == nil {
+		t.Fatal("database confirmed a Claim with an incomplete duplicate decision set")
+	}
+}
+
+func TestRejectDuplicateCandidateCreatesNoFactOrResolution(t *testing.T) {
+	fixture := newReviewFixture(t)
+	review := seedAdditionalReviewWithFingerprint(
+		t,
+		fixture,
+		paymentEnvelopeWithAmount(54321),
+		"reject-duplicate-payment",
+		testVisualFingerprint("fixture-page"),
+	)
+	if len(review.DuplicateCandidates) != 1 {
+		t.Fatalf("reject duplicate candidates = %#v", review.DuplicateCandidates)
+	}
+	service := NewService(
+		fixture.store,
+		fixture.store,
+		system.IDGenerator{},
+		fixedClock{now: fixture.now.Add(3 * time.Hour)},
+	)
+	if err := service.Reject(context.Background(), fixture.tenant, review.Job.ID, RejectInput{
+		ExpectedRevision: review.Revision,
+		Reason:           "synthetic duplicate",
+		IdempotencyKey:   "reject-duplicate-review",
+		RequestID:        "reject-duplicate-request",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var facts, duplicateDecisions, rejectedClaims, rejectedJobs int
+	if err := fixture.store.DB().QueryRowContext(context.Background(), `
+		SELECT (SELECT count(*) FROM payments WHERE tenant_id = ?),
+		       (SELECT count(*) FROM duplicate_candidate_decisions WHERE tenant_id = ?),
+		       (SELECT count(*) FROM claim_sets WHERE tenant_id = ? AND id = ? AND status = 'rejected'),
+		       (SELECT count(*) FROM processing_jobs WHERE tenant_id = ? AND id = ? AND status = 'rejected')
+	`,
+		fixture.tenant.TenantID,
+		fixture.tenant.TenantID,
+		fixture.tenant.TenantID,
+		review.ClaimSetID,
+		fixture.tenant.TenantID,
+		review.Job.ID,
+	).Scan(&facts, &duplicateDecisions, &rejectedClaims, &rejectedJobs); err != nil {
+		t.Fatal(err)
+	}
+	if facts != 0 || duplicateDecisions != 0 || rejectedClaims != 1 || rejectedJobs != 1 {
+		t.Fatalf(
+			"reject duplicate writes = facts:%d decisions:%d claims:%d jobs:%d",
+			facts,
+			duplicateDecisions,
+			rejectedClaims,
+			rejectedJobs,
+		)
 	}
 }
 
@@ -1133,10 +1580,18 @@ type reviewFixture struct {
 }
 
 func newReviewFixture(t *testing.T) reviewFixture {
+	return newReviewFixtureAt(t, ":memory:")
+}
+
+func newFileReviewFixture(t *testing.T) reviewFixture {
+	return newReviewFixtureAt(t, filepath.Join(t.TempDir(), "reviews.sqlite"))
+}
+
+func newReviewFixtureAt(t *testing.T, databasePath string) reviewFixture {
 	t.Helper()
 	ctx := context.Background()
 	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  ":memory:",
+		DatabasePath:  databasePath,
 		MigrationsDir: reviewMigrationsDir(t),
 	})
 	if err != nil {
@@ -1248,6 +1703,7 @@ func newReviewFixture(t *testing.T) reviewFixture {
 			ID: pageID, TenantID: tenantID, DocumentID: documentID, PageNumber: 1,
 			StorageKey: "tenants/" + tenantID + "/documents/fixture/page-1.png",
 			Width:      100, Height: 100, SHA256: strings.Repeat("b", 64),
+			VisualFingerprint: testVisualFingerprint("fixture-page"),
 			ProcessingVersion: "document-normalize/1", CreatedAt: now,
 		}}); err != nil {
 			return err
@@ -1326,6 +1782,22 @@ func seedAdditionalReview(
 	envelope domain.ClaimEnvelope,
 	label string,
 ) ports.ReviewSnapshot {
+	return seedAdditionalReviewWithFingerprint(
+		t,
+		fixture,
+		envelope,
+		label,
+		testVisualFingerprint(label+"-page"),
+	)
+}
+
+func seedAdditionalReviewWithFingerprint(
+	t *testing.T,
+	fixture reviewFixture,
+	envelope domain.ClaimEnvelope,
+	label string,
+	fingerprint domain.PageVisualFingerprint,
+) ports.ReviewSnapshot {
 	t.Helper()
 	ctx := context.Background()
 	ids := system.IDGenerator{}
@@ -1397,6 +1869,7 @@ func seedAdditionalReview(
 			ID: pageID, TenantID: fixture.tenant.TenantID, DocumentID: documentID, PageNumber: 1,
 			StorageKey: "tenants/" + fixture.tenant.TenantID + "/documents/" + label + "/page-1.png",
 			Width:      100, Height: 100, SHA256: claimsupport.HashBytes([]byte(label + "-page")),
+			VisualFingerprint: fingerprint,
 			ProcessingVersion: "document-normalize/1", CreatedAt: now,
 		}}); err != nil {
 			return err
@@ -1440,6 +1913,34 @@ func seedAdditionalReview(
 			if err != nil {
 				return err
 			}
+		}
+		var limitExceeded bool
+		var err error
+		bundle.DuplicateCandidates, limitExceeded, err = claimsupport.BuildDuplicateCandidates(
+			ctx,
+			transaction,
+			validated,
+			fixture.tenant.TenantID,
+			documentID,
+			claimID,
+			ids,
+			now,
+		)
+		if err != nil {
+			return err
+		}
+		if limitExceeded {
+			validation, err := claimsupport.NewDuplicateCandidateLimitValidation(
+				fixture.tenant.TenantID,
+				claimID,
+				ids,
+				now,
+			)
+			if err != nil {
+				return err
+			}
+			bundle.Validations = append(bundle.Validations, validation)
+			bundle.ClaimSet.Status = domain.ClaimBlocked
 		}
 		return transaction.PersistInitialClaim(ctx, jobID, bundle)
 	}); err != nil {
@@ -1589,6 +2090,14 @@ func mustID(t *testing.T, ids system.IDGenerator) string {
 		t.Fatal(err)
 	}
 	return id
+}
+
+func testVisualFingerprint(value string) domain.PageVisualFingerprint {
+	digest := sha256.Sum256([]byte(value))
+	return domain.NewPageVisualFingerprint(
+		binary.BigEndian.Uint64(digest[:8]),
+		binary.BigEndian.Uint64(digest[8:16]),
+	)
 }
 
 type fixedClock struct{ now time.Time }

@@ -128,8 +128,11 @@ Document 原件不可覆盖。M1 对 `tenant_id + sha256` 建唯一约束：同�
 - width、height；
 - sha256；
 - processing_version。
+- visual_fingerprint_version；
+- dhash64、ahash64；
+- dhash_band_0 到 dhash_band_3。
 
-页面图片是可重建派生物，不替代原始 Source。
+页面图片和视觉指纹都是可重建派生物，不替代原始 Source。`page-visual-dedup/1` 的两个哈希固定为 16 位小写十六进制，四个 band 固定为各自 dHash 连续 16 位的无符号整数；数据库按同租户、版本和每个 band 建索引。任何算法或阈值变化都必须产生新版本，不能混用不同版本比较。
 
 ## Processing
 
@@ -228,12 +231,13 @@ AiRun 级结果保存 JSON 解析或 Schema 失败，即使未能创建 ClaimSet
 - action：`confirm`、`reject` 或 `cancel`；
 - association_mode：`allocate_candidates`、`reject_all` 或 `no_candidate`；只在 `confirm` 时必填；
 - association_plan_hash，可为空；只在 `allocate_candidates` 时保存按候选 ID 排序的完整分配计划 SHA-256；
+- duplicate_plan_hash；`confirm` 时必填，保存按 DuplicateCandidate ID 排序后的完整 resolution 计划 SHA-256；没有候选时也保存空计划的稳定哈希；
 - idempotency_key；
 - expected_revision；
 - reason，可为空；
 - created_at。
 
-确认、Fact、关联决定与零到多个 Link 在一个事务中创建。`tenant_id + idempotency_key` 唯一，重复请求只有在 Claim revision、关联模式和 `association_plan_hash` 均一致时返回原结果。服务端必须验证每个分配候选唯一且属于当前 ClaimSet；有候选时不得使用 `no_candidate`，没有候选时不得伪造分配或拒绝。
+确认、Fact、重复候选决定、关联决定与零到多个 Link 在一个事务中创建。`tenant_id + idempotency_key` 唯一，重复请求只有在 Claim revision、关联模式、`association_plan_hash` 和 `duplicate_plan_hash` 均一致时返回原结果。服务端必须验证每个分配候选和重复候选唯一且属于当前 ClaimSet；有候选时不得缺少决定，没有候选时不得伪造决定。
 
 ## Fact
 
@@ -273,6 +277,28 @@ Payment 与 Invoice 的 `allocated_minor`、`remaining_minor` 和 `allocation_st
 - sort_order。
 
 `item_key` 继承被确认 Claim revision 的稳定键，`tenant_id + invoice_id + item_key` 唯一；重排只改变 `sort_order`，不改变字段来源路径。
+
+### DuplicateCandidate
+
+- tenant_id、claim_set_id；
+- kind：`near_file`、`cross_page` 或 `field_combination`；
+- existing_document_id、current_document_page_id、existing_document_page_id、existing_payment_id、existing_invoice_id，按 kind 采用严格互斥形状；
+- candidate_key、rule_version；
+- reason_codes；
+- dhash_distance、ahash_distance，只在视觉候选中存在；
+- created_at。
+
+候选是 Claim revision 的不可变审核输入。`near_file` 只指向同租户另一个 Document；`cross_page` 指向当前 Document 内两个不同页，或当前页与同租户另一 Document 页；`field_combination` 只指向一个活动 Payment 或 Invoice。目标引用在生成时由数据库触发器验证租户和形状，但允许目标后来物理删除或软删除，历史候选仍保留并在读取时显示 `available = false`，不能因此泄露其他租户是否存在同 ID。
+
+视觉候选只保存版本、ID、页码和两种 Hamming 距离；字段候选只保存目标 ID 与原因代码。候选不得复制原始图片、完整模型响应或完整目标财务字段。`candidate_key` 由租户、ClaimSet、kind、规则版本和适用目标/页对确定性计算；同一 revision 最多 50 个，超过时 Claim blocked。
+
+### DuplicateCandidateDecision
+
+- tenant_id、candidate_id、review_decision_id；
+- action：当前只允许 `keep_distinct`；
+- created_at。
+
+每个 DuplicateCandidate 最多一个决定，且必须属于同一 ClaimSet 的 `confirm` ReviewDecision。用户驳回当前 Claim 时不创建 DuplicateCandidateDecision；确认时则必须为当前 revision 的全部候选写入决定。数据库在 Claim 切换为 `confirmed` 前验证决定集合完整，不能由模型、后台任务或普通 Repository 绕过。
 
 ### PaymentInvoiceLinkCandidate
 

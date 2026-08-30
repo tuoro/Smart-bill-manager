@@ -99,6 +99,7 @@ func (n Normalizer) normalizeImage(
 	decoded = resizeImage(decoded, normalizedLongestEdge)
 	providerImage := toEightBitRGBA(decoded)
 	bounds := providerImage.Bounds()
+	fingerprint := pageVisualFingerprint(providerImage)
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, providerImage); err != nil {
 		return ports.NormalizedPage{}, fmt.Errorf("encode normalized page: %w", err)
@@ -128,9 +129,10 @@ func (n Normalizer) normalizeImage(
 			Data:       bytes.Clone(encoded.Bytes()),
 			SHA256:     hex.EncodeToString(hash[:]),
 		},
-		StorageKey: storageKey,
-		Width:      bounds.Dx(),
-		Height:     bounds.Dy(),
+		StorageKey:        storageKey,
+		Width:             bounds.Dx(),
+		Height:            bounds.Dy(),
+		VisualFingerprint: fingerprint,
 	}, nil
 }
 

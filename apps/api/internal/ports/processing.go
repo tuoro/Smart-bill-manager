@@ -39,6 +39,7 @@ type DocumentPageRecord struct {
 	Height            int
 	SHA256            string
 	ProcessingVersion string
+	VisualFingerprint domain.PageVisualFingerprint
 	CreatedAt         time.Time
 }
 
@@ -122,11 +123,12 @@ type ValidationRecord struct {
 }
 
 type ClaimBundle struct {
-	ClaimSet    ClaimSetRecord
-	Fields      []FieldClaimRecord
-	Evidence    []EvidenceRecord
-	Validations []ValidationRecord
-	Candidates  []LinkCandidateRecord
+	ClaimSet            ClaimSetRecord
+	Fields              []FieldClaimRecord
+	Evidence            []EvidenceRecord
+	Validations         []ValidationRecord
+	Candidates          []LinkCandidateRecord
+	DuplicateCandidates []DuplicateCandidateRecord
 }
 
 type LinkTarget struct {
@@ -154,6 +156,24 @@ type LinkCandidateRecord struct {
 	CreatedAt         time.Time
 }
 
+type DuplicateCandidateRecord struct {
+	ID                     string
+	TenantID               string
+	ClaimSetID             string
+	Kind                   string
+	ExistingDocumentID     string
+	CurrentDocumentPageID  string
+	ExistingDocumentPageID string
+	ExistingPaymentID      string
+	ExistingInvoiceID      string
+	CandidateKey           string
+	RuleVersion            string
+	ReasonCodesJSON        string
+	DHashDistance          *int
+	AHashDistance          *int
+	CreatedAt              time.Time
+}
+
 type ProcessingTransaction interface {
 	InsertDocumentPages(ctx context.Context, pages []DocumentPageRecord) error
 	InsertAiRun(ctx context.Context, run AiRun) error
@@ -167,6 +187,15 @@ type ProcessingTransaction interface {
 		documentType domain.DocumentType,
 		currency string,
 	) ([]LinkTarget, error)
+	ListVisualDuplicateDocuments(
+		ctx context.Context,
+		tenantID, documentID string,
+	) (domain.VisualDocument, []domain.VisualDocument, error)
+	ListFieldDuplicateTargets(
+		ctx context.Context,
+		tenantID string,
+		input domain.FieldDuplicateInput,
+	) ([]domain.FieldDuplicateTarget, error)
 	PersistInitialClaim(ctx context.Context, jobID string, bundle ClaimBundle) error
 	MarkJobFailed(ctx context.Context, tenantID, jobID, code, safeMessage string, finishedAt time.Time) error
 	MarkJobCancelled(ctx context.Context, tenantID, jobID string, finishedAt time.Time) error

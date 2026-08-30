@@ -71,6 +71,10 @@ func (s *Store) GetReview(ctx context.Context, tenantID, jobID string) (ports.Re
 	if err != nil {
 		return ports.ReviewSnapshot{}, err
 	}
+	result.DuplicateCandidates, err = s.listReviewDuplicateCandidates(ctx, tenantID, result.ClaimSetID)
+	if err != nil {
+		return ports.ReviewSnapshot{}, err
+	}
 	return result, nil
 }
 
@@ -126,6 +130,10 @@ func (s *Store) GetClaimSet(ctx context.Context, tenantID, claimSetID string) (p
 		return ports.ReviewSnapshot{}, err
 	}
 	result.Candidates, err = s.listReviewCandidates(ctx, tenantID, result.ClaimSetID)
+	if err != nil {
+		return ports.ReviewSnapshot{}, err
+	}
+	result.DuplicateCandidates, err = s.listReviewDuplicateCandidates(ctx, tenantID, result.ClaimSetID)
 	if err != nil {
 		return ports.ReviewSnapshot{}, err
 	}
@@ -348,7 +356,7 @@ func (s *Store) GetConfirmReplay(
 	var linkIDsJSON string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT r.id, j.id, c.id, r.expected_revision, r.association_mode,
-		       coalesce(r.association_plan_hash, ''), c.document_type,
+		       coalesce(r.association_plan_hash, ''), r.duplicate_plan_hash, c.document_type,
 		       coalesce(p.id, i.id),
 		       coalesce((SELECT json_group_array(link_id) FROM (
 		           SELECT l.id AS link_id
@@ -371,6 +379,7 @@ func (s *Store) GetConfirmReplay(
 		&replay.ExpectedRevision,
 		&replay.AssociationMode,
 		&replay.AllocationPlanHash,
+		&replay.DuplicatePlanHash,
 		&replay.Result.FactType,
 		&replay.Result.FactID,
 		&linkIDsJSON,

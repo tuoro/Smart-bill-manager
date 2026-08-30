@@ -22,11 +22,12 @@ const (
 )
 
 type ConfirmInput struct {
-	ExpectedRevision int
-	AssociationMode  string
-	Allocations      []domain.AllocationRequest
-	IdempotencyKey   string
-	RequestID        string
+	ExpectedRevision     int
+	AssociationMode      string
+	Allocations          []domain.AllocationRequest
+	DuplicateResolutions []domain.DuplicateResolution
+	IdempotencyKey       string
+	RequestID            string
 }
 
 type RejectInput struct {
@@ -53,11 +54,17 @@ func (s Service) Confirm(
 		return ports.ConfirmResult{}, err
 	}
 	input.Allocations = canonicalPlan
+	duplicatePlan, duplicatePlanHash, err := domain.CanonicalDuplicatePlan(input.DuplicateResolutions)
+	if err != nil {
+		return ports.ConfirmResult{}, err
+	}
+	input.DuplicateResolutions = duplicatePlan
 	replay, err := s.reviews.GetConfirmReplay(ctx, tenant.TenantID, jobID, input.IdempotencyKey)
 	if err == nil {
 		if replay.ExpectedRevision != input.ExpectedRevision ||
 			replay.AssociationMode != input.AssociationMode ||
-			replay.AllocationPlanHash != planHash {
+			replay.AllocationPlanHash != planHash ||
+			replay.DuplicatePlanHash != duplicatePlanHash {
 			return ports.ConfirmResult{}, domain.NewRuleError("idempotency_key_conflict", "幂等键已用于不同的确认请求", domain.ErrConflict)
 		}
 		return replay.Result, nil
@@ -82,7 +89,14 @@ func (s Service) Confirm(
 	if err := validateAssociation(current.Candidates, input.AssociationMode, input.Allocations, factAmount, factCurrency); err != nil {
 		return ports.ConfirmResult{}, err
 	}
-	command, err := s.buildConfirmCommand(tenant, jobID, current, input, planHash)
+	duplicateCandidateIDs := make([]string, 0, len(current.DuplicateCandidates))
+	for _, candidate := range current.DuplicateCandidates {
+		duplicateCandidateIDs = append(duplicateCandidateIDs, candidate.ID)
+	}
+	if err := domain.ValidateDuplicatePlan(duplicateCandidateIDs, input.DuplicateResolutions); err != nil {
+		return ports.ConfirmResult{}, err
+	}
+	command, err := s.buildConfirmCommand(tenant, jobID, current, input, planHash, duplicatePlanHash)
 	if err != nil {
 		return ports.ConfirmResult{}, err
 	}
@@ -98,7 +112,8 @@ func (s Service) Confirm(
 	replay, replayErr := s.reviews.GetConfirmReplay(ctx, tenant.TenantID, jobID, input.IdempotencyKey)
 	if replayErr == nil && replay.ExpectedRevision == input.ExpectedRevision &&
 		replay.AssociationMode == input.AssociationMode &&
-		replay.AllocationPlanHash == planHash {
+		replay.AllocationPlanHash == planHash &&
+		replay.DuplicatePlanHash == duplicatePlanHash {
 		return replay.Result, nil
 	}
 	return ports.ConfirmResult{}, err
@@ -258,7 +273,7 @@ func (s Service) buildConfirmCommand(
 	jobID string,
 	current ports.ReviewSnapshot,
 	input ConfirmInput,
-	planHash string,
+	planHash, duplicatePlanHash string,
 ) (ports.ConfirmCommand, error) {
 	decisionID, err := s.ids.NewID()
 	if err != nil {
@@ -278,6 +293,7 @@ func (s Service) buildConfirmCommand(
 		ExpectedRevision:   input.ExpectedRevision,
 		AssociationMode:    input.AssociationMode,
 		AllocationPlanHash: planHash,
+		DuplicatePlanHash:  duplicatePlanHash,
 		AuditEventID:       auditID,
 		RequestID:          input.RequestID,
 		CreatedAt:          s.clock.Now(),
@@ -321,6 +337,17 @@ func (s Service) buildConfirmCommand(
 			}
 		}
 		command.CandidateDecisions = append(command.CandidateDecisions, decision)
+	}
+	for _, resolution := range input.DuplicateResolutions {
+		decisionID, err := s.ids.NewID()
+		if err != nil {
+			return ports.ConfirmCommand{}, err
+		}
+		command.DuplicateDecisions = append(command.DuplicateDecisions, ports.DuplicateCandidateDecisionDraft{
+			ID:          decisionID,
+			CandidateID: resolution.CandidateID,
+			Action:      resolution.Action,
+		})
 	}
 	return command, nil
 }

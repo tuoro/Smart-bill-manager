@@ -3,7 +3,7 @@
 > **English:** [README_EN.md](README_EN.md)
 
 > [!IMPORTANT]
-> M0、M1 已完成；M2 进行中，“支付—发票金额分配”首个切片已通过验收。新系统不兼容 v0.x，也不读取或迁移旧数据。
+> M0、M1 已完成；M2 进行中，“支付—发票金额分配”和“确定性重复检测”两个切片均已通过验收。新系统不兼容 v0.x，也不读取或迁移旧数据。
 
 Smart Bill Manager 是面向个人与小团队的自托管 AI 财务单据工作台。用户上传支付截图或发票后，系统生成可验证的候选字段和证据；只有用户明确确认，候选结果才能成为正式财务事实。
 
@@ -31,7 +31,7 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 - 独立工作区、基线 SHA、范围 diff、响应式和可访问性证据；
 - 独立只读复审。
 
-独立只读复审已清零 M0 阻断、重大和次要问题，完成证据见 [M0 验收证据](docs/m0-evidence.md)。[M1 AI 收件箱首条链路](docs/scope.md) 已于 2026-08-30 完成，收口证据见 [M1 验收证据](docs/m1-evidence.md)；M2 同日获准启动，其首切片已把 M1 的全额一对一关联替换为人工确认的一对多、多对一和部分金额分配，结果见 [M2 首切片验收证据](docs/m2-evidence.md)。真实上传以清晰、完整、无遮挡且关键字段可直接人工辨读为当前承诺，模型正确率专项安排在全部功能开发完成后处理。
+独立只读复审已清零 M0 阻断、重大和次要问题，完成证据见 [M0 验收证据](docs/m0-evidence.md)。[M1 AI 收件箱首条链路](docs/scope.md) 已于 2026-08-30 完成，收口证据见 [M1 验收证据](docs/m1-evidence.md)；M2 同日获准启动，其首切片已把 M1 的全额一对一关联替换为人工确认的一对多、多对一和部分金额分配，第二切片已用本地版本化视觉指纹和字段组合生成疑似重复候选，并要求用户逐项决定是否仍保留为独立记录，结果见 [M2 分切片验收证据](docs/m2-evidence.md)。真实上传以清晰、完整、无遮挡且关键字段可直接人工辨读为当前承诺，模型正确率专项安排在全部功能开发完成后处理。
 
 ## 权威文档
 
@@ -57,6 +57,7 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 - [ADR-0003：第一阶段使用唯一 OpenAI-compatible Adapter](docs/decisions/0003-openai-compatible.md)
 - [ADR-0004：分离 Provider 生成 Schema 与本地权威 Schema](docs/decisions/0004-provider-schema-projection.md)
 - [ADR-0009：支付—发票金额分配](docs/decisions/0009-payment-invoice-allocation.md)
+- [ADR-0010：确定性重复检测](docs/decisions/0010-deterministic-duplicate-detection.md)
 
 ## 目标目录
 

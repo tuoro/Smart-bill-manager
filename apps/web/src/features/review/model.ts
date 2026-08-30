@@ -28,6 +28,11 @@ export type AssociationDecision = {
   factAmountMinor: number
 }
 
+export type DuplicateResolutionDecision = {
+  request?: Pick<ConfirmRequest, 'duplicate_resolutions'>
+  error?: string
+}
+
 type FieldSpec = { path: string; valueType: string; required: boolean; label: string }
 
 const paymentSpecs: FieldSpec[] = [
@@ -207,6 +212,36 @@ export function allocationEditors(review: Review): AllocationEditor[] {
         ? String(Math.min(candidate.remaining_minor, factAmount))
         : '',
   }))
+}
+
+export function buildDuplicateResolutionDecision(
+  review: Review,
+  selectedCandidateIds: string[],
+): DuplicateResolutionDecision {
+  const selected = new Set(selectedCandidateIds)
+  if (selected.size !== selectedCandidateIds.length) {
+    return { error: '同一疑似重复候选只能确认一次' }
+  }
+  const candidates = new Map(
+    review.duplicate_candidates.map((candidate) => [candidate.id, candidate]),
+  )
+  if (review.duplicate_candidates.some((candidate) => !candidate.available)) {
+    return { error: '存在已不可用的疑似重复候选，请保存新 revision' }
+  }
+  for (const candidateId of selected) {
+    const candidate = candidates.get(candidateId)
+    if (!candidate) return { error: '疑似重复候选已变化，请刷新后重试' }
+  }
+  if (selected.size !== candidates.size) {
+    return { error: '请逐项确认全部疑似重复候选仍应保留为独立记录' }
+  }
+  return {
+    request: {
+      duplicate_resolutions: [...selected]
+        .sort()
+        .map((candidateId) => ({ candidate_id: candidateId, action: 'keep_distinct' as const })),
+    },
+  }
 }
 
 export function buildAssociationDecision(

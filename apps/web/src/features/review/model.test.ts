@@ -3,6 +3,7 @@ import type { Review } from '../../data/client'
 import {
   allocationEditors,
   buildAssociationDecision,
+  buildDuplicateResolutionDecision,
   buildRevisionRequest,
   editableFields,
   newInvoiceItem,
@@ -41,6 +42,7 @@ function reviewFixture(overrides: Partial<Review> = {}): Review {
     ],
     validations: [],
     candidates: [],
+    duplicate_candidates: [],
     ...overrides,
   }
 }
@@ -201,5 +203,39 @@ describe('review model', () => {
     expect(
       buildAssociationDecision(withCandidates, 'allocate_candidates', editors).errors[candidateId],
     ).toContain('剩余余额')
+  })
+
+  it('requires a complete available duplicate resolution plan', () => {
+    const first = '00000000-0000-4000-8000-000000000040'
+    const second = '00000000-0000-4000-8000-000000000041'
+    const review = reviewFixture({
+      duplicate_candidates: [
+        {
+          id: first,
+          kind: 'near_file',
+          display_name: '相似单据.png',
+          available: true,
+          reason_codes: ['ordered_page_visual_match'],
+        },
+        {
+          id: second,
+          kind: 'field_combination',
+          display_name: '示例商户',
+          available: true,
+          reason_codes: ['amount_exact'],
+        },
+      ],
+    })
+
+    expect(buildDuplicateResolutionDecision(review, [first]).request).toBeUndefined()
+    expect(buildDuplicateResolutionDecision(review, [second, first]).request).toEqual({
+      duplicate_resolutions: [
+        { candidate_id: first, action: 'keep_distinct' },
+        { candidate_id: second, action: 'keep_distinct' },
+      ],
+    })
+
+    review.duplicate_candidates[1].available = false
+    expect(buildDuplicateResolutionDecision(review, [first, second]).error).toContain('不可用')
   })
 })

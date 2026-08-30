@@ -53,19 +53,37 @@ type LinkCandidate struct {
 	ReasonCodes      []string
 }
 
+type DuplicateCandidate struct {
+	ID                 string
+	Kind               string
+	ExistingDocumentID string
+	ExistingPaymentID  string
+	ExistingInvoiceID  string
+	DisplayName        string
+	BusinessDate       string
+	AmountMinor        *int64
+	CurrentPageNumber  *int
+	ExistingPageNumber *int
+	DHashDistance      *int
+	AHashDistance      *int
+	Available          bool
+	ReasonCodes        []string
+}
+
 type ReviewSnapshot struct {
-	Job               JobSummary
-	DocumentID        string
-	PageCount         int
-	ClaimSetID        string
-	OriginAiRunID     string
-	DocumentType      domain.DocumentType
-	Revision          int
-	OptimisticVersion int
-	Status            domain.ClaimStatus
-	Fields            []ReviewField
-	Validations       []ReviewValidation
-	Candidates        []LinkCandidate
+	Job                 JobSummary
+	DocumentID          string
+	PageCount           int
+	ClaimSetID          string
+	OriginAiRunID       string
+	DocumentType        domain.DocumentType
+	Revision            int
+	OptimisticVersion   int
+	Status              domain.ClaimStatus
+	Fields              []ReviewField
+	Validations         []ReviewValidation
+	Candidates          []LinkCandidate
+	DuplicateCandidates []DuplicateCandidate
 }
 
 type ReviewRepository interface {
@@ -100,6 +118,7 @@ type RevisionCommand struct {
 	Evidence                   []RevisionEvidenceRecord
 	Validations                []ValidationRecord
 	Candidates                 []LinkCandidateRecord
+	DuplicateCandidates        []DuplicateCandidateRecord
 	NormalizedInvoiceNumber    string
 	DuplicateInvoiceValidation *ValidationRecord
 }
@@ -158,6 +177,12 @@ type CandidateDecisionDraft struct {
 	LinkID         string
 }
 
+type DuplicateCandidateDecisionDraft struct {
+	ID          string
+	CandidateID string
+	Action      string
+}
+
 type ConfirmCommand struct {
 	TenantID           string
 	JobID              string
@@ -168,10 +193,12 @@ type ConfirmCommand struct {
 	ExpectedRevision   int
 	AssociationMode    string
 	AllocationPlanHash string
+	DuplicatePlanHash  string
 	Payment            *PaymentDraft
 	Invoice            *InvoiceDraft
 	Origins            []FactOriginDraft
 	CandidateDecisions []CandidateDecisionDraft
+	DuplicateDecisions []DuplicateCandidateDecisionDraft
 	AuditEventID       string
 	RequestID          string
 	CreatedAt          time.Time
@@ -191,6 +218,7 @@ type ConfirmReplay struct {
 	ExpectedRevision   int
 	AssociationMode    string
 	AllocationPlanHash string
+	DuplicatePlanHash  string
 }
 
 type RejectCommand struct {

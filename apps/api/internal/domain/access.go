@@ -14,16 +14,17 @@ const (
 type Capability string
 
 const (
-	CapabilityMembersManage      Capability = "members.manage"
-	CapabilityProvidersManage    Capability = "providers.manage"
-	CapabilityDocumentsProcess   Capability = "documents.process"
-	CapabilityClaimsReview       Capability = "claims.review"
-	CapabilityReviewSourceRead   Capability = "review.source.read"
-	CapabilityFactsRead          Capability = "facts.read"
-	CapabilityAllocationsManage  Capability = "allocations.manage"
-	CapabilityEmailSourcesManage Capability = "email_sources.manage"
-	CapabilityEmailArchiveRead   Capability = "email_archive.read"
-	CapabilityResourcesDelete    Capability = "resources.delete"
+	CapabilityMembersManage         Capability = "members.manage"
+	CapabilityProvidersManage       Capability = "providers.manage"
+	CapabilityDocumentsProcess      Capability = "documents.process"
+	CapabilityClaimsReview          Capability = "claims.review"
+	CapabilityReviewSourceRead      Capability = "review.source.read"
+	CapabilityFactsRead             Capability = "facts.read"
+	CapabilityAllocationsManage     Capability = "allocations.manage"
+	CapabilityTripAssignmentsManage Capability = "trip_assignments.manage"
+	CapabilityEmailSourcesManage    Capability = "email_sources.manage"
+	CapabilityEmailArchiveRead      Capability = "email_archive.read"
+	CapabilityResourcesDelete       Capability = "resources.delete"
 )
 
 var roleCapabilities = map[Role][]Capability{
@@ -35,6 +36,7 @@ var roleCapabilities = map[Role][]Capability{
 		CapabilityReviewSourceRead,
 		CapabilityFactsRead,
 		CapabilityAllocationsManage,
+		CapabilityTripAssignmentsManage,
 		CapabilityEmailSourcesManage,
 		CapabilityEmailArchiveRead,
 		CapabilityResourcesDelete,
@@ -45,6 +47,7 @@ var roleCapabilities = map[Role][]Capability{
 		CapabilityReviewSourceRead,
 		CapabilityFactsRead,
 		CapabilityAllocationsManage,
+		CapabilityTripAssignmentsManage,
 		CapabilityEmailArchiveRead,
 	},
 	RoleReviewer: {

@@ -59,6 +59,17 @@ var invoiceFieldSpecs = map[string]ClaimFieldSpec{
 	"supplementary_fields": {ValueType: "supplementary"},
 }
 
+var tripFieldSpecs = map[string]ClaimFieldSpec{
+	"origin":               {ValueType: "string", Normalize: true},
+	"destination":          {ValueType: "string", Required: true, Normalize: true},
+	"start_date":           {ValueType: "date", Required: true},
+	"end_date":             {ValueType: "date", Required: true},
+	"traveler_name":        {ValueType: "string", Normalize: true},
+	"transport_type":       {ValueType: "string", Normalize: true},
+	"booking_reference":    {ValueType: "string", Normalize: true},
+	"supplementary_fields": {ValueType: "supplementary"},
+}
+
 var invoiceItemFieldSpecs = map[string]ClaimFieldSpec{
 	"name":             {ValueType: "string", Required: true, Normalize: true},
 	"quantity":         {ValueType: "decimal"},
@@ -111,7 +122,7 @@ func StabilizeItemPaths(envelope ClaimEnvelope, newID func() (string, error)) (C
 
 func ValidateClaim(envelope ClaimEnvelope, pageCount int) ValidatedClaim {
 	validated := ValidatedClaim{DocumentType: DocumentType(envelope.DocumentType), Status: ClaimReadyForReview}
-	if envelope.SchemaVersion != "document-claim/2" || !validated.DocumentType.Valid() {
+	if envelope.SchemaVersion != "document-claim/3" || !validated.DocumentType.Valid() {
 		validated.add("", "invalid_claim_envelope", "blocked", "blocked", "Claim 版本或文档类型不受支持")
 		validated.Status = ClaimBlocked
 		return validated
@@ -169,6 +180,9 @@ func ValidateClaim(envelope ClaimEnvelope, pageCount int) ValidatedClaim {
 		_, pageValidations := analyzeClaimPagePlan(validated.DocumentType, uniqueFields, pageCount)
 		validated.Validations = append(validated.Validations, pageValidations...)
 	}
+	if validated.DocumentType == DocumentTrip {
+		validateTripDates(&validated, uniqueFields)
+	}
 	if validated.DocumentType == DocumentUnknown {
 		validated.add("document_type", "unknown_document_type", "blocked", "blocked", "文档无法归类，不能创建 Fact")
 	}
@@ -199,8 +213,27 @@ func expectedSpecs(documentType DocumentType, fields []FieldCandidate) map[strin
 		for key := range keys {
 			copySpecs(result, invoiceItemFieldSpecs, "items["+key+"].")
 		}
+	case DocumentTrip:
+		copySpecs(result, tripFieldSpecs, "")
 	}
 	return result
+}
+
+func validateTripDates(validated *ValidatedClaim, fields []FieldCandidate) {
+	values := make(map[string]string, 2)
+	for _, field := range fields {
+		if field.Presence != "present" || (field.Path != "start_date" && field.Path != "end_date") {
+			continue
+		}
+		if value, ok := rawString(field.Value); ok {
+			values[field.Path] = value
+		}
+	}
+	start, startErr := time.Parse("2006-01-02", values["start_date"])
+	end, endErr := time.Parse("2006-01-02", values["end_date"])
+	if startErr == nil && endErr == nil && end.Before(start) {
+		validated.add("end_date", "trip_date_range_invalid", "blocked", "blocked", "行程结束日期不能早于开始日期")
+	}
 }
 
 func copySpecs(destination map[string]ClaimFieldSpec, source map[string]ClaimFieldSpec, prefix string) {

@@ -25,6 +25,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/transport/httpapi"
 )
 
@@ -166,6 +167,7 @@ func run(logger *slog.Logger) error {
 	emailService := applicationemails.NewService(
 		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
 	)
+	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	httpServer, err := httpapi.NewServer(
 		authService,
 		uploadService,
@@ -177,6 +179,7 @@ func run(logger *slog.Logger) error {
 		factService,
 		allocationService,
 		emailService,
+		tripService,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,

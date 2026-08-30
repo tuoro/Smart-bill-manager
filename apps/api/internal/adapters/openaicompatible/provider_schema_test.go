@@ -15,7 +15,7 @@ func TestProviderSchemaProjectionIsDeterministicStrictRoot(t *testing.T) {
 	detector := testDetector(t)
 	second := testDetector(t)
 	identity := detector.ProviderSchemaIdentity()
-	if identity.Version != "bill-visible-text-provider/1" || len(identity.SHA256) != 64 {
+	if identity.Version != "bill-visible-text-provider/2" || len(identity.SHA256) != 64 {
 		t.Fatalf("provider schema identity = %#v", identity)
 	}
 	if identity != second.ProviderSchemaIdentity() {
@@ -41,7 +41,7 @@ func TestProviderSchemaProjectionIsDeterministicStrictRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(canonical), `"additionalProperties": false`) ||
-		!strings.Contains(string(canonical), `"const": "bill-visible-text/1"`) {
+		!strings.Contains(string(canonical), `"const": "bill-visible-text/2"`) {
 		t.Fatal("authoritative schema lost the closed minimal root identity boundary")
 	}
 

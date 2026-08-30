@@ -34,7 +34,7 @@ func TestDetectorValidatesVisionAndStructuredOutput(t *testing.T) {
 			t.Errorf("unexpected request body: %#v", body)
 		}
 		responseBody := []byte(`{
-			"choices":[{"message":{"content":"{\"schema_version\":\"bill-visible-text/1\",\"document_type\":\"unknown\",\"payment\":null,\"invoice\":null}"}}]
+			"choices":[{"message":{"content":"{\"schema_version\":\"bill-visible-text/2\",\"document_type\":\"unknown\",\"payment\":null,\"invoice\":null,\"trip\":null}"}}]
 		}`)
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -75,11 +75,11 @@ func TestDetectorUsesExplicitJSONObjectMode(t *testing.T) {
 		}
 		content := messages[1].(map[string]any)["content"].([]any)
 		instruction := content[0].(map[string]any)["text"].(string)
-		if !strings.Contains(instruction, `"payment":null`) || !strings.Contains(instruction, `"bill-visible-text/1"`) {
+		if !strings.Contains(instruction, `"payment":null`) || !strings.Contains(instruction, `"trip":null`) || !strings.Contains(instruction, `"bill-visible-text/2"`) {
 			t.Errorf("JSON Object capability probe is missing its compact visual contract: %q", instruction)
 		}
 		responseBody := []byte(`{
-			"choices":[{"message":{"content":"{\"schema_version\":\"bill-visible-text/1\",\"document_type\":\"unknown\",\"payment\":null,\"invoice\":null}"}}]
+			"choices":[{"message":{"content":"{\"schema_version\":\"bill-visible-text/2\",\"document_type\":\"unknown\",\"payment\":null,\"invoice\":null,\"trip\":null}"}}]
 		}`)
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -129,7 +129,7 @@ func TestDetectorRejectsProviderTransportContractViolation(t *testing.T) {
 	detector := testDetector(t)
 	detector.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		responseBody := []byte(`{
-			"choices":[{"message":{"content":"{\"schema_version\":\"bill-visible-text/1\",\"document_type\":\"unknown\",\"payment\":null}"}}]
+			"choices":[{"message":{"content":"{\"schema_version\":\"bill-visible-text/2\",\"document_type\":\"unknown\",\"payment\":null}"}}]
 		}`)
 		return &http.Response{
 			StatusCode: http.StatusOK,

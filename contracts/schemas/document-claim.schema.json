@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://smart-bill-manager.local/schemas/document-claim/2",
+  "$id": "https://smart-bill-manager.local/schemas/document-claim/3",
   "title": "Document Claim Envelope",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "document_type", "fields", "document_issues"],
   "properties": {
     "schema_version": {
-      "const": "document-claim/2"
+      "const": "document-claim/3"
     },
     "document_type": {
-      "enum": ["payment", "invoice", "unknown"]
+      "enum": ["payment", "invoice", "trip", "unknown"]
     },
     "fields": {
       "type": "array",

@@ -404,6 +404,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTrips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTrip"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trips/{trip_id}/attribution-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTripAttributionCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trip-assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeTripAssignment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/allocations/{fact_type}/{fact_id}": {
         parameters: {
             query?: never;
@@ -764,7 +828,7 @@ export interface components {
             /** Format: uuid */
             claim_set_id: string;
             /** @enum {string} */
-            document_type: "payment" | "invoice" | "unknown";
+            document_type: "payment" | "invoice" | "trip" | "unknown";
             revision: number;
             optimistic_version: number;
             /** @enum {string} */
@@ -781,7 +845,7 @@ export interface components {
             expected_revision: number;
             expected_optimistic_version: number;
             /** @enum {string} */
-            document_type: "payment" | "invoice" | "unknown";
+            document_type: "payment" | "invoice" | "trip" | "unknown";
             fields: {
                 path: string;
                 value_type: string;
@@ -791,11 +855,12 @@ export interface components {
                 evidence_ids?: string[];
             }[];
         };
+        /** @description Payment/Invoice 必须提交 association_mode 与 allocations；Trip 禁止提交这两个成员。 */
         ConfirmRequest: {
             expected_revision: number;
             /** @enum {string} */
-            association_mode: "allocate_candidates" | "reject_all" | "no_candidate";
-            allocations: {
+            association_mode?: "allocate_candidates" | "reject_all" | "no_candidate";
+            allocations?: {
                 /** Format: uuid */
                 candidate_id: string;
                 /** Format: int64 */
@@ -812,7 +877,7 @@ export interface components {
             /** Format: uuid */
             review_decision_id: string;
             /** @enum {string} */
-            fact_type: "payment" | "invoice";
+            fact_type: "payment" | "invoice" | "trip";
             /** Format: uuid */
             fact_id: string;
             link_ids: string[];
@@ -954,6 +1019,69 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        Trip: {
+            /** Format: uuid */
+            id: string;
+            origin?: string;
+            destination: string;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            traveler_name?: string;
+            transport_type?: string;
+            booking_reference?: string;
+            assigned_payment_count: number;
+            assigned_invoice_count: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @enum {string} */
+        TripAttributionView: "all" | "suggested" | "assigned";
+        TripAttributionCandidate: {
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            fact_id: string;
+            display_name: string;
+            /** Format: date */
+            business_date: string;
+            /** Format: int64 */
+            amount_minor: number;
+            currency: components["schemas"]["Currency"];
+            /** Format: uuid */
+            current_assignment_id?: string;
+            /** Format: uuid */
+            current_trip_id?: string;
+            current_trip_destination?: string;
+            suggested: boolean;
+            reason_codes: ("currently_assigned" | "date_inside_trip" | "date_within_3_days_before" | "date_within_3_days_after" | "linked_fact_assigned_to_trip")[];
+        };
+        TripAttributionPage: {
+            trip: components["schemas"]["Trip"];
+            /** @constant */
+            rule_version: "trip-attribution/1";
+            items: components["schemas"]["TripAttributionCandidate"][];
+            next_cursor?: string;
+        };
+        TripAssignmentRequest: {
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            fact_id: string;
+            desired_trip_id: string | null;
+            expected_assignment_id: string | null;
+            reason: string;
+        };
+        TripAssignmentResult: {
+            /** Format: uuid */
+            decision_id: string;
+            /** @enum {string} */
+            action: "assign" | "move" | "unassign";
+            /** Format: uuid */
+            previous_assignment_id?: string;
+            /** Format: uuid */
+            assignment_id?: string;
+            replayed: boolean;
+        };
         ProviderConfig: {
             /** Format: uuid */
             id: string;
@@ -1056,6 +1184,7 @@ export interface components {
         ClaimSetId: string;
         PaymentId: string;
         InvoiceId: string;
+        TripId: string;
         ProviderConfigId: string;
         EmailSourceId: string;
         EmailMessageId: string;
@@ -1768,6 +1897,113 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    listTrips: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 未删除 Trip 及当前活动归属计数 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Trip"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    deleteTrip: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                trip_id: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trip 已标记删除，相关活动归属已在同一事务中终止 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTripAttributionCandidates: {
+        parameters: {
+            query?: {
+                view?: components["schemas"]["TripAttributionView"];
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                trip_id: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 版本化确定性建议、当前归属与全部可选 Fact 的稳定游标页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripAttributionPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    changeTripAssignment: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripAssignmentRequest"];
+            };
+        };
+        responses: {
+            /** @description assign、move、unassign 或严格幂等重放结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripAssignmentResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getAllocationWorkspace: {

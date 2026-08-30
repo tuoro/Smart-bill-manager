@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1、M2 已完成；M3 邮箱 Source 首切片已完成，下一切片为行程归属
+状态：M0、M1、M2 已完成；M3 邮箱归档与行程归属两个切片已完成，下一切片待冻结
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -42,7 +42,7 @@ erDiagram
     TENANT ||--o{ AUDIT_EVENT : records
 ```
 
-M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailSource、EmailMessage 和 EmailAttachment；Trip 和 Reimbursement 仍不预建空表。
+M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailSource、EmailMessage 和 EmailAttachment；第二切片只新增已冻结的 Trip 与归属实体，Reimbursement 仍不预建空表。
 
 ## 通用约束
 
@@ -182,7 +182,7 @@ AiRun 追加写。重试创建新 AiRun，不覆盖失败 attempt。版本字段
 
 每条链只有第一个 revision 由对应 AiRun 的 Visible Text 经本地 Claim Mapper 产生：`origin_ai_run_id = produced_by_ai_run_id`；后续只允许用户修订并记录 `revised_by_user_id`，M1 不对已形成 ClaimSet 的 Job 重新调用模型。两种作者约束由数据库 Check 和外键保证，不能只靠日志推断。`tenant_id + document_id + revision` 唯一；数据库对 `draft`、`ready_for_review`、`blocked` 三种非终态按 `tenant_id + document_id` 建部分唯一约束。新 revision 必须指向被替代版本，并在同一事务中把旧版本置为 `superseded`。同一 Document 同时最多一个非终态 current revision，只有 `ready_for_review` 能被确认；`blocked` 必须继续修订、驳回或取消。`superseded`、`confirmed`、`rejected` 与 `cancelled` 为终态。
 
-每个 ClaimSet revision 是完整、不可变的 `document-claim/2` 快照，不是增量补丁：当前 `document_type` 的 Schema 中每个字段都必须有且只有一个 FieldClaim，包括显式 `absent` 的可选字段；上一 revision 存在但当前 Schema 或明细已移除的路径也必须保留一个 `presence = absent` 墓碑。M1 允许用户显式修正 `document_type`（`payment`、`invoice` 或 `unknown`）以及新增、删除、修改或重排 InvoiceItem；`unknown` 不能进入 `ready_for_review` 或创建 Fact。创建用户 revision 的事务复制未修改字段、写入修改字段和墓碑、重跑校验并原子切换 current revision；读取、校验和 Fact 创建只读取当前 revision，禁止沿 supersedes 链补字段，Fact 只读取当前类型中 `present` 的正式字段。
+每个 ClaimSet revision 是完整、不可变的 `document-claim/3` 快照，不是增量补丁：当前 `document_type` 的 Schema 中每个字段都必须有且只有一个 FieldClaim，包括显式 `absent` 的可选字段；上一 revision 存在但当前 Schema 或明细已移除的路径也必须保留一个 `presence = absent` 墓碑。用户可以显式修正 `document_type`（`payment`、`invoice`、`trip` 或 `unknown`），以及新增、删除、修改或重排 InvoiceItem；`unknown` 不能进入 `ready_for_review` 或创建 Fact。创建用户 revision 的事务复制未修改字段、写入修改字段和墓碑、重跑校验并原子切换 current revision；读取、校验和 Fact 创建只读取当前 revision，禁止沿 supersedes 链补字段，Fact 只读取当前类型中 `present` 的正式字段。
 
 ### FieldClaim
 
@@ -425,7 +425,42 @@ Source 描述符不包含密码、OAuth、Token、Cookie、密文、密钥引用
 
 Document 增加 `ingestion_kind = upload | email_attachment` 与 `original_object_owner = document | email_attachment`。手工上传固定为 `upload/document`；邮件新建 Document 固定为 `email_attachment/email_attachment` 并继续保存 Source 创建者作为授权摄取主体。ProcessingJob、AiRun、Claim、Review 与 Fact 不增加邮件专用分支。
 
-Trip、Reimbursement、归属 Claim 和政策 ValidationResult 在后续 M3 切片再定义，不预建空表或兼容字段。
+### Trip（M3 第二切片）
+
+- tenant_id、id、source_review_decision_id；
+- origin，可为空；destination；
+- start_date、end_date；
+- traveler_name、transport_type、booking_reference，可为空；
+- created_at、updated_at、version；
+- deleted_at、deleted_by_user_id、deletion_audit_event_id。
+
+Trip 与 Payment/Invoice 一样只能由对应类型的 confirmed ReviewDecision 创建；`destination + start_date + end_date` 必填且 `end_date >= start_date`。删除采用软删除并保留字段来源与审核链。地点、姓名和预订编号是租户私有业务字段，不进入 safe metadata。
+
+### TripFactAssignmentDecision
+
+- tenant_id、id、actor_user_id；
+- fact_type：`payment | invoice`，以及严格二选一的 payment_id / invoice_id；
+- previous_assignment_id，可为空；desired_trip_id，可为空；
+- action：`assign | move | unassign`；
+- idempotency_key、request_hash、reason；
+- audit_event_id、created_at。
+
+Decision 不可更新或删除。assign 要求无 previous 且有目标，move 要求有 previous 且有不同目标，unassign 要求有 previous 且目标为空。`tenant_id + idempotency_key` 永久唯一；reason 为 1～500 字符的租户私有业务说明，不写 AuditEvent。
+
+### TripFactAssignment
+
+- tenant_id、id、trip_id；
+- payment_id / invoice_id 严格二选一；
+- created_by_decision_id、created_at；
+- ended_at、ended_by_decision_id、ended_by_audit_event_id，可为空。
+
+每个 Payment 或 Invoice 同时最多一条活动 Link。创建字段不可变；活动 Link 只允许一次性终止，终止来源严格二选一为后续 AssignmentDecision 或 Fact 删除 AuditEvent。历史 Link 禁止删除，活动 Link 是当前行程归属的唯一数据源。
+
+### FactFieldOrigin 与 ReviewDecision 扩展
+
+FactFieldOrigin 增加可空 `trip_id` 并继续保证 Payment、Invoice、InvoiceItem、Trip 四者严格单选。ReviewDecision 的 confirm 记录显式 `fact_type`：Payment/Invoice 继续要求金额关联计划，Trip 要求该计划为空；三类确认都要求完整疑似重复计划。旧确认形状不保留兼容分支。
+
+Reimbursement 和政策 ValidationResult 在后续 M3 切片再定义，不预建空表或兼容字段。
 
 ## 删除与保留
 
@@ -433,6 +468,7 @@ Trip、Reimbursement、归属 Claim 和政策 ValidationResult 在后续 M3 切�
 - 未形成 Fact 的 Document 聚合允许租户所有者显式物理删除；删除覆盖原件、派生页、Job、AiRun、Claim、Evidence、ValidationResult 和未决定的关联候选，只保留不含文件名、证据正文和财务字段的删除审计墓碑。
 - 邮件附件拥有的原件对象不随未确认 Document 删除；删除事务只移除 Document 及其派生聚合并把 EmailAttachment 的 Document 链接置空。EmailMessage、EmailAttachment 和归档对象继续按邮箱 Source 保留策略存在。
 - 已确认 Fact 的单项删除写入结构化 `fact_deleted` AuditEvent 和 Fact 删除标记；Source、Claim、FactFieldOrigin 和 Review 链在租户存在期间保留，避免产生不可解释的历史正式数据。
+- 删除 Payment、Invoice 或 Trip 时，同一删除 AuditEvent 一次性终止相关活动 TripFactAssignment；历史 AssignmentDecision 与已终止 Link 保留。
 - 删除 ProviderConfig 时立即删除对应密文；已有 AiRun 只保留不可逆安全指纹，不保留可恢复凭据。
 - 删除整个租户时物理删除全部业务行、对象文件、派生物、审计链和密钥材料，并输出按资源类型计数与对象哈希组成的删除清单。
 - 备份副本不接受应用内逐条修改；部署说明必须声明备份保留与销毁策略，过期备份整体销毁。恢复已删除租户的备份时，必须先重放租户删除清单，不能让已删除数据重新可见。

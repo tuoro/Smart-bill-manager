@@ -492,7 +492,7 @@ CREATE TABLE claim_sets (
     FOREIGN KEY (tenant_id, produced_by_ai_run_id) REFERENCES ai_runs(tenant_id, id),
     FOREIGN KEY (tenant_id, revised_by_user_id) REFERENCES memberships(tenant_id, user_id),
     FOREIGN KEY (tenant_id, supersedes_claim_set_id) REFERENCES claim_sets(tenant_id, id),
-    CHECK (document_type IN ('payment', 'invoice', 'unknown')),
+    CHECK (document_type IN ('payment', 'invoice', 'trip', 'unknown')),
     CHECK (status IN ('draft', 'ready_for_review', 'blocked', 'superseded', 'confirmed', 'rejected', 'cancelled')),
     CHECK (revision >= 1),
     CHECK (optimistic_version >= 1),
@@ -617,6 +617,7 @@ CREATE TABLE review_decisions (
     claim_set_id TEXT NOT NULL,
     actor_user_id TEXT NOT NULL,
     action TEXT NOT NULL,
+    fact_type TEXT,
     association_mode TEXT,
     association_plan_hash TEXT,
     duplicate_plan_hash TEXT,
@@ -627,16 +628,21 @@ CREATE TABLE review_decisions (
     FOREIGN KEY (tenant_id, claim_set_id) REFERENCES claim_sets(tenant_id, id),
     FOREIGN KEY (tenant_id, actor_user_id) REFERENCES memberships(tenant_id, user_id),
     CHECK (action IN ('confirm', 'reject', 'cancel')),
+    CHECK (fact_type IS NULL OR fact_type IN ('payment', 'invoice', 'trip')),
     CHECK (association_mode IS NULL OR association_mode IN ('allocate_candidates', 'reject_all', 'no_candidate')),
     CHECK (
-        (action = 'confirm' AND association_mode IS NOT NULL
+        (action = 'confirm' AND fact_type IN ('payment', 'invoice') AND association_mode IS NOT NULL
          AND ((association_mode = 'allocate_candidates'
                AND association_plan_hash IS NOT NULL
                AND length(association_plan_hash) = 64
                AND association_plan_hash NOT GLOB '*[^0-9a-f]*')
               OR (association_mode IN ('reject_all', 'no_candidate') AND association_plan_hash IS NULL)))
         OR
-        (action IN ('reject', 'cancel') AND association_mode IS NULL AND association_plan_hash IS NULL)
+        (action = 'confirm' AND fact_type = 'trip'
+         AND association_mode IS NULL AND association_plan_hash IS NULL)
+        OR
+        (action IN ('reject', 'cancel') AND fact_type IS NULL
+         AND association_mode IS NULL AND association_plan_hash IS NULL)
     ),
     CHECK (
         (action = 'confirm'
@@ -752,6 +758,39 @@ CREATE TABLE invoice_items (
     UNIQUE (tenant_id, invoice_id, item_key),
     UNIQUE (tenant_id, id)
 ) STRICT;
+
+CREATE TABLE trips (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    source_review_decision_id TEXT NOT NULL,
+    origin TEXT,
+    destination TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    traveler_name TEXT,
+    transport_type TEXT,
+    booking_reference TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    deleted_at TEXT,
+    deleted_by_user_id TEXT,
+    deletion_audit_event_id TEXT,
+    FOREIGN KEY (tenant_id, source_review_decision_id) REFERENCES review_decisions(tenant_id, id),
+    FOREIGN KEY (tenant_id, deleted_by_user_id) REFERENCES memberships(tenant_id, user_id),
+    FOREIGN KEY (tenant_id, deletion_audit_event_id) REFERENCES audit_events(tenant_id, id),
+    CHECK (length(trim(destination)) BETWEEN 1 AND 500),
+    CHECK (date(start_date) IS NOT NULL AND date(end_date) IS NOT NULL AND end_date >= start_date),
+    CHECK (version >= 1),
+    CHECK ((deleted_at IS NULL AND deleted_by_user_id IS NULL AND deletion_audit_event_id IS NULL)
+        OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL AND deletion_audit_event_id IS NOT NULL)),
+    UNIQUE (tenant_id, source_review_decision_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE INDEX trips_tenant_dates_active_idx
+ON trips (tenant_id, start_date DESC, end_date DESC, id DESC)
+WHERE deleted_at IS NULL;
 
 CREATE TABLE duplicate_candidates (
     id TEXT PRIMARY KEY,
@@ -1270,6 +1309,7 @@ CREATE TABLE fact_field_origins (
     payment_id TEXT,
     invoice_id TEXT,
     invoice_item_id TEXT,
+    trip_id TEXT,
     field_path TEXT NOT NULL,
     field_claim_id TEXT NOT NULL,
     review_decision_id TEXT NOT NULL,
@@ -1277,14 +1317,244 @@ CREATE TABLE fact_field_origins (
     FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id),
     FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id),
     FOREIGN KEY (tenant_id, invoice_item_id) REFERENCES invoice_items(tenant_id, id),
+    FOREIGN KEY (tenant_id, trip_id) REFERENCES trips(tenant_id, id),
     FOREIGN KEY (tenant_id, field_claim_id) REFERENCES field_claims(tenant_id, id),
     FOREIGN KEY (tenant_id, review_decision_id) REFERENCES review_decisions(tenant_id, id),
-    CHECK ((payment_id IS NOT NULL) + (invoice_id IS NOT NULL) + (invoice_item_id IS NOT NULL) = 1),
+    CHECK ((payment_id IS NOT NULL) + (invoice_id IS NOT NULL) + (invoice_item_id IS NOT NULL) + (trip_id IS NOT NULL) = 1),
     UNIQUE (tenant_id, payment_id, field_path),
     UNIQUE (tenant_id, invoice_id, field_path),
     UNIQUE (tenant_id, invoice_item_id, field_path),
+    UNIQUE (tenant_id, trip_id, field_path),
     UNIQUE (tenant_id, id)
 ) STRICT;
+
+CREATE TABLE trip_fact_assignment_decisions (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    actor_user_id TEXT NOT NULL,
+    fact_type TEXT NOT NULL,
+    payment_id TEXT,
+    invoice_id TEXT,
+    previous_assignment_id TEXT,
+    desired_trip_id TEXT,
+    action TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    audit_event_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, actor_user_id) REFERENCES memberships(tenant_id, user_id),
+    FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id),
+    FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id),
+    FOREIGN KEY (tenant_id, previous_assignment_id) REFERENCES trip_fact_assignments(tenant_id, id),
+    FOREIGN KEY (tenant_id, desired_trip_id) REFERENCES trips(tenant_id, id),
+    FOREIGN KEY (tenant_id, audit_event_id) REFERENCES audit_events(tenant_id, id),
+    CHECK (fact_type IN ('payment', 'invoice')),
+    CHECK ((fact_type = 'payment' AND payment_id IS NOT NULL AND invoice_id IS NULL)
+        OR (fact_type = 'invoice' AND invoice_id IS NOT NULL AND payment_id IS NULL)),
+    CHECK (action IN ('assign', 'move', 'unassign')),
+    CHECK ((action = 'assign' AND previous_assignment_id IS NULL AND desired_trip_id IS NOT NULL)
+        OR (action = 'move' AND previous_assignment_id IS NOT NULL AND desired_trip_id IS NOT NULL)
+        OR (action = 'unassign' AND previous_assignment_id IS NOT NULL AND desired_trip_id IS NULL)),
+    CHECK (length(idempotency_key) BETWEEN 8 AND 128),
+    CHECK (instr(idempotency_key, ' ') = 0
+        AND instr(idempotency_key, char(9)) = 0
+        AND instr(idempotency_key, char(10)) = 0
+        AND instr(idempotency_key, char(13)) = 0),
+    CHECK (length(request_hash) = 64 AND request_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK (reason = trim(reason) AND length(reason) BETWEEN 1 AND 500),
+    UNIQUE (tenant_id, idempotency_key),
+    UNIQUE (tenant_id, audit_event_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE TABLE trip_fact_assignments (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    trip_id TEXT NOT NULL,
+    payment_id TEXT,
+    invoice_id TEXT,
+    created_by_decision_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    ended_at TEXT,
+    ended_by_decision_id TEXT,
+    ended_by_audit_event_id TEXT,
+    FOREIGN KEY (tenant_id, trip_id) REFERENCES trips(tenant_id, id),
+    FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id),
+    FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id),
+    FOREIGN KEY (tenant_id, created_by_decision_id) REFERENCES trip_fact_assignment_decisions(tenant_id, id),
+    FOREIGN KEY (tenant_id, ended_by_decision_id) REFERENCES trip_fact_assignment_decisions(tenant_id, id),
+    FOREIGN KEY (tenant_id, ended_by_audit_event_id) REFERENCES audit_events(tenant_id, id),
+    CHECK ((payment_id IS NOT NULL) <> (invoice_id IS NOT NULL)),
+    CHECK ((ended_at IS NULL AND ended_by_decision_id IS NULL AND ended_by_audit_event_id IS NULL)
+        OR (ended_at IS NOT NULL AND (ended_by_decision_id IS NOT NULL) <> (ended_by_audit_event_id IS NOT NULL))),
+    UNIQUE (tenant_id, created_by_decision_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE UNIQUE INDEX trip_fact_assignments_payment_active_idx
+ON trip_fact_assignments (tenant_id, payment_id)
+WHERE ended_at IS NULL AND payment_id IS NOT NULL;
+
+CREATE UNIQUE INDEX trip_fact_assignments_invoice_active_idx
+ON trip_fact_assignments (tenant_id, invoice_id)
+WHERE ended_at IS NULL AND invoice_id IS NOT NULL;
+
+CREATE INDEX trip_fact_assignments_trip_active_idx
+ON trip_fact_assignments (tenant_id, trip_id, created_at, id)
+WHERE ended_at IS NULL;
+
+CREATE TRIGGER trip_assignment_decisions_scope
+BEFORE INSERT ON trip_fact_assignment_decisions
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM memberships membership
+    LEFT JOIN payments payment
+      ON payment.tenant_id = membership.tenant_id
+     AND payment.id = NEW.payment_id
+     AND payment.deleted_at IS NULL
+    LEFT JOIN invoices invoice
+      ON invoice.tenant_id = membership.tenant_id
+     AND invoice.id = NEW.invoice_id
+     AND invoice.deleted_at IS NULL
+    LEFT JOIN trips desired
+      ON desired.tenant_id = membership.tenant_id
+     AND desired.id = NEW.desired_trip_id
+     AND desired.deleted_at IS NULL
+    LEFT JOIN trip_fact_assignments previous
+      ON previous.tenant_id = membership.tenant_id
+     AND previous.id = NEW.previous_assignment_id
+     AND previous.ended_at IS NULL
+    WHERE membership.tenant_id = NEW.tenant_id
+      AND membership.user_id = NEW.actor_user_id
+      AND membership.status = 'active'
+      AND ((NEW.fact_type = 'payment' AND payment.id IS NOT NULL)
+        OR (NEW.fact_type = 'invoice' AND invoice.id IS NOT NULL))
+      AND (NEW.desired_trip_id IS NULL OR desired.id IS NOT NULL)
+      AND (
+          (NEW.action = 'assign' AND previous.id IS NULL
+           AND NOT EXISTS (
+               SELECT 1 FROM trip_fact_assignments active
+               WHERE active.tenant_id = NEW.tenant_id
+                 AND active.ended_at IS NULL
+                 AND ((NEW.fact_type = 'payment' AND active.payment_id = NEW.payment_id)
+                   OR (NEW.fact_type = 'invoice' AND active.invoice_id = NEW.invoice_id))
+           ))
+          OR
+          (NEW.action IN ('move', 'unassign')
+           AND ((NEW.fact_type = 'payment' AND previous.payment_id = NEW.payment_id)
+             OR (NEW.fact_type = 'invoice' AND previous.invoice_id = NEW.invoice_id))
+           AND (NEW.action = 'unassign' OR previous.trip_id <> NEW.desired_trip_id))
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'trip_assignment_decision_scope_mismatch');
+END;
+
+CREATE TRIGGER trip_assignment_decisions_immutable
+BEFORE UPDATE ON trip_fact_assignment_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'trip_assignment_decision_immutable');
+END;
+
+CREATE TRIGGER trip_assignment_decisions_delete_forbidden
+BEFORE DELETE ON trip_fact_assignment_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'trip_assignment_decision_immutable');
+END;
+
+CREATE TRIGGER trip_fact_assignments_creation_scope
+BEFORE INSERT ON trip_fact_assignments
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM trip_fact_assignment_decisions decision
+    JOIN trips trip
+      ON trip.tenant_id = decision.tenant_id
+     AND trip.id = NEW.trip_id
+     AND trip.deleted_at IS NULL
+    LEFT JOIN payments payment
+      ON payment.tenant_id = decision.tenant_id
+     AND payment.id = NEW.payment_id
+     AND payment.deleted_at IS NULL
+    LEFT JOIN invoices invoice
+      ON invoice.tenant_id = decision.tenant_id
+     AND invoice.id = NEW.invoice_id
+     AND invoice.deleted_at IS NULL
+    LEFT JOIN trip_fact_assignments previous
+      ON previous.tenant_id = decision.tenant_id
+     AND previous.id = decision.previous_assignment_id
+     AND previous.ended_by_decision_id = decision.id
+    WHERE decision.tenant_id = NEW.tenant_id
+      AND decision.id = NEW.created_by_decision_id
+      AND decision.action IN ('assign', 'move')
+      AND decision.desired_trip_id = NEW.trip_id
+      AND ((decision.fact_type = 'payment' AND decision.payment_id = NEW.payment_id AND payment.id IS NOT NULL)
+        OR (decision.fact_type = 'invoice' AND decision.invoice_id = NEW.invoice_id AND invoice.id IS NOT NULL))
+      AND (decision.action = 'assign' OR previous.id IS NOT NULL)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'trip_assignment_creation_scope_mismatch');
+END;
+
+CREATE TRIGGER trip_fact_assignments_immutable_fields
+BEFORE UPDATE OF id, tenant_id, trip_id, payment_id, invoice_id, created_by_decision_id, created_at
+ON trip_fact_assignments
+WHEN NEW.id IS NOT OLD.id
+  OR NEW.tenant_id IS NOT OLD.tenant_id
+  OR NEW.trip_id IS NOT OLD.trip_id
+  OR NEW.payment_id IS NOT OLD.payment_id
+  OR NEW.invoice_id IS NOT OLD.invoice_id
+  OR NEW.created_by_decision_id IS NOT OLD.created_by_decision_id
+  OR NEW.created_at IS NOT OLD.created_at
+BEGIN
+    SELECT RAISE(ABORT, 'trip_fact_assignment_immutable');
+END;
+
+CREATE TRIGGER trip_fact_assignments_end_once
+BEFORE UPDATE OF ended_at, ended_by_decision_id, ended_by_audit_event_id
+ON trip_fact_assignments
+WHEN NOT (
+    OLD.ended_at IS NULL
+    AND OLD.ended_by_decision_id IS NULL
+    AND OLD.ended_by_audit_event_id IS NULL
+    AND NEW.ended_at IS NOT NULL
+    AND (NEW.ended_by_decision_id IS NOT NULL) <> (NEW.ended_by_audit_event_id IS NOT NULL)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'trip_fact_assignment_end_once');
+END;
+
+CREATE TRIGGER trip_fact_assignments_end_scope
+BEFORE UPDATE OF ended_at, ended_by_decision_id, ended_by_audit_event_id
+ON trip_fact_assignments
+WHEN NOT (
+    (NEW.ended_by_decision_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM trip_fact_assignment_decisions decision
+        WHERE decision.tenant_id = OLD.tenant_id
+          AND decision.id = NEW.ended_by_decision_id
+          AND decision.previous_assignment_id = OLD.id
+          AND decision.action IN ('move', 'unassign')
+    ))
+    OR
+    (NEW.ended_by_audit_event_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM audit_events audit
+        WHERE audit.tenant_id = OLD.tenant_id
+          AND audit.id = NEW.ended_by_audit_event_id
+          AND audit.action = 'fact_deleted'
+          AND ((audit.resource_type = 'trip' AND audit.resource_id = OLD.trip_id)
+            OR (audit.resource_type = 'payment' AND audit.resource_id = OLD.payment_id)
+            OR (audit.resource_type = 'invoice' AND audit.resource_id = OLD.invoice_id))
+    ))
+)
+BEGIN
+    SELECT RAISE(ABORT, 'trip_assignment_end_scope_mismatch');
+END;
+
+CREATE TRIGGER trip_fact_assignments_delete_forbidden
+BEFORE DELETE ON trip_fact_assignments
+BEGIN
+    SELECT RAISE(ABORT, 'trip_fact_assignment_history_required');
+END;
 
 CREATE TRIGGER fact_field_origins_same_claim
 BEFORE INSERT ON fact_field_origins
@@ -1345,6 +1615,21 @@ WHEN NOT EXISTS (
 )
 BEGIN
     SELECT RAISE(ABORT, 'confirmed_invoice_review_required');
+END;
+
+CREATE TRIGGER trips_require_confirmed_review
+BEFORE INSERT ON trips
+WHEN NOT EXISTS (
+    SELECT 1 FROM review_decisions r
+    JOIN claim_sets c ON c.tenant_id = r.tenant_id AND c.id = r.claim_set_id
+    WHERE r.tenant_id = NEW.tenant_id
+      AND r.id = NEW.source_review_decision_id
+      AND r.action = 'confirm'
+      AND r.fact_type = 'trip'
+      AND c.document_type = 'trip'
+)
+BEGIN
+    SELECT RAISE(ABORT, 'confirmed_trip_review_required');
 END;
 
 CREATE TRIGGER claim_confirmation_requires_duplicate_decisions

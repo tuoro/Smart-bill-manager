@@ -26,24 +26,24 @@
 
 ## 当前阶段
 
-`docs/roadmap.md` 已记录 M0 于 2026-08-27 完成、M1 于 2026-08-30 完成、M2 于 2026-08-31 完成；产品负责人已明确授权持续推进 M3 与 M4 的本地功能。M2 五个切片均已通过验收并由 `docs/m2-evidence.md` 收口，M3 首个邮箱归档切片已由 `docs/m3-evidence.md` 收口。
+`docs/roadmap.md` 已记录 M0 于 2026-08-27 完成、M1 于 2026-08-30 完成、M2 于 2026-08-31 完成；产品负责人已明确授权持续推进 M3 与 M4 的本地功能。M2 五个切片均已通过验收并由 `docs/m2-evidence.md` 收口，M3 邮箱归档与行程归属两个切片已由 `docs/m3-evidence.md` 收口；下一切片必须先冻结报销状态与确定性冲突提示的范围。
 
 - M1 已按 `docs/scope.md` 的退出条件和 `docs/m1-evidence.md` 收口；M2 每个后续切片仍必须先在权威文档冻结范围与验收，再同步实现领域、数据库、API 和 UI。
 - 2026-08-27 批准的模型准确率目标保留为 M4 正式发布门禁；不得把历史失败改写为通过，也不得为低清、裁切、遮挡或屏摄图片继续扩张 Prompt/预处理分支，除非产品负责人另行明确授权。
 - 模型正确率专项安排在全部功能开发完成后处理；这不授权绕过安全闭环、人工审核或 M2 进入门禁。
 - M2 首切片只允许同币种、正整数最小单位的人工金额分配；禁止汇率换算、自动接受、静默截断、超分配和原地改写历史 Link。
-- 第五切片“已确认 Fact 之间的独立补充分配、撤销或替换工作流”已于 2026-08-31 完成；不得原地改写历史 Link。M3 首个“邮箱 Source、邮件与附件本地归档”切片已按 ADR-0014 完成；下一切片从行程归属范围冻结开始。真实邮箱账号、凭据、网络连接、轮询和实联调仍需重新授权。
+- 第五切片“已确认 Fact 之间的独立补充分配、撤销或替换工作流”已于 2026-08-31 完成；不得原地改写历史 Link。M3 首个“邮箱 Source、邮件与附件本地归档”切片已按 ADR-0014 完成；第二个“行程 Fact 与确定性单据归属”切片已按 ADR-0015 完成。真实邮箱账号、凭据、网络连接、轮询和实联调仍需重新授权。
 - 禁止删除远端旧版本、重写历史、发布镜像或部署。
 - 冻结的设计基线和已实现的 M1 不变量仍是后续实现与验收依据；结构性变更必须同步更新权威文档并重新验收。
 
 ## 架构与业务规则
 
 - 数据流固定为 `Source -> Claim -> Fact`。
-- 模型只按最小中文契约返回 Payment/Invoice 所需字段的票面原文与一基页码 `{text,page}`，不得返回内部 Claim、归一化值、独立 Evidence、推导值或审核结论；本地 `claim-mapper/3` 负责确定性格式化、Evidence 组装和 Claim 映射。M1 中只有用户明确确认后才能创建或修改 Fact。
+- 模型只按最小中文契约返回 Payment/Invoice/Trip 所需字段的票面原文与一基页码 `{text,page}`，不得返回内部 Claim、归一化值、独立 Evidence、推导值、归属或审核结论；本地 `claim-mapper/4` 负责确定性格式化、Evidence 组装和 Claim 映射。只有用户明确确认后才能创建 Fact。
 - 一个 `OpenAICompatibleAdapter` 是第一阶段唯一 AI 传输实现；禁止供应商名称分支、多模型路由和自动降级。
-- `bill-visible-text/1` 是模型输出的唯一权威本地 Envelope Schema，只硬校验有效 JSON、封闭根对象、`schema_version`、`document_type` 与 Payment/Invoice 根成员；Provider-facing Schema 只能由它确定性投影。嵌套票面字段不得在 Adapter 阶段因局部类型错误而整份丢弃。
+- `bill-visible-text/2` 是模型输出的唯一权威本地 Envelope Schema，只硬校验有效 JSON、封闭根对象、`schema_version`、`document_type` 与 Payment/Invoice/Trip 根成员；Provider-facing Schema 只能由它确定性投影。嵌套票面字段不得在 Adapter 阶段因局部类型错误而整份丢弃。
 - 每个非空模型字段只能是 `{text,page}`；`text` 必须是字段值本身的票面原文，`page` 从 1 开始。模型没有看到的字段返回 `null`，不得计算、猜测、补默认值或纠正字符。
-- `claim-mapper/3` 是模型 JSON 到 `document-claim/2` 的唯一转换位置：它将票面原文绑定为 Evidence，并确定性处理批准的币种/金额、日期、交易时间、显式时区、中文默认时区、数量、`null`、明细顺序和审核专用补充字段。它不得计算缺失业务值、纠正 OCR 字符、增加 Provider 品牌分支或从标签外文本重新理解单据。
+- `claim-mapper/4` 是模型 JSON 到 `document-claim/3` 的唯一转换位置：它将票面原文绑定为 Evidence，并确定性处理批准的币种/金额、日期、交易时间、显式时区、中文默认时区、数量、`null`、明细顺序、Trip 日期和审核专用补充字段。它不得计算缺失业务值、纠正 OCR 字符、增加 Provider 品牌分支或从标签外文本重新理解单据。
 - 发票 `amount_with_tax` 只能映射为 `total_minor`，`amount_without_tax` 只进入审核专用补充字段；空白明细值必须保持 absent。除无效 JSON 或错误根身份外，单字段形状、页码、金额、日期、时区、业务区段和 Evidence 问题必须形成显式 Validation 与 `blocked` Claim，同时保留同一文档的其他正确字段供审核。
 - 所有 AI 输出必须经过 JSON Schema、确定性业务校验和本地权限校验。
 - 所有业务、文件、任务、AI Run 和审核记录必须具有租户边界。

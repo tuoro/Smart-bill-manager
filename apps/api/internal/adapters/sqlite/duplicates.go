@@ -398,11 +398,14 @@ func (t transaction) validateDuplicateConfirmation(
 	if err != nil {
 		return err
 	}
-	fieldTargets, err := t.ListFieldDuplicateTargets(ctx, command.TenantID, fieldInput)
-	if err != nil {
-		return err
+	var fieldTargets []domain.FieldDuplicateTarget
+	if fieldInput != nil {
+		fieldTargets, err = t.ListFieldDuplicateTargets(ctx, command.TenantID, *fieldInput)
+		if err != nil {
+			return err
+		}
 	}
-	specs, err := domain.BuildDuplicateCandidateSpecs(current, visualTargets, &fieldInput, fieldTargets)
+	specs, err := domain.BuildDuplicateCandidateSpecs(current, visualTargets, fieldInput, fieldTargets)
 	if err != nil {
 		return err
 	}
@@ -459,8 +462,8 @@ func (t transaction) loadDuplicateCandidates(
 	return result, nil
 }
 
-func duplicateInputFromConfirmCommand(command ports.ConfirmCommand) (domain.FieldDuplicateInput, error) {
-	if command.Payment != nil && command.Invoice == nil {
+func duplicateInputFromConfirmCommand(command ports.ConfirmCommand) (*domain.FieldDuplicateInput, error) {
+	if command.Payment != nil && command.Invoice == nil && command.Trip == nil {
 		input := domain.FieldDuplicateInput{
 			DocumentType:    domain.DocumentPayment,
 			AmountMinor:     command.Payment.AmountMinor,
@@ -471,10 +474,10 @@ func duplicateInputFromConfirmCommand(command ports.ConfirmCommand) (domain.Fiel
 		if command.Payment.OrderNumber != nil {
 			input.OrderNumber = *command.Payment.OrderNumber
 		}
-		return input, nil
+		return &input, nil
 	}
-	if command.Invoice != nil && command.Payment == nil {
-		return domain.FieldDuplicateInput{
+	if command.Invoice != nil && command.Payment == nil && command.Trip == nil {
+		input := domain.FieldDuplicateInput{
 			DocumentType:  domain.DocumentInvoice,
 			AmountMinor:   command.Invoice.TotalMinor,
 			Currency:      command.Invoice.Currency,
@@ -482,9 +485,13 @@ func duplicateInputFromConfirmCommand(command ports.ConfirmCommand) (domain.Fiel
 			InvoiceDate:   command.Invoice.InvoiceDate,
 			SellerName:    command.Invoice.SellerName,
 			BuyerName:     command.Invoice.BuyerName,
-		}, nil
+		}
+		return &input, nil
 	}
-	return domain.FieldDuplicateInput{}, domain.ErrInvalidInput
+	if command.Trip != nil && command.Payment == nil && command.Invoice == nil {
+		return nil, nil
+	}
+	return nil, domain.ErrInvalidInput
 }
 
 func staleDuplicateCandidateSet() error {

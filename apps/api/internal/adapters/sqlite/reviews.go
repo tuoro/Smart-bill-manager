@@ -355,9 +355,9 @@ func (s *Store) GetConfirmReplay(
 	var recordedJobID string
 	var linkIDsJSON string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT r.id, j.id, c.id, r.expected_revision, r.association_mode,
+		SELECT r.id, j.id, c.id, r.expected_revision, coalesce(r.association_mode, ''),
 		       coalesce(r.association_plan_hash, ''), r.duplicate_plan_hash, c.document_type,
-		       coalesce(p.id, i.id),
+		       coalesce(p.id, i.id, trip.id),
 		       coalesce((SELECT json_group_array(link_id) FROM (
 		           SELECT l.id AS link_id
 		           FROM payment_invoice_link_decisions d
@@ -371,6 +371,7 @@ func (s *Store) GetConfirmReplay(
 		JOIN processing_jobs j ON j.tenant_id = c.tenant_id AND j.document_id = c.document_id
 		LEFT JOIN payments p ON p.tenant_id = r.tenant_id AND p.source_review_decision_id = r.id
 		LEFT JOIN invoices i ON i.tenant_id = r.tenant_id AND i.source_review_decision_id = r.id
+		LEFT JOIN trips trip ON trip.tenant_id = r.tenant_id AND trip.source_review_decision_id = r.id
 		WHERE r.tenant_id = ? AND r.idempotency_key = ? AND r.action = 'confirm'
 	`, tenantID, idempotencyKey).Scan(
 		&replay.Result.ReviewDecisionID,

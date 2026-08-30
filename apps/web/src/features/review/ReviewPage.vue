@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { ApiError, api, type ConfirmResult, type Review } from '../../data/client'
+import {
+  ApiError,
+  api,
+  type ConfirmRequest,
+  type ConfirmResult,
+  type Review,
+} from '../../data/client'
 import {
   allocationEditors,
   buildAssociationDecision,
@@ -115,11 +121,12 @@ const duplicateDecision = computed(() =>
     ? buildDuplicateResolutionDecision(review.value, duplicateResolutionIds.value)
     : null,
 )
+const isTripReview = computed(() => review.value?.document_type === 'trip')
 const canConfirm = computed(() =>
   Boolean(
     review.value &&
     review.value.claim_status === 'ready_for_review' &&
-    associationDecision.value?.request &&
+    (isTripReview.value || associationDecision.value?.request) &&
     duplicateDecision.value?.request,
   ),
 )
@@ -238,20 +245,20 @@ async function saveRevision() {
 async function confirmReview() {
   const association = associationDecision.value?.request
   const duplicates = duplicateDecision.value?.request
-  if (!review.value || !canConfirm.value || !association || !duplicates) return
+  if (!review.value || !canConfirm.value || !duplicates || (!isTripReview.value && !association))
+    return
   confirming.value = true
   error.value = ''
   try {
-    completed.value = await api.confirm(
-      jobId.value,
-      {
-        expected_revision: review.value.revision,
-        association_mode: association.association_mode,
-        allocations: association.allocations,
-        duplicate_resolutions: duplicates.duplicate_resolutions,
-      },
-      crypto.randomUUID(),
-    )
+    const body: ConfirmRequest = {
+      expected_revision: review.value.revision,
+      duplicate_resolutions: duplicates.duplicate_resolutions,
+    }
+    if (!isTripReview.value && association) {
+      body.association_mode = association.association_mode
+      body.allocations = association.allocations
+    }
+    completed.value = await api.confirm(jobId.value, body, crypto.randomUUID())
   } catch (caught) {
     handleMutationError(caught)
   } finally {
@@ -354,8 +361,14 @@ onMounted(() => void load())
         <div class="page-actions">
           <RouterLink
             class="button button-primary"
-            :to="completed.fact_type === 'payment' ? '/payments' : '/invoices'"
-            >查看账单列表</RouterLink
+            :to="
+              completed.fact_type === 'payment'
+                ? '/payments'
+                : completed.fact_type === 'invoice'
+                  ? '/invoices'
+                  : '/trips'
+            "
+            >查看正式事实</RouterLink
           ><RouterLink class="button" to="/inbox">返回收件箱</RouterLink>
         </div>
       </section>
@@ -485,6 +498,7 @@ onMounted(() => void load())
             >
               <option value="payment">支付</option>
               <option value="invoice">发票</option>
+              <option value="trip">行程</option>
               <option value="unknown">未知 / 无法归类</option>
             </select>
           </div>
@@ -718,7 +732,11 @@ onMounted(() => void load())
             </p>
           </section>
 
-          <section class="panel decision-panel" aria-labelledby="association-title">
+          <section
+            v-if="review.document_type !== 'trip'"
+            class="panel decision-panel"
+            aria-labelledby="association-title"
+          >
             <div class="panel-heading">
               <div>
                 <h2 id="association-title">支付 / 发票关联</h2>
@@ -826,7 +844,13 @@ onMounted(() => void load())
             <p v-else-if="duplicateDecision && !duplicateDecision.request">
               {{ duplicateDecision.error }}
             </p>
-            <p v-else-if="associationDecision && !associationDecision.request">
+            <p
+              v-else-if="
+                review.document_type !== 'trip' &&
+                associationDecision &&
+                !associationDecision.request
+              "
+            >
               {{ associationDecision.errors.$association || '请修正候选分配金额。' }}
             </p>
             <p v-else>确认后将创建正式 {{ review.document_type }} Fact，并保留完整来源链。</p>

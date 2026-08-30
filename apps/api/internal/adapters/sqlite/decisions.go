@@ -100,21 +100,23 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 		}
 	}
 	if (documentType == domain.DocumentPayment) != (command.Payment != nil) ||
-		(documentType == domain.DocumentInvoice) != (command.Invoice != nil) {
+		(documentType == domain.DocumentInvoice) != (command.Invoice != nil) ||
+		(documentType == domain.DocumentTrip) != (command.Trip != nil) {
 		return ports.ConfirmResult{}, domain.ErrInvalidInput
 	}
 	createdAt := command.CreatedAt.UTC().Format(time.RFC3339Nano)
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO review_decisions (
-			id, tenant_id, claim_set_id, actor_user_id, action, association_mode,
+			id, tenant_id, claim_set_id, actor_user_id, action, fact_type, association_mode,
 			association_plan_hash, duplicate_plan_hash, idempotency_key,
 			expected_revision, created_at
-		) VALUES (?, ?, ?, ?, 'confirm', ?, NULLIF(?, ''), ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, 'confirm', ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?)
 	`,
 		command.ReviewDecisionID,
 		command.TenantID,
 		command.ClaimSetID,
 		command.ActorUserID,
+		documentType,
 		command.AssociationMode,
 		command.AllocationPlanHash,
 		command.DuplicatePlanHash,
@@ -151,11 +153,16 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 			return ports.ConfirmResult{}, err
 		}
 		result.FactID = command.Payment.ID
-	} else {
+	} else if command.Invoice != nil {
 		if err := t.insertInvoice(ctx, command, createdAt, itemIDs); err != nil {
 			return ports.ConfirmResult{}, err
 		}
 		result.FactID = command.Invoice.ID
+	} else {
+		if err := t.insertTrip(ctx, command, createdAt); err != nil {
+			return ports.ConfirmResult{}, err
+		}
+		result.FactID = command.Trip.ID
 	}
 	if err := t.insertFactOrigins(ctx, command, itemIDs, createdAt); err != nil {
 		return ports.ConfirmResult{}, err
@@ -209,12 +216,15 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 		}
 		result.LinkIDs = append(result.LinkIDs, decision.LinkID)
 	}
-	metadata, _ := json.Marshal(map[string]any{
-		"association_mode": command.AssociationMode,
+	metadataValues := map[string]any{
 		"allocation_count": len(result.LinkIDs),
 		"duplicate_count":  len(command.DuplicateDecisions),
 		"fact_type":        string(documentType),
-	})
+	}
+	if command.AssociationMode != "" {
+		metadataValues["association_mode"] = command.AssociationMode
+	}
+	metadata, _ := json.Marshal(metadataValues)
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO audit_events (
 			id, tenant_id, actor_user_id, action, resource_type, resource_id,
@@ -466,6 +476,34 @@ func (t transaction) insertInvoice(
 	return nil
 }
 
+func (t transaction) insertTrip(ctx context.Context, command ports.ConfirmCommand, createdAt string) error {
+	trip := command.Trip
+	_, err := t.tx.ExecContext(ctx, `
+		INSERT INTO trips (
+			id, tenant_id, source_review_decision_id, origin, destination,
+			start_date, end_date, traveler_name, transport_type, booking_reference,
+			created_at, updated_at, version
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+	`,
+		trip.ID,
+		command.TenantID,
+		command.ReviewDecisionID,
+		trip.Origin,
+		trip.Destination,
+		trip.StartDate,
+		trip.EndDate,
+		trip.TravelerName,
+		trip.TransportType,
+		trip.BookingReference,
+		createdAt,
+		createdAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert trip fact: %w", err)
+	}
+	return nil
+}
+
 func (t transaction) insertFactOrigins(
 	ctx context.Context,
 	command ports.ConfirmCommand,
@@ -475,7 +513,8 @@ func (t transaction) insertFactOrigins(
 	var expected int
 	if err := t.tx.QueryRowContext(ctx, `
 		SELECT count(*) FROM field_claims
-		WHERE tenant_id = ? AND claim_set_id = ? AND presence = 'present' AND field_path <> 'document_type'
+		WHERE tenant_id = ? AND claim_set_id = ? AND presence = 'present'
+		  AND field_path NOT IN ('document_type', 'supplementary_fields')
 	`, command.TenantID, command.ClaimSetID).Scan(&expected); err != nil {
 		return fmt.Errorf("count fact source fields: %w", err)
 	}
@@ -501,7 +540,7 @@ func (t transaction) insertFactOrigins(
 		if valid != 1 {
 			return domain.ErrConflict
 		}
-		var paymentID, invoiceID, invoiceItemID any
+		var paymentID, invoiceID, invoiceItemID, tripID any
 		switch origin.FactScope {
 		case "payment":
 			paymentID = command.Payment.ID
@@ -512,20 +551,23 @@ func (t transaction) insertFactOrigins(
 			if invoiceItemID == "" {
 				return domain.ErrInvalidInput
 			}
+		case "trip":
+			tripID = command.Trip.ID
 		default:
 			return domain.ErrInvalidInput
 		}
 		if _, err := t.tx.ExecContext(ctx, `
 			INSERT INTO fact_field_origins (
-				id, tenant_id, payment_id, invoice_id, invoice_item_id,
+				id, tenant_id, payment_id, invoice_id, invoice_item_id, trip_id,
 				field_path, field_claim_id, review_decision_id, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			origin.ID,
 			command.TenantID,
 			paymentID,
 			invoiceID,
 			invoiceItemID,
+			tripID,
 			origin.FieldPath,
 			origin.FieldClaimID,
 			command.ReviewDecisionID,
@@ -560,6 +602,13 @@ func (t transaction) loadCandidates(ctx context.Context, tenantID, claimSetID st
 }
 
 func validatePersistedAssociation(candidates []persistedCandidate, command ports.ConfirmCommand) error {
+	if command.Trip != nil {
+		if command.Payment != nil || command.Invoice != nil || len(candidates) != 0 ||
+			len(command.CandidateDecisions) != 0 || command.AssociationMode != "" || command.AllocationPlanHash != "" {
+			return domain.NewRuleError("invalid_trip_association", "Trip 确认不能包含支付或发票金额分配", domain.ErrInvalidInput)
+		}
+		return nil
+	}
 	decisions := make(map[string]ports.CandidateDecisionDraft, len(command.CandidateDecisions))
 	for _, decision := range command.CandidateDecisions {
 		if decision.Action != "accept" && decision.Action != "reject" {
@@ -642,7 +691,7 @@ func commandFactTerms(command ports.ConfirmCommand) (int64, string, bool) {
 	if command.Payment != nil && command.Invoice == nil {
 		return command.Payment.AmountMinor, command.Payment.Currency, true
 	}
-	if command.Invoice != nil && command.Payment == nil {
+	if command.Invoice != nil && command.Payment == nil && command.Trip == nil {
 		return command.Invoice.TotalMinor, command.Invoice.Currency, true
 	}
 	return 0, "", false
@@ -746,7 +795,7 @@ func (t transaction) confirmReplay(
 		SELECT r.action, r.id, j.id, c.id, r.expected_revision,
 		       coalesce(r.association_mode, ''), coalesce(r.association_plan_hash, ''),
 		       coalesce(r.duplicate_plan_hash, ''),
-		       c.document_type, coalesce(p.id, i.id),
+		       c.document_type, coalesce(p.id, i.id, trip.id),
 		       coalesce((SELECT json_group_array(link_id) FROM (
 		           SELECT l.id AS link_id
 		           FROM payment_invoice_link_decisions d
@@ -760,6 +809,7 @@ func (t transaction) confirmReplay(
 		JOIN processing_jobs j ON j.tenant_id = c.tenant_id AND j.document_id = c.document_id
 		LEFT JOIN payments p ON p.tenant_id = r.tenant_id AND p.source_review_decision_id = r.id
 		LEFT JOIN invoices i ON i.tenant_id = r.tenant_id AND i.source_review_decision_id = r.id
+		LEFT JOIN trips trip ON trip.tenant_id = r.tenant_id AND trip.source_review_decision_id = r.id
 		WHERE r.tenant_id = ? AND r.idempotency_key = ?
 	`, tenantID, idempotencyKey).Scan(
 		&action,

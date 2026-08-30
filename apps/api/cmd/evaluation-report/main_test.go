@@ -28,9 +28,9 @@ func TestQueryAiRunsIncludesProviderSchemaIdentity(t *testing.T) {
 		);
 		INSERT INTO ai_runs VALUES (
 			'run', 'job', 'succeeded', NULL, 1, 'safe-fingerprint',
-			'model', 'bill-visible-text-cn/1', 'bill-visible-text/1',
-			'bill-visible-text-provider/1', '` + strings.Repeat("c", 64) + `',
-			'document-claim/2', 'claim-mapper/3',
+			'model', 'bill-visible-text-cn/2', 'bill-visible-text/2',
+			'bill-visible-text-provider/2', '` + strings.Repeat("c", 64) + `',
+			'document-claim/3', 'claim-mapper/4',
 			'document-normalize/1', 'request', 'response', 10, 20, 30,
 			'2026-08-28T00:00:00Z', '2026-08-28T00:00:01Z'
 		)
@@ -41,8 +41,8 @@ func TestQueryAiRunsIncludesProviderSchemaIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 1 || runs[0].ProviderSchemaVersion != "bill-visible-text-provider/1" ||
-		runs[0].ProviderSchemaSHA256 != strings.Repeat("c", 64) || runs[0].ClaimMapperVersion != "claim-mapper/3" {
+	if len(runs) != 1 || runs[0].ProviderSchemaVersion != "bill-visible-text-provider/2" ||
+		runs[0].ProviderSchemaSHA256 != strings.Repeat("c", 64) || runs[0].ClaimMapperVersion != "claim-mapper/4" {
 		t.Fatalf("AI run report = %#v", runs)
 	}
 }

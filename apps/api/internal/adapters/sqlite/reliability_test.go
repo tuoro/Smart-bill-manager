@@ -98,7 +98,7 @@ func TestProviderActivationRequiresSchemaIdentity(t *testing.T) {
 	}); err == nil {
 		t.Fatal("active Provider config without a schema identity was accepted")
 	}
-	config.CapabilitySchemaVersion = "bill-visible-text-provider/1"
+	config.CapabilitySchemaVersion = "bill-visible-text-provider/2"
 	config.CapabilitySchemaSHA256 = fmt.Sprintf("%064x", 1)
 	if err := store.WithinTransaction(ctx, func(transaction ports.Transaction) error {
 		return transaction.InsertProviderConfig(ctx, config)
@@ -144,7 +144,7 @@ func TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed(t *testing.T) {
 			ID: "provider", TenantID: owner.TenantID, BaseURL: "https://provider.example/v1",
 			EncryptedAPIKey: []byte("encrypted"), Model: "model", CapabilityStatus: "passed",
 			OutputMode:              ports.ProviderOutputModeJSONSchema,
-			CapabilitySchemaVersion: "bill-visible-text-provider/1", CapabilitySchemaSHA256: fmt.Sprintf("%064x", 1),
+			CapabilitySchemaVersion: "bill-visible-text-provider/2", CapabilitySchemaSHA256: fmt.Sprintf("%064x", 1),
 			Version: 1, SafeFingerprint: "fingerprint", CreatedByUserID: owner.UserID, CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			return err
@@ -174,9 +174,9 @@ func TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed(t *testing.T) {
 		return transaction.InsertAiRun(ctx, ports.AiRun{
 			ID: "run", TenantID: owner.TenantID, JobID: first.ID, ProviderConfigID: "provider",
 			ProviderConfigVersion: 1, ProviderConfigFingerprint: "fingerprint", Model: "model",
-			PromptVersion: "bill-visible-text-cn/1", ExtractionSchemaVersion: "bill-visible-text/1",
-			ProviderSchemaVersion: "bill-visible-text-provider/1", ProviderSchemaSHA256: fmt.Sprintf("%064x", 1),
-			ClaimSchemaVersion: "document-claim/2", ClaimMapperVersion: "claim-mapper/3",
+			PromptVersion: "bill-visible-text-cn/2", ExtractionSchemaVersion: "bill-visible-text/2",
+			ProviderSchemaVersion: "bill-visible-text-provider/2", ProviderSchemaSHA256: fmt.Sprintf("%064x", 1),
+			ClaimSchemaVersion: "document-claim/3", ClaimMapperVersion: "claim-mapper/4",
 			InputProcessingVersion: "document-normalize/1", Outcome: "running", StartedAt: now,
 		})
 	}); err != nil {

@@ -19,10 +19,15 @@ export type AllocationEditor = {
   textValue: string
 }
 
-export type AssociationMode = ConfirmRequest['association_mode'] | ''
+export type AssociationMode = NonNullable<ConfirmRequest['association_mode']> | ''
+
+type AssociationRequest = {
+  association_mode: NonNullable<ConfirmRequest['association_mode']>
+  allocations: NonNullable<ConfirmRequest['allocations']>
+}
 
 export type AssociationDecision = {
-  request?: Pick<ConfirmRequest, 'association_mode' | 'allocations'>
+  request?: AssociationRequest
   errors: Record<string, string>
   totalMinor: number
   factAmountMinor: number
@@ -68,6 +73,22 @@ const invoiceSpecs: FieldSpec[] = [
   },
 ]
 
+const tripSpecs: FieldSpec[] = [
+  { path: 'origin', valueType: 'string', required: false, label: '出发地' },
+  { path: 'destination', valueType: 'string', required: true, label: '目的地' },
+  { path: 'start_date', valueType: 'date', required: true, label: '开始日期' },
+  { path: 'end_date', valueType: 'date', required: true, label: '结束日期' },
+  { path: 'traveler_name', valueType: 'string', required: false, label: '出行人' },
+  { path: 'transport_type', valueType: 'string', required: false, label: '交通类型' },
+  { path: 'booking_reference', valueType: 'string', required: false, label: '预订编号' },
+  {
+    path: 'supplementary_fields',
+    valueType: 'supplementary',
+    required: false,
+    label: '补充识别字段',
+  },
+]
+
 const invoiceItemSpecs = [
   { property: 'name', valueType: 'string', required: true, label: '名称' },
   { property: 'quantity', valueType: 'decimal', required: false, label: '数量' },
@@ -81,7 +102,13 @@ const invoiceItemSpecs = [
 export function editableFields(review: Review, documentType: DocumentType): EditableField[] {
   const current = new Map(review.fields.map((field) => [field.path, field]))
   const specs =
-    documentType === 'payment' ? paymentSpecs : documentType === 'invoice' ? invoiceSpecs : []
+    documentType === 'payment'
+      ? paymentSpecs
+      : documentType === 'invoice'
+        ? invoiceSpecs
+        : documentType === 'trip'
+          ? tripSpecs
+          : []
   const result = specs.map((spec) => toEditable(current.get(spec.path), spec))
   if (documentType === 'invoice') {
     const itemKeys = new Set<string>()
@@ -220,7 +247,7 @@ export function buildRevisionRequest(
 }
 
 export function fieldLabel(path: string): string {
-  const direct = [...paymentSpecs, ...invoiceSpecs].find((spec) => spec.path === path)
+  const direct = [...paymentSpecs, ...invoiceSpecs, ...tripSpecs].find((spec) => spec.path === path)
   if (direct) return direct.label
   const item = parseItemPath(path)
   if (item) {
@@ -310,7 +337,7 @@ export function buildAssociationDecision(
   }
 
   const candidates = new Map(review.candidates.map((candidate) => [candidate.id, candidate]))
-  const allocations: ConfirmRequest['allocations'] = []
+  const allocations: NonNullable<ConfirmRequest['allocations']> = []
   let totalMinor = 0
   for (const editor of editors.filter((item) => item.selected)) {
     const candidate = candidates.get(editor.candidateId)

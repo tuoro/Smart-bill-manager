@@ -127,6 +127,59 @@ func (s *Store) ListInvoices(ctx context.Context, tenantID string) ([]ports.Invo
 	return items, nil
 }
 
+func (s *Store) ListTrips(ctx context.Context, tenantID string) ([]ports.Trip, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT trip.id, trip.origin, trip.destination, trip.start_date, trip.end_date,
+		       trip.traveler_name, trip.transport_type, trip.booking_reference,
+		       coalesce(sum(CASE WHEN assignment.payment_id IS NOT NULL THEN 1 ELSE 0 END), 0),
+		       coalesce(sum(CASE WHEN assignment.invoice_id IS NOT NULL THEN 1 ELSE 0 END), 0),
+		       trip.created_at
+		FROM trips trip
+		LEFT JOIN trip_fact_assignments assignment
+		  ON assignment.tenant_id = trip.tenant_id
+		 AND assignment.trip_id = trip.id
+		 AND assignment.ended_at IS NULL
+		WHERE trip.tenant_id = ? AND trip.deleted_at IS NULL
+		GROUP BY trip.tenant_id, trip.id
+		ORDER BY trip.start_date DESC, trip.end_date DESC, trip.id DESC
+	`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("list trips: %w", err)
+	}
+	defer rows.Close()
+	items := make([]ports.Trip, 0)
+	for rows.Next() {
+		var item ports.Trip
+		var origin, travelerName, transportType, bookingReference sql.NullString
+		var createdAt string
+		if err := rows.Scan(
+			&item.ID,
+			&origin,
+			&item.Destination,
+			&item.StartDate,
+			&item.EndDate,
+			&travelerName,
+			&transportType,
+			&bookingReference,
+			&item.AssignedPaymentCount,
+			&item.AssignedInvoiceCount,
+			&createdAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan trip: %w", err)
+		}
+		item.Origin = nullableString(origin)
+		item.TravelerName = nullableString(travelerName)
+		item.TransportType = nullableString(transportType)
+		item.BookingReference = nullableString(bookingReference)
+		item.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("parse trip created_at: %w", err)
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (s *Store) populateInvoiceItems(
 	ctx context.Context,
 	tenantID string,

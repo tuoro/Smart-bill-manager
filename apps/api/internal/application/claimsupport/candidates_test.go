@@ -100,7 +100,7 @@ func TestValidationRecordAndInvoiceNormalization(t *testing.T) {
 
 func candidatePaymentEnvelope() domain.ClaimEnvelope {
 	evidence := []domain.CandidateEvidence{{Page: 1, Quote: "evidence"}}
-	return domain.ClaimEnvelope{SchemaVersion: "document-claim/2", DocumentType: "payment", DocumentIssues: []string{}, Fields: []domain.FieldCandidate{
+	return domain.ClaimEnvelope{SchemaVersion: "document-claim/3", DocumentType: "payment", DocumentIssues: []string{}, Fields: []domain.FieldCandidate{
 		{Path: "amount_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence, Issues: []string{}},
 		{Path: "currency", ValueType: "string", Presence: "present", Value: json.RawMessage(`"CNY"`), Evidence: evidence, Issues: []string{}},
 		{Path: "merchant", ValueType: "string", Presence: "present", Value: json.RawMessage(`"Example Merchant"`), Evidence: evidence, Issues: []string{}},
@@ -115,7 +115,7 @@ func candidatePaymentEnvelope() domain.ClaimEnvelope {
 
 func candidateInvoiceEnvelope() domain.ClaimEnvelope {
 	evidence := []domain.CandidateEvidence{{Page: 1, Quote: "evidence"}}
-	return domain.ClaimEnvelope{SchemaVersion: "document-claim/2", DocumentType: "invoice", DocumentIssues: []string{}, Fields: []domain.FieldCandidate{
+	return domain.ClaimEnvelope{SchemaVersion: "document-claim/3", DocumentType: "invoice", DocumentIssues: []string{}, Fields: []domain.FieldCandidate{
 		{Path: "invoice_number", ValueType: "string", Presence: "present", Value: json.RawMessage(`"INV-001"`), Evidence: evidence, Issues: []string{}},
 		{Path: "invoice_date", ValueType: "date", Presence: "present", Value: json.RawMessage(`"2026-08-28"`), Evidence: evidence, Issues: []string{}},
 		{Path: "total_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence, Issues: []string{}},

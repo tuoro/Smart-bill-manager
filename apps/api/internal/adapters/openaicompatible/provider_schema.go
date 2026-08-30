@@ -11,7 +11,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
 
-const providerSchemaVersion = "bill-visible-text-provider/1"
+const providerSchemaVersion = "bill-visible-text-provider/2"
 
 var providerSchemaKeywords = map[string]struct{}{
 	"$defs":                {},

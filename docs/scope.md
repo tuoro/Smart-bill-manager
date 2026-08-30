@@ -1,6 +1,6 @@
 # 范围与非目标
 
-状态：M0、M1、M2 已完成；M3 邮箱 Source 首切片已完成，下一切片为行程归属
+状态：M0、M1、M2 已完成；M3 邮箱归档与行程归属两个切片已完成，下一切片待冻结
 适用范围：Clean Slate 新架构
 
 ## 最高边界
@@ -175,7 +175,7 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 
 ## M3：邮箱、行程与报销
 
-状态：首个“邮箱 Source、邮件与附件本地归档”切片已完成；下一切片从行程归属范围冻结开始。
+状态：首个“邮箱 Source、邮件与附件本地归档”切片已完成；第二个“行程 Fact 与确定性单据归属”切片已按 ADR-0015 完成。下一步先冻结报销状态与确定性冲突提示。
 
 当前范围顺序固定为邮箱 Source、邮件与附件、行程归属、报销状态和确定性冲突提示。
 
@@ -197,6 +197,25 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 - Trip、Reimbursement、行程归属、报销状态和冲突提示；它们按后续切片继续冻结后实施。
 
 完整不变量、容量、失败补偿、API/UI 与验证要求见 `docs/decisions/0014-connector-neutral-email-archive.md` 和 `docs/acceptance.md`。
+
+### 已完成的第二切片范围
+
+- 将唯一活动模型链升级为 `bill-visible-text-cn/2 -> bill-visible-text/2 -> bill-visible-text-provider/2 -> claim-mapper/4 -> document-claim/3`，增加固定 Trip 区段；旧版本退出活动链路，不保留兼容解析；
+- Trip 单据继续经过既有 Document、AiRun、Claim、Validation 与人工 Review，只有确认后创建可追溯 Trip Fact；
+- Trip 最小字段为可选出发地、必填目的地、必填起止日期、可选出行人/交通类型/预订编号；不计算、猜测或读取邮件正文补值；
+- 对已确认 Payment/Invoice 生成版本化的日期与既有 PaymentInvoiceLink 确定性建议，不自动归属；
+- 以不可变 Decision 与可终止一次的 Assignment Link 支持显式 assign、move、unassign，提交期望当前 Link、幂等键与必填理由；
+- Trip 列表、游标分页归属候选、单 Fact 归属写 API、行程审核和行程归属 Web 工作区；
+- Owner/Finance 管理归属，Owner/Finance/Viewer 读取 Fact，Reviewer 只沿现有审核权限处理 Trip Claim，Owner 才能删除；
+- 纯合成测试覆盖事务原子性、并发、删除生命周期、租户、权限、游标、响应式和可访问性。
+
+### 第二切片明确排除范围
+
+- 自动接受归属、模型归属、模糊地点/名称学习、地图路线、多城市航段或行程日程；
+- 报销状态、费用政策、缺票/金额/重复报销提示；
+- 真实 Provider、正式正确率评测、真实邮箱连接、外部账号联调、部署或发布。
+
+完整决策见 `docs/decisions/0015-trip-fact-attribution.md`；验收证据见 `docs/m3-evidence.md` 与 `tests/evidence/m3/trip-attribution-gate-summary.json`。
 
 ## 范围变更规则
 

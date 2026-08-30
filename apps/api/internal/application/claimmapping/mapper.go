@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	Version                 = "claim-mapper/3"
-	ExtractionSchemaVersion = "bill-visible-text/1"
-	ClaimSchemaVersion      = "document-claim/2"
+	Version                 = "claim-mapper/4"
+	ExtractionSchemaVersion = "bill-visible-text/2"
+	ClaimSchemaVersion      = "document-claim/3"
 	defaultSourceTimezone   = "Asia/Shanghai"
 )
 
@@ -67,26 +67,56 @@ func Map(source domain.BillVisibleTextEnvelope) (domain.ClaimEnvelope, error) {
 	}
 	switch documentType {
 	case domain.DocumentPayment:
-		if !nullish(source.Invoice) {
+		if !nullish(source.Invoice) || !nullish(source.Trip) {
 			claim.DocumentIssues = append(claim.DocumentIssues, "conflicting_business_sections")
 		}
 		fields, issues := mapPayment(source.Payment)
 		claim.Fields = fields
 		claim.DocumentIssues = append(claim.DocumentIssues, issues...)
 	case domain.DocumentInvoice:
-		if !nullish(source.Payment) {
+		if !nullish(source.Payment) || !nullish(source.Trip) {
 			claim.DocumentIssues = append(claim.DocumentIssues, "conflicting_business_sections")
 		}
 		fields, issues := mapInvoice(source.Invoice)
 		claim.Fields = fields
 		claim.DocumentIssues = append(claim.DocumentIssues, issues...)
-	case domain.DocumentUnknown:
+	case domain.DocumentTrip:
 		if !nullish(source.Payment) || !nullish(source.Invoice) {
+			claim.DocumentIssues = append(claim.DocumentIssues, "conflicting_business_sections")
+		}
+		fields, issues := mapTrip(source.Trip)
+		claim.Fields = fields
+		claim.DocumentIssues = append(claim.DocumentIssues, issues...)
+	case domain.DocumentUnknown:
+		if !nullish(source.Payment) || !nullish(source.Invoice) || !nullish(source.Trip) {
 			claim.DocumentIssues = append(claim.DocumentIssues, "conflicting_business_sections")
 		}
 	}
 	claim.DocumentIssues = uniqueStrings(claim.DocumentIssues)
 	return claim, nil
+}
+
+func mapTrip(raw json.RawMessage) ([]domain.FieldCandidate, []string) {
+	section, issue := businessSection(raw)
+	var issues []string
+	if issue != "" {
+		issues = append(issues, issue)
+	}
+	fields := []domain.FieldCandidate{
+		mapVisibleField("origin", "string", section["origin"], normalizeLiteral),
+		mapVisibleField("destination", "string", section["destination"], normalizeLiteral),
+		mapVisibleField("start_date", "date", section["start_date"], normalizeDate),
+		mapVisibleField("end_date", "date", section["end_date"], normalizeDate),
+		mapVisibleField("traveler_name", "string", section["traveler_name"], normalizeLiteral),
+		mapVisibleField("transport_type", "string", section["transport_type"], normalizeLiteral),
+		mapVisibleField("booking_reference", "string", section["booking_reference"], normalizeLiteral),
+	}
+	known := stringSet(
+		"origin", "destination", "start_date", "end_date", "traveler_name",
+		"transport_type", "booking_reference",
+	)
+	fields = append(fields, supplementaryField(collectObjectExtras("trip", section, known)))
+	return fields, issues
 }
 
 func mapPayment(raw json.RawMessage) ([]domain.FieldCandidate, []string) {

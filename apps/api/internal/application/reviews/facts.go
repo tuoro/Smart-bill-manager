@@ -32,7 +32,7 @@ func (s FactService) Delete(
 	if err := tenant.Require(domain.CapabilityResourcesDelete); err != nil {
 		return err
 	}
-	if factType != domain.DocumentPayment && factType != domain.DocumentInvoice {
+	if factType != domain.DocumentPayment && factType != domain.DocumentInvoice && factType != domain.DocumentTrip {
 		return domain.ErrInvalidInput
 	}
 	if factID == "" || requestID == "" {
@@ -69,4 +69,14 @@ func (s FactService) ListInvoices(
 		return nil, err
 	}
 	return s.facts.ListInvoices(ctx, tenant.TenantID)
+}
+
+func (s FactService) ListTrips(
+	ctx context.Context,
+	tenant domain.TenantContext,
+) ([]ports.Trip, error) {
+	if err := tenant.Require(domain.CapabilityFactsRead); err != nil {
+		return nil, err
+	}
+	return s.facts.ListTrips(ctx, tenant.TenantID)
 }

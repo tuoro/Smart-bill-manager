@@ -74,10 +74,11 @@ func TestSchemaDiagnosticRedactsUntrustedPropertyNames(t *testing.T) {
 	t.Parallel()
 
 	instance := map[string]any{
-		"schema_version":         "bill-visible-text/1",
+		"schema_version":         "bill-visible-text/2",
 		"document_type":          "unknown",
 		"payment":                nil,
 		"invoice":                nil,
+		"trip":                   nil,
 		"private-account-number": "should-never-appear",
 	}
 	prepared := preparedForTransport(t, completionTransport(t, instance))

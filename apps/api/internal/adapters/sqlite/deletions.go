@@ -45,7 +45,7 @@ func (t transaction) DeleteProviderConfig(ctx context.Context, command ports.Pro
 }
 
 func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCommand) error {
-	if command.FactType != domain.DocumentPayment && command.FactType != domain.DocumentInvoice {
+	if command.FactType != domain.DocumentPayment && command.FactType != domain.DocumentInvoice && command.FactType != domain.DocumentTrip {
 		return domain.ErrInvalidInput
 	}
 	deletedAt := command.DeletedAt.UTC().Format(time.RFC3339Nano)
@@ -75,9 +75,15 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 			SET deleted_at = ?, deleted_by_user_id = ?, deletion_audit_event_id = ?, version = version + 1
 			WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
 		`, deletedAt, command.ActorUserID, command.AuditEventID, command.TenantID, command.FactID)
-	} else {
+	} else if command.FactType == domain.DocumentInvoice {
 		result, err = t.tx.ExecContext(ctx, `
 			UPDATE invoices
+			SET deleted_at = ?, deleted_by_user_id = ?, deletion_audit_event_id = ?, version = version + 1
+			WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
+		`, deletedAt, command.ActorUserID, command.AuditEventID, command.TenantID, command.FactID)
+	} else {
+		result, err = t.tx.ExecContext(ctx, `
+			UPDATE trips
 			SET deleted_at = ?, deleted_by_user_id = ?, deletion_audit_event_id = ?, version = version + 1
 			WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
 		`, deletedAt, command.ActorUserID, command.AuditEventID, command.TenantID, command.FactID)
@@ -107,6 +113,26 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 		command.FactID,
 	); err != nil {
 		return fmt.Errorf("end deleted fact links: %w", err)
+	}
+	if _, err := t.tx.ExecContext(ctx, `
+		UPDATE trip_fact_assignments
+		SET ended_at = ?, ended_by_audit_event_id = ?
+		WHERE tenant_id = ? AND ended_at IS NULL
+		  AND ((? = 'trip' AND trip_id = ?)
+		    OR (? = 'payment' AND payment_id = ?)
+		    OR (? = 'invoice' AND invoice_id = ?))
+	`,
+		deletedAt,
+		command.AuditEventID,
+		command.TenantID,
+		command.FactType,
+		command.FactID,
+		command.FactType,
+		command.FactID,
+		command.FactType,
+		command.FactID,
+	); err != nil {
+		return fmt.Errorf("end deleted fact trip assignments: %w", err)
 	}
 	return nil
 }

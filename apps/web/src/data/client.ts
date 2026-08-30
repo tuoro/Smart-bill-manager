@@ -8,6 +8,12 @@ export type ConfirmRequest = components['schemas']['ConfirmRequest']
 export type ConfirmResult = components['schemas']['ConfirmResult']
 export type Payment = components['schemas']['Payment']
 export type Invoice = components['schemas']['Invoice']
+export type Trip = components['schemas']['Trip']
+export type TripAttributionView = components['schemas']['TripAttributionView']
+export type TripAttributionCandidate = components['schemas']['TripAttributionCandidate']
+export type TripAttributionPage = components['schemas']['TripAttributionPage']
+export type TripAssignmentRequest = components['schemas']['TripAssignmentRequest']
+export type TripAssignmentResult = components['schemas']['TripAssignmentResult']
 export type AllocationFactType = components['schemas']['AllocationFactType']
 export type AllocationWorkspace = components['schemas']['AllocationWorkspace']
 export type AllocationAdjustmentRequest = components['schemas']['AllocationAdjustmentRequest']
@@ -163,6 +169,31 @@ export const api = {
   },
   invoices(): Promise<{ items: Invoice[] }> {
     return request('/invoices')
+  },
+  trips(): Promise<{ items: Trip[] }> {
+    return request('/trips')
+  },
+  tripAttributionCandidates(
+    tripId: string,
+    view: TripAttributionView,
+    cursor = '',
+    limit = 50,
+  ): Promise<TripAttributionPage> {
+    const query = new URLSearchParams({ view, limit: String(limit) })
+    if (cursor) query.set('cursor', cursor)
+    return request(
+      `/trips/${encodeURIComponent(tripId)}/attribution-candidates?${query.toString()}`,
+    )
+  },
+  changeTripAssignment(
+    body: TripAssignmentRequest,
+    idempotencyKey: string,
+  ): Promise<TripAssignmentResult> {
+    return request('/trip-assignments', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+    })
   },
   allocationWorkspace(factType: AllocationFactType, factId: string): Promise<AllocationWorkspace> {
     return request(`/allocations/${encodeURIComponent(factType)}/${encodeURIComponent(factId)}`)

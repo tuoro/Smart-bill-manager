@@ -48,11 +48,6 @@ func (s Service) Confirm(
 	if err := validateDecisionInput(input.IdempotencyKey, input.RequestID); err != nil {
 		return ports.ConfirmResult{}, err
 	}
-	canonicalPlan, planHash, err := normalizeAssociationRequest(input.AssociationMode, input.Allocations)
-	if err != nil {
-		return ports.ConfirmResult{}, err
-	}
-	input.Allocations = canonicalPlan
 	duplicatePlan, duplicatePlanHash, err := domain.CanonicalDuplicatePlan(input.DuplicateResolutions)
 	if err != nil {
 		return ports.ConfirmResult{}, err
@@ -60,6 +55,13 @@ func (s Service) Confirm(
 	input.DuplicateResolutions = duplicatePlan
 	replay, err := s.reviews.GetConfirmReplay(ctx, tenant.TenantID, jobID, input.IdempotencyKey)
 	if err == nil {
+		canonicalPlan, planHash, normalizeErr := normalizeConfirmationAssociation(
+			replay.Result.FactType, input.AssociationMode, input.Allocations,
+		)
+		if normalizeErr != nil {
+			return ports.ConfirmResult{}, normalizeErr
+		}
+		input.Allocations = canonicalPlan
 		if replay.ExpectedRevision != input.ExpectedRevision ||
 			replay.AssociationMode != input.AssociationMode ||
 			replay.AllocationPlanHash != planHash ||
@@ -81,12 +83,23 @@ func (s Service) Confirm(
 	if !current.Status.CanConfirm() {
 		return ports.ConfirmResult{}, domain.NewRuleError("claim_not_confirmable", "当前 Claim 仍被校验阻断", domain.ErrConflict)
 	}
-	factAmount, factCurrency, err := factAllocationTerms(current)
+	canonicalPlan, planHash, err := normalizeConfirmationAssociation(
+		current.DocumentType, input.AssociationMode, input.Allocations,
+	)
 	if err != nil {
 		return ports.ConfirmResult{}, err
 	}
-	if err := validateAssociation(current.Candidates, input.AssociationMode, input.Allocations, factAmount, factCurrency); err != nil {
-		return ports.ConfirmResult{}, err
+	input.Allocations = canonicalPlan
+	if current.DocumentType != domain.DocumentTrip {
+		factAmount, factCurrency, err := factAllocationTerms(current)
+		if err != nil {
+			return ports.ConfirmResult{}, err
+		}
+		if err := validateAssociation(current.Candidates, input.AssociationMode, input.Allocations, factAmount, factCurrency); err != nil {
+			return ports.ConfirmResult{}, err
+		}
+	} else if len(current.Candidates) != 0 {
+		return ports.ConfirmResult{}, domain.NewRuleError("invalid_trip_association", "Trip Claim 不能包含支付或发票金额关联候选", domain.ErrConflict)
 	}
 	duplicateCandidateIDs := make([]string, 0, len(current.DuplicateCandidates))
 	for _, candidate := range current.DuplicateCandidates {
@@ -214,6 +227,23 @@ func normalizeAssociationRequest(
 	}
 }
 
+func normalizeConfirmationAssociation(
+	documentType domain.DocumentType,
+	mode string,
+	allocations []domain.AllocationRequest,
+) ([]domain.AllocationRequest, string, error) {
+	if documentType == domain.DocumentTrip {
+		if mode != "" || len(allocations) != 0 {
+			return nil, "", domain.NewRuleError("invalid_trip_association", "Trip 确认不能包含支付或发票金额分配", domain.ErrInvalidInput)
+		}
+		return []domain.AllocationRequest{}, "", nil
+	}
+	if documentType != domain.DocumentPayment && documentType != domain.DocumentInvoice {
+		return nil, "", domain.NewRuleError("unknown_document_type", "unknown Claim 不能创建 Fact", domain.ErrConflict)
+	}
+	return normalizeAssociationRequest(mode, allocations)
+}
+
 func validateAssociation(
 	candidates []ports.LinkCandidate,
 	mode string,
@@ -296,6 +326,8 @@ func (s Service) buildConfirmCommand(
 		command.Payment, command.Origins, err = s.buildPaymentDraft(current)
 	} else if current.DocumentType == domain.DocumentInvoice {
 		command.Invoice, command.Origins, err = s.buildInvoiceDraft(current)
+	} else if current.DocumentType == domain.DocumentTrip {
+		command.Trip, command.Origins, err = s.buildTripDraft(current)
 	} else {
 		return ports.ConfirmCommand{}, domain.NewRuleError("unknown_document_type", "unknown Claim 不能创建 Fact", domain.ErrConflict)
 	}
@@ -344,6 +376,30 @@ func (s Service) buildConfirmCommand(
 		})
 	}
 	return command, nil
+}
+
+func (s Service) buildTripDraft(snapshot ports.ReviewSnapshot) (*ports.TripDraft, []ports.FactOriginDraft, error) {
+	fields := presentFields(snapshot.Fields)
+	factID, err := s.ids.NewID()
+	if err != nil {
+		return nil, nil, err
+	}
+	draft := &ports.TripDraft{ID: factID}
+	draft.Origin = optionalFieldString(fields, "origin")
+	if draft.Destination, err = fieldString(fields, "destination"); err != nil {
+		return nil, nil, err
+	}
+	if draft.StartDate, err = fieldString(fields, "start_date"); err != nil {
+		return nil, nil, err
+	}
+	if draft.EndDate, err = fieldString(fields, "end_date"); err != nil {
+		return nil, nil, err
+	}
+	draft.TravelerName = optionalFieldString(fields, "traveler_name")
+	draft.TransportType = optionalFieldString(fields, "transport_type")
+	draft.BookingReference = optionalFieldString(fields, "booking_reference")
+	origins, err := s.factOrigins(snapshot.Fields, "trip", nil)
+	return draft, origins, err
 }
 
 func (s Service) buildPaymentDraft(snapshot ports.ReviewSnapshot) (*ports.PaymentDraft, []ports.FactOriginDraft, error) {

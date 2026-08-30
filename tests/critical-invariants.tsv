@@ -82,3 +82,12 @@ visible-text-money-boundary	票面金额支持批准币种的常见小数与千�
 visible-text-contract-boundary	旧裸标量、无币种金额和非法页码保留为 blocked 字段，不进入兼容分支	./internal/application/claimmapping	TestMapPreservesContractAndNormalizationFailuresAsBlockedFields
 supplementary-review-only	模型额外字段可审核但永不成为 Fact 字段来源	./internal/application/reviews	TestSupplementaryFieldsNeverBecomeFactOrigins
 visible-text-worker-boundary	本地发现文档类型与业务区段冲突时只持久化一个完整 blocked Claim，不产生 Fact	./internal/application/processing	TestWorkerPersistsLocalDocumentConflictAsOneBlockedClaim
+trip-visible-text-contract	Trip 严格根成员与三业务区段身份由 Provider-facing Schema 和本地根校验共同固定	./internal/adapters/openaicompatible	TestBillExtractionAcceptsStrictTripRoot
+trip-claim-mapping	Trip 票面日期、可选字段和跨页 Evidence 只由 Mapper 确定性规范化与组装	./internal/application/claimmapping	TestMapTripNormalizesVisibleDatesAndPreservesCrossPageEvidence
+trip-validation	Trip 必填目的地、合法日期与结束不早于开始的边界形成明确 Claim 状态	./internal/domain	TestValidateTripClaimDateAndRequiredFieldBoundaries
+trip-confirmation	Trip 只经 Claim 审核原子创建 Fact、字段来源、决定和审计，且严格幂等无金额分配	./internal/application/reviews	TestTripConfirmationIsAtomicTraceableAndIdempotent
+trip-attribution-rules	闭区间、前后 3 日、已归属和活动支付发票 Link 建议均由 trip-attribution/1 确定性派生	./internal/application/reviews	TestTripAttributionAssignmentLifecycleAndDeletion
+trip-assignment-lifecycle	assign、move、unassign、陈旧期望、删除收尾及不可变历史保持单一活动归属	./internal/application/reviews	TestTripAttributionAssignmentLifecycleAndDeletion
+trip-assignment-permission	owner/finance 可管理、viewer 只读、reviewer 拒绝且真实跨租户 Trip ID 不泄露	./internal/application/reviews	TestTripAttributionAssignmentLifecycleAndDeletion
+trip-assignment-concurrency	同一 Fact 并发归属不同 Trip 时恰好一个成功且失败请求无部分决定或审计	./internal/application/reviews	TestConcurrentTripAssignmentsAllowOneWinner
+trip-attribution-http-boundary	严格 JSON、显式 nullable、CSRF、筛选上限、角色矩阵和安全不存在性经 HTTP 固定	./internal/transport/httpapi	TestHTTPTripAttributionContractAndPermissionBoundaries

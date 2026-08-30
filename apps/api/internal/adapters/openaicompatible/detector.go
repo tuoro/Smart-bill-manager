@@ -118,7 +118,7 @@ func (d *Detector) DetectCapabilities(ctx context.Context, credentials ports.Pro
 				"content": []any{
 					map[string]any{
 						"type": "text",
-						"text": "Inspect the synthetic image. If and only if the square is blue, return exactly this JSON object and no other text: {\"schema_version\":\"bill-visible-text/1\",\"document_type\":\"unknown\",\"payment\":null,\"invoice\":null}",
+						"text": "Inspect the synthetic image. If and only if the square is blue, return exactly this JSON object and no other text: {\"schema_version\":\"bill-visible-text/2\",\"document_type\":\"unknown\",\"payment\":null,\"invoice\":null,\"trip\":null}",
 					},
 					map[string]any{
 						"type":      "image_url",
@@ -174,7 +174,7 @@ func (d *Detector) DetectCapabilities(ctx context.Context, credentials ports.Pro
 		return failed("Provider 结构化输出不符合当前传输契约")
 	}
 	if err := d.extractionSchema.Validate(instance); err != nil {
-		return failed("Provider 结构化输出根身份不符合 bill-visible-text/1")
+		return failed("Provider 结构化输出根身份不符合 bill-visible-text/2")
 	}
 	if !validProbe(instance) {
 		return failed("Provider 未通过图片输入探测")
@@ -201,13 +201,13 @@ func statusMessage(status int) string {
 
 func validProbe(instance any) bool {
 	object, ok := instance.(map[string]any)
-	if !ok || object["schema_version"] != "bill-visible-text/1" || object["document_type"] != "unknown" {
+	if !ok || object["schema_version"] != "bill-visible-text/2" || object["document_type"] != "unknown" {
 		return false
 	}
-	if object["payment"] != nil || object["invoice"] != nil {
+	if object["payment"] != nil || object["invoice"] != nil || object["trip"] != nil {
 		return false
 	}
-	return len(object) == 4
+	return len(object) == 5
 }
 
 func blueProbeDataURL() (string, error) {

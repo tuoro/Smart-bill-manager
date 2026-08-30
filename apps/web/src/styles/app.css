@@ -1954,6 +1954,171 @@ small {
   border-top: 1px solid var(--border);
 }
 
+/* 行程与单据归属 */
+.trip-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.trip-list-panel,
+.trip-workspace {
+  min-width: 0;
+}
+
+.trip-list,
+.trip-candidate-list,
+.trip-reasons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trip-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.trip-list button {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: var(--surface);
+  color: var(--text-secondary);
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trip-list button:hover {
+  background: var(--surface-subtle);
+}
+
+.trip-list button[aria-current='true'] {
+  border-left-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.trip-list button strong,
+.trip-list button span,
+.trip-list button time,
+.trip-list button small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trip-workspace-heading,
+.trip-view-switch,
+.trip-candidate > header,
+.trip-assignment-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trip-view-switch {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.trip-view-switch .button[aria-pressed='true'] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.trip-candidate-list > li {
+  border-top: 1px solid var(--border);
+}
+
+.trip-candidate {
+  padding: 16px;
+}
+
+.trip-candidate > header {
+  align-items: flex-start;
+}
+
+.trip-candidate > header > div,
+.trip-candidate > header strong,
+.trip-candidate > header small {
+  min-width: 0;
+}
+
+.trip-candidate > header > div > strong,
+.trip-candidate > header > div > small {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.trip-candidate > header > div > small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.trip-current-assignment {
+  margin: 12px 0 0;
+  color: var(--text-secondary);
+}
+
+.trip-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.trip-reasons li {
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.trip-assignment-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.trip-assignment-form > label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.trip-assignment-actions {
+  margin-top: 8px;
+}
+
+.trip-assignment-actions small {
+  color: var(--text-muted);
+}
+
+.trip-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.trip-list-end {
+  margin: 0;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  text-align: center;
+}
+
 @media (max-width: 1439px) {
   .review-grid {
     grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1.1fr);
@@ -2080,20 +2245,28 @@ small {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .email-source-list {
+  .trip-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .email-source-list,
+  .trip-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .email-source-list li + li {
+  .email-source-list li + li,
+  .trip-list li + li {
     border-top: 0;
   }
 
-  .email-source-list li {
+  .email-source-list li,
+  .trip-list li {
     border-top: 1px solid var(--border);
   }
 
-  .email-source-list li:nth-child(odd) {
+  .email-source-list li:nth-child(odd),
+  .trip-list li:nth-child(odd) {
     border-right: 1px solid var(--border);
   }
 }
@@ -2299,7 +2472,10 @@ small {
 
   .email-registration-action,
   .email-message-card > header,
-  .email-message-meta {
+  .email-message-meta,
+  .trip-workspace-heading,
+  .trip-candidate > header,
+  .trip-assignment-actions {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2310,12 +2486,27 @@ small {
     margin-left: 0;
   }
 
-  .email-source-list li:nth-child(odd) {
+  .email-source-list li:nth-child(odd),
+  .trip-list li:nth-child(odd) {
     border-right: 0;
   }
 
-  .email-source-list li + li {
+  .email-source-list li + li,
+  .trip-list li + li {
     border-top: 1px solid var(--border);
+  }
+
+  .trip-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trip-view-switch,
+  .trip-assignment-actions .button {
+    width: 100%;
+  }
+
+  .trip-view-switch .button {
+    flex: 1 1 0;
   }
 
   .email-attachment-actions {

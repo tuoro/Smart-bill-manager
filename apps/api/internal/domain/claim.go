@@ -7,6 +7,7 @@ type DocumentType string
 const (
 	DocumentPayment DocumentType = "payment"
 	DocumentInvoice DocumentType = "invoice"
+	DocumentTrip    DocumentType = "trip"
 	DocumentUnknown DocumentType = "unknown"
 )
 
@@ -23,7 +24,7 @@ const (
 )
 
 func (t DocumentType) Valid() bool {
-	return t == DocumentPayment || t == DocumentInvoice || t == DocumentUnknown
+	return t == DocumentPayment || t == DocumentInvoice || t == DocumentTrip || t == DocumentUnknown
 }
 
 func (s ClaimStatus) CanConfirm() bool {

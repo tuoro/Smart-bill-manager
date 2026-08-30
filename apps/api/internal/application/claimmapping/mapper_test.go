@@ -187,6 +187,57 @@ func TestMapInvoicePreservesOneLogicalItemAcrossAdjacentPages(t *testing.T) {
 	}
 }
 
+func TestMapTripNormalizesVisibleDatesAndPreservesCrossPageEvidence(t *testing.T) {
+	t.Parallel()
+	claim, err := Map(domain.BillVisibleTextEnvelope{
+		SchemaVersion: ExtractionSchemaVersion,
+		DocumentType:  "trip",
+		Payment:       raw(`null`),
+		Invoice:       raw(`null`),
+		Trip: raw(`{
+			"origin":{"text":"上海","page":1},
+			"destination":{"text":"北京","page":2},
+			"start_date":{"text":"2026年8月26日","page":1},
+			"end_date":{"text":"2026/08/28","page":2},
+			"traveler_name":{"text":"张三","page":1},
+			"transport_type":{"text":"高铁","page":1},
+			"booking_reference":{"text":"TRIP-001","page":2},
+			"seat":{"text":"二等座","page":2}
+		}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claim.SchemaVersion != ClaimSchemaVersion || claim.DocumentType != "trip" || len(claim.Fields) != 8 {
+		t.Fatalf("Trip claim identity = %#v", claim)
+	}
+	if got := string(fieldByPath(t, claim, "start_date").Value); got != `"2026-08-26"` {
+		t.Fatalf("Trip start date = %s", got)
+	}
+	end := fieldByPath(t, claim, "end_date")
+	if string(end.Value) != `"2026-08-28"` || len(end.Evidence) != 1 || end.Evidence[0].Page != 2 {
+		t.Fatalf("Trip end date/evidence = %#v", end)
+	}
+	if fieldByPath(t, claim, "supplementary_fields").Presence != "present" {
+		t.Fatal("Trip supplementary visible field was not preserved")
+	}
+	validated := domain.ValidateClaim(claim, 2)
+	if validated.Status != domain.ClaimReadyForReview {
+		t.Fatalf("valid Trip was blocked: %#v", validated.Validations)
+	}
+
+	invalid := claim
+	for index := range invalid.Fields {
+		if invalid.Fields[index].Path == "end_date" {
+			invalid.Fields[index].Value = json.RawMessage(`"2026-08-20"`)
+		}
+	}
+	validated = domain.ValidateClaim(invalid, 2)
+	if validated.Status != domain.ClaimBlocked || !hasValidation(validated, "trip_date_range_invalid") {
+		t.Fatalf("invalid Trip range was accepted: %#v", validated.Validations)
+	}
+}
+
 func TestMapMoneyHandlesVisibleLocaleWithoutFloatingPoint(t *testing.T) {
 	t.Parallel()
 	for name, input := range map[string]struct {

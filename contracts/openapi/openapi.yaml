@@ -14,6 +14,7 @@ tags:
   - name: reviews
   - name: facts
   - name: allocations
+  - name: trips
   - name: providers
   - name: email
 paths:
@@ -533,6 +534,97 @@ paths:
           description: Invoice 已标记删除，活动关联已在同一事务中终止
         "404":
           $ref: "#/components/responses/NotFound"
+  /trips:
+    get:
+      operationId: listTrips
+      tags: [trips]
+      responses:
+        "200":
+          description: 未删除 Trip 及当前活动归属计数
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Trip"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /trips/{trip_id}:
+    delete:
+      operationId: deleteTrip
+      tags: [trips]
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: Trip 已标记删除，相关活动归属已在同一事务中终止
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /trips/{trip_id}/attribution-candidates:
+    get:
+      operationId: listTripAttributionCandidates
+      tags: [trips]
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+        - name: view
+          in: query
+          schema:
+            $ref: "#/components/schemas/TripAttributionView"
+        - name: cursor
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 1024 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: 版本化确定性建议、当前归属与全部可选 Fact 的稳定游标页
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripAttributionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /trip-assignments:
+    post:
+      operationId: changeTripAssignment
+      tags: [trips]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripAssignmentRequest"
+      responses:
+        "200":
+          description: assign、move、unassign 或严格幂等重放结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripAssignmentResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /allocations/{fact_type}/{fact_id}:
     get:
       operationId: getAllocationWorkspace
@@ -744,6 +836,13 @@ components:
         format: uuid
     InvoiceId:
       name: invoice_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TripId:
+      name: trip_id
       in: path
       required: true
       schema:
@@ -1280,7 +1379,7 @@ components:
       properties:
         job: { $ref: "#/components/schemas/JobSummary" }
         claim_set_id: { type: string, format: uuid }
-        document_type: { type: string, enum: [payment, invoice, unknown] }
+        document_type: { type: string, enum: [payment, invoice, trip, unknown] }
         revision: { type: integer, minimum: 1 }
         optimistic_version: { type: integer, minimum: 1 }
         claim_status:
@@ -1327,7 +1426,7 @@ components:
       properties:
         expected_revision: { type: integer, minimum: 1 }
         expected_optimistic_version: { type: integer, minimum: 1 }
-        document_type: { type: string, enum: [payment, invoice, unknown] }
+        document_type: { type: string, enum: [payment, invoice, trip, unknown] }
         fields:
           type: array
           items:
@@ -1346,12 +1445,8 @@ components:
       type: object
       additionalProperties: false
       required:
-        [
-          expected_revision,
-          association_mode,
-          allocations,
-          duplicate_resolutions,
-        ]
+        [expected_revision, duplicate_resolutions]
+      description: Payment/Invoice 必须提交 association_mode 与 allocations；Trip 禁止提交这两个成员。
       properties:
         expected_revision: { type: integer, minimum: 1 }
         association_mode:
@@ -1390,7 +1485,7 @@ components:
       required: [review_decision_id, fact_type, fact_id, link_ids, replayed]
       properties:
         review_decision_id: { type: string, format: uuid }
-        fact_type: { type: string, enum: [payment, invoice] }
+        fact_type: { type: string, enum: [payment, invoice, trip] }
         fact_id: { type: string, format: uuid }
         link_ids:
           type: array
@@ -1729,6 +1824,117 @@ components:
                 }
               sort_order: { type: integer, minimum: 0 }
         created_at: { type: string, format: date-time }
+    Trip:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          destination,
+          start_date,
+          end_date,
+          assigned_payment_count,
+          assigned_invoice_count,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        origin: { type: string, minLength: 1, maxLength: 500 }
+        destination: { type: string, minLength: 1, maxLength: 500 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        traveler_name: { type: string, minLength: 1, maxLength: 500 }
+        transport_type: { type: string, minLength: 1, maxLength: 500 }
+        booking_reference: { type: string, minLength: 1, maxLength: 500 }
+        assigned_payment_count: { type: integer, minimum: 0 }
+        assigned_invoice_count: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+    TripAttributionView:
+      type: string
+      enum: [all, suggested, assigned]
+    TripAttributionCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          fact_type,
+          fact_id,
+          display_name,
+          business_date,
+          amount_minor,
+          currency,
+          suggested,
+          reason_codes,
+        ]
+      properties:
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        fact_id: { type: string, format: uuid }
+        display_name: { type: string }
+        business_date: { type: string, format: date }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        current_assignment_id: { type: string, format: uuid }
+        current_trip_id: { type: string, format: uuid }
+        current_trip_destination: { type: string }
+        suggested: { type: boolean }
+        reason_codes:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              [
+                currently_assigned,
+                date_inside_trip,
+                date_within_3_days_before,
+                date_within_3_days_after,
+                linked_fact_assigned_to_trip,
+              ]
+    TripAttributionPage:
+      type: object
+      additionalProperties: false
+      required: [trip, rule_version, items]
+      properties:
+        trip: { $ref: "#/components/schemas/Trip" }
+        rule_version: { const: trip-attribution/1 }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripAttributionCandidate"
+        next_cursor: { type: string, minLength: 1, maxLength: 1024 }
+    TripAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [fact_type, fact_id, desired_trip_id, expected_assignment_id, reason]
+      properties:
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        fact_id: { type: string, format: uuid }
+        desired_trip_id:
+          oneOf:
+            - { type: string, format: uuid }
+            - { type: "null" }
+        expected_assignment_id:
+          oneOf:
+            - { type: string, format: uuid }
+            - { type: "null" }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    TripAssignmentResult:
+      type: object
+      additionalProperties: false
+      required: [decision_id, action, replayed]
+      properties:
+        decision_id: { type: string, format: uuid }
+        action: { type: string, enum: [assign, move, unassign] }
+        previous_assignment_id: { type: string, format: uuid }
+        assignment_id: { type: string, format: uuid }
+        replayed: { type: boolean }
     ProviderConfig:
       type: object
       additionalProperties: false

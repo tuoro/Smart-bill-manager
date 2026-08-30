@@ -1,0 +1,122 @@
+{
+  "report_kind": "m3-trip-attribution-gate-summary",
+  "evidence_version": "M3-TRIP-ATTRIBUTION-SLICE-2026-08-31",
+  "recorded_date": "2026-08-31",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "4649bb87cd4e81ba10efbac3cedbc0947ba6f302",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "complete",
+    "m3": "in_progress",
+    "email_source_archive_first_slice": "complete",
+    "trip_attribution_second_slice": "complete",
+    "next_slice": "reimbursement_status_and_deterministic_conflict_scope_freeze",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "design": {
+    "provider_envelope_schema": "bill-visible-text/2",
+    "provider_projection_schema": "bill-visible-text-provider/2",
+    "claim_mapper": "claim-mapper/4",
+    "claim_schema": "document-claim/3",
+    "attribution_rule": "trip-attribution/1",
+    "trip_created_only_from_confirmed_review": true,
+    "suggestions_auto_assign": false,
+    "active_trip_assignment_per_payment_or_invoice_max": 1,
+    "allowed_manage_roles": ["owner", "finance"],
+    "allowed_fact_read_roles": ["owner", "finance", "viewer"],
+    "reviewer_fact_list_access": false
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 7,
+      "passed": 27,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 24,
+      "failed": 0,
+      "new_trip_attribution_scenarios": 3,
+      "includes_width_768": true,
+      "includes_equivalent_200_percent_reflow": true,
+      "includes_keyboard_focus": true,
+      "expected_503_and_409_recovery_asserted": true
+    },
+    "critical_invariant_branches": {
+      "passed": 92,
+      "total": 92,
+      "percentage": 100,
+      "new_trip_attribution_mappings": 9
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.53,
+      "covered": 2594,
+      "total": 3033,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 74.07,
+      "covered": 3016,
+      "total": 4072,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "repository_checkpoint": {
+      "working_tree_diff_check": "passed",
+      "staged_diff_check": "passed",
+      "staged_file_count": 75,
+      "largest_staged_file_bytes": 91199,
+      "largest_staged_file": "apps/api/internal/application/reviews/service_integration_test.go",
+      "known_credential_prefix_scan": "passed",
+      "private_asset_path_check": "passed",
+      "generated_and_temporary_artifact_check": "passed",
+      "project_process_residue_check": "passed"
+    }
+  },
+  "functional_scenarios": [
+    "strict_payment_invoice_trip_unknown_root_identity",
+    "trip_visible_text_normalization_validation_and_cross_page_evidence",
+    "trip_review_revision_confirmation_traceability_and_replay",
+    "trip_confirmation_rejects_amount_association_members",
+    "date_inside_three_day_boundaries_and_linked_counterpart_reasons",
+    "stable_all_suggested_assigned_cursor_views",
+    "assign_move_unassign_strict_idempotency_and_stale_snapshot",
+    "same_fact_concurrency_allows_exactly_one_winner",
+    "immutable_decision_link_history_and_fact_deletion_termination",
+    "owner_finance_viewer_reviewer_and_cross_tenant_boundaries",
+    "loading_failure_retry_offline_keyboard_and_reflow_web_states"
+  ],
+  "excluded": {
+    "formal_real_model_accuracy_evaluation": "not_run",
+    "real_provider_calls": "not_run",
+    "real_images": "not_sent",
+    "real_mailbox_or_external_account_integration": "not_run",
+    "credentials": "not_created_or_changed",
+    "local_ocr": "not_installed_or_used",
+    "new_dependencies": "not_downloaded",
+    "legacy_compatibility": "not_added",
+    "deployment_release_or_remote_resources": "not_run"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

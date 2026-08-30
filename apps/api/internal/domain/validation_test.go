@@ -11,7 +11,7 @@ func TestValidatePaymentClaim(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/2",
+		SchemaVersion: "document-claim/3",
 		DocumentType:  "payment",
 		Fields: []FieldCandidate{
 			present("amount_minor", "money_minor", int64(1234)),
@@ -47,7 +47,7 @@ func TestValidateClaimBlocksIncompleteSnapshotAndBadEvidence(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/2",
+		SchemaVersion: "document-claim/3",
 		DocumentType:  "payment",
 		Fields: []FieldCandidate{
 			presentWithPage("amount_minor", "money_minor", int64(1234), 2),
@@ -65,11 +65,45 @@ func TestValidateClaimBlocksIncompleteSnapshotAndBadEvidence(t *testing.T) {
 	assertValidation(t, validated.Validations, "incomplete_claim_snapshot")
 }
 
+func TestValidateTripClaimDateAndRequiredFieldBoundaries(t *testing.T) {
+	t.Parallel()
+
+	valid := validTripEnvelope()
+	validated := ValidateClaim(valid, 2)
+	if validated.Status != ClaimReadyForReview {
+		t.Fatalf("valid Trip status = %s, validations = %#v", validated.Status, validated.Validations)
+	}
+
+	reversed := validTripEnvelope()
+	for index := range reversed.Fields {
+		if reversed.Fields[index].Path == "end_date" {
+			reversed.Fields[index] = present("end_date", "date", "2026-08-25")
+		}
+	}
+	reversedResult := ValidateClaim(reversed, 2)
+	if reversedResult.Status != ClaimBlocked {
+		t.Fatalf("reversed Trip status = %s", reversedResult.Status)
+	}
+	assertValidation(t, reversedResult.Validations, "trip_date_range_invalid")
+
+	missingDestination := validTripEnvelope()
+	for index := range missingDestination.Fields {
+		if missingDestination.Fields[index].Path == "destination" {
+			missingDestination.Fields[index] = absent("destination", "string")
+		}
+	}
+	missingResult := ValidateClaim(missingDestination, 2)
+	if missingResult.Status != ClaimBlocked {
+		t.Fatalf("missing destination Trip status = %s", missingResult.Status)
+	}
+	assertValidation(t, missingResult.Validations, "required_field_absent")
+}
+
 func TestStabilizeInvoiceItemsAndTotalValidation(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/2",
+		SchemaVersion: "document-claim/3",
 		DocumentType:  "invoice",
 		Fields: []FieldCandidate{
 			present("invoice_number", "string", " INV 001 "),
@@ -286,7 +320,7 @@ func TestInvoiceTaxAndItemPathFailures(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/2", DocumentType: "invoice",
+		SchemaVersion: "document-claim/3", DocumentType: "invoice",
 		Fields: []FieldCandidate{
 			present("invoice_number", "string", "INV-2"), present("invoice_date", "date", "2026-08-27"),
 			present("total_minor", "money_minor", int64(100)), present("tax_minor", "money_minor", int64(101)),
@@ -310,13 +344,27 @@ func TestInvoiceTaxAndItemPathFailures(t *testing.T) {
 
 func validPaymentEnvelope() ClaimEnvelope {
 	return ClaimEnvelope{
-		SchemaVersion: "document-claim/2", DocumentType: "payment", DocumentIssues: []string{},
+		SchemaVersion: "document-claim/3", DocumentType: "payment", DocumentIssues: []string{},
 		Fields: []FieldCandidate{
 			present("amount_minor", "money_minor", int64(1234)), present("currency", "string", "CNY"),
 			present("merchant", "string", "ACME"), present("transaction_time", "instant", "2026-08-27T08:30:00Z"),
 			present("source_timezone", "string", "UTC"), absent("payment_method", "string"),
 			absent("order_number", "string"), absent("category", "string"),
 			absent("supplementary_fields", "supplementary"),
+		},
+	}
+}
+
+func validTripEnvelope() ClaimEnvelope {
+	return ClaimEnvelope{
+		SchemaVersion: "document-claim/3", DocumentType: "trip", DocumentIssues: []string{},
+		Fields: []FieldCandidate{
+			presentWithPage("origin", "string", "上海", 1),
+			presentWithPage("destination", "string", "北京", 2),
+			presentWithPage("start_date", "date", "2026-08-26", 1),
+			presentWithPage("end_date", "date", "2026-08-28", 2),
+			absent("traveler_name", "string"), absent("transport_type", "string"),
+			absent("booking_reference", "string"), absent("supplementary_fields", "supplementary"),
 		},
 	}
 }

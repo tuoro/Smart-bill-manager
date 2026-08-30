@@ -1702,7 +1702,7 @@ func newReviewFixtureAt(t *testing.T, databasePath string) reviewFixture {
 			OutputMode:              ports.ProviderOutputModeJSONSchema,
 			CapabilityStatus:        "passed",
 			CapabilitySafeMessage:   "passed",
-			CapabilitySchemaVersion: "bill-visible-text-provider/1",
+			CapabilitySchemaVersion: "bill-visible-text-provider/2",
 			CapabilitySchemaSHA256:  strings.Repeat("c", 64),
 			Version:                 1,
 			SafeFingerprint:         "test-fingerprint",
@@ -1786,9 +1786,9 @@ func newReviewFixtureAt(t *testing.T, databasePath string) reviewFixture {
 		if err := transaction.InsertAiRun(ctx, ports.AiRun{
 			ID: aiRunID, TenantID: tenantID, JobID: jobID, ProviderConfigID: providerID,
 			ProviderConfigVersion: 1, ProviderConfigFingerprint: "test-fingerprint", Model: "test-model",
-			PromptVersion: "bill-visible-text-cn/1", ExtractionSchemaVersion: "bill-visible-text/1",
-			ProviderSchemaVersion: "bill-visible-text-provider/1", ProviderSchemaSHA256: strings.Repeat("c", 64),
-			ClaimSchemaVersion: "document-claim/2", ClaimMapperVersion: "claim-mapper/3",
+			PromptVersion: "bill-visible-text-cn/2", ExtractionSchemaVersion: "bill-visible-text/2",
+			ProviderSchemaVersion: "bill-visible-text-provider/2", ProviderSchemaSHA256: strings.Repeat("c", 64),
+			ClaimSchemaVersion: "document-claim/3", ClaimMapperVersion: "claim-mapper/4",
 			InputProcessingVersion: "document-normalize/1", RequestHash: "request-hash",
 			Outcome: "running", StartedAt: now,
 		}); err != nil {
@@ -1835,7 +1835,7 @@ func addTenantReviewFixture(t *testing.T, fixture reviewFixture) reviewFixture {
 			EncryptedAPIKey: []byte("foreign-test-only"), Model: "test-model",
 			OutputMode:       ports.ProviderOutputModeJSONSchema,
 			CapabilityStatus: "passed", CapabilitySafeMessage: "passed", Version: 1,
-			CapabilitySchemaVersion: "bill-visible-text-provider/1", CapabilitySchemaSHA256: strings.Repeat("c", 64),
+			CapabilitySchemaVersion: "bill-visible-text-provider/2", CapabilitySchemaSHA256: strings.Repeat("c", 64),
 			SafeFingerprint: "foreign-test-fingerprint", CreatedByUserID: fixture.tenant.UserID,
 			CreatedAt: now, UpdatedAt: now,
 		})
@@ -1955,9 +1955,9 @@ func seedAdditionalReviewWithFingerprint(
 			ID: aiRunID, TenantID: fixture.tenant.TenantID, JobID: jobID,
 			ProviderConfigID: fixture.providerID, ProviderConfigVersion: 1,
 			ProviderConfigFingerprint: "test-fingerprint", Model: "test-model",
-			PromptVersion: "bill-visible-text-cn/1", ExtractionSchemaVersion: "bill-visible-text/1",
-			ProviderSchemaVersion: "bill-visible-text-provider/1", ProviderSchemaSHA256: strings.Repeat("c", 64),
-			ClaimSchemaVersion: "document-claim/2", ClaimMapperVersion: "claim-mapper/3",
+			PromptVersion: "bill-visible-text-cn/2", ExtractionSchemaVersion: "bill-visible-text/2",
+			ProviderSchemaVersion: "bill-visible-text-provider/2", ProviderSchemaSHA256: strings.Repeat("c", 64),
+			ClaimSchemaVersion: "document-claim/3", ClaimMapperVersion: "claim-mapper/4",
 			InputProcessingVersion: "document-normalize/1", RequestHash: "request-" + label,
 			Outcome: "running", StartedAt: now,
 		}); err != nil {
@@ -2035,7 +2035,7 @@ func paymentEnvelope() domain.ClaimEnvelope {
 		return []domain.CandidateEvidence{{Page: 1, Quote: quote}}
 	}
 	return domain.ClaimEnvelope{
-		SchemaVersion: "document-claim/2",
+		SchemaVersion: "document-claim/3",
 		DocumentType:  "payment",
 		Fields: []domain.FieldCandidate{
 			{Path: "amount_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence("123.45"), Issues: []string{}},
@@ -2068,7 +2068,7 @@ func invoiceEnvelope(number string) domain.ClaimEnvelope {
 		return []domain.CandidateEvidence{{Page: 1, Quote: quote}}
 	}
 	return domain.ClaimEnvelope{
-		SchemaVersion: "document-claim/2",
+		SchemaVersion: "document-claim/3",
 		DocumentType:  "invoice",
 		Fields: []domain.FieldCandidate{
 			{Path: "invoice_number", ValueType: "string", Presence: "present", Value: json.RawMessage(`"` + number + `"`), Evidence: evidence(number), Issues: []string{}},

@@ -26,7 +26,7 @@ type ClaimEnvelope struct {
 }
 
 // BillVisibleTextEnvelope preserves the model's minimal visible-text JSON.
-// Only the root identity has passed bill-visible-text/1; the Claim Mapper owns
+// Only the root identity has passed bill-visible-text/2; the Claim Mapper owns
 // field-level decoding, deterministic normalization, evidence construction and
 // local validation issues.
 type BillVisibleTextEnvelope struct {
@@ -34,4 +34,5 @@ type BillVisibleTextEnvelope struct {
 	DocumentType  string          `json:"document_type"`
 	Payment       json.RawMessage `json:"payment"`
 	Invoice       json.RawMessage `json:"invoice"`
+	Trip          json.RawMessage `json:"trip"`
 }

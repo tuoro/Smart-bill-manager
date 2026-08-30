@@ -37,6 +37,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
@@ -59,7 +60,7 @@ type testSession struct {
 type passingDetector struct{}
 
 func (passingDetector) ProviderSchemaIdentity() ports.ProviderSchemaIdentity {
-	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/1", SHA256: strings.Repeat("c", 64)}
+	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/2", SHA256: strings.Repeat("c", 64)}
 }
 
 func (passingDetector) DetectCapabilities(context.Context, ports.ProviderCredentials) ports.CapabilityResult {
@@ -69,7 +70,7 @@ func (passingDetector) DetectCapabilities(context.Context, ports.ProviderCredent
 type staticExtractor struct{}
 
 func (staticExtractor) ProviderSchemaIdentity() ports.ProviderSchemaIdentity {
-	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/1", SHA256: strings.Repeat("c", 64)}
+	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/2", SHA256: strings.Repeat("c", 64)}
 }
 
 func (staticExtractor) Prepare(_ ports.ProviderCredentials, pages []ports.PageImage) (ports.PreparedBillExtraction, error) {
@@ -84,13 +85,13 @@ type staticPreparedExtraction struct{}
 func (staticPreparedExtraction) RequestHash() string { return strings.Repeat("a", 64) }
 
 func (staticPreparedExtraction) ProviderSchemaIdentity() ports.ProviderSchemaIdentity {
-	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/1", SHA256: strings.Repeat("c", 64)}
+	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/2", SHA256: strings.Repeat("c", 64)}
 }
 
 func (staticPreparedExtraction) Execute(context.Context) (ports.BillExtractionResult, error) {
 	return ports.BillExtractionResult{
 		Envelope: domain.BillVisibleTextEnvelope{
-			SchemaVersion: "bill-visible-text/1",
+			SchemaVersion: "bill-visible-text/2",
 			DocumentType:  string(domain.DocumentPayment),
 			Payment:       json.RawMessage(`{"amount":{"text":"CNY 12.34","page":1},"currency":{"text":"CNY","page":1},"merchant":{"text":"合成商户","page":1},"transaction_time":{"text":"2026-08-27 10:30","page":1},"timezone":null,"payment_method":null,"order_number":null,"category":null}`),
 			Invoice:       json.RawMessage(`null`),
@@ -147,7 +148,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	detection := fixture.request(http.MethodPost, "/api/v1/provider-configs/"+providerID+"/detect", nil, ownerSession, true, "")
 	assertStatus(t, detection, http.StatusOK)
 	detectedProvider := decodeMap(t, detection)
-	if detectedProvider["capability_schema_version"] != "bill-visible-text-provider/1" ||
+	if detectedProvider["capability_schema_version"] != "bill-visible-text-provider/2" ||
 		detectedProvider["capability_schema_sha256"] != strings.Repeat("c", 64) {
 		t.Fatalf("provider detection schema identity = %#v", detectedProvider)
 	}
@@ -181,9 +182,9 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	`, fixture.owner.TenantID).Scan(&runPromptVersion, &runExtractionSchemaVersion, &runProviderSchemaVersion, &runProviderSchemaSHA256, &runClaimMapperVersion); err != nil {
 		t.Fatal(err)
 	}
-	if runPromptVersion != "bill-visible-text-cn/1" || runExtractionSchemaVersion != "bill-visible-text/1" ||
-		runProviderSchemaVersion != "bill-visible-text-provider/1" || runProviderSchemaSHA256 != strings.Repeat("c", 64) ||
-		runClaimMapperVersion != "claim-mapper/3" {
+	if runPromptVersion != "bill-visible-text-cn/2" || runExtractionSchemaVersion != "bill-visible-text/2" ||
+		runProviderSchemaVersion != "bill-visible-text-provider/2" || runProviderSchemaSHA256 != strings.Repeat("c", 64) ||
+		runClaimMapperVersion != "claim-mapper/4" {
 		t.Fatalf("frozen AI run schema identity = %s/%s/%s/%s/%s", runPromptVersion, runExtractionSchemaVersion, runProviderSchemaVersion, runProviderSchemaSHA256, runClaimMapperVersion)
 	}
 	reviewResponse := fixture.request(http.MethodGet, "/api/v1/reviews/"+firstUpload["job_id"], nil, ownerSession, false, "")
@@ -216,6 +217,16 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 		map[string]string{"Idempotency-Key": "missing-allocations"},
 	)
 	assertStatus(t, missingAllocations, http.StatusBadRequest)
+	nullAssociationShape := fixture.requestWithHeaders(
+		http.MethodPost,
+		"/api/v1/reviews/"+firstUpload["job_id"]+"/confirm",
+		strings.NewReader("{\"expected_revision\":2,\"association_mode\":null,\"allocations\":null,\"duplicate_resolutions\":[]}"),
+		ownerSession,
+		true,
+		"application/json",
+		map[string]string{"Idempotency-Key": "null-association-shape"},
+	)
+	assertStatus(t, nullAssociationShape, http.StatusBadRequest)
 	missingDuplicateResolutions := fixture.requestWithHeaders(
 		http.MethodPost,
 		"/api/v1/reviews/"+firstUpload["job_id"]+"/confirm",
@@ -534,6 +545,63 @@ func TestHTTPEmailArchiveReadAndRegistrationBoundaries(t *testing.T) {
 	}
 }
 
+func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
+	fixture := newHTTPTestFixture(t)
+	defer fixture.store.Close()
+
+	ownerSession := fixture.login(t, fixture.owner.TenantID)
+	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
+	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
+	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	tripID := newID(t)
+	factID := newID(t)
+	validAssignment := fmt.Sprintf(
+		`{"fact_type":"payment","fact_id":%q,"desired_trip_id":null,"expected_assignment_id":null,"reason":"合成归属边界"}`,
+		factID,
+	)
+
+	for _, readable := range []*testSession{ownerSession, financeSession, viewerSession} {
+		response := fixture.request(http.MethodGet, "/api/v1/trips", nil, readable, false, "")
+		assertStatus(t, response, http.StatusOK)
+		if response.Body.String() != "{\"items\":[]}\n" {
+			t.Fatalf("empty Trip list = %s", response.Body.String())
+		}
+	}
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips", nil, reviewerSession, false, ""), http.StatusForbidden)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?view=all&limit=20", nil, ownerSession, false, ""), http.StatusNotFound)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?view=invalid", nil, ownerSession, false, ""), http.StatusBadRequest)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?limit=101", nil, ownerSession, false, ""), http.StatusBadRequest)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?cursor=%25%25%25", nil, ownerSession, false, ""), http.StatusBadRequest)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates", nil, reviewerSession, false, ""), http.StatusForbidden)
+
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(validAssignment), ownerSession, false,
+		"application/json", map[string]string{"Idempotency-Key": "trip-http-no-csrf"},
+	), http.StatusForbidden)
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(`{"fact_type":"payment","fact_id":"`+factID+`","expected_assignment_id":null,"reason":"缺少目标"}`), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "trip-http-missing-target"},
+	), http.StatusBadRequest)
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(validAssignment[:len(validAssignment)-1]+`,"unknown":true}`), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "trip-http-unknown"},
+	), http.StatusBadRequest)
+	for _, manager := range []*testSession{ownerSession, financeSession} {
+		assertStatus(t, fixture.requestWithHeaders(
+			http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(validAssignment), manager, true,
+			"application/json", map[string]string{"Idempotency-Key": "trip-http-valid-" + manager.csrf},
+		), http.StatusNotFound)
+	}
+	for _, denied := range []*testSession{reviewerSession, viewerSession} {
+		assertStatus(t, fixture.requestWithHeaders(
+			http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(validAssignment), denied, true,
+			"application/json", map[string]string{"Idempotency-Key": "trip-http-denied-" + denied.csrf},
+		), http.StatusForbidden)
+	}
+	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/trips/"+tripID, nil, financeSession, true, ""), http.StatusForbidden)
+	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/trips/"+tripID, nil, ownerSession, true, ""), http.StatusNotFound)
+}
+
 func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	t.Helper()
 	root := t.TempDir()
@@ -599,6 +667,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	emailService := applicationemails.NewService(
 		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
 	)
+	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	webRoot := filepath.Join(root, "web")
 	if err := os.Mkdir(webRoot, 0o700); err != nil {
 		store.Close()
@@ -609,7 +678,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, tripService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

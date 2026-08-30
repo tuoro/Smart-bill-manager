@@ -15,6 +15,7 @@ func TestRoleCapabilityMatrix(t *testing.T) {
 		CapabilityAllocationsManage,
 		CapabilityEmailSourcesManage,
 		CapabilityEmailArchiveRead,
+		CapabilityTripAssignmentsManage,
 		CapabilityResourcesDelete,
 	}
 	allowed := map[Role]map[Capability]bool{
@@ -22,16 +23,18 @@ func TestRoleCapabilityMatrix(t *testing.T) {
 			CapabilityMembersManage: true, CapabilityProvidersManage: true,
 			CapabilityDocumentsProcess: true, CapabilityClaimsReview: true,
 			CapabilityReviewSourceRead: true, CapabilityFactsRead: true,
-			CapabilityAllocationsManage:  true,
-			CapabilityEmailSourcesManage: true,
-			CapabilityEmailArchiveRead:   true,
-			CapabilityResourcesDelete:    true,
+			CapabilityAllocationsManage:     true,
+			CapabilityEmailSourcesManage:    true,
+			CapabilityEmailArchiveRead:      true,
+			CapabilityTripAssignmentsManage: true,
+			CapabilityResourcesDelete:       true,
 		},
 		RoleFinance: {
 			CapabilityDocumentsProcess: true, CapabilityClaimsReview: true,
 			CapabilityReviewSourceRead: true, CapabilityFactsRead: true,
-			CapabilityAllocationsManage: true,
-			CapabilityEmailArchiveRead:  true,
+			CapabilityAllocationsManage:     true,
+			CapabilityEmailArchiveRead:      true,
+			CapabilityTripAssignmentsManage: true,
 		},
 		RoleReviewer: {
 			CapabilityDocumentsProcess: true, CapabilityClaimsReview: true,

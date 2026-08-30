@@ -43,7 +43,7 @@ func TestActivationRejectsStaleProviderSchemaCapability(t *testing.T) {
 	t.Parallel()
 
 	current := ports.ProviderSchemaIdentity{
-		Version: "bill-visible-text-provider/1",
+		Version: "bill-visible-text-provider/2",
 		SHA256:  strings.Repeat("c", 64),
 	}
 	service := Service{

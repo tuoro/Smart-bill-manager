@@ -106,7 +106,7 @@ func TestValidateInvoicePageTopologyBlocksGapRollbackAndSortViolations(t *testin
 			base := validInvoiceFieldsForPagePlan()
 			base = append(base, test.fields...)
 			validated := ValidateClaim(ClaimEnvelope{
-				SchemaVersion: "document-claim/2", DocumentType: "invoice", Fields: base,
+				SchemaVersion: "document-claim/3", DocumentType: "invoice", Fields: base,
 			}, test.pages)
 			if validated.Status != ClaimBlocked {
 				t.Fatalf("status = %s", validated.Status)
@@ -130,7 +130,7 @@ func TestValidateInvoicePageTopologyAllowsIndependentPagesAndThreePageSpan(t *te
 		absent("items["+pagePlanItemA+"].tax_minor", "money_minor"),
 		present("items["+pagePlanItemA+"].sort_order", "integer", int64(0)),
 	)
-	validated := ValidateClaim(ClaimEnvelope{SchemaVersion: "document-claim/2", DocumentType: "invoice", Fields: fields}, 3)
+	validated := ValidateClaim(ClaimEnvelope{SchemaVersion: "document-claim/3", DocumentType: "invoice", Fields: fields}, 3)
 	if validated.Status != ClaimReadyForReview {
 		t.Fatalf("status = %s, validations = %#v", validated.Status, validated.Validations)
 	}

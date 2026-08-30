@@ -1,6 +1,6 @@
 # 验收标准
 
-状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2 已完成（2026-08-31）
+状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2 已完成（2026-08-31）；M3 邮箱归档与行程归属切片已完成（2026-08-31）
 硬边界：已达成共识
 量化指标：产品负责人已于 2026-08-27 批准当前数值
 
@@ -91,13 +91,13 @@ M1 对通过边界的多页 PDF 必须处理全部页面并保留逐页证据。
 1. Base URL 与认证可用；
 2. 指定模型可调用；
 3. 图片内容可输入；
-4. ProviderConfig 显式选择的 `json_schema` 或 `json_object` 输出模式可用；`json_schema` 由 Provider 执行版本化 Provider-facing 根 Schema，`json_object` 由版本化任务说明定义最小票面原文 JSON，并在返回后执行权威 `bill-visible-text/1` 根身份校验；嵌套原始输出无需修复即可保留给字段级 Claim 校验；
+4. ProviderConfig 显式选择的 `json_schema` 或 `json_object` 输出模式可用；`json_schema` 由 Provider 执行版本化 Provider-facing 根 Schema，`json_object` 由版本化任务说明定义最小票面原文 JSON，并在返回后执行权威 `bill-visible-text/2` 根身份校验；嵌套原始输出无需修复即可保留给字段级 Claim 校验；
 5. 超时和错误能够被归类；
 6. 检测过程不把 API Key 或完整响应写入日志。
 
-`bill-visible-text/1` 是模型输出的唯一权威本地 Envelope Schema，当前确定性 Provider 投影为 `bill-visible-text-provider/1`；`document-claim/2` 是内部 Claim 的唯一权威 Schema。Visible Text 只硬校验有效 JSON、封闭根对象、版本、文档类型和 Payment/Invoice 根成员；嵌套业务字段由 Mapper 与 Claim Validation 逐项校验。Provider 投影不得按供应商品牌分支。Adapter 不得删除 `null`、删除数组元素、补默认值、改字段名、剥离 Markdown、截取 JSON 片段或修复非法输出。
+`bill-visible-text/2` 是模型输出的唯一权威本地 Envelope Schema，当前确定性 Provider 投影为 `bill-visible-text-provider/2`；`document-claim/3` 是内部 Claim 的唯一权威 Schema。Visible Text 只硬校验有效 JSON、封闭根对象、版本、文档类型和 Payment/Invoice/Trip 根成员；嵌套业务字段由 Mapper 与 Claim Validation 逐项校验。Provider 投影不得按供应商品牌分支。Adapter 不得删除 `null`、删除数组元素、补默认值、改字段名、剥离 Markdown、截取 JSON 片段或修复非法输出。
 
-模型必须按 `bill-visible-text-cn/1` 只返回文档类型、固定业务路径及每个非空值的 `{text,page}`；`text` 是值本身的票面原文，`page` 是一基页码。禁止裸业务标量、内部 Claim、minor units、独立 `evidence`、归一化值、置信度、问题列表、解释和计算得到的空白字段。唯一 `claim-mapper/3` 把同一 `text` 绑定为 Evidence，并确定性处理批准的币种和金额表示、日期、交易时间、显式时区、中文默认时区、数量、`null`、明细顺序和审核专用补充字段。发票 `amount_with_tax` 只能映射到 `total_minor`，`amount_without_tax` 只能进入补充审核字段；Mapper 不得纠正字符、推断缺失值或从数量与金额计算空白单价。单字段失败必须形成显式 blocked Validation 并保留其他正确字段；只有无效 JSON 或错误根身份可以不形成 Claim。全部契约版本必须写入 AiRun 与评测冻结配置。
+模型必须按 `bill-visible-text-cn/2` 只返回文档类型、固定 Payment/Invoice/Trip 业务路径及每个非空值的 `{text,page}`；`text` 是值本身的票面原文，`page` 是一基页码。禁止裸业务标量、内部 Claim、minor units、独立 `evidence`、归一化值、置信度、问题列表、解释、Trip 归属和计算得到的空白字段。唯一 `claim-mapper/4` 把同一 `text` 绑定为 Evidence，并确定性处理批准的币种和金额表示、日期、交易时间、显式时区、中文默认时区、数量、`null`、明细顺序、Trip 日期和审核专用补充字段。发票 `amount_with_tax` 只能映射到 `total_minor`，`amount_without_tax` 只能进入补充审核字段；Mapper 不得纠正字符、推断缺失值或从数量与金额计算空白单价。单字段失败必须形成显式 blocked Validation 并保留其他正确字段；只有无效 JSON 或错误根身份可以不形成 Claim。全部契约版本必须写入 AiRun 与评测冻结配置。
 
 只有通过全部能力检测且检测时显式输出模式、Provider-facing Schema 身份与当前运行时完全一致的配置才能设为活动配置。供应商名称不能替代检测结果；禁止自动切换模式，Schema 投影变化必须重新检测。
 
@@ -331,6 +331,26 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、OpenAPI 客户端生成、Web 完整检查、6 个 Vitest 文件共 24 项测试、21 / 21 浏览器组件场景、83 / 83 关键不变量及两层覆盖率门禁均通过；领域/应用层为 85.61%（2,468 / 2,883），基础设施/传输层为 73.88%（2,798 / 3,787）。可机读摘要见 `tests/evidence/m3/email-archive-gate-summary.json`。
 
+### M3 第二切片：行程 Fact 与确定性单据归属
+
+本切片以 `docs/decisions/0015-trip-fact-attribution.md` 为冻结决策。实现与验收只使用纯合成图片契约、Claim、Fact 和本地数据库数据；不得调用真实 Provider、执行正式正确率评测或连接外部系统。
+
+- 活动链唯一为 `bill-visible-text-cn/2 -> bill-visible-text/2 -> bill-visible-text-provider/2 -> claim-mapper/4 -> document-claim/3`。根对象严格包含 Payment、Invoice、Trip 三个业务成员并与 `document_type` 三选一；`unknown` 时全部为空。旧版本不得继续接受、双写或自动转换。
+- Trip 只抄 `origin`、`destination`、`start_date`、`end_date`、`traveler_name`、`transport_type`、`booking_reference` 的票面 `{text,page}`。本地只规范日期与文字表示；目的地、起止日期缺失，日期非法或结束早于开始必须 blocked，不得计算或推断。
+- Trip 必须沿现有 Document/AiRun/Claim/Revision/Review 创建，模型与 Mapper 不能写 Fact。确认事务必须创建一个 Trip、ReviewDecision、全部 FactFieldOrigin、重复候选决定和安全 AuditEvent；任一失败全部回滚。
+- Trip 确认不接受 Payment/Invoice `association_mode` 或 allocations；Payment/Invoice 的既有完整计划要求不变。三类 confirm 都必须提交当前全部 `keep_distinct` 重复决定，幂等键同请求返回同一 Fact，同键改变请求冲突。
+- `trip-attribution/1` 只从已确认、未删除 Fact 计算：业务日期在行程闭区间、前后 3 日或活动 PaymentInvoiceLink 另一端已归属当前 Trip。每项返回稳定 reason code；建议不自动写入，不命中仍可在全部视图显式选择。
+- 每个 Payment/Invoice 同时最多一条活动 TripFactAssignment。assign、move、unassign 必须携带期望当前 Link、8～128 字符幂等键与 1～500 字符理由；事务内重检租户、资源存活、当前 Link 和目标。空到空、同 Trip、陈旧期望、跨租户或已删除资源零写入。
+- Decision 与 Link 创建字段不可变、不可删除；旧 Link 只允许一次终止。移动在同一事务终止旧 Link 并创建新 Link；删除 Payment/Invoice/Trip 在删除事务终止相关活动 Link，历史决定与 Link 保留。
+- `GET /trips` 返回未删除 Trip 与活动归属计数；候选 API 支持 `all | suggested | assigned`、默认 50/最大 100 的不透明游标和确定性排序，不静默截断；写 API 严格 JSON、CSRF、路径/ID、幂等和安全错误。
+- `facts.read` 允许 Owner/Finance/Viewer 读取 Trip 与候选，Reviewer 拒绝；`trip_assignments.manage` 只允许 Owner/Finance。Reviewer 可沿 `claims.review` 审核 Trip，Owner 才可删除；四角色、跨租户和不存在资源不泄露均有测试。
+- Web 必须覆盖 Trip 审核/修订/确认、无行程、无候选、全部/建议/已归属筛选、加载更多、assign/move/unassign、理由错误、陈旧冲突保留、权限不足、加载/离线和成功刷新。键盘、768px 与 384px 等效 200% 回流不能丢失证据、筛选、理由或动作。
+- `trip_fact_assignment_changed` safe metadata 只允许 action 与 fact_type；不得记录地点、姓名、预订编号、日期、金额、理由、证据或 Provider 数据。
+
+最小纯合成场景固定包含：Payment/Invoice/Trip/unknown 根互斥与多余成员；Trip 全字段、可选字段缺失、必填缺失、非法日期、结束早于开始、跨页证据、用户完整 revision、重复候选未解决、确认重放/改请求；行程列表计数；区间内、边界前后 3 日、4 日外、活动 PaymentInvoiceLink 另一端建议、无建议手工归属；assign、move、unassign、空到空、同 Trip、陈旧 Link、幂等重放/改请求、同 Fact 并发竞争、跨租户、已删除 Fact/Trip、删除三类 Fact 的终止语义、Decision/Link 不可变、三种筛选和多页游标；四角色权限、严格 JSON/CSRF、Web 键盘与响应式。每个失败事务同时断言 Decision、AuditEvent、旧 Link、新 Link 和 Fact 均无部分变化。
+
+验收结果：2026-08-31 通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，7 个 Vitest 文件共 27 项测试通过；邮箱、既有状态矩阵与行程归属浏览器组件场景 24 / 24 通过，其中 3 项新增行程场景覆盖冲突恢复、严格可空请求、四角色、键盘及 768px/384px 回流；关键不变量 92 / 92（100%）通过，其中新增 9 个行程映射；领域/应用层覆盖率 85.53%（2,594 / 3,033），基础设施/传输层覆盖率 74.07%（3,016 / 4,072）。本轮只使用纯合成数据，未调用真实 Provider、未连接真实邮箱或外部账号。可机读摘要见 `tests/evidence/m3/trip-attribution-gate-summary.json`。
+
 ## 八、租户与安全验收
 
 ### 租户
@@ -339,7 +359,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 - 数据访问接口必须显式接收租户上下文，不能从隐式全局状态推断。
 - 每个读写、下载、预览、重试、取消和确认入口都有跨租户拒绝测试。
 - 资源是否存在的差异不能向其他租户泄露。
-- `owner`、`finance`、`reviewer`、`viewer` 的每个允许与拒绝单元格都必须有权限测试；reviewer 可处理当前审核资料和候选摘要，但不能列出 Payment/Invoice，viewer 则相反。
+- `owner`、`finance`、`reviewer`、`viewer` 的每个允许与拒绝单元格都必须有权限测试；reviewer 可处理当前审核资料和候选摘要，但不能列出 Payment/Invoice/Trip，viewer 则相反。Trip 归属写入只允许 owner/finance。
 - 停用或降级最后一个 active owner 必须失败；suspended Membership 不能产生 TenantContext。
 - 空库 `bootstrap-owner` 只成功一次并原子创建 User/Tenant/active owner；密码不得出现在 argv、环境、日志或数据库明文字段。非空库执行、HTTP 访问和事务故障注入均必须失败且不留下半成品。
 
@@ -427,6 +447,8 @@ M2 第三切片新增关键分支为：同一稳定明细的相邻跨页 Evidenc
 M2 第四切片不增加服务端批量实现；新增关键分支为：独立单 Document 命令在中间拒绝后仍能继续、成功项各自只创建一份 Document/Job且失败项零残留，以及客户端严格串行、原顺序、精确重复、超 20 项、单项超 20 MiB、网络失败继续和逐项安全反馈。后端独立性分支进入 `tests/critical-invariants.tsv` 唯一映射；客户端编排分支由单元测试与浏览器场景覆盖。
 
 M2 第五切片新增关键分支为：anchor-scoped 活动计划 hash、完整期望计划与请求 hash、补充/撤销/替换差异、零金额 anchor 与双方余额、陈旧和无变化零写入、严格幂等重放、不可变 Adjustment/Link 来源、安全审计 metadata、四角色权限、跨租户/删除/币种/日期边界、最后余额与 Fact 删除竞态、200 项显式上限，以及 HTTP 严格 JSON/CSRF/路径边界。它们进入 `tests/critical-invariants.tsv`，最终 72 / 72（100%）通过；Web 的完整计划、加载/空目标、撤销全部、冲突保留草稿、权限、键盘与响应式边界由单元测试和浏览器矩阵覆盖。
+
+M3 第二切片新增关键分支为：Trip 根区段互斥、最小字段与日期倒置、Trip 仍经人工 Review 创建、Trip 确认不接受金额关联计划、完整重复决定、Trip 字段来源；`trip-attribution/1` 日期/邻近/活动 PaymentInvoiceLink 原因；单 Fact 活动归属唯一、assign/move/unassign 期望快照、严格幂等、同 Fact 并发、不可变 Decision/Link、Fact 删除终止、安全审计、三种游标视图、四角色权限与跨租户边界。它们已逐项进入 `tests/critical-invariants.tsv`，最终 92 / 92（100%）通过；Web 的严格可空请求、冲突草稿保留、角色、键盘和响应式边界由单元测试与浏览器矩阵覆盖。
 
 ## 十三、M1 最小场景矩阵
 

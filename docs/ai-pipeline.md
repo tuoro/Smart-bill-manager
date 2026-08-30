@@ -1,22 +1,22 @@
 # AI 票面原文提取管线
 
-状态：M1 当前活动基线
+状态：M3 行程归属切片已完成的活动基线
 
-当前契约：`bill-visible-text-cn/1` / `bill-visible-text/1` / `bill-visible-text-provider/1` / `claim-mapper/3` / `document-claim/2`
+当前契约：`bill-visible-text-cn/2` / `bill-visible-text/2` / `bill-visible-text-provider/2` / `claim-mapper/4` / `document-claim/3`
 
 ## 唯一活动链路
 
 `Source -> Normalize -> BillExtractor -> Visible Text -> Claim Mapper -> Claim Validation -> Review -> Fact`
 
-- 视觉模型负责判断 `payment`、`invoice` 或 `unknown`，选择约定业务字段，并逐字复制字段值及一基页码。
+- 视觉模型负责判断 `payment`、`invoice`、`trip` 或 `unknown`，选择约定业务字段，并逐字复制字段值及一基页码。
 - 模型不输出内部 Claim、归一化值、minor units、独立 Evidence、置信度、问题码或审核结论，也不计算图片中的空白值。
-- `claim-mapper/3` 把同一个 `text` 作为 Evidence quote，在本地确定性处理币种、金额、日期、交易时间、时区和数量，再组装完整 `document-claim/2`。
+- `claim-mapper/4` 把同一个 `text` 作为 Evidence quote，在本地确定性处理币种、金额、日期、交易时间、时区和数量，再组装完整 `document-claim/3`。
 - M2 跨页明细不改变上述版本：模型已经一次看到全部有序页面，并负责把同一逻辑明细的字段放在同一个 item 中；本地只根据各字段既有 `page` 校验连续页跨度与阅读顺序，并派生分页审核计划。
 - 重复表头不作为 item 返回；若模型不能安全确定被分页拆开的单字段完整原文，该字段返回 `null`。本地不拼接跨页文字、不删除疑似表头、不重组 item，也不执行第二次模型调用。
 - 本地转换只改变表示法，不改变字符所表达的业务值；不得纠正发票号、名称或明细文本，不得计算缺失总额、税额、单价或数量。
 - 只有用户确认 Review 后才能创建 Fact；模型、Adapter 和 Mapper 都没有 Fact 写权限。
 
-旧 `bill-extraction/2`、独立 `evidence` / `other_fields` / `issues` 模型输出、自然 typed 标量和 `claim-mapper/2` 已退出活动链路，不保留兼容分支。
+旧 `bill-extraction/2`、`bill-visible-text/1`、独立 `evidence` / `other_fields` / `issues` 模型输出、自然 typed 标量、`claim-mapper/2` 与 `claim-mapper/3` 已退出活动链路，不保留兼容分支。ProviderConfig 的能力身份必须按新投影重新检测后才可用于未来模型调用；本切片不执行真实检测或调用。
 
 ## 输入边界
 
@@ -25,13 +25,13 @@
 - 原文件和规范化页保持不可变；工作区隔离与哈希校验在调用模型前完成。
 - 图片内容属于不可信数据，不能改变任务、触发工具、访问链接或产生副作用。
 
-## 模型输出：`bill-visible-text/1`
+## 模型输出：`bill-visible-text/2`
 
-根对象只允许四个键：
+根对象只允许五个键：
 
 ```json
 {
-  "schema_version": "bill-visible-text/1",
+  "schema_version": "bill-visible-text/2",
   "document_type": "payment",
   "payment": {
     "amount": { "text": "¥28.80", "page": 1 },
@@ -43,7 +43,8 @@
     "order_number": null,
     "category": null
   },
-  "invoice": null
+  "invoice": null,
+  "trip": null
 }
 ```
 
@@ -53,7 +54,7 @@
 
 ```json
 {
-  "schema_version": "bill-visible-text/1",
+  "schema_version": "bill-visible-text/2",
   "document_type": "invoice",
   "payment": null,
   "invoice": {
@@ -75,23 +76,46 @@
         "tax": { "text": "6.00", "page": 1 }
       }
     ]
-  }
+  },
+  "trip": null
 }
 ```
 
 `amount_with_tax` 只表示“价税合计（小写）”；`amount_without_tax` 只表示不含税金额。明细保持阅读顺序，空白单价在本例中必须保持 `null`。
 
+行程区段只保留可见的最小字段：
+
+```json
+{
+  "schema_version": "bill-visible-text/2",
+  "document_type": "trip",
+  "payment": null,
+  "invoice": null,
+  "trip": {
+    "origin": { "text": "上海虹桥", "page": 1 },
+    "destination": { "text": "深圳北", "page": 1 },
+    "start_date": { "text": "2026年09月03日", "page": 1 },
+    "end_date": { "text": "2026年09月05日", "page": 2 },
+    "traveler_name": null,
+    "transport_type": { "text": "高铁", "page": 1 },
+    "booking_reference": { "text": "SYN-TRIP-0001", "page": 1 }
+  }
+}
+```
+
+Trip 只表示一个单据可直接支持的整体行程。模型不生成标题、不计算停留天数、不从路线猜测目的地，也不把 Payment/Invoice 自动归属到 Trip。`destination`、`start_date` 与 `end_date` 在内部 Claim 中必填；票面看不清时仍返回 `null` 并进入人工修订或驳回。
+
 ## Schema 与 Provider 边界
 
 - `contracts/schemas/bill-visible-text.schema.json` 是模型根 Envelope 的唯一权威 Schema。
-- 本地 Schema 关闭根对象并要求 `schema_version`、`document_type`、`payment` 和 `invoice`；嵌套业务值保持开放给逐字段校验，避免一个局部形状错误抹掉同文档其他正确字段。
-- `bill-visible-text-provider/1` 从权威 Schema 确定性投影；`json_schema` 模式由 Provider 执行 strict 根约束，`json_object` 模式返回后执行同一权威根校验。
+- 本地 Schema 关闭根对象并要求 `schema_version`、`document_type`、`payment`、`invoice` 和 `trip`；嵌套业务值保持开放给逐字段校验，避免一个局部形状错误抹掉同文档其他正确字段。
+- `bill-visible-text-provider/2` 从权威 Schema 确定性投影；`json_schema` 模式由 Provider 执行 strict 根约束，`json_object` 模式返回后执行同一权威根校验。
 - Provider 品牌或模型名称不能改变 Prompt、Schema、映射或重试策略，也不能触发自动模式切换。
 - Adapter 不剥 Markdown、不截取 JSON 片段、不删除键、不改字段名、不补默认值、不修复响应。
 
 只有无效 JSON、错误根版本、错误文档类型、缺少固定根成员或多余根成员会在 Adapter 阶段拒绝。只要根身份有效，嵌套字段错误必须进入一个可审核的 blocked Claim。
 
-## `claim-mapper/3` 的确定性职责
+## `claim-mapper/4` 的确定性职责
 
 | 模型字段 | 内部 Claim | 本地处理 |
 | --- | --- | --- |
@@ -103,6 +127,9 @@
 | `invoice.tax_amount` | `tax_minor` | 精确换算，不反推 |
 | `invoice.amount_without_tax` | `supplementary_fields` | 仅供审核，不成为 Fact 字段 |
 | `invoice.items[*]` | `items[*]` | 保持数组顺序并生成无 Evidence 的 `sort_order` |
+| `trip.start_date` / `trip.end_date` | 同名日期字段 | 只规范批准的票面日期表示法 |
+| `trip.origin` / `destination` | 同名字符串字段 | NFKC 与首尾空白规范化，不推断地点 |
+| `trip.traveler_name` / `transport_type` / `booking_reference` | 同名可选字段 | 保留可见文字，不从其他字段补值 |
 | 任一 `{text,page}` | 字段 Evidence | `quote = text`，`page = page` |
 
 批准的表示法处理：
@@ -125,7 +152,7 @@
 ## Validation 与重试
 
 - 非法 `{text,page}`、页码越界、币种未知、金额超精度、日期非法、时区冲突和数量非法都形成字段级 blocked Validation；原始局部值仍保留供审核。
-- 缺少必填字段、业务区段冲突、发票算术冲突和 Evidence 缺失继续由 `document-claim/2` 校验。
+- 缺少必填字段、业务区段冲突、发票算术冲突、Trip 日期倒置和 Evidence 缺失继续由 `document-claim/3` 校验。
 - 429、明确临时 5xx、网络中断以及 JSON/根 Schema 失败可按 `schema_validation_single_retry/1` 原样重试一次。
 - 字段级格式或业务失败不自动重试；重试不得改变图片、Prompt、Schema、模型或参数。
 - 每次 attempt 独立追加 AiRun，并冻结 ProviderConfig 安全指纹、模型、输出模式、全部契约版本、Provider Schema SHA-256、输入处理版本、token、耗时和安全失败类别。

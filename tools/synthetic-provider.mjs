@@ -29,8 +29,9 @@ async function main() {
         body.temperature !== 0 ||
         body.response_format?.type !== "json_schema" ||
         body.response_format?.json_schema?.schema?.properties?.schema_version
-          ?.const !== "bill-visible-text/1" ||
+          ?.const !== "bill-visible-text/2" ||
         !body.response_format?.json_schema?.schema?.properties?.payment ||
+        !body.response_format?.json_schema?.schema?.properties?.trip ||
         body.response_format?.json_schema?.schema?.properties?.evidence ||
         body.response_format?.json_schema?.schema?.additionalProperties !==
           false ||
@@ -101,16 +102,17 @@ async function main() {
 
 function capabilityEnvelope() {
   return {
-    schema_version: "bill-visible-text/1",
+    schema_version: "bill-visible-text/2",
     document_type: "unknown",
     payment: null,
     invoice: null,
+    trip: null,
   };
 }
 
 function paymentEnvelope() {
   return {
-    schema_version: "bill-visible-text/1",
+    schema_version: "bill-visible-text/2",
     document_type: "payment",
     payment: {
       amount: { text: "CNY 123.45", page: 1 },
@@ -123,6 +125,7 @@ function paymentEnvelope() {
       category: null,
     },
     invoice: null,
+    trip: null,
   };
 }
 

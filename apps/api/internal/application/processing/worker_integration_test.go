@@ -481,7 +481,7 @@ func newWorkerFixture(t *testing.T) workerFixture {
 			EncryptedAPIKey: []byte("encrypted-test-key"), Model: "test-model",
 			OutputMode:       ports.ProviderOutputModeJSONSchema,
 			CapabilityStatus: "passed", Active: true, Version: 1,
-			CapabilitySchemaVersion: "bill-visible-text-provider/1",
+			CapabilitySchemaVersion: "bill-visible-text-provider/2",
 			CapabilitySchemaSHA256:  strings.Repeat("c", 64),
 			SafeFingerprint:         "test-fingerprint", CreatedByUserID: userID,
 			CreatedAt: now, UpdatedAt: now,
@@ -555,7 +555,7 @@ type fakeExtractor struct {
 }
 
 func (fakeExtractor) ProviderSchemaIdentity() ports.ProviderSchemaIdentity {
-	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/1", SHA256: strings.Repeat("c", 64)}
+	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/2", SHA256: strings.Repeat("c", 64)}
 }
 
 func (f fakeExtractor) Prepare(_ ports.ProviderCredentials, pages []ports.PageImage) (ports.PreparedBillExtraction, error) {
@@ -571,7 +571,7 @@ type fakePrepared struct {
 
 func (fakePrepared) RequestHash() string { return "same-request-hash" }
 func (fakePrepared) ProviderSchemaIdentity() ports.ProviderSchemaIdentity {
-	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/1", SHA256: strings.Repeat("c", 64)}
+	return ports.ProviderSchemaIdentity{Version: "bill-visible-text-provider/2", SHA256: strings.Repeat("c", 64)}
 }
 func (f fakePrepared) Execute(ctx context.Context) (ports.BillExtractionResult, error) {
 	return f.execute(ctx)
@@ -601,7 +601,7 @@ func workerMigrationsDir(t *testing.T) string {
 
 func paymentExtractionEnvelope() domain.BillVisibleTextEnvelope {
 	return domain.BillVisibleTextEnvelope{
-		SchemaVersion: "bill-visible-text/1",
+		SchemaVersion: "bill-visible-text/2",
 		DocumentType:  "payment",
 		Payment:       json.RawMessage(`{"amount":{"text":"CNY 123.45","page":1},"currency":{"text":"CNY","page":1},"merchant":{"text":"Example Merchant","page":1},"transaction_time":{"text":"2026-08-27 12:00","page":1},"timezone":null,"payment_method":null,"order_number":null,"category":null}`),
 		Invoice:       json.RawMessage(`null`),
@@ -621,7 +621,7 @@ func invoiceExtractionEnvelope(number string) domain.BillVisibleTextEnvelope {
 		"items":              []any{},
 	})
 	return domain.BillVisibleTextEnvelope{
-		SchemaVersion: "bill-visible-text/1",
+		SchemaVersion: "bill-visible-text/2",
 		DocumentType:  "invoice",
 		Payment:       json.RawMessage(`null`),
 		Invoice:       invoice,

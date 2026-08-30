@@ -35,6 +35,20 @@ func (s *Server) listInvoicesHandler(response http.ResponseWriter, request *http
 	writeJSON(response, http.StatusOK, map[string]any{"items": invoiceResponses(items)})
 }
 
+func (s *Server) listTripsHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	items, err := s.facts.ListTrips(request.Context(), tenantContext(principal))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"items": tripResponses(items)})
+}
+
 func (s *Server) deletePaymentHandler(response http.ResponseWriter, request *http.Request) {
 	principal, ok := principalFromRequest(request)
 	if !ok {
@@ -67,6 +81,22 @@ func (s *Server) deleteInvoiceHandler(response http.ResponseWriter, request *htt
 	response.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) deleteTripHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	if err := s.facts.Delete(
+		request.Context(), tenantContext(principal), domain.DocumentTrip,
+		request.PathValue("trip_id"), requestIDFromRequest(request),
+	); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	response.WriteHeader(http.StatusNoContent)
+}
+
 func paymentResponses(items []ports.Payment) []ports.Payment {
 	if items == nil {
 		return []ports.Payment{}
@@ -77,6 +107,13 @@ func paymentResponses(items []ports.Payment) []ports.Payment {
 func invoiceResponses(items []ports.Invoice) []ports.Invoice {
 	if items == nil {
 		return []ports.Invoice{}
+	}
+	return items
+}
+
+func tripResponses(items []ports.Trip) []ports.Trip {
+	if items == nil {
+		return []ports.Trip{}
 	}
 	return items
 }

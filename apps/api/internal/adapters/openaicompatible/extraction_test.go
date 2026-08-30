@@ -63,7 +63,7 @@ func assertBillExtractionRequestContract(t *testing.T, body []byte) {
 	}
 	messages := request["messages"].([]any)
 	system := messages[0].(map[string]any)["content"].(string)
-	if !strings.Contains(system, "bill-visible-text-cn/1") || strings.Contains(system, "bill-extract/2") {
+	if !strings.Contains(system, "bill-visible-text-cn/2") || strings.Contains(system, "bill-extract/2") {
 		t.Fatalf("system instruction does not pin direct extraction contract: %q", system)
 	}
 	if temperature, ok := request["temperature"].(float64); !ok || temperature != 0 {
@@ -72,13 +72,16 @@ func assertBillExtractionRequestContract(t *testing.T, body []byte) {
 	content := messages[1].(map[string]any)["content"].([]any)
 	instruction := content[0].(map[string]any)["text"].(string)
 	for _, required := range []string{
-		"任务版本：bill-visible-text-cn/1",
-		`"schema_version": "bill-visible-text/1"`,
+		"任务版本：bill-visible-text-cn/2",
+		`"schema_version": "bill-visible-text/2"`,
 		`{"text":"只含值本身的原文","page":1}`,
 		"只抄我们需要的票面原文",
 		"不解释、不计算、不猜测、不纠错",
 		`"amount_without_tax"`,
 		`"amount_with_tax"`,
+		`"destination"`,
+		`"start_date"`,
+		`"end_date"`,
 		"空白单价、金额或税额必须是 null",
 		"价税合计（小写）",
 	} {
@@ -99,7 +102,7 @@ func assertBillExtractionRequestContract(t *testing.T, body []byte) {
 	}
 	providerSchema := jsonSchema["schema"].(map[string]any)
 	properties := providerSchema["properties"].(map[string]any)
-	for _, key := range []string{"schema_version", "document_type", "payment", "invoice"} {
+	for _, key := range []string{"schema_version", "document_type", "payment", "invoice", "trip"} {
 		if _, exists := properties[key]; !exists {
 			t.Fatalf("Provider root schema is missing %s", key)
 		}
@@ -188,6 +191,19 @@ func TestBillExtractionPreservesNestedContractViolationForLocalValidation(t *tes
 	}
 	if !bytes.Contains(result.Envelope.Payment, []byte(`"amount":12.34`)) {
 		t.Fatalf("nested invalid field was not preserved: %s", result.Envelope.Payment)
+	}
+}
+
+func TestBillExtractionAcceptsStrictTripRoot(t *testing.T) {
+	t.Parallel()
+	prepared := preparedForTransport(t, completionTransport(t, providerTripExtraction()))
+	result, err := prepared.Execute(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Envelope.DocumentType != "trip" || string(result.Envelope.Payment) != "null" ||
+		string(result.Envelope.Invoice) != "null" || !bytes.Contains(result.Envelope.Trip, []byte(`"destination"`)) {
+		t.Fatalf("Trip extraction = %#v", result.Envelope)
 	}
 }
 
@@ -309,7 +325,7 @@ func testProviderCredentials(detector *Detector) ports.ProviderCredentials {
 
 func providerPaymentExtraction() map[string]any {
 	return map[string]any{
-		"schema_version": "bill-visible-text/1",
+		"schema_version": "bill-visible-text/2",
 		"document_type":  "payment",
 		"payment": map[string]any{
 			"amount":           map[string]any{"text": "CNY 12.34", "page": 1},
@@ -322,12 +338,13 @@ func providerPaymentExtraction() map[string]any {
 			"category":         nil,
 		},
 		"invoice": nil,
+		"trip":    nil,
 	}
 }
 
 func providerInvoiceExtraction() map[string]any {
 	return map[string]any{
-		"schema_version": "bill-visible-text/1",
+		"schema_version": "bill-visible-text/2",
 		"document_type":  "invoice",
 		"payment":        nil,
 		"invoice": map[string]any{
@@ -341,15 +358,35 @@ func providerInvoiceExtraction() map[string]any {
 			"buyer_name":         map[string]any{"text": "购买方有限公司", "page": 1},
 			"items":              []any{},
 		},
+		"trip": nil,
 	}
 }
 
 func providerUnknownExtraction() map[string]any {
 	return map[string]any{
-		"schema_version": "bill-visible-text/1",
+		"schema_version": "bill-visible-text/2",
 		"document_type":  "unknown",
 		"payment":        nil,
 		"invoice":        nil,
+		"trip":           nil,
+	}
+}
+
+func providerTripExtraction() map[string]any {
+	return map[string]any{
+		"schema_version": "bill-visible-text/2",
+		"document_type":  "trip",
+		"payment":        nil,
+		"invoice":        nil,
+		"trip": map[string]any{
+			"origin":            map[string]any{"text": "上海", "page": 1},
+			"destination":       map[string]any{"text": "北京", "page": 1},
+			"start_date":        map[string]any{"text": "2026-08-26", "page": 1},
+			"end_date":          map[string]any{"text": "2026-08-28", "page": 1},
+			"traveler_name":     nil,
+			"transport_type":    map[string]any{"text": "高铁", "page": 1},
+			"booking_reference": nil,
+		},
 	}
 }
 

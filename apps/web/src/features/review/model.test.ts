@@ -72,6 +72,46 @@ describe('review model', () => {
     })
   })
 
+  it('creates the complete Trip field set without payment allocation fields', () => {
+    const trip = reviewFixture({
+      document_type: 'trip',
+      fields: [
+        {
+          id: '00000000-0000-4000-8000-000000000050',
+          path: 'destination',
+          value_type: 'string',
+          presence: 'present',
+          value: '北京',
+          source: 'ai',
+          evidence: [
+            {
+              id: '00000000-0000-4000-8000-000000000051',
+              page: 1,
+              quote: '北京',
+            },
+          ],
+        },
+      ],
+    })
+
+    const fields = editableFields(trip, 'trip')
+    expect(fields).toHaveLength(8)
+    expect(fields.map((field) => field.path)).toEqual([
+      'origin',
+      'destination',
+      'start_date',
+      'end_date',
+      'traveler_name',
+      'transport_type',
+      'booking_reference',
+      'supplementary_fields',
+    ])
+    expect(fields.find((field) => field.path === 'destination')).toMatchObject({
+      presence: 'present',
+      textValue: '北京',
+    })
+  })
+
   it('requires evidence for a changed value and emits exact integer payloads', () => {
     const review = reviewFixture()
     const fields = editableFields(review, 'payment')

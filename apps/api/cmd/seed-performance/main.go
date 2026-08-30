@@ -102,7 +102,7 @@ func run() error {
 			capability_schema_version, capability_schema_sha256, active, version,
 			safe_fingerprint, created_by_user_id, created_at, updated_at
 		) VALUES (?, ?, 'https://performance.invalid/v1', ?, 'synthetic-performance-model', 'json_schema',
-		          'passed', ?, 'synthetic performance seed', 'bill-visible-text-provider/1', ?, 1, 1,
+		          'passed', ?, 'synthetic performance seed', 'bill-visible-text-provider/2', ?, 1, 1,
 		          'synthetic-performance-fingerprint', ?, ?, ?)
 	`, providerID, tenantID, []byte{0x01, 0x02, 0x03}, formatTime(now), strings.Repeat("c", 64), userID, formatTime(now), formatTime(now)); err != nil {
 		return fmt.Errorf("insert performance provider: %w", err)
@@ -199,7 +199,7 @@ func prepareSeedStatements(ctx context.Context, tx *sql.Tx) (preparedStatements,
 		) VALUES (?, ?, ?, 1, ?, 1200, 800, ?, 'document-normalize/2',
 		          'page-visual-dedup/1', ?, ?, ?, ?, ?, ?, ?)`,
 		`INSERT INTO processing_jobs (id, tenant_id, document_id, kind, status, attempt_count, created_at, version) VALUES (?, ?, ?, 'document_process', ?, 1, ?, 1)`,
-		`INSERT INTO ai_runs (id, tenant_id, job_id, provider_config_id, provider_config_version, provider_config_fingerprint, model, prompt_version, extraction_schema_version, provider_schema_version, provider_schema_sha256, claim_schema_version, claim_mapper_version, input_processing_version, request_hash, response_hash, input_tokens, output_tokens, latency_ms, outcome, started_at, finished_at) VALUES (?, ?, ?, ?, 1, 'synthetic-performance-fingerprint', 'synthetic-performance-model', 'bill-visible-text-cn/1', 'bill-visible-text/1', 'bill-visible-text-provider/1', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'document-claim/2', 'claim-mapper/3', 'document-normalize/2', ?, ?, 10, 10, 1, 'succeeded', ?, ?)`,
+		`INSERT INTO ai_runs (id, tenant_id, job_id, provider_config_id, provider_config_version, provider_config_fingerprint, model, prompt_version, extraction_schema_version, provider_schema_version, provider_schema_sha256, claim_schema_version, claim_mapper_version, input_processing_version, request_hash, response_hash, input_tokens, output_tokens, latency_ms, outcome, started_at, finished_at) VALUES (?, ?, ?, ?, 1, 'synthetic-performance-fingerprint', 'synthetic-performance-model', 'bill-visible-text-cn/2', 'bill-visible-text/2', 'bill-visible-text-provider/2', 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'document-claim/3', 'claim-mapper/4', 'document-normalize/2', ?, ?, 10, 10, 1, 'succeeded', ?, ?)`,
 		`INSERT INTO claim_sets (id, tenant_id, document_id, origin_ai_run_id, produced_by_ai_run_id, document_type, status, revision, optimistic_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)`,
 		`INSERT INTO field_claims (id, tenant_id, claim_set_id, field_path, value_type, presence, typed_value_json, normalized_value, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ai', ?)`,
 		`INSERT INTO evidence (id, tenant_id, field_claim_id, document_page_id, quote, evidence_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,

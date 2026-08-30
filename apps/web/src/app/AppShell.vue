@@ -99,6 +99,10 @@ async function logout() {
               <span class="nav-icon" aria-hidden="true">票</span>
               <span class="nav-label">发票管理</span>
             </RouterLink>
+            <RouterLink class="nav-item" to="/trips">
+              <span class="nav-icon" aria-hidden="true">行</span>
+              <span class="nav-label">行程归属</span>
+            </RouterLink>
           </section>
           <section
             v-if="capabilities.has('providers.manage')"

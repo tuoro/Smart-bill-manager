@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -95,12 +96,9 @@ func (s *Server) confirmReviewHandler(response http.ResponseWriter, request *htt
 		return
 	}
 	var body struct {
-		ExpectedRevision int    `json:"expected_revision"`
-		AssociationMode  string `json:"association_mode"`
-		Allocations      *[]struct {
-			CandidateID    string `json:"candidate_id"`
-			AllocatedMinor int64  `json:"allocated_minor"`
-		} `json:"allocations"`
+		ExpectedRevision     int             `json:"expected_revision"`
+		AssociationMode      json.RawMessage `json:"association_mode"`
+		Allocations          json.RawMessage `json:"allocations"`
 		DuplicateResolutions *[]struct {
 			CandidateID string `json:"candidate_id"`
 			Action      string `json:"action"`
@@ -110,19 +108,49 @@ func (s *Server) confirmReviewHandler(response http.ResponseWriter, request *htt
 		writeError(response, request, err)
 		return
 	}
-	if body.Allocations == nil {
-		writeError(response, request, domain.NewRuleError("invalid_association", "allocations 必须是数组", domain.ErrInvalidInput))
-		return
-	}
 	if body.DuplicateResolutions == nil {
 		writeError(response, request, domain.NewRuleError("invalid_duplicate_resolution", "duplicate_resolutions 必须是数组", domain.ErrInvalidInput))
 		return
 	}
+	hasAssociationMode := len(body.AssociationMode) != 0
+	hasAllocations := len(body.Allocations) != 0
+	if hasAssociationMode != hasAllocations {
+		writeError(response, request, domain.NewRuleError(
+			"invalid_association",
+			"association_mode 与 allocations 必须同时提供或同时省略",
+			domain.ErrInvalidInput,
+		))
+		return
+	}
+	associationMode := ""
+	allocations := make([]struct {
+		CandidateID    string `json:"candidate_id"`
+		AllocatedMinor int64  `json:"allocated_minor"`
+	}, 0)
+	if hasAssociationMode {
+		if bytes.Equal(bytes.TrimSpace(body.AssociationMode), []byte("null")) ||
+			bytes.Equal(bytes.TrimSpace(body.Allocations), []byte("null")) {
+			writeError(response, request, domain.NewRuleError(
+				"invalid_association",
+				"association_mode 必须是非空字符串且 allocations 必须是数组",
+				domain.ErrInvalidInput,
+			))
+			return
+		}
+		if err := json.Unmarshal(body.AssociationMode, &associationMode); err != nil || associationMode == "" {
+			writeError(response, request, domain.NewRuleError("invalid_association", "association_mode 必须是非空字符串", domain.ErrInvalidInput))
+			return
+		}
+		if err := json.Unmarshal(body.Allocations, &allocations); err != nil {
+			writeError(response, request, domain.NewRuleError("invalid_association", "allocations 必须是数组", domain.ErrInvalidInput))
+			return
+		}
+	}
 	started := time.Now()
 	input := reviews.ConfirmInput{
 		ExpectedRevision:     body.ExpectedRevision,
-		AssociationMode:      body.AssociationMode,
-		Allocations:          make([]domain.AllocationRequest, 0, len(*body.Allocations)),
+		AssociationMode:      associationMode,
+		Allocations:          make([]domain.AllocationRequest, 0, len(allocations)),
 		DuplicateResolutions: make([]domain.DuplicateResolution, 0, len(*body.DuplicateResolutions)),
 		IdempotencyKey:       request.Header.Get("Idempotency-Key"),
 		RequestID:            requestIDFromRequest(request),
@@ -133,7 +161,7 @@ func (s *Server) confirmReviewHandler(response http.ResponseWriter, request *htt
 			Action:      resolution.Action,
 		})
 	}
-	for _, allocation := range *body.Allocations {
+	for _, allocation := range allocations {
 		input.Allocations = append(input.Allocations, domain.AllocationRequest{
 			CandidateID:    allocation.CandidateID,
 			AllocatedMinor: allocation.AllocatedMinor,

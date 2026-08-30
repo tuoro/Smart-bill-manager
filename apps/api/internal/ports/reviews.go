@@ -162,6 +162,17 @@ type InvoiceDraft struct {
 	Items                   []InvoiceItemDraft
 }
 
+type TripDraft struct {
+	ID               string
+	Origin           *string
+	Destination      string
+	StartDate        string
+	EndDate          string
+	TravelerName     *string
+	TransportType    *string
+	BookingReference *string
+}
+
 type FactOriginDraft struct {
 	ID           string
 	FieldPath    string
@@ -198,6 +209,7 @@ type ConfirmCommand struct {
 	DuplicatePlanHash  string
 	Payment            *PaymentDraft
 	Invoice            *InvoiceDraft
+	Trip               *TripDraft
 	Origins            []FactOriginDraft
 	CandidateDecisions []CandidateDecisionDraft
 	DuplicateDecisions []DuplicateCandidateDecisionDraft
@@ -302,7 +314,22 @@ type Invoice struct {
 	CreatedAt        time.Time     `json:"created_at"`
 }
 
+type Trip struct {
+	ID                   string    `json:"id"`
+	Origin               *string   `json:"origin,omitempty"`
+	Destination          string    `json:"destination"`
+	StartDate            string    `json:"start_date"`
+	EndDate              string    `json:"end_date"`
+	TravelerName         *string   `json:"traveler_name,omitempty"`
+	TransportType        *string   `json:"transport_type,omitempty"`
+	BookingReference     *string   `json:"booking_reference,omitempty"`
+	AssignedPaymentCount int       `json:"assigned_payment_count"`
+	AssignedInvoiceCount int       `json:"assigned_invoice_count"`
+	CreatedAt            time.Time `json:"created_at"`
+}
+
 type FactRepository interface {
 	ListPayments(ctx context.Context, tenantID string) ([]Payment, error)
 	ListInvoices(ctx context.Context, tenantID string) ([]Invoice, error)
+	ListTrips(ctx context.Context, tenantID string) ([]Trip, error)
 }

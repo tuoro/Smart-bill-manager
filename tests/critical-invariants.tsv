@@ -51,6 +51,17 @@ money-integer-exponent	税额、价税合计与明细合计仅以整数校验，
 file-signature-mime	扩展名、声明 MIME 与 JPEG/PNG/WebP/PDF 签名字节不一致全部拒绝	./internal/adapters/localstorage	TestInspectorRejectsSignatureMismatch
 file-signature-mime	四种批准格式的签名与扩展名边界固定	./internal/adapters/localstorage	TestSupportedSignaturesAndExtensionsAreExact
 batch-upload-isolation	按选择顺序执行的独立上传在中间项失败后继续；成功项各自只有一份 Document/Job 且失败项无残留	./internal/application/documents	TestIndependentUploadCommandsContinueAfterRejectedItem
+email-source-registration	描述符规范化、严格幂等重放、同键改请求和相同连接身份均按冻结规则处理	./internal/application/emails	TestEmailArchiveLifecyclePreservesSourceAndDocumentBoundaries
+email-source-input-boundary	显示名、纯邮箱、主机、端口和强制 TLS 模式的非法边界全部明确拒绝	./internal/domain	TestCanonicalEmailSourceRegistrationRejectsUnsafeBoundaries
+email-mime-safe-projection	只读取受限安全头和具名或 attachment 附件，不执行或投影 HTML 正文与远端资源	./internal/adapters/emailmime	TestParserExtractsOnlySafeHeadersAndAttachments
+email-mime-structural-limit	非法 MIME、深度 11 和附件 51 全量阻断且不留下部分附件	./internal/adapters/emailmime	TestParserBlocksInvalidAndBoundedMIMEWithoutPartialAttachments
+email-mime-exact-limit	附件 50 项边界完整接受，第 201 个 MIME part 显式阻断且不截断	./internal/adapters/emailmime	TestParserAcceptsFiftyAttachmentsAndBlocksPartTwoHundredOne
+email-archive-lifecycle	混合附件逐项隔离、精确 Document 复用、不可变归档与安全审计不绕过 AI/Claim/Fact 审核链	./internal/application/emails	TestEmailArchiveLifecyclePreservesSourceAndDocumentBoundaries
+email-archive-idempotency	稳定游标、blocked 原文归档和并发同键请求只形成一封不可变消息	./internal/application/emails	TestEmailArchivePaginationConcurrencyAndBlockedMessages
+email-archive-compensation	数据库或对象提交失败补偿消息、附件、新 Document/Job、审计、来源状态和全部对象	./internal/application/emails	TestEmailArchiveCompensatesDatabaseAndObjectFailures
+email-archive-object-ownership	删除邮件来源 Document 只断开链接，邮件拥有的附件对象与下载能力保持不变	./internal/application/emails	TestEmailArchiveLifecyclePreservesSourceAndDocumentBoundaries
+email-archive-raw-boundary	32 MiB 原文完整接受，超出一个字节即明确拒绝	./internal/application/emails	TestReadEmailRawEnforcesExactSizeBoundary
+email-archive-http-boundary	严格 JSON/CSRF/角色/租户/游标、无凭据字段、无公开归档写入口和强制安全下载同时成立	./internal/transport/httpapi	TestHTTPEmailArchiveReadAndRegistrationBoundaries
 job-lease-recovery	过期 processing 租约恢复，并关闭悬空 running AiRun	./internal/adapters/sqlite	TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed
 job-persistence-exactly-once	50 个持久化 Job 不丢失且每个只租用一次	./internal/adapters/sqlite	TestPersistentQueueLeasesFiftyJobsExactlyOnce
 retry-boundary	仅无 ClaimSet 的 failed Job 可重试；其他状态和已有 ClaimSet 拒绝	./internal/domain	TestJobCancellationAndRetryBoundaries

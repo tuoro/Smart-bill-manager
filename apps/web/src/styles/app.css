@@ -1728,6 +1728,232 @@ small {
   white-space: nowrap;
 }
 
+/* 邮箱来源 */
+.email-registration-panel {
+  overflow: hidden;
+}
+
+.email-registration-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.25fr) minmax(200px, 1fr) 130px minmax(
+      160px,
+      0.8fr
+    );
+  gap: 14px;
+  align-items: end;
+  padding: 16px;
+}
+
+.email-registration-action {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.email-registration-action .form-note {
+  margin: 0;
+}
+
+.email-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.email-source-panel,
+.email-message-panel {
+  min-width: 0;
+}
+
+.email-source-list,
+.email-message-list,
+.email-attachment-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.email-source-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.email-source-list button {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: var(--surface);
+  color: var(--text-secondary);
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.email-source-list button:hover {
+  background: var(--surface-subtle);
+}
+
+.email-source-list button[aria-current='true'] {
+  border-left-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.email-source-heading {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.email-source-heading strong,
+.email-source-list button > span,
+.email-source-list button > small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.email-source-list button > small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.email-message-heading {
+  flex-wrap: wrap;
+}
+
+.email-message-card {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.email-message-card:last-child {
+  border-bottom: 0;
+}
+
+.email-message-card > header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.email-message-card > header > div,
+.email-message-card > header strong,
+.email-message-card > header div > span {
+  display: block;
+  min-width: 0;
+}
+
+.email-message-card > header strong {
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.email-message-card > header div > span {
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.email-message-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.email-message-meta .button {
+  margin-left: auto;
+}
+
+.email-blocked-reason,
+.email-no-attachments {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.email-blocked-reason {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.email-attachment-list {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.email-attachment-list li {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.email-attachment-list li:last-child {
+  border-bottom: 0;
+}
+
+.email-attachment-main,
+.email-attachment-main strong,
+.email-attachment-main span,
+.email-attachment-main small {
+  display: block;
+  min-width: 0;
+}
+
+.email-attachment-main strong,
+.email-attachment-main span {
+  overflow-wrap: anywhere;
+}
+
+.email-attachment-main span,
+.email-attachment-main small {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.email-attachment-main small {
+  color: var(--warning);
+}
+
+.email-attachment-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.email-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
 @media (max-width: 1439px) {
   .review-grid {
     grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1.1fr);
@@ -1784,6 +2010,10 @@ small {
 
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .email-registration-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1844,6 +2074,27 @@ small {
 
   .allocation-amount {
     grid-column: 1 / -1;
+  }
+
+  .email-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .email-source-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .email-source-list li + li {
+    border-top: 0;
+  }
+
+  .email-source-list li {
+    border-top: 1px solid var(--border);
+  }
+
+  .email-source-list li:nth-child(odd) {
+    border-right: 1px solid var(--border);
   }
 }
 
@@ -2034,6 +2285,41 @@ small {
   .allocation-actions {
     align-items: stretch;
     flex-direction: column-reverse;
+  }
+
+  .email-register-toggle {
+    width: 100%;
+  }
+
+  .email-registration-form,
+  .email-source-list,
+  .email-attachment-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .email-registration-action,
+  .email-message-card > header,
+  .email-message-meta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .email-registration-action .button,
+  .email-message-meta .button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .email-source-list li:nth-child(odd) {
+    border-right: 0;
+  }
+
+  .email-source-list li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .email-attachment-actions {
+    justify-content: flex-start;
   }
 }
 

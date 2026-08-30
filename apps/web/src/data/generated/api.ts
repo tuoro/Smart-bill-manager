@@ -68,6 +68,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/email-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listEmailSources"];
+        put?: never;
+        post: operations["registerEmailSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-sources/{source_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listEmailMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-messages/{message_id}/raw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadEmailMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-attachments/{attachment_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadEmailAttachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents": {
         parameters: {
             query?: never;
@@ -494,12 +558,87 @@ export interface components {
             status: "queued";
             sha256: string;
         };
+        EmailSourceRegistration: {
+            display_name: string;
+            /** Format: email */
+            mailbox_address: string;
+            imap_host: string;
+            imap_port: number;
+            /** @enum {string} */
+            transport_security: "implicit_tls" | "starttls";
+        };
+        EmailSource: {
+            /** Format: uuid */
+            id: string;
+            display_name: string;
+            /** Format: email */
+            mailbox_address: string;
+            imap_host: string;
+            imap_port: number;
+            /** @enum {string} */
+            transport_security: "implicit_tls" | "starttls";
+            /** @enum {string} */
+            status: "pending_connection" | "active";
+            /** Format: uuid */
+            created_by_user_id: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_archived_at?: string;
+            version: number;
+            message_count: number;
+            attachment_count: number;
+            blocked_count: number;
+        };
+        EmailMessagePage: {
+            items: components["schemas"]["EmailMessage"][];
+            next_cursor?: string;
+        };
+        EmailMessage: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            email_source_id: string;
+            subject: string;
+            sender_address: string;
+            /** Format: date-time */
+            sent_at?: string;
+            /** Format: date-time */
+            received_at: string;
+            /** @enum {string} */
+            status: "archived" | "blocked";
+            safe_error_code?: string;
+            safe_error_text?: string;
+            /** Format: date-time */
+            created_at: string;
+            attachments: components["schemas"]["EmailAttachment"][];
+        };
+        EmailAttachment: {
+            /** Format: uuid */
+            id: string;
+            part_index: number;
+            original_name: string;
+            declared_mime: string;
+            /** @enum {string} */
+            disposition: "attachment" | "inline";
+            /** Format: int64 */
+            size_bytes: number;
+            /** @enum {string} */
+            processing_status: "queued" | "existing_document" | "archived_only";
+            safe_reason_code?: string;
+            /** Format: uuid */
+            document_id?: string;
+            /** Format: uuid */
+            job_id?: string;
+        };
         JobSummary: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             document_id: string;
             original_name: string;
+            /** @enum {string} */
+            ingestion_kind: "upload" | "email_attachment";
             detected_mime: string;
             /** @enum {string} */
             status: "queued" | "processing" | "needs_review" | "blocked" | "failed" | "cancel_requested" | "cancelled" | "completed" | "rejected";
@@ -523,6 +662,8 @@ export interface components {
             page_count: number;
             /** @enum {string} */
             status: "stored" | "processing" | "needs_review" | "blocked" | "failed" | "completed" | "cancelled" | "rejected";
+            /** @enum {string} */
+            ingestion_kind: "upload" | "email_attachment";
             /** Format: uuid */
             created_by_user_id: string;
             /** Format: date-time */
@@ -888,7 +1029,7 @@ export interface components {
                 "application/json": components["schemas"]["error.schema"];
             };
         };
-        /** @description 文件超过 20 MiB */
+        /** @description 请求载荷超过对应接口限制 */
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -916,6 +1057,9 @@ export interface components {
         PaymentId: string;
         InvoiceId: string;
         ProviderConfigId: string;
+        EmailSourceId: string;
+        EmailMessageId: string;
+        EmailAttachmentId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1031,6 +1175,146 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listEmailSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前租户内的无凭据邮箱来源及安全计数 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["EmailSource"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    registerEmailSource: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailSourceRegistration"];
+            };
+        };
+        responses: {
+            /** @description 相同幂等键与相同规范请求的稳定重放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            /** @description 无凭据邮箱来源已登记，尚未建立真实连接 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listEmailMessages: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 不含正文、原始头、外部键或存储键的稳定游标邮件页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailMessagePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadEmailMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: components["parameters"]["EmailMessageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 强制下载且不缓存的原始 RFC 822 邮件 */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "message/rfc822": unknown;
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadEmailAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                attachment_id: components["parameters"]["EmailAttachmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 强制下载且不缓存的不可变邮件附件 */
+            200: {
+                headers: {
+                    "Content-Disposition"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     uploadDocument: {

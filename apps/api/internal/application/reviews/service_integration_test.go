@@ -1713,18 +1713,20 @@ func newReviewFixtureAt(t *testing.T, databasePath string) reviewFixture {
 			return err
 		}
 		if err := transaction.InsertDocument(ctx, ports.Document{
-			ID:              documentID,
-			TenantID:        tenantID,
-			StorageKey:      "tenants/" + tenantID + "/documents/fixture.png",
-			OriginalName:    "fixture.png",
-			DeclaredMIME:    "image/png",
-			DetectedMIME:    "image/png",
-			SizeBytes:       100,
-			SHA256:          strings.Repeat("a", 64),
-			PageCount:       1,
-			Status:          "stored",
-			CreatedByUserID: userID,
-			CreatedAt:       now,
+			ID:                  documentID,
+			TenantID:            tenantID,
+			StorageKey:          "tenants/" + tenantID + "/documents/fixture.png",
+			OriginalName:        "fixture.png",
+			DeclaredMIME:        "image/png",
+			DetectedMIME:        "image/png",
+			SizeBytes:           100,
+			SHA256:              strings.Repeat("a", 64),
+			PageCount:           1,
+			Status:              "stored",
+			IngestionKind:       domain.DocumentIngestionUpload,
+			OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+			CreatedByUserID:     userID,
+			CreatedAt:           now,
 		}); err != nil {
 			return err
 		}
@@ -1883,7 +1885,9 @@ func seedAdditionalReviewWithFingerprint(
 			StorageKey:   "tenants/" + fixture.tenant.TenantID + "/documents/" + label + ".png",
 			OriginalName: label + ".png", DeclaredMIME: "image/png", DetectedMIME: "image/png",
 			SizeBytes: 100, SHA256: claimsupport.HashBytes([]byte(label)), PageCount: 1,
-			Status: "stored", CreatedByUserID: fixture.tenant.UserID, CreatedAt: now,
+			Status: "stored", IngestionKind: domain.DocumentIngestionUpload,
+			OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+			CreatedByUserID:     fixture.tenant.UserID, CreatedAt: now,
 		}); err != nil {
 			return err
 		}

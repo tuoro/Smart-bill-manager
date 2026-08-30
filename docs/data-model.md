@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1、M2 已完成；M3 首切片尚未冻结
+状态：M0、M1、M2 已完成；M3 邮箱 Source 首切片已完成，下一切片为行程归属
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -42,7 +42,7 @@ erDiagram
     TENANT ||--o{ AUDIT_EVENT : records
 ```
 
-M1 只实现完成首条链路必需的实体。EmailSource、Trip 和 Reimbursement 在对应里程碑新增，不预建空表。
+M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailSource、EmailMessage 和 EmailAttachment；Trip 和 Reimbursement 仍不预建空表。
 
 ## 通用约束
 
@@ -384,21 +384,54 @@ Adjustment 是用户对已确认 Fact 活动分配计划作出的不可变业务
 
 AuditEvent 追加写，不保存密钥、完整单据、完整模型输出或证据正文。
 
-## 后续领域
+## M3 与后续领域
 
-M3 再定义：
+### EmailSource（M3 首切片）
 
-- EmailSource、EmailMessage、Attachment Source；
-- Trip；
-- Reimbursement；
-- 归属 Claim 和政策 ValidationResult。
+- tenant_id、id；
+- display_name；
+- mailbox_address_normalized；
+- imap_host_normalized、imap_port；
+- transport_security：`implicit_tls` 或 `starttls`；
+- status：`pending_connection` 或 `active`；
+- idempotency_key、request_hash；
+- created_by_user_id、created_at、last_archived_at、version。
 
-不得在 M1 提前创建空模型或兼容字段。
+Source 描述符不包含密码、OAuth、Token、Cookie、密文、密钥引用或可恢复凭据。`tenant_id + idempotency_key` 和规范连接身份分别唯一；记录只追加创建，当前切片没有修改连接配置的第二入口。
+
+### EmailMessage
+
+- tenant_id、id、email_source_id；
+- external_message_key：未来连接器对稳定服务器身份元组计算的 64 位不可逆键；
+- raw_storage_key、raw_sha256、raw_size_bytes；
+- subject、sender_address、sent_at，可为空；received_at 必填；
+- status：`archived` 或 `blocked`；safe_error_code，可为空；
+- created_at。
+
+`tenant_id + email_source_id + external_message_key` 唯一。相同键只允许相同 `raw_sha256` 严格重放；任何原始字节、头投影或状态都不得更新。邮件正文只存在原始对象中，不复制到数据库。
+
+### EmailAttachment
+
+- tenant_id、id、email_message_id、part_index；
+- storage_key、original_name 的安全展示值、declared_mime、disposition；
+- size_bytes、sha256；
+- processing_status：`queued`、`existing_document` 或 `archived_only`；
+- safe_reason_code，可为空；document_id，可为空；
+- created_at。
+
+`tenant_id + email_message_id + part_index` 唯一。附件对象不可覆盖；同租户精确重复可以链接已有 Document。邮件拥有附件对象，Document 删除不能删除该对象；删除未确认的邮件来源 Document 时附件的 `document_id` 置空，邮件归档继续存在。
+
+### Document 来源扩展
+
+Document 增加 `ingestion_kind = upload | email_attachment` 与 `original_object_owner = document | email_attachment`。手工上传固定为 `upload/document`；邮件新建 Document 固定为 `email_attachment/email_attachment` 并继续保存 Source 创建者作为授权摄取主体。ProcessingJob、AiRun、Claim、Review 与 Fact 不增加邮件专用分支。
+
+Trip、Reimbursement、归属 Claim 和政策 ValidationResult 在后续 M3 切片再定义，不预建空表或兼容字段。
 
 ## 删除与保留
 
 - M1 默认不自动过期 Document、AiRun、Claim、Review、AuditEvent 或 Fact。
 - 未形成 Fact 的 Document 聚合允许租户所有者显式物理删除；删除覆盖原件、派生页、Job、AiRun、Claim、Evidence、ValidationResult 和未决定的关联候选，只保留不含文件名、证据正文和财务字段的删除审计墓碑。
+- 邮件附件拥有的原件对象不随未确认 Document 删除；删除事务只移除 Document 及其派生聚合并把 EmailAttachment 的 Document 链接置空。EmailMessage、EmailAttachment 和归档对象继续按邮箱 Source 保留策略存在。
 - 已确认 Fact 的单项删除写入结构化 `fact_deleted` AuditEvent 和 Fact 删除标记；Source、Claim、FactFieldOrigin 和 Review 链在租户存在期间保留，避免产生不可解释的历史正式数据。
 - 删除 ProviderConfig 时立即删除对应密文；已有 AiRun 只保留不可逆安全指纹，不保留可恢复凭据。
 - 删除整个租户时物理删除全部业务行、对象文件、派生物、审计链和密钥材料，并输出按资源类型计数与对象哈希组成的删除清单。

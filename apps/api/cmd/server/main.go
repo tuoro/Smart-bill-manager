@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
@@ -20,13 +21,14 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
+	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/transport/httpapi"
 )
 
-const version = "m1-dev"
+const version = "m3-dev"
 
 type config struct {
 	databasePath         string
@@ -161,6 +163,9 @@ func run(logger *slog.Logger) error {
 	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
+	emailService := applicationemails.NewService(
+		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
+	)
 	httpServer, err := httpapi.NewServer(
 		authService,
 		uploadService,
@@ -171,6 +176,7 @@ func run(logger *slog.Logger) error {
 		reviewService,
 		factService,
 		allocationService,
+		emailService,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,

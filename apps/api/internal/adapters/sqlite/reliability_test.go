@@ -27,7 +27,9 @@ func TestPersistentQueueLeasesFiftyJobsExactlyOnce(t *testing.T) {
 				StorageKey:   fmt.Sprintf("tenants/%s/documents/%s/original", owner.TenantID, documentID),
 				OriginalName: fmt.Sprintf("receipt-%02d.png", index), DeclaredMIME: "image/png", DetectedMIME: "image/png",
 				SizeBytes: 100, SHA256: fmt.Sprintf("%064x", index+1), PageCount: 1,
-				Status: "stored", CreatedByUserID: owner.UserID, CreatedAt: now.Add(time.Duration(index) * time.Millisecond),
+				Status: "stored", IngestionKind: domain.DocumentIngestionUpload,
+				OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+				CreatedByUserID:     owner.UserID, CreatedAt: now.Add(time.Duration(index) * time.Millisecond),
 			}); err != nil {
 				return err
 			}
@@ -151,7 +153,9 @@ func TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed(t *testing.T) {
 			ID: "document", TenantID: owner.TenantID, StorageKey: "tenants/tenant/documents/document/original",
 			OriginalName: "receipt.png", DeclaredMIME: "image/png", DetectedMIME: "image/png",
 			SizeBytes: 100, SHA256: fmt.Sprintf("%064x", 1), PageCount: 1,
-			Status: "stored", CreatedByUserID: owner.UserID, CreatedAt: now,
+			Status: "stored", IngestionKind: domain.DocumentIngestionUpload,
+			OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+			CreatedByUserID:     owner.UserID, CreatedAt: now,
 		}); err != nil {
 			return err
 		}

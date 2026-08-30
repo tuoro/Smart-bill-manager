@@ -31,7 +31,7 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 - 独立工作区、基线 SHA、范围 diff、响应式和可访问性证据；
 - 独立只读复审。
 
-独立只读复审已清零 M0 阻断、重大和次要问题，完成证据见 [M0 验收证据](docs/m0-evidence.md)。[M1 AI 收件箱首条链路](docs/scope.md) 已于 2026-08-30 完成，收口证据见 [M1 验收证据](docs/m1-evidence.md)；M2 于 2026-08-31 完成五个切片，将金额分配、疑似重复、跨页审核、批量上传和已确认 Fact 的原子分配调整纳入同一 Clean Slate 链路，结果见 [M2 验收证据](docs/m2-evidence.md)。下一断点是 M3 邮箱 Source 首切片的文档冻结；真实上传仍以清晰、完整、无遮挡且关键字段可直接人工辨读为当前承诺，模型正确率专项安排在全部本地功能开发完成后处理。
+独立只读复审已清零 M0 阻断、重大和次要问题，完成证据见 [M0 验收证据](docs/m0-evidence.md)。[M1 AI 收件箱首条链路](docs/scope.md) 已于 2026-08-30 完成，收口证据见 [M1 验收证据](docs/m1-evidence.md)；M2 于 2026-08-31 完成五个切片，将金额分配、疑似重复、跨页审核、批量上传和已确认 Fact 的原子分配调整纳入同一 Clean Slate 链路，结果见 [M2 验收证据](docs/m2-evidence.md)。M3 首个邮箱 Source、邮件与附件本地归档切片已完成，结果见 [M3 验收证据](docs/m3-evidence.md)，下一切片从行程归属范围冻结开始；真实邮箱连接、凭据和实联调仍在授权门禁外。真实上传继续以清晰、完整、无遮挡且关键字段可直接人工辨读为当前承诺，模型正确率专项安排在全部本地功能开发完成后处理。
 
 ## 权威文档
 
@@ -47,6 +47,7 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 | [M0 证据](docs/m0-evidence.md)          | 工作区、响应式、WCAG、链接和复审记录   |
 | [M1 证据](docs/m1-evidence.md)          | 已执行门禁、真实诊断和当前阶段决定     |
 | [M2 证据](docs/m2-evidence.md)          | 五个切片实现、不变量和自动化验收       |
+| [M3 证据](docs/m3-evidence.md)          | 邮箱归档切片实现、不变量和自动化验收   |
 | [M1 备份与恢复](docs/backup-restore.md) | 离线一致快照、清单、恢复和保留策略     |
 | [路线图](docs/roadmap.md)               | 里程碑和进入下一阶段的门禁             |
 
@@ -61,6 +62,7 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 - [ADR-0011：跨页发票审核](docs/decisions/0011-cross-page-invoice-review.md)
 - [ADR-0012：客户端编排批量上传](docs/decisions/0012-client-orchestrated-batch-upload.md)
 - [ADR-0013：已确认 Fact 分配调整](docs/decisions/0013-confirmed-fact-allocation-adjustment.md)
+- [ADR-0014：连接器中立的邮箱 Source 与不可变邮件归档](docs/decisions/0014-connector-neutral-email-archive.md)
 
 ## 目标目录
 

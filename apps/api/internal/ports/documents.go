@@ -71,18 +71,20 @@ type DocumentNormalizer interface {
 }
 
 type Document struct {
-	ID              string
-	TenantID        string
-	StorageKey      string
-	OriginalName    string
-	DeclaredMIME    string
-	DetectedMIME    string
-	SizeBytes       int64
-	SHA256          string
-	PageCount       int
-	Status          string
-	CreatedByUserID string
-	CreatedAt       time.Time
+	ID                  string
+	TenantID            string
+	StorageKey          string
+	OriginalName        string
+	DeclaredMIME        string
+	DetectedMIME        string
+	SizeBytes           int64
+	SHA256              string
+	PageCount           int
+	Status              string
+	IngestionKind       string
+	OriginalObjectOwner string
+	CreatedByUserID     string
+	CreatedAt           time.Time
 }
 
 type ProcessingJob struct {
@@ -100,6 +102,7 @@ type JobSummary struct {
 	ID               string
 	DocumentID       string
 	OriginalName     string
+	IngestionKind    string
 	DetectedMIME     string
 	Status           domain.JobStatus
 	AttemptCount     int
@@ -113,6 +116,7 @@ type Transaction interface {
 	ProcessingTransaction
 	ReviewTransaction
 	AllocationTransaction
+	EmailTransaction
 	RequestJobCancellation(
 		ctx context.Context,
 		tenantID, jobID, actorUserID, decisionID, idempotencyKey string,

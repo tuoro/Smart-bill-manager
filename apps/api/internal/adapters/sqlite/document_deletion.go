@@ -15,10 +15,10 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 	ctx context.Context,
 	tenantID, documentID string,
 ) (ports.DocumentDeletionPlan, error) {
-	var storageKey, originalHash string
+	var storageKey, originalHash, objectOwner string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT storage_key, sha256 FROM documents WHERE tenant_id = ? AND id = ?
-	`, tenantID, documentID).Scan(&storageKey, &originalHash)
+		SELECT storage_key, sha256, original_object_owner FROM documents WHERE tenant_id = ? AND id = ?
+	`, tenantID, documentID).Scan(&storageKey, &originalHash, &objectOwner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.DocumentDeletionPlan{}, domain.ErrNotFound
 	}
@@ -45,9 +45,13 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 	}
 	plan := ports.DocumentDeletionPlan{
 		DocumentID:     documentID,
-		StorageKeys:    []string{storageKey},
-		ObjectHashes:   []string{originalHash},
+		StorageKeys:    []string{},
+		ObjectHashes:   []string{},
 		ResourceCounts: map[string]int{"documents": 1},
+	}
+	if objectOwner == domain.DocumentObjectOwnerDocument {
+		plan.StorageKeys = append(plan.StorageKeys, storageKey)
+		plan.ObjectHashes = append(plan.ObjectHashes, originalHash)
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT derived_image_storage_key, sha256
@@ -70,7 +74,7 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 	if err := rows.Err(); err != nil {
 		return ports.DocumentDeletionPlan{}, fmt.Errorf("iterate derived document objects: %w", err)
 	}
-	var pages, jobs, runs, claims, fields, evidence, validations, candidates, duplicateCandidates, decisions, audits int
+	var pages, jobs, runs, claims, fields, evidence, validations, candidates, duplicateCandidates, decisions, audits, emailAttachmentLinks int
 	if err := s.db.QueryRowContext(ctx, `
 		SELECT
 			(SELECT count(*) FROM document_pages WHERE tenant_id = ? AND document_id = ?),
@@ -83,7 +87,8 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 			(SELECT count(*) FROM payment_invoice_link_candidates l JOIN claim_sets c ON c.tenant_id = l.tenant_id AND c.id = l.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
 			(SELECT count(*) FROM duplicate_candidates d JOIN claim_sets c ON c.tenant_id = d.tenant_id AND c.id = d.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
 			(SELECT count(*) FROM review_decisions r JOIN claim_sets c ON c.tenant_id = r.tenant_id AND c.id = r.claim_set_id WHERE c.tenant_id = ? AND c.document_id = ?),
-			(SELECT count(*) FROM audit_events e WHERE e.tenant_id = ? AND ((e.resource_type = 'claim_set' AND e.resource_id IN (SELECT id FROM claim_sets WHERE tenant_id = ? AND document_id = ?)) OR (e.resource_type = 'document' AND e.resource_id = ?)))
+			(SELECT count(*) FROM audit_events e WHERE e.tenant_id = ? AND ((e.resource_type = 'claim_set' AND e.resource_id IN (SELECT id FROM claim_sets WHERE tenant_id = ? AND document_id = ?)) OR (e.resource_type = 'document' AND e.resource_id = ?))),
+			(SELECT count(*) FROM email_attachments WHERE tenant_id = ? AND document_id = ?)
 	`,
 		tenantID, documentID,
 		tenantID, documentID,
@@ -96,21 +101,23 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 		tenantID, documentID,
 		tenantID, documentID,
 		tenantID, tenantID, documentID, documentID,
-	).Scan(&pages, &jobs, &runs, &claims, &fields, &evidence, &validations, &candidates, &duplicateCandidates, &decisions, &audits); err != nil {
+		tenantID, documentID,
+	).Scan(&pages, &jobs, &runs, &claims, &fields, &evidence, &validations, &candidates, &duplicateCandidates, &decisions, &audits, &emailAttachmentLinks); err != nil {
 		return ports.DocumentDeletionPlan{}, fmt.Errorf("count document aggregate: %w", err)
 	}
 	for name, count := range map[string]int{
-		"document_pages":       pages,
-		"processing_jobs":      jobs,
-		"ai_runs":              runs,
-		"claim_sets":           claims,
-		"field_claims":         fields,
-		"evidence":             evidence,
-		"validation_results":   validations,
-		"link_candidates":      candidates,
-		"duplicate_candidates": duplicateCandidates,
-		"review_decisions":     decisions,
-		"audit_events":         audits,
+		"document_pages":         pages,
+		"processing_jobs":        jobs,
+		"ai_runs":                runs,
+		"claim_sets":             claims,
+		"field_claims":           fields,
+		"evidence":               evidence,
+		"validation_results":     validations,
+		"link_candidates":        candidates,
+		"duplicate_candidates":   duplicateCandidates,
+		"review_decisions":       decisions,
+		"audit_events":           audits,
+		"email_attachment_links": emailAttachmentLinks,
 	} {
 		plan.ResourceCounts[name] = count
 	}
@@ -164,6 +171,13 @@ func (t transaction) DeleteDocumentAggregate(ctx context.Context, command ports.
 		)
 	`, command.TenantID, command.TenantID, command.DocumentID); err != nil {
 		return fmt.Errorf("delete document review decisions: %w", err)
+	}
+	if _, err := t.tx.ExecContext(ctx, `
+		UPDATE email_attachments
+		SET document_id = NULL
+		WHERE tenant_id = ? AND document_id = ?
+	`, command.TenantID, command.DocumentID); err != nil {
+		return fmt.Errorf("detach email archive document links: %w", err)
 	}
 	result, err := t.tx.ExecContext(ctx, `
 		DELETE FROM documents WHERE tenant_id = ? AND id = ?

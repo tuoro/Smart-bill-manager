@@ -14,6 +14,11 @@ export type AllocationAdjustmentRequest = components['schemas']['AllocationAdjus
 export type AllocationAdjustmentResult = components['schemas']['AllocationAdjustmentResult']
 export type ProviderConfig = components['schemas']['ProviderConfig']
 export type UploadResult = components['schemas']['UploadResult']
+export type EmailSourceRegistration = components['schemas']['EmailSourceRegistration']
+export type EmailSource = components['schemas']['EmailSource']
+export type EmailMessagePage = components['schemas']['EmailMessagePage']
+export type EmailMessage = components['schemas']['EmailMessage']
+export type EmailAttachment = components['schemas']['EmailAttachment']
 
 type ErrorEnvelope = {
   error?: { code?: string; message?: string; resource_id?: string }
@@ -94,6 +99,30 @@ export const api = {
     const form = new FormData()
     form.append('file', file)
     return request('/documents', { method: 'POST', body: form })
+  },
+  emailSources(): Promise<{ items: EmailSource[] }> {
+    return request('/email-sources')
+  },
+  registerEmailSource(
+    registration: EmailSourceRegistration,
+    idempotencyKey: string,
+  ): Promise<EmailSource> {
+    return request('/email-sources', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(registration),
+    })
+  },
+  emailMessages(sourceId: string, cursor = '', limit = 50): Promise<EmailMessagePage> {
+    const query = new URLSearchParams({ limit: String(limit) })
+    if (cursor) query.set('cursor', cursor)
+    return request(`/email-sources/${encodeURIComponent(sourceId)}/messages?${query}`)
+  },
+  emailMessageDownloadURL(messageId: string): string {
+    return `${apiBase}/email-messages/${encodeURIComponent(messageId)}/raw`
+  },
+  emailAttachmentDownloadURL(attachmentId: string): string {
+    return `${apiBase}/email-attachments/${encodeURIComponent(attachmentId)}/content`
   },
   cancelJob(jobId: string): Promise<JobSummary> {
     return request(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' })

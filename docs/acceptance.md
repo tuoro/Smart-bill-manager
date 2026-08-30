@@ -309,6 +309,28 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、OpenAPI 客户端生成、Web 完整检查、5 个 Vitest 文件共 21 项测试、18 / 18 浏览器组件场景、72 / 72 关键不变量及两层覆盖率门禁均通过；领域/应用层为 85.86%（2,216 / 2,581），基础设施/传输层为 73.01%（2,388 / 3,271）。可机读摘要见 `tests/evidence/m2/allocation-adjustment-gate-summary.json`，M2 收口摘要见 `tests/evidence/m2/m2-closure-gate-summary.json`。
 
+### M3 首切片：邮箱 Source、邮件与附件本地归档
+
+本切片以 `docs/decisions/0014-connector-neutral-email-archive.md` 为冻结决策。验收只使用纯合成、本地可重复 RFC 822 输入；不存在真实邮箱连接、凭据、网络轮询或生产导入入口。
+
+- `POST /email-sources` 只接受显示名、纯邮箱地址、IMAP 主机、端口和 `implicit_tls | starttls`；严格 JSON、CSRF、Owner 权限、8–128 字符幂等键和完整请求 hash 必须同时成立。相同键同请求稳定重放，同键改请求冲突，规范连接身份重复明确冲突。
+- 数据库与 API 均不得出现密码、Token、Cookie、OAuth、客户端秘密、密文、密钥引用或可恢复凭据字段。新 Source 只显示 `pending_connection`，不得因本地注册伪装为连接成功。
+- 内部 `email-message-archive/1` 只接收现有 Source、64 位不可逆外部消息键、UTC 接收时间和原始 RFC 822 流；不得暴露 HTTP/CLI/fixture 写入口，也不得在生产装配中执行网络拨号。
+- 原始邮件最大 32 MiB，超出时零写入并明确失败。大小合法时 MIME 深度最大 10、总 part 最大 200、附件最大 50；结构超限或 MIME 失败必须归档完整原文并形成 `blocked` 消息，不截断、不猜测、不创建 Document/Job。
+- 原始邮件和每个附件对象、hash、part 身份与状态不可变。同 Source 同外部键同原文严格重放；同键异文整体冲突，不覆盖、不增加附件、Document、Job 或审计。
+- 正文不写数据库列表、不渲染 HTML、不加载远端资源、不展开压缩包，也不进入模型。主题、地址和附件名只作为租户私有字段返回，不得进入日志或 AuditEvent safe metadata。
+- 每封可解析邮件最多 50 个附件，逐项明确 `queued`、`existing_document` 或 `archived_only`。合法 JPEG/PNG/WebP/PDF 且不超过 20 MiB 的项必须经过既有名称、签名、MIME、页数和租户边界；非法或不支持项不阻止其他合法项。
+- 新合法附件创建一个既有 Document 与 `document_process` Job；同租户 SHA-256 命中已有 Document 时只链接并标记 `existing_document`。不得创建邮件专用 Job、Claim、Fact、Prompt、Mapper 或余额/状态第二数据源。
+- EmailMessage、全部 EmailAttachment、本轮新 Document/Job 和安全 AuditEvent 必须原子写入。对象提交失败必须补偿整个新消息聚合、本轮新 Document/Job 和已提交对象；已有重复 Document 不得被补偿删除。
+- 邮件拥有的附件对象不随未确认 Document 删除；删除后 EmailAttachment 的 Document 链接为空，归档原文和附件仍可下载。手工上传的原件删除语义不变。
+- `email_sources.manage` 只允许 Owner；`email_archive.read` 只允许 Owner/Finance。Reviewer 只沿既有当前审核 Source 边界访问对应 Document，Viewer 不可枚举 Source、邮件或附件。四角色读取/创建矩阵、跨租户消息、原文和附件下载均有测试。
+- 消息 API 使用稳定游标分页，默认 50、最大 100，并明确返回 `next_cursor`；列表不得返回正文、存储键、外部消息键、原始头或对象 hash。原文和附件下载必须租户隔离、强制附件语义、`private, no-store` 和浏览器不执行边界。
+- Web 必须覆盖待连接/已有归档、无来源、空邮件、blocked、混合附件、游标加载、权限不足、加载和失败状态；不出现任何凭据字段。键盘、768px 与 384px 等效 200% 回流不能丢失表单、状态、分页或下载动作。
+
+最小纯合成场景固定包含：Source 规范化、非法地址/主机/端口/TLS、注册重放/同键冲突/身份重复；简单邮件、编码主题、嵌套 multipart、具名 inline 与 attachment、无附件、非法 MIME、深度 11、part 201、附件 51、原文 32 MiB 边界；合法图片/PDF 入队、不支持/空/过大/伪造 MIME 单项隔离、两封邮件精确重复 Document；消息重放、同键异文、跨租户、并发同键；数据库与对象提交失败补偿、邮件拥有对象的 Document 删除；安全审计、分页、强制下载、四角色权限和 Web 响应式/键盘状态。每个失败路径同时断言消息、附件、新 Document/Job、AuditEvent 和对象无未说明部分残留。
+
+验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、OpenAPI 客户端生成、Web 完整检查、6 个 Vitest 文件共 24 项测试、21 / 21 浏览器组件场景、83 / 83 关键不变量及两层覆盖率门禁均通过；领域/应用层为 85.61%（2,468 / 2,883），基础设施/传输层为 73.88%（2,798 / 3,787）。可机读摘要见 `tests/evidence/m3/email-archive-gate-summary.json`。
+
 ## 八、租户与安全验收
 
 ### 租户

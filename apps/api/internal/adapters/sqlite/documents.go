@@ -32,8 +32,9 @@ func (t transaction) InsertDocument(ctx context.Context, document ports.Document
 	_, err := t.tx.ExecContext(ctx, `
 		INSERT INTO documents (
 			id, tenant_id, storage_key, original_name, declared_mime, detected_mime,
-			size_bytes, sha256, page_count, status, created_by_user_id, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			size_bytes, sha256, page_count, status, ingestion_kind, original_object_owner,
+			created_by_user_id, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		document.ID,
 		document.TenantID,
@@ -45,6 +46,8 @@ func (t transaction) InsertDocument(ctx context.Context, document ports.Document
 		document.SHA256,
 		document.PageCount,
 		document.Status,
+		document.IngestionKind,
+		document.OriginalObjectOwner,
 		document.CreatedByUserID,
 		document.CreatedAt.UTC().Format(time.RFC3339Nano),
 	)
@@ -97,7 +100,7 @@ func (t transaction) DeleteUnconfirmedDocument(ctx context.Context, tenantID, do
 
 func (s *Store) ListJobs(ctx context.Context, tenantID string, status *domain.JobStatus) ([]ports.JobSummary, error) {
 	query := `
-		SELECT j.id, j.document_id, d.original_name, d.detected_mime, j.status,
+		SELECT j.id, j.document_id, d.original_name, d.ingestion_kind, d.detected_mime, j.status,
 		       j.attempt_count, coalesce(j.error_code, ''), coalesce(j.safe_error_message, ''),
 		       j.created_at, j.version
 		FROM processing_jobs j
@@ -130,7 +133,7 @@ func (s *Store) ListJobs(ctx context.Context, tenantID string, status *domain.Jo
 
 func (s *Store) GetJob(ctx context.Context, tenantID, jobID string) (ports.JobSummary, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT j.id, j.document_id, d.original_name, d.detected_mime, j.status,
+		SELECT j.id, j.document_id, d.original_name, d.ingestion_kind, d.detected_mime, j.status,
 		       j.attempt_count, coalesce(j.error_code, ''), coalesce(j.safe_error_message, ''),
 		       j.created_at, j.version
 		FROM processing_jobs j
@@ -149,7 +152,8 @@ func (s *Store) GetDocument(ctx context.Context, tenantID, documentID string) (p
 	var createdAt string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, tenant_id, storage_key, original_name, declared_mime, detected_mime,
-		       size_bytes, sha256, page_count, status, created_by_user_id, created_at
+		       size_bytes, sha256, page_count, status, ingestion_kind, original_object_owner,
+		       created_by_user_id, created_at
 		FROM documents
 		WHERE tenant_id = ? AND id = ?
 	`, tenantID, documentID).Scan(
@@ -163,6 +167,8 @@ func (s *Store) GetDocument(ctx context.Context, tenantID, documentID string) (p
 		&document.SHA256,
 		&document.PageCount,
 		&document.Status,
+		&document.IngestionKind,
+		&document.OriginalObjectOwner,
 		&document.CreatedByUserID,
 		&createdAt,
 	)
@@ -233,6 +239,7 @@ func scanJob(source scanner) (ports.JobSummary, error) {
 		&item.ID,
 		&item.DocumentID,
 		&item.OriginalName,
+		&item.IngestionKind,
 		&item.DetectedMIME,
 		&item.Status,
 		&item.AttemptCount,

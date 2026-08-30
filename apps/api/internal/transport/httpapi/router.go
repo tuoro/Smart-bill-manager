@@ -13,6 +13,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
+	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -53,6 +54,7 @@ type Server struct {
 	reviews     reviews.Service
 	facts       reviews.FactService
 	allocations allocations.Service
+	emails      applicationemails.Service
 	spa         http.Handler
 }
 
@@ -66,6 +68,7 @@ func NewServer(
 	reviewService reviews.Service,
 	factService reviews.FactService,
 	allocationService allocations.Service,
+	emailService applicationemails.Service,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -85,6 +88,7 @@ func NewServer(
 		reviews:     reviewService,
 		facts:       factService,
 		allocations: allocationService,
+		emails:      emailService,
 		health:      health,
 		readiness:   readiness,
 		ids:         system.IDGenerator{},
@@ -102,6 +106,11 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("GET /api/v1/session", s.requireSession(http.HandlerFunc(s.sessionHandler)))
 	router.Handle("DELETE /api/v1/session", s.requireSession(s.requireCSRF(http.HandlerFunc(s.logoutHandler))))
 	router.Handle("POST /api/v1/documents", s.requireSession(s.requireCSRF(http.HandlerFunc(s.uploadDocumentHandler))))
+	router.Handle("POST /api/v1/email-sources", s.requireSession(s.requireCSRF(http.HandlerFunc(s.registerEmailSourceHandler))))
+	router.Handle("GET /api/v1/email-sources", s.requireSession(http.HandlerFunc(s.listEmailSourcesHandler)))
+	router.Handle("GET /api/v1/email-sources/{source_id}/messages", s.requireSession(http.HandlerFunc(s.listEmailMessagesHandler)))
+	router.Handle("GET /api/v1/email-messages/{message_id}/raw", s.requireSession(http.HandlerFunc(s.downloadEmailMessageHandler)))
+	router.Handle("GET /api/v1/email-attachments/{attachment_id}/content", s.requireSession(http.HandlerFunc(s.downloadEmailAttachmentHandler)))
 	router.Handle("DELETE /api/v1/documents/{document_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteDocumentHandler))))
 	router.Handle("GET /api/v1/documents/{document_id}/content", s.requireSession(http.HandlerFunc(s.downloadDocumentHandler)))
 	router.Handle("GET /api/v1/documents/{document_id}/pages/{page_number}/content", s.requireSession(http.HandlerFunc(s.downloadDocumentPageHandler)))

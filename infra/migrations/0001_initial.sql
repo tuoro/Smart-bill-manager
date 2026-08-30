@@ -152,6 +152,8 @@ CREATE TABLE documents (
     sha256 TEXT NOT NULL,
     page_count INTEGER NOT NULL,
     status TEXT NOT NULL,
+    ingestion_kind TEXT NOT NULL DEFAULT 'upload',
+    original_object_owner TEXT NOT NULL DEFAULT 'document',
     created_by_user_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
@@ -163,10 +165,198 @@ CREATE TABLE documents (
     CHECK (length(sha256) = 64),
     CHECK (page_count BETWEEN 1 AND 20),
     CHECK (status IN ('stored', 'processing', 'needs_review', 'blocked', 'failed', 'completed', 'cancelled', 'rejected')),
+    CHECK ((ingestion_kind = 'upload' AND original_object_owner = 'document')
+        OR (ingestion_kind = 'email_attachment' AND original_object_owner = 'email_attachment')),
     UNIQUE (tenant_id, sha256),
     UNIQUE (tenant_id, storage_key),
     UNIQUE (tenant_id, id)
 ) STRICT;
+
+CREATE TABLE email_sources (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    mailbox_address_normalized TEXT NOT NULL,
+    imap_host_normalized TEXT NOT NULL,
+    imap_port INTEGER NOT NULL,
+    transport_security TEXT NOT NULL,
+    status TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    created_by_user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_archived_at TEXT,
+    version INTEGER NOT NULL,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES memberships(tenant_id, user_id),
+    CHECK (length(display_name) BETWEEN 1 AND 100),
+    CHECK (length(mailbox_address_normalized) BETWEEN 3 AND 254),
+    CHECK (length(imap_host_normalized) BETWEEN 1 AND 253),
+    CHECK (imap_port BETWEEN 1 AND 65535),
+    CHECK (transport_security IN ('implicit_tls', 'starttls')),
+    CHECK (status IN ('pending_connection', 'active')),
+    CHECK (length(idempotency_key) BETWEEN 8 AND 128),
+    CHECK (instr(idempotency_key, ' ') = 0
+        AND instr(idempotency_key, char(9)) = 0
+        AND instr(idempotency_key, char(10)) = 0
+        AND instr(idempotency_key, char(13)) = 0),
+    CHECK (length(request_hash) = 64 AND request_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK ((status = 'pending_connection' AND last_archived_at IS NULL)
+        OR (status = 'active' AND last_archived_at IS NOT NULL)),
+    CHECK (version >= 1),
+    UNIQUE (tenant_id, idempotency_key),
+    UNIQUE (tenant_id, mailbox_address_normalized, imap_host_normalized, imap_port, transport_security),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE INDEX email_sources_tenant_created_idx
+ON email_sources (tenant_id, created_at, id);
+
+CREATE TABLE email_messages (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    email_source_id TEXT NOT NULL,
+    external_message_key TEXT NOT NULL,
+    raw_storage_key TEXT NOT NULL,
+    raw_sha256 TEXT NOT NULL,
+    raw_size_bytes INTEGER NOT NULL,
+    subject TEXT NOT NULL,
+    sender_address TEXT NOT NULL,
+    sent_at TEXT,
+    received_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    safe_error_code TEXT,
+    safe_error_text TEXT,
+    audit_event_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, email_source_id) REFERENCES email_sources(tenant_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id, audit_event_id) REFERENCES audit_events(tenant_id, id),
+    CHECK (length(external_message_key) = 64 AND external_message_key NOT GLOB '*[^0-9a-f]*'),
+    CHECK (length(raw_sha256) = 64 AND raw_sha256 NOT GLOB '*[^0-9a-f]*'),
+    CHECK (raw_size_bytes BETWEEN 1 AND 33554432),
+    CHECK (length(subject) <= 500),
+    CHECK (length(sender_address) <= 254),
+    CHECK (status IN ('archived', 'blocked')),
+    CHECK ((status = 'archived' AND safe_error_code IS NULL AND safe_error_text IS NULL)
+        OR (status = 'blocked' AND length(safe_error_code) BETWEEN 1 AND 100
+            AND length(safe_error_text) BETWEEN 1 AND 200)),
+    UNIQUE (tenant_id, email_source_id, external_message_key),
+    UNIQUE (tenant_id, raw_storage_key),
+    UNIQUE (tenant_id, audit_event_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE INDEX email_messages_source_received_idx
+ON email_messages (tenant_id, email_source_id, received_at DESC, id DESC);
+
+CREATE TABLE email_attachments (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    email_message_id TEXT NOT NULL,
+    part_index INTEGER NOT NULL,
+    storage_key TEXT,
+    original_name TEXT NOT NULL,
+    declared_mime TEXT NOT NULL,
+    disposition TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    processing_status TEXT NOT NULL,
+    safe_reason_code TEXT,
+    document_id TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, email_message_id) REFERENCES email_messages(tenant_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id, document_id) REFERENCES documents(tenant_id, id) ON DELETE RESTRICT,
+    CHECK (part_index BETWEEN 1 AND 50),
+    CHECK (length(original_name) BETWEEN 1 AND 200),
+    CHECK (length(declared_mime) BETWEEN 1 AND 200),
+    CHECK (disposition IN ('attachment', 'inline')),
+    CHECK (size_bytes BETWEEN 0 AND 33554432),
+    CHECK (length(sha256) = 64 AND sha256 NOT GLOB '*[^0-9a-f]*'),
+    CHECK ((size_bytes = 0 AND storage_key IS NULL) OR (size_bytes > 0 AND storage_key IS NOT NULL)),
+    CHECK (processing_status IN ('queued', 'existing_document', 'archived_only')),
+    CHECK ((processing_status = 'archived_only' AND length(safe_reason_code) BETWEEN 1 AND 100 AND document_id IS NULL)
+        OR (processing_status IN ('queued', 'existing_document') AND safe_reason_code IS NULL)),
+    UNIQUE (tenant_id, email_message_id, part_index),
+    UNIQUE (tenant_id, storage_key),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE TRIGGER email_sources_configuration_immutable
+BEFORE UPDATE ON email_sources
+WHEN NEW.id IS NOT OLD.id
+  OR NEW.tenant_id IS NOT OLD.tenant_id
+  OR NEW.display_name IS NOT OLD.display_name
+  OR NEW.mailbox_address_normalized IS NOT OLD.mailbox_address_normalized
+  OR NEW.imap_host_normalized IS NOT OLD.imap_host_normalized
+  OR NEW.imap_port IS NOT OLD.imap_port
+  OR NEW.transport_security IS NOT OLD.transport_security
+  OR NEW.idempotency_key IS NOT OLD.idempotency_key
+  OR NEW.request_hash IS NOT OLD.request_hash
+  OR NEW.created_by_user_id IS NOT OLD.created_by_user_id
+  OR NEW.created_at IS NOT OLD.created_at
+BEGIN
+    SELECT RAISE(ABORT, 'email_source_configuration_immutable');
+END;
+
+CREATE TRIGGER email_sources_state_transition
+BEFORE UPDATE OF status, last_archived_at, version ON email_sources
+WHEN NOT (
+    NEW.version = OLD.version + 1
+    AND (
+        (NEW.status = 'active' AND NEW.last_archived_at IS NOT NULL
+            AND (
+                OLD.last_archived_at IS NULL
+                OR NEW.last_archived_at >= OLD.last_archived_at
+                OR NEW.last_archived_at = (
+                    SELECT max(m.created_at) FROM email_messages m
+                    WHERE m.tenant_id = OLD.tenant_id AND m.email_source_id = OLD.id
+                )
+            ))
+        OR (NEW.status = 'pending_connection' AND NEW.last_archived_at IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM email_messages m
+                WHERE m.tenant_id = OLD.tenant_id AND m.email_source_id = OLD.id
+            ))
+    )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'invalid_email_source_state_transition');
+END;
+
+CREATE TRIGGER email_messages_immutable
+BEFORE UPDATE ON email_messages
+BEGIN
+    SELECT RAISE(ABORT, 'email_message_immutable');
+END;
+
+CREATE TRIGGER email_attachments_immutable
+BEFORE UPDATE OF
+    id, tenant_id, email_message_id, part_index, storage_key, original_name,
+    declared_mime, disposition, size_bytes, sha256, processing_status,
+    safe_reason_code, created_at
+ON email_attachments
+BEGIN
+    SELECT RAISE(ABORT, 'email_attachment_immutable');
+END;
+
+CREATE TRIGGER email_attachments_document_detach_only
+BEFORE UPDATE OF document_id ON email_attachments
+WHEN OLD.document_id IS NULL OR NEW.document_id IS NOT NULL
+BEGIN
+    SELECT RAISE(ABORT, 'email_attachment_document_link_immutable');
+END;
+
+CREATE TRIGGER email_attachments_document_scope
+BEFORE INSERT ON email_attachments
+WHEN NEW.processing_status IN ('queued', 'existing_document') AND NOT EXISTS (
+    SELECT 1 FROM documents d
+    WHERE d.tenant_id = NEW.tenant_id
+      AND d.id = NEW.document_id
+      AND d.sha256 = NEW.sha256
+)
+BEGIN
+    SELECT RAISE(ABORT, 'email_attachment_document_scope_mismatch');
+END;
 
 CREATE TABLE document_pages (
     id TEXT PRIMARY KEY,

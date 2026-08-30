@@ -51,7 +51,9 @@ func TestVisualDuplicateBandLookupIsTenantScopedAndKeepsWholeDocumentPriority(t 
 				StorageKey:   "tenants/" + document.tenantID + "/" + document.id,
 				OriginalName: document.id + ".png", DeclaredMIME: "image/png", DetectedMIME: "image/png",
 				SizeBytes: 100, SHA256: strings.Repeat(string("abcdef"[documentIndex]), 64),
-				PageCount: len(document.hashes), Status: "stored", CreatedByUserID: owner.UserID, CreatedAt: now,
+				PageCount: len(document.hashes), Status: "stored",
+				IngestionKind: domain.DocumentIngestionUpload, OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+				CreatedByUserID: owner.UserID, CreatedAt: now,
 			}); err != nil {
 				return err
 			}

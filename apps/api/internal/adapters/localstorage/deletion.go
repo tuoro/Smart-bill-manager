@@ -21,7 +21,7 @@ type deletionManifest struct {
 }
 
 func (s *Store) StageDeletion(ctx context.Context, deletionID string, storageKeys []string) error {
-	if !safeUUID(deletionID) || len(storageKeys) == 0 {
+	if !safeUUID(deletionID) || storageKeys == nil {
 		return domain.ErrInvalidInput
 	}
 	batch, err := s.deletionBatchPath(deletionID)
@@ -34,7 +34,7 @@ func (s *Store) StageDeletion(ctx context.Context, deletionID string, storageKey
 		}
 		return fmt.Errorf("create deletion batch: %w", err)
 	}
-	manifest := deletionManifest{StorageKeys: append([]string(nil), storageKeys...)}
+	manifest := deletionManifest{StorageKeys: append([]string{}, storageKeys...)}
 	encoded, err := json.Marshal(manifest)
 	if err != nil {
 		_ = os.RemoveAll(batch)
@@ -155,7 +155,7 @@ func (s *Store) readDeletionManifest(deletionID string) (string, deletionManifes
 		return "", deletionManifest{}, fmt.Errorf("read deletion manifest: %w", err)
 	}
 	var manifest deletionManifest
-	if err := json.Unmarshal(content, &manifest); err != nil || len(manifest.StorageKeys) == 0 {
+	if err := json.Unmarshal(content, &manifest); err != nil || manifest.StorageKeys == nil {
 		return "", deletionManifest{}, errors.New("deletion manifest is invalid")
 	}
 	return batch, manifest, nil

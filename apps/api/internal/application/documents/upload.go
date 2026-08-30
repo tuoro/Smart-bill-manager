@@ -82,18 +82,20 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 	storageKey := "tenants/" + input.Tenant.TenantID + "/documents/" + documentID + "/original"
 	now := s.clock.Now()
 	document := ports.Document{
-		ID:              documentID,
-		TenantID:        input.Tenant.TenantID,
-		StorageKey:      storageKey,
-		OriginalName:    name,
-		DeclaredMIME:    input.MIME,
-		DetectedMIME:    inspection.DetectedMIME,
-		SizeBytes:       staged.Size,
-		SHA256:          staged.SHA256,
-		PageCount:       inspection.PageCount,
-		Status:          "stored",
-		CreatedByUserID: input.Tenant.UserID,
-		CreatedAt:       now,
+		ID:                  documentID,
+		TenantID:            input.Tenant.TenantID,
+		StorageKey:          storageKey,
+		OriginalName:        name,
+		DeclaredMIME:        input.MIME,
+		DetectedMIME:        inspection.DetectedMIME,
+		SizeBytes:           staged.Size,
+		SHA256:              staged.SHA256,
+		PageCount:           inspection.PageCount,
+		Status:              "stored",
+		IngestionKind:       domain.DocumentIngestionUpload,
+		OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+		CreatedByUserID:     input.Tenant.UserID,
+		CreatedAt:           now,
 	}
 	job := ports.ProcessingJob{
 		ID:           jobID,
@@ -135,6 +137,10 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 }
 
 func safeDocumentName(value string) (string, error) {
+	return NormalizeDocumentName(value)
+}
+
+func NormalizeDocumentName(value string) (string, error) {
 	value = filepath.Base(strings.TrimSpace(norm.NFKC.String(value)))
 	if value == "." || value == "" || len([]rune(value)) > 200 {
 		return "", domain.NewRuleError("invalid_document_name", "文件名长度必须为 1–200 个字符", domain.ErrInvalidInput)

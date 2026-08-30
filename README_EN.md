@@ -31,7 +31,7 @@ M0 was completed on 2026-08-27 and froze this executable design baseline:
 - independent workspace, baseline SHA, scoped diff, responsive, and accessibility evidence;
 - an independent read-only review.
 
-The independent read-only review found no M0 blocker, major, or minor issue; see the [M0 evidence](docs/m0-evidence.md). The [M1 AI inbox vertical slice](docs/scope.md) was completed on 2026-08-30; see the [M1 evidence](docs/m1-evidence.md). M2 completed five slices on 2026-08-31, bringing amount allocation, suspected duplicates, cross-page review, batch upload, and atomic confirmed-Fact allocation adjustment into the same Clean Slate flow; see the [M2 evidence](docs/m2-evidence.md). The next checkpoint is the documentation freeze for M3's first email-Source slice. Clear, complete, unobstructed, and directly human-readable uploads remain the input commitment, while model-accuracy hardening is deferred until all local functional development is complete.
+The independent read-only review found no M0 blocker, major, or minor issue; see the [M0 evidence](docs/m0-evidence.md). The [M1 AI inbox vertical slice](docs/scope.md) was completed on 2026-08-30; see the [M1 evidence](docs/m1-evidence.md). M2 completed five slices on 2026-08-31, bringing amount allocation, suspected duplicates, cross-page review, batch upload, and atomic confirmed-Fact allocation adjustment into the same Clean Slate flow; see the [M2 evidence](docs/m2-evidence.md). M3's first email Source, message, and attachment archive slice is complete; see the [M3 evidence](docs/m3-evidence.md). The next slice starts by freezing trip-attribution scope, while real mailbox connections, credentials, and integration remain outside the authorization gate. Clear, complete, unobstructed, and directly human-readable uploads remain the input commitment, while model-accuracy hardening is deferred until all local functional development is complete.
 
 ## Authoritative documents
 
@@ -47,6 +47,7 @@ The independent read-only review found no M0 blocker, major, or minor issue; see
 | [M0 evidence](docs/m0-evidence.md)                      | Workspace, responsive, WCAG, link, and review evidence                 |
 | [M1 evidence](docs/m1-evidence.md)                      | Executed gates, real-model diagnostics, and the current stage decision |
 | [M2 evidence](docs/m2-evidence.md)                      | Five slice implementations, invariants, and executed gates             |
+| [M3 evidence](docs/m3-evidence.md)                      | Email archive slice implementation, invariants, and executed gates     |
 | [M1 backup and restore runbook](docs/backup-restore.md) | Offline consistent snapshots, manifests, restore, and retention policy |
 | [Roadmap](docs/roadmap.md)                              | Milestones and entry gates                                             |
 
@@ -61,6 +62,7 @@ Key decisions include:
 - [ADR-0011: cross-page invoice review](docs/decisions/0011-cross-page-invoice-review.md)
 - [ADR-0012: client-orchestrated batch upload](docs/decisions/0012-client-orchestrated-batch-upload.md)
 - [ADR-0013: confirmed-Fact allocation adjustment](docs/decisions/0013-confirmed-fact-allocation-adjustment.md)
+- [ADR-0014: connector-neutral email Source and immutable archive](docs/decisions/0014-connector-neutral-email-archive.md)
 
 ## Target directories
 

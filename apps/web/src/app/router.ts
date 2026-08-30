@@ -13,6 +13,11 @@ const router = createRouter({
     },
     { path: '/inbox', name: 'inbox', component: () => import('../features/inbox/InboxPage.vue') },
     {
+      path: '/email-sources',
+      name: 'email-sources',
+      component: () => import('../features/email-sources/EmailSourcesPage.vue'),
+    },
+    {
       path: '/reviews/:jobId',
       name: 'review',
       component: () => import('../features/review/ReviewPage.vue'),

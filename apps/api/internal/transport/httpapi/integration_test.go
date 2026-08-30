@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
@@ -31,6 +33,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
+	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
@@ -45,6 +48,7 @@ type httpTestFixture struct {
 	owner         bootstrap.Result
 	ownerEmail    string
 	ownerPassword string
+	emailArchive  applicationemails.Service
 }
 
 type testSession struct {
@@ -371,6 +375,165 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/session", nil, ownerSession, false, ""), http.StatusUnauthorized)
 }
 
+func TestHTTPEmailArchiveReadAndRegistrationBoundaries(t *testing.T) {
+	fixture := newHTTPTestFixture(t)
+	defer fixture.store.Close()
+	ownerSession := fixture.login(t, fixture.owner.TenantID)
+	registration := `{"display_name":" 合成财务邮箱 ","mailbox_address":"Finance@Example.Invalid","imap_host":"IMAP.EXAMPLE.INVALID","imap_port":993,"transport_security":"implicit_tls"}`
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), ownerSession, false,
+		"application/json", map[string]string{"Idempotency-Key": "http-email-source"},
+	), http.StatusForbidden)
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), ownerSession, true, "application/json",
+	), http.StatusBadRequest)
+	unknownField := strings.TrimSuffix(registration, "}") + `,"password":"must-not-exist"}`
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(unknownField), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "http-email-unknown"},
+	), http.StatusBadRequest)
+	createdResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "http-email-source"},
+	)
+	assertStatus(t, createdResponse, http.StatusCreated)
+	created := decodeMap(t, createdResponse)
+	sourceID := asString(t, created["id"])
+	if created["display_name"] != "合成财务邮箱" || created["mailbox_address"] != "finance@example.invalid" ||
+		created["imap_host"] != "imap.example.invalid" || created["status"] != domain.EmailSourcePendingConnection {
+		t.Fatalf("created source = %#v", created)
+	}
+	if bytes.Contains(createdResponse.Body.Bytes(), []byte("password")) || bytes.Contains(createdResponse.Body.Bytes(), []byte("token")) {
+		t.Fatalf("source response exposed credential-shaped fields: %s", createdResponse.Body.String())
+	}
+	replayResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "http-email-source"},
+	)
+	assertStatus(t, replayResponse, http.StatusOK)
+	if asString(t, decodeMap(t, replayResponse)["id"]) != sourceID {
+		t.Fatal("source replay changed identity")
+	}
+	changed := strings.Replace(registration, "合成财务邮箱", "另一个邮箱", 1)
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(changed), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "http-email-source"},
+	), http.StatusConflict)
+
+	png := syntheticPNG(t, color.RGBA{R: 22, G: 44, B: 66, A: 255})
+	raw := []byte(strings.Join([]string{
+		"From: sender@example.invalid",
+		"Subject: 合成附件邮件",
+		"Content-Type: multipart/mixed; boundary=http-email",
+		"",
+		"--http-email",
+		"Content-Type: text/plain",
+		"",
+		"private body marker",
+		"--http-email",
+		"Content-Type: image/png; name=invoice.png",
+		"Content-Disposition: attachment; filename=invoice.png",
+		"Content-Transfer-Encoding: base64",
+		"",
+		base64.StdEncoding.EncodeToString(png),
+		"--http-email--",
+		"",
+	}, "\r\n"))
+	archived, err := fixture.emailArchive.Archive(context.Background(), applicationemails.ArchiveInput{
+		TenantID: fixture.owner.TenantID, EmailSourceID: sourceID,
+		ExternalMessageKey: strings.Repeat("1", 64), ReceivedAt: time.Date(2026, 8, 31, 2, 0, 0, 0, time.UTC),
+		Raw: bytes.NewReader(raw), RequestID: "http-email-archive",
+	})
+	if err != nil || len(archived.Attachments) != 1 {
+		t.Fatalf("archive fixture = %#v, error=%v", archived, err)
+	}
+	blocked, err := fixture.emailArchive.Archive(context.Background(), applicationemails.ArchiveInput{
+		TenantID: fixture.owner.TenantID, EmailSourceID: sourceID,
+		ExternalMessageKey: strings.Repeat("2", 64), ReceivedAt: time.Date(2026, 8, 31, 3, 0, 0, 0, time.UTC),
+		Raw: strings.NewReader("not a mail header"), RequestID: "http-email-blocked",
+	})
+	if err != nil || blocked.Status != domain.EmailMessageBlocked {
+		t.Fatalf("blocked fixture = %#v, error=%v", blocked, err)
+	}
+
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources", nil, nil, false, ""), http.StatusUnauthorized)
+	sourceListResponse := fixture.request(http.MethodGet, "/api/v1/email-sources", nil, ownerSession, false, "")
+	assertStatus(t, sourceListResponse, http.StatusOK)
+	sourceList := decodeMap(t, sourceListResponse)["items"].([]any)
+	if len(sourceList) != 1 || sourceList[0].(map[string]any)["status"] != domain.EmailSourceActive ||
+		asInt(t, sourceList[0].(map[string]any)["message_count"]) != 2 ||
+		asInt(t, sourceList[0].(map[string]any)["blocked_count"]) != 1 {
+		t.Fatalf("source list = %#v", sourceList)
+	}
+	firstPageResponse := fixture.request(http.MethodGet, "/api/v1/email-sources/"+sourceID+"/messages?limit=1", nil, ownerSession, false, "")
+	assertStatus(t, firstPageResponse, http.StatusOK)
+	firstPage := decodeMap(t, firstPageResponse)
+	if len(firstPage["items"].([]any)) != 1 || firstPage["next_cursor"] == "" {
+		t.Fatalf("first email page = %#v", firstPage)
+	}
+	cursor := asString(t, firstPage["next_cursor"])
+	secondPageResponse := fixture.request(http.MethodGet, "/api/v1/email-sources/"+sourceID+"/messages?limit=1&cursor="+cursor, nil, ownerSession, false, "")
+	assertStatus(t, secondPageResponse, http.StatusOK)
+	if bytes.Contains(secondPageResponse.Body.Bytes(), []byte("private body marker")) ||
+		bytes.Contains(secondPageResponse.Body.Bytes(), []byte("external_message_key")) ||
+		bytes.Contains(secondPageResponse.Body.Bytes(), []byte("raw_sha256")) ||
+		bytes.Contains(secondPageResponse.Body.Bytes(), []byte("storage_key")) {
+		t.Fatalf("message projection exposed private internals: %s", secondPageResponse.Body.String())
+	}
+	secondPage := decodeMap(t, secondPageResponse)
+	message := secondPage["items"].([]any)[0].(map[string]any)
+	attachment := message["attachments"].([]any)[0].(map[string]any)
+	attachmentID := asString(t, attachment["id"])
+	if attachment["processing_status"] != domain.EmailAttachmentQueued || attachment["document_id"] == "" {
+		t.Fatalf("attachment projection = %#v", attachment)
+	}
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources/"+sourceID+"/messages?cursor=%25%25%25", nil, ownerSession, false, ""), http.StatusBadRequest)
+
+	rawDownload := fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, ownerSession, false, "")
+	assertStatus(t, rawDownload, http.StatusOK)
+	assertArchiveDownload(t, rawDownload, "message/rfc822")
+	if !bytes.Equal(rawDownload.Body.Bytes(), raw) {
+		t.Fatal("raw email download changed bytes")
+	}
+	attachmentDownload := fixture.request(http.MethodGet, "/api/v1/email-attachments/"+attachmentID+"/content", nil, ownerSession, false, "")
+	assertStatus(t, attachmentDownload, http.StatusOK)
+	assertArchiveDownload(t, attachmentDownload, "image/png")
+	if !bytes.Equal(attachmentDownload.Body.Bytes(), png) {
+		t.Fatal("email attachment download changed bytes")
+	}
+
+	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
+	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
+	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources", nil, financeSession, false, ""), http.StatusOK)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, financeSession, false, ""), http.StatusOK)
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), financeSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "finance-email-source"},
+	), http.StatusForbidden)
+	for _, denied := range []*testSession{reviewerSession, viewerSession} {
+		assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources", nil, denied, false, ""), http.StatusForbidden)
+		assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, denied, false, ""), http.StatusForbidden)
+	}
+
+	secondTenantID := newID(t)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := fixture.store.DB().Exec("INSERT INTO tenants (id, name, default_currency, timezone, created_at, updated_at) VALUES (?, 'Other', 'CNY', 'UTC', ?, ?)", secondTenantID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.DB().Exec("INSERT INTO memberships (tenant_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, 'owner', 'active', ?, ?)", secondTenantID, fixture.owner.UserID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	secondTenantSession := fixture.login(t, secondTenantID)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources/"+sourceID+"/messages", nil, secondTenantSession, false, ""), http.StatusNotFound)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, secondTenantSession, false, ""), http.StatusNotFound)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-attachments/"+attachmentID+"/content", nil, secondTenantSession, false, ""), http.StatusNotFound)
+	internalWriteRoute := fixture.request(http.MethodPost, "/api/v1/email-messages", strings.NewReader("{}"), ownerSession, true, "application/json")
+	if internalWriteRoute.Code != http.StatusMethodNotAllowed && internalWriteRoute.Code != http.StatusNotFound {
+		t.Fatalf("unexpected public email archive route status = %d", internalWriteRoute.Code)
+	}
+}
+
 func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	t.Helper()
 	root := t.TempDir()
@@ -433,6 +596,9 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
+	emailService := applicationemails.NewService(
+		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
+	)
 	webRoot := filepath.Join(root, "web")
 	if err := os.Mkdir(webRoot, 0o700); err != nil {
 		store.Close()
@@ -443,7 +609,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -455,7 +621,10 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		store.Close()
 		t.Fatal(err)
 	}
-	return &httpTestFixture{store: store, handler: server.Handler(), worker: worker, owner: owner, ownerEmail: ownerEmail, ownerPassword: ownerPassword}
+	return &httpTestFixture{
+		store: store, handler: server.Handler(), worker: worker, owner: owner,
+		ownerEmail: ownerEmail, ownerPassword: ownerPassword, emailArchive: emailService,
+	}
 }
 
 func projectPath(t *testing.T, parts ...string) string {
@@ -468,8 +637,12 @@ func projectPath(t *testing.T, parts ...string) string {
 }
 
 func (f *httpTestFixture) login(t *testing.T, tenantID string) *testSession {
+	return f.loginWith(t, f.ownerEmail, f.ownerPassword, tenantID)
+}
+
+func (f *httpTestFixture) loginWith(t *testing.T, email, password, tenantID string) *testSession {
 	t.Helper()
-	payload, err := json.Marshal(map[string]string{"email": f.ownerEmail, "password": f.ownerPassword, "tenant_id": tenantID})
+	payload, err := json.Marshal(map[string]string{"email": email, "password": password, "tenant_id": tenantID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,6 +650,42 @@ func (f *httpTestFixture) login(t *testing.T, tenantID string) *testSession {
 	assertStatus(t, response, http.StatusOK)
 	body := decodeMap(t, response)
 	return &testSession{cookies: response.Result().Cookies(), csrf: asString(t, body["csrf_token"])}
+}
+
+func (f *httpTestFixture) addRoleSession(t *testing.T, role domain.Role) *testSession {
+	t.Helper()
+	if !role.Valid() || role == domain.RoleOwner {
+		t.Fatalf("invalid additional test role %q", role)
+	}
+	userID := newID(t)
+	email := string(role) + "@example.invalid"
+	password := string(role) + "-password-123"
+	passwordHash, err := (testPasswordHasher{}).Hash([]byte(password))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tx, err := f.store.DB().Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`
+		INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, userID, email, passwordHash, strings.ToUpper(string(role)), now, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO memberships (tenant_id, user_id, role, status, created_at, updated_at)
+		VALUES (?, ?, ?, 'active', ?, ?)
+	`, f.owner.TenantID, userID, role, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	return f.loginWith(t, email, password, f.owner.TenantID)
 }
 
 func (f *httpTestFixture) request(method, path string, body io.Reader, session *testSession, csrf bool, contentType string) *httptest.ResponseRecorder {
@@ -601,6 +810,17 @@ func assertStatus(t *testing.T, response *httptest.ResponseRecorder, want int) {
 	t.Helper()
 	if response.Code != want {
 		t.Fatalf("status = %d, want %d, body=%s", response.Code, want, response.Body.String())
+	}
+}
+
+func assertArchiveDownload(t *testing.T, response *httptest.ResponseRecorder, contentType string) {
+	t.Helper()
+	if response.Header().Get("Content-Type") != contentType ||
+		!strings.HasPrefix(response.Header().Get("Content-Disposition"), "attachment;") ||
+		response.Header().Get("Cache-Control") != "private, no-store" ||
+		!strings.Contains(response.Header().Get("Content-Security-Policy"), "sandbox") ||
+		response.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("unsafe archive download headers: %#v", response.Header())
 	}
 }
 

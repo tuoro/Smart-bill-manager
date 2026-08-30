@@ -237,6 +237,36 @@ func TestRecoverableDeletionRollsBackPartialStageFailure(t *testing.T) {
 	}
 }
 
+func TestRecoverableDeletionAllowsMetadataOnlyBatch(t *testing.T) {
+	t.Parallel()
+
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	deletionID := "00000000-0000-4000-8000-000000000104"
+	if err := store.StageDeletion(context.Background(), deletionID, []string{}); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := store.PendingDeletions(context.Background())
+	if err != nil || len(pending) != 1 || pending[0] != deletionID {
+		t.Fatalf("metadata-only pending deletions = %#v, error=%v", pending, err)
+	}
+	if err := store.RestoreDeletion(context.Background(), deletionID); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = store.PendingDeletions(context.Background())
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("metadata-only restore left batch = %#v, error=%v", pending, err)
+	}
+	if err := store.StageDeletion(context.Background(), deletionID, []string{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PurgeDeletion(context.Background(), deletionID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestStoreCancellationAndCopyFailureBoundaries(t *testing.T) {
 	t.Parallel()
 

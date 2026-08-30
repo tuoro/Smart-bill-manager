@@ -1,6 +1,6 @@
 # Clean Slate 架构基线
 
-状态：M0、M1、M2 已完成；M3 首切片尚未冻结
+状态：M0、M1、M2 已完成；M3 邮箱 Source 首切片已完成，下一切片为行程归属
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
 
@@ -20,7 +20,7 @@ flowchart LR
     API --> Mail[IMAP 邮箱]
 ```
 
-M1 只启用 Browser、Web、API、SQLite、文件存储和模型 API。邮箱在 M3 接入。
+M1、M2 只启用 Browser、Web、API、SQLite、文件存储和模型 API。M3 首切片只增加连接器中立的本地邮件归档端口，不装配邮箱网络连接；真实邮箱接入仍在独立门禁之后。
 
 ## 目标目录
 
@@ -150,6 +150,27 @@ M1 使用单个 API 进程：
 5. 提交后原子移动或确认对象；失败时回收临时文件。
 
 数据库与文件系统无法组成同一事务，因此所有补偿路径必须显式测试。
+
+### 邮件归档（M3 首切片）
+
+1. HTTP 只注册不含凭据的 EmailSource 描述符与读取租户归档；不存在邮件导入、同步或测试 fixture 路由。
+2. 未来连接器依赖应用端口提交稳定不可逆外部键、接收时间和受 32 MiB 限制的原始 RFC 822 流；当前生产装配不提供网络连接器实现。
+3. `email-mime-archive/1` 只做受限 MIME 结构与传输编码解析，不执行 HTML、远程资源、压缩包或正文语义；超深、超 part 或超附件边界时保存原文并显式 blocked。
+4. 应用先暂存原始邮件和逐附件对象，再在一个数据库事务中写 EmailMessage、全部 EmailAttachment、新 Document/Job 与安全 AuditEvent。事务失败回收全部暂存对象。
+5. 数据库成功后逐个提交对象；任一提交失败时事务补偿整个新消息聚合和本轮新 Document/Job，并删除已提交对象。既有精确重复 Document 不参与补偿。
+6. 只有通过既有 Inspector 的图片/PDF 附件进入唯一 `document_process` 队列；邮件正文、头字段和不支持附件不会进入模型。
+
+```mermaid
+flowchart LR
+    FutureConnector[未来邮箱连接器\n当前未装配] --> Archive[Email Archive 应用端口]
+    Archive --> Raw[(原始 RFC 822)]
+    Archive --> Attachment[(不可变附件 Source)]
+    Attachment -->|合法图片/PDF| Document[既有 Document]
+    Document --> Job[既有 ProcessingJob]
+    Job --> Claim[既有 Claim / Review]
+```
+
+连接器只能依赖 Archive 端口，不能直接写数据库、对象存储、Document 或 Job。网络拨号、认证、远端游标、轮询与真实账号联调是后续独立门禁，不得以本地归档通过替代。
 
 ### AI 处理
 

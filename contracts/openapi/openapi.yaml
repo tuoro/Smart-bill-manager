@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Smart Bill Manager API
-  version: 1.0.0-m1
-  description: Clean Slate M1 API。所有租户资源均从服务端会话解析 TenantContext。
+  version: 1.0.0-m3
+  description: Clean Slate M3 API。所有租户资源均从服务端会话解析 TenantContext。
 servers:
   - url: /api/v1
 security:
@@ -15,6 +15,7 @@ tags:
   - name: facts
   - name: allocations
   - name: providers
+  - name: email
 paths:
   /health:
     get:
@@ -84,6 +85,118 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /email-sources:
+    get:
+      operationId: listEmailSources
+      tags: [email]
+      responses:
+        "200":
+          description: 当前租户内的无凭据邮箱来源及安全计数
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EmailSource"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: registerEmailSource
+      tags: [email]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailSourceRegistration"
+      responses:
+        "201":
+          description: 无凭据邮箱来源已登记，尚未建立真实连接
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "200":
+          description: 相同幂等键与相同规范请求的稳定重放
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /email-sources/{source_id}/messages:
+    get:
+      operationId: listEmailMessages
+      tags: [email]
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - name: cursor
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 1024 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: 不含正文、原始头、外部键或存储键的稳定游标邮件页
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailMessagePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /email-messages/{message_id}/raw:
+    get:
+      operationId: downloadEmailMessage
+      tags: [email]
+      parameters:
+        - $ref: "#/components/parameters/EmailMessageId"
+      responses:
+        "200":
+          description: 强制下载且不缓存的原始 RFC 822 邮件
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            message/rfc822: {}
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /email-attachments/{attachment_id}/content:
+    get:
+      operationId: downloadEmailAttachment
+      tags: [email]
+      parameters:
+        - $ref: "#/components/parameters/EmailAttachmentId"
+      responses:
+        "200":
+          description: 强制下载且不缓存的不可变邮件附件
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream: {}
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /documents:
     post:
       operationId: uploadDocument
@@ -643,6 +756,27 @@ components:
       schema:
         type: string
         format: uuid
+    EmailSourceId:
+      name: source_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EmailMessageId:
+      name: message_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EmailAttachmentId:
+      name: attachment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   responses:
     BadRequest:
       description: 输入不合法
@@ -675,7 +809,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     PayloadTooLarge:
-      description: 文件超过 20 MiB
+      description: 请求载荷超过对应接口限制
       content:
         application/json:
           schema:
@@ -776,6 +910,125 @@ components:
         job_id: { type: string, format: uuid }
         status: { const: queued }
         sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+    EmailSourceRegistration:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          display_name,
+          mailbox_address,
+          imap_host,
+          imap_port,
+          transport_security,
+        ]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        mailbox_address:
+          { type: string, format: email, minLength: 3, maxLength: 254 }
+        imap_host: { type: string, minLength: 1, maxLength: 253 }
+        imap_port: { type: integer, minimum: 1, maximum: 65535 }
+        transport_security:
+          type: string
+          enum: [implicit_tls, starttls]
+    EmailSource:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - display_name
+        - mailbox_address
+        - imap_host
+        - imap_port
+        - transport_security
+        - status
+        - created_by_user_id
+        - created_at
+        - version
+        - message_count
+        - attachment_count
+        - blocked_count
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        mailbox_address: { type: string, format: email, maxLength: 254 }
+        imap_host: { type: string, maxLength: 253 }
+        imap_port: { type: integer, minimum: 1, maximum: 65535 }
+        transport_security:
+          type: string
+          enum: [implicit_tls, starttls]
+        status:
+          type: string
+          enum: [pending_connection, active]
+        created_by_user_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        last_archived_at: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        message_count: { type: integer, minimum: 0 }
+        attachment_count: { type: integer, minimum: 0 }
+        blocked_count: { type: integer, minimum: 0 }
+    EmailMessagePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailMessage"
+        next_cursor: { type: string, minLength: 1, maxLength: 1024 }
+    EmailMessage:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email_source_id
+        - subject
+        - sender_address
+        - received_at
+        - status
+        - created_at
+        - attachments
+      properties:
+        id: { type: string, format: uuid }
+        email_source_id: { type: string, format: uuid }
+        subject: { type: string, maxLength: 500 }
+        sender_address: { type: string, maxLength: 254 }
+        sent_at: { type: string, format: date-time }
+        received_at: { type: string, format: date-time }
+        status: { type: string, enum: [archived, blocked] }
+        safe_error_code: { type: string, maxLength: 100 }
+        safe_error_text: { type: string, maxLength: 200 }
+        created_at: { type: string, format: date-time }
+        attachments:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/EmailAttachment"
+    EmailAttachment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - part_index
+        - original_name
+        - declared_mime
+        - disposition
+        - size_bytes
+        - processing_status
+      properties:
+        id: { type: string, format: uuid }
+        part_index: { type: integer, minimum: 1, maximum: 50 }
+        original_name: { type: string, minLength: 1, maxLength: 200 }
+        declared_mime: { type: string, minLength: 1, maxLength: 200 }
+        disposition: { type: string, enum: [attachment, inline] }
+        size_bytes:
+          { type: integer, format: int64, minimum: 0, maximum: 33554432 }
+        processing_status:
+          type: string
+          enum: [queued, existing_document, archived_only]
+        safe_reason_code: { type: string, minLength: 1, maxLength: 100 }
+        document_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
     JobSummary:
       type: object
       additionalProperties: false
@@ -784,6 +1037,7 @@ components:
           id,
           document_id,
           original_name,
+          ingestion_kind,
           detected_mime,
           status,
           attempt_count,
@@ -794,6 +1048,7 @@ components:
         id: { type: string, format: uuid }
         document_id: { type: string, format: uuid }
         original_name: { type: string }
+        ingestion_kind: { type: string, enum: [upload, email_attachment] }
         detected_mime: { type: string }
         status:
           type: string
@@ -827,6 +1082,7 @@ components:
           sha256,
           page_count,
           status,
+          ingestion_kind,
           created_by_user_id,
           created_at,
         ]
@@ -859,6 +1115,7 @@ components:
               cancelled,
               rejected,
             ]
+        ingestion_kind: { type: string, enum: [upload, email_attachment] }
         created_by_user_id: { type: string, format: uuid }
         created_at: { type: string, format: date-time }
     ClaimField:
@@ -1146,29 +1403,66 @@ components:
       type: object
       additionalProperties: false
       required:
-        [fact_type, id, amount_minor, allocated_minor, remaining_minor, currency, business_date, display_name]
+        [
+          fact_type,
+          id,
+          amount_minor,
+          allocated_minor,
+          remaining_minor,
+          currency,
+          business_date,
+          display_name,
+        ]
       properties:
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
         id: { type: string, format: uuid }
         amount_minor:
-          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
         allocated_minor:
-          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
         remaining_minor:
-          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
         currency: { $ref: "#/components/schemas/Currency" }
         business_date: { type: string, format: date }
         display_name: { type: string }
     AllocationWorkspaceLink:
       type: object
       additionalProperties: false
-      required: [id, target_fact_type, target_fact_id, allocated_minor, currency, created_at]
+      required:
+        [
+          id,
+          target_fact_type,
+          target_fact_id,
+          allocated_minor,
+          currency,
+          created_at,
+        ]
       properties:
         id: { type: string, format: uuid }
         target_fact_type: { $ref: "#/components/schemas/AllocationFactType" }
         target_fact_id: { type: string, format: uuid }
         allocated_minor:
-          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 1,
+            maximum: 9007199254740991,
+          }
         currency: { $ref: "#/components/schemas/Currency" }
         created_at: { type: string, format: date-time }
     AllocationTarget:
@@ -1193,11 +1487,26 @@ components:
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
         id: { type: string, format: uuid }
         amount_minor:
-          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 1,
+            maximum: 9007199254740991,
+          }
         allocated_minor:
-          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
         remaining_minor:
-          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
         currency: { $ref: "#/components/schemas/Currency" }
         business_date: { type: string, format: date }
         display_name: { type: string }
@@ -1205,9 +1514,19 @@ components:
         date_distance_days: { type: integer, minimum: 0, maximum: 30 }
         current_link_id: { type: string, format: uuid }
         current_allocated_minor:
-          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
         maximum_allocatable_minor:
-          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 1,
+            maximum: 9007199254740991,
+          }
     AllocationWorkspace:
       type: object
       additionalProperties: false
@@ -1230,7 +1549,12 @@ components:
       properties:
         target_fact_id: { type: string, format: uuid }
         allocated_minor:
-          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+          {
+            type: integer,
+            format: int64,
+            minimum: 1,
+            maximum: 9007199254740991,
+          }
     AllocationAdjustmentRequest:
       type: object
       additionalProperties: false
@@ -1246,7 +1570,15 @@ components:
     AllocationAdjustmentResult:
       type: object
       additionalProperties: false
-      required: [adjustment_id, mode, ended_link_ids, created_link_ids, plan_hash, replayed]
+      required:
+        [
+          adjustment_id,
+          mode,
+          ended_link_ids,
+          created_link_ids,
+          plan_hash,
+          replayed,
+        ]
       properties:
         adjustment_id: { type: string, format: uuid }
         mode: { type: string, enum: [supplement, withdraw, replace] }

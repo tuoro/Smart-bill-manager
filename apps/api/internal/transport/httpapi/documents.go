@@ -186,6 +186,7 @@ func (s *Server) getDocumentHandler(response http.ResponseWriter, request *http.
 		"sha256":             item.SHA256,
 		"page_count":         item.PageCount,
 		"status":             item.Status,
+		"ingestion_kind":     item.IngestionKind,
 		"created_by_user_id": item.CreatedByUserID,
 		"created_at":         item.CreatedAt,
 	})
@@ -255,14 +256,15 @@ func jobResponses(items []ports.JobSummary) []map[string]any {
 
 func jobResponse(item ports.JobSummary) map[string]any {
 	result := map[string]any{
-		"id":            item.ID,
-		"document_id":   item.DocumentID,
-		"original_name": item.OriginalName,
-		"detected_mime": item.DetectedMIME,
-		"status":        item.Status,
-		"attempt_count": item.AttemptCount,
-		"created_at":    item.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
-		"version":       item.Version,
+		"id":             item.ID,
+		"document_id":    item.DocumentID,
+		"original_name":  item.OriginalName,
+		"ingestion_kind": item.IngestionKind,
+		"detected_mime":  item.DetectedMIME,
+		"status":         item.Status,
+		"attempt_count":  item.AttemptCount,
+		"created_at":     item.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00"),
+		"version":        item.Version,
 	}
 	if item.ErrorCode != "" {
 		result["error_code"] = item.ErrorCode

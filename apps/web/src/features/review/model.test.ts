@@ -22,6 +22,7 @@ function reviewFixture(overrides: Partial<Review> = {}): Review {
       id: '00000000-0000-4000-8000-000000000001',
       document_id: '00000000-0000-4000-8000-000000000002',
       original_name: 'payment.png',
+      ingestion_kind: 'upload',
       detected_mime: 'image/png',
       status: 'needs_review',
       attempt_count: 1,

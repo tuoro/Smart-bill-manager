@@ -1,0 +1,111 @@
+{
+  "report_kind": "m3-closure-gate-summary",
+  "evidence_version": "M3-CLOSURE-2026-08-31",
+  "recorded_date": "2026-08-31",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "a3594fecfe70f9537ffd6005d311052ccb908528",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "complete",
+    "m3": "complete",
+    "next_slice": "m4_data_insights_and_query_scope_freeze",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "slices": [
+    {
+      "order": 1,
+      "name": "email_source_and_local_mail_attachment_archive",
+      "status": "complete",
+      "evidence": "tests/evidence/m3/email-archive-gate-summary.json"
+    },
+    {
+      "order": 2,
+      "name": "trip_fact_and_deterministic_document_attribution",
+      "status": "complete",
+      "evidence": "tests/evidence/m3/trip-attribution-gate-summary.json"
+    },
+    {
+      "order": 3,
+      "name": "reimbursement_snapshot_status_and_policy_findings",
+      "status": "complete",
+      "evidence": "tests/evidence/m3/reimbursement-workflow-gate-summary.json"
+    }
+  ],
+  "final_gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 8,
+      "passed": 30,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 29,
+      "failed": 0
+    },
+    "critical_invariant_branches": {
+      "passed": 104,
+      "total": 104,
+      "percentage": 100
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.42,
+      "covered": 2900,
+      "total": 3395,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 75.13,
+      "covered": 3417,
+      "total": 4548,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "repository_checkpoint": "tests/evidence/m3/reimbursement-workflow-gate-summary.json#gates.repository_checkpoint"
+  },
+  "invariants": {
+    "source_claim_fact_boundary": "preserved",
+    "model_creates_fact": false,
+    "reimbursement_is_fact": false,
+    "payment_invoice_balance_source": "active_payment_invoice_links_only",
+    "trip_attribution_source": "active_trip_fact_assignments_only",
+    "tenant_isolation": "preserved",
+    "integer_minor_units": "preserved",
+    "legacy_compatibility": "not_added",
+    "local_ocr": "not_installed_or_used"
+  },
+  "excluded": {
+    "formal_real_model_accuracy_evaluation": "not_run",
+    "real_provider_calls": "not_run",
+    "real_mailbox_or_external_account_integration": "not_run",
+    "credentials": "not_created_or_changed",
+    "deployment_release_or_remote_resources": "not_run"
+  },
+  "next": {
+    "milestone": "m4",
+    "slice": "data_insights_and_query_scope_freeze",
+    "input_boundary": "synthetic_local_reproducible_only",
+    "real_external_integration": "requires_new_authorization"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

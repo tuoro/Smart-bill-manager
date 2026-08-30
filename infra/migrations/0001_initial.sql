@@ -666,6 +666,7 @@ CREATE TABLE payments (
     merchant TEXT NOT NULL,
     transaction_time TEXT NOT NULL,
     source_timezone TEXT NOT NULL,
+    business_date TEXT NOT NULL,
     payment_method TEXT,
     order_number TEXT,
     category TEXT,
@@ -680,6 +681,7 @@ CREATE TABLE payments (
     FOREIGN KEY (tenant_id, deletion_audit_event_id) REFERENCES audit_events(tenant_id, id),
     CHECK (amount_minor BETWEEN 0 AND 9007199254740991),
     CHECK (currency IN ('CNY', 'USD', 'EUR', 'JPY')),
+    CHECK (date(business_date) = business_date),
     CHECK (version >= 1),
     CHECK ((deleted_at IS NULL AND deleted_by_user_id IS NULL AND deletion_audit_event_id IS NULL)
         OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL AND deletion_audit_event_id IS NOT NULL)),
@@ -1554,6 +1556,408 @@ CREATE TRIGGER trip_fact_assignments_delete_forbidden
 BEFORE DELETE ON trip_fact_assignments
 BEGIN
     SELECT RAISE(ABORT, 'trip_fact_assignment_history_required');
+END;
+
+CREATE TABLE reimbursements (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    trip_id TEXT NOT NULL,
+    trip_destination TEXT NOT NULL,
+    trip_start_date TEXT NOT NULL,
+    trip_end_date TEXT NOT NULL,
+    status TEXT NOT NULL,
+    policy_rule_version TEXT NOT NULL,
+    snapshot_hash TEXT NOT NULL,
+    created_by_user_id TEXT NOT NULL,
+    created_by_decision_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    FOREIGN KEY (tenant_id, trip_id) REFERENCES trips(tenant_id, id),
+    FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES memberships(tenant_id, user_id),
+    FOREIGN KEY (tenant_id, created_by_decision_id)
+        REFERENCES reimbursement_status_decisions(tenant_id, id)
+        DEFERRABLE INITIALLY DEFERRED,
+    CHECK (length(trim(trip_destination)) BETWEEN 1 AND 500),
+    CHECK (date(trip_start_date) IS NOT NULL AND date(trip_end_date) IS NOT NULL
+        AND trip_end_date >= trip_start_date),
+    CHECK (status IN ('submitted', 'reimbursed', 'rejected')),
+    CHECK (policy_rule_version = 'reimbursement-policy/1'),
+    CHECK (length(snapshot_hash) = 64 AND snapshot_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK (version >= 1),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE UNIQUE INDEX reimbursements_trip_submitted_idx
+ON reimbursements (tenant_id, trip_id)
+WHERE status = 'submitted';
+
+CREATE INDEX reimbursements_tenant_created_idx
+ON reimbursements (tenant_id, created_at DESC, id DESC);
+
+CREATE TABLE reimbursement_items (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    reimbursement_id TEXT NOT NULL,
+    trip_fact_assignment_id TEXT NOT NULL,
+    fact_type TEXT NOT NULL,
+    payment_id TEXT,
+    invoice_id TEXT,
+    display_name TEXT NOT NULL,
+    business_date TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, reimbursement_id) REFERENCES reimbursements(tenant_id, id),
+    FOREIGN KEY (tenant_id, trip_fact_assignment_id) REFERENCES trip_fact_assignments(tenant_id, id),
+    FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id),
+    FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id),
+    CHECK (fact_type IN ('payment', 'invoice')),
+    CHECK ((fact_type = 'payment' AND payment_id IS NOT NULL AND invoice_id IS NULL)
+        OR (fact_type = 'invoice' AND invoice_id IS NOT NULL AND payment_id IS NULL)),
+    CHECK (length(trim(display_name)) BETWEEN 1 AND 500),
+    CHECK (date(business_date) IS NOT NULL),
+    CHECK (amount_minor BETWEEN 0 AND 9007199254740991),
+    CHECK (currency IN ('CNY', 'USD', 'EUR', 'JPY')),
+    CHECK (sort_order BETWEEN 0 AND 199),
+    UNIQUE (tenant_id, reimbursement_id, trip_fact_assignment_id),
+    UNIQUE (tenant_id, reimbursement_id, payment_id),
+    UNIQUE (tenant_id, reimbursement_id, invoice_id),
+    UNIQUE (tenant_id, reimbursement_id, sort_order),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE INDEX reimbursement_items_fact_idx
+ON reimbursement_items (tenant_id, fact_type, payment_id, invoice_id, reimbursement_id);
+
+CREATE TABLE reimbursement_policy_findings (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    reimbursement_id TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    finding_key TEXT NOT NULL,
+    rule_version TEXT NOT NULL,
+    code TEXT NOT NULL,
+    expected_minor INTEGER,
+    actual_minor INTEGER,
+    currency TEXT,
+    related_reimbursement_id TEXT,
+    related_reimbursement_status TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, reimbursement_id) REFERENCES reimbursements(tenant_id, id),
+    FOREIGN KEY (tenant_id, item_id) REFERENCES reimbursement_items(tenant_id, id),
+    FOREIGN KEY (tenant_id, related_reimbursement_id) REFERENCES reimbursements(tenant_id, id),
+    CHECK (length(finding_key) = 64 AND finding_key NOT GLOB '*[^0-9a-f]*'),
+    CHECK (rule_version = 'reimbursement-policy/1'),
+    CHECK (code IN ('missing_invoice', 'amount_conflict', 'duplicate_reimbursement')),
+    CHECK (expected_minor IS NULL OR expected_minor BETWEEN 0 AND 9007199254740991),
+    CHECK (actual_minor IS NULL OR actual_minor BETWEEN 0 AND 9007199254740991),
+    CHECK (currency IS NULL OR currency IN ('CNY', 'USD', 'EUR', 'JPY')),
+    CHECK (
+        (code IN ('missing_invoice', 'amount_conflict')
+         AND expected_minor IS NOT NULL AND actual_minor IS NOT NULL AND currency IS NOT NULL
+         AND related_reimbursement_id IS NULL AND related_reimbursement_status IS NULL)
+        OR
+        (code = 'duplicate_reimbursement'
+         AND expected_minor IS NULL AND actual_minor IS NULL AND currency IS NULL
+         AND related_reimbursement_id IS NOT NULL
+         AND related_reimbursement_status IN ('submitted', 'reimbursed'))
+    ),
+    UNIQUE (tenant_id, reimbursement_id, finding_key),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE INDEX reimbursement_findings_reimbursement_idx
+ON reimbursement_policy_findings (tenant_id, reimbursement_id, code, finding_key);
+
+CREATE TABLE reimbursement_status_decisions (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    reimbursement_id TEXT NOT NULL,
+    actor_user_id TEXT NOT NULL,
+    previous_status TEXT,
+    desired_status TEXT NOT NULL,
+    expected_version INTEGER NOT NULL,
+    result_version INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    audit_event_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, reimbursement_id)
+        REFERENCES reimbursements(tenant_id, id)
+        DEFERRABLE INITIALLY DEFERRED,
+    FOREIGN KEY (tenant_id, actor_user_id) REFERENCES memberships(tenant_id, user_id),
+    FOREIGN KEY (tenant_id, audit_event_id) REFERENCES audit_events(tenant_id, id),
+    CHECK (previous_status IS NULL OR previous_status IN ('submitted', 'reimbursed', 'rejected')),
+    CHECK (desired_status IN ('submitted', 'reimbursed', 'rejected')),
+    CHECK (expected_version >= 0 AND result_version = expected_version + 1),
+    CHECK (action IN ('submit', 'mark_reimbursed', 'reject', 'reopen')),
+    CHECK (
+        (action = 'submit' AND previous_status IS NULL AND desired_status = 'submitted'
+         AND expected_version = 0 AND result_version = 1)
+        OR
+        (action = 'mark_reimbursed' AND previous_status = 'submitted' AND desired_status = 'reimbursed'
+         AND expected_version >= 1)
+        OR
+        (action = 'reject' AND previous_status = 'submitted' AND desired_status = 'rejected'
+         AND expected_version >= 1)
+        OR
+        (action = 'reopen' AND previous_status IN ('reimbursed', 'rejected') AND desired_status = 'submitted'
+         AND expected_version >= 1)
+    ),
+    CHECK (length(idempotency_key) BETWEEN 8 AND 128),
+    CHECK (instr(idempotency_key, ' ') = 0
+        AND instr(idempotency_key, char(9)) = 0
+        AND instr(idempotency_key, char(10)) = 0
+        AND instr(idempotency_key, char(13)) = 0),
+    CHECK (length(request_hash) = 64 AND request_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK (reason = trim(reason) AND length(reason) BETWEEN 1 AND 500),
+    UNIQUE (tenant_id, idempotency_key),
+    UNIQUE (tenant_id, reimbursement_id, result_version),
+    UNIQUE (tenant_id, audit_event_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE TRIGGER reimbursements_creation_scope
+BEFORE INSERT ON reimbursements
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM trips trip
+    JOIN memberships membership
+      ON membership.tenant_id = trip.tenant_id
+     AND membership.user_id = NEW.created_by_user_id
+     AND membership.status = 'active'
+    WHERE trip.tenant_id = NEW.tenant_id
+      AND trip.id = NEW.trip_id
+      AND trip.deleted_at IS NULL
+      AND NEW.trip_destination = trip.destination
+      AND NEW.trip_start_date = trip.start_date
+      AND NEW.trip_end_date = trip.end_date
+      AND NEW.status = 'submitted'
+      AND NEW.version = 1
+)
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_creation_scope_mismatch');
+END;
+
+CREATE TRIGGER reimbursements_immutable_fields
+BEFORE UPDATE OF id, tenant_id, trip_id, trip_destination, trip_start_date, trip_end_date,
+                 policy_rule_version, snapshot_hash, created_by_user_id,
+                 created_by_decision_id, created_at
+ON reimbursements
+WHEN NEW.id IS NOT OLD.id
+  OR NEW.tenant_id IS NOT OLD.tenant_id
+  OR NEW.trip_id IS NOT OLD.trip_id
+  OR NEW.trip_destination IS NOT OLD.trip_destination
+  OR NEW.trip_start_date IS NOT OLD.trip_start_date
+  OR NEW.trip_end_date IS NOT OLD.trip_end_date
+  OR NEW.policy_rule_version IS NOT OLD.policy_rule_version
+  OR NEW.snapshot_hash IS NOT OLD.snapshot_hash
+  OR NEW.created_by_user_id IS NOT OLD.created_by_user_id
+  OR NEW.created_by_decision_id IS NOT OLD.created_by_decision_id
+  OR NEW.created_at IS NOT OLD.created_at
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_immutable');
+END;
+
+CREATE TRIGGER reimbursements_status_update_scope
+BEFORE UPDATE OF status, version, updated_at ON reimbursements
+WHEN NOT (
+    NEW.version = OLD.version + 1
+    AND NEW.status <> OLD.status
+    AND EXISTS (
+        SELECT 1
+        FROM reimbursement_status_decisions decision
+        WHERE decision.tenant_id = OLD.tenant_id
+          AND decision.reimbursement_id = OLD.id
+          AND decision.previous_status = OLD.status
+          AND decision.desired_status = NEW.status
+          AND decision.expected_version = OLD.version
+          AND decision.result_version = NEW.version
+          AND decision.created_at = NEW.updated_at
+    )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_status_decision_required');
+END;
+
+CREATE TRIGGER reimbursements_delete_forbidden
+BEFORE DELETE ON reimbursements
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_history_required');
+END;
+
+CREATE TRIGGER reimbursement_items_creation_scope
+BEFORE INSERT ON reimbursement_items
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM reimbursements reimbursement
+    JOIN trip_fact_assignments assignment
+      ON assignment.tenant_id = reimbursement.tenant_id
+     AND assignment.id = NEW.trip_fact_assignment_id
+     AND assignment.trip_id = reimbursement.trip_id
+     AND assignment.ended_at IS NULL
+    LEFT JOIN payments payment
+      ON payment.tenant_id = assignment.tenant_id
+     AND payment.id = assignment.payment_id
+     AND payment.deleted_at IS NULL
+    LEFT JOIN invoices invoice
+      ON invoice.tenant_id = assignment.tenant_id
+     AND invoice.id = assignment.invoice_id
+     AND invoice.deleted_at IS NULL
+    WHERE reimbursement.tenant_id = NEW.tenant_id
+      AND reimbursement.id = NEW.reimbursement_id
+      AND reimbursement.status = 'submitted'
+      AND (
+          (NEW.fact_type = 'payment'
+           AND NEW.payment_id = assignment.payment_id AND NEW.invoice_id IS NULL
+           AND payment.id IS NOT NULL
+           AND NEW.display_name = payment.merchant
+           AND NEW.business_date = payment.business_date
+           AND NEW.amount_minor = payment.amount_minor AND NEW.currency = payment.currency)
+          OR
+          (NEW.fact_type = 'invoice'
+           AND NEW.invoice_id = assignment.invoice_id AND NEW.payment_id IS NULL
+           AND invoice.id IS NOT NULL
+           AND NEW.display_name = invoice.seller_name
+           AND NEW.business_date = invoice.invoice_date
+           AND NEW.amount_minor = invoice.total_minor AND NEW.currency = invoice.currency)
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_item_scope_mismatch');
+END;
+
+CREATE TRIGGER reimbursement_items_immutable
+BEFORE UPDATE ON reimbursement_items
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_item_immutable');
+END;
+
+CREATE TRIGGER reimbursement_items_delete_forbidden
+BEFORE DELETE ON reimbursement_items
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_item_immutable');
+END;
+
+CREATE TRIGGER reimbursement_findings_limit
+BEFORE INSERT ON reimbursement_policy_findings
+WHEN (SELECT count(*) FROM reimbursement_policy_findings
+      WHERE tenant_id = NEW.tenant_id AND reimbursement_id = NEW.reimbursement_id) >= 1000
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_finding_limit_exceeded');
+END;
+
+CREATE TRIGGER reimbursement_findings_creation_scope
+BEFORE INSERT ON reimbursement_policy_findings
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM reimbursement_items item
+    JOIN reimbursements reimbursement
+      ON reimbursement.tenant_id = item.tenant_id
+     AND reimbursement.id = item.reimbursement_id
+    LEFT JOIN reimbursements related
+      ON related.tenant_id = reimbursement.tenant_id
+     AND related.id = NEW.related_reimbursement_id
+    WHERE item.tenant_id = NEW.tenant_id
+      AND item.id = NEW.item_id
+      AND item.reimbursement_id = NEW.reimbursement_id
+      AND reimbursement.policy_rule_version = NEW.rule_version
+      AND (
+          (NEW.code IN ('missing_invoice', 'amount_conflict') AND related.id IS NULL)
+          OR
+          (NEW.code = 'duplicate_reimbursement'
+           AND related.id IS NOT NULL
+           AND related.id <> reimbursement.id
+           AND NEW.related_reimbursement_status = related.status)
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_finding_scope_mismatch');
+END;
+
+CREATE TRIGGER reimbursement_findings_immutable
+BEFORE UPDATE ON reimbursement_policy_findings
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_finding_immutable');
+END;
+
+CREATE TRIGGER reimbursement_findings_delete_forbidden
+BEFORE DELETE ON reimbursement_policy_findings
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_finding_immutable');
+END;
+
+CREATE TRIGGER reimbursement_decisions_scope
+BEFORE INSERT ON reimbursement_status_decisions
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM reimbursements reimbursement
+    JOIN memberships membership
+      ON membership.tenant_id = reimbursement.tenant_id
+     AND membership.user_id = NEW.actor_user_id
+     AND membership.status = 'active'
+    JOIN audit_events audit
+      ON audit.tenant_id = reimbursement.tenant_id
+     AND audit.id = NEW.audit_event_id
+     AND audit.resource_type = 'reimbursement'
+     AND audit.resource_id = reimbursement.id
+    WHERE reimbursement.tenant_id = NEW.tenant_id
+      AND reimbursement.id = NEW.reimbursement_id
+      AND (
+          (NEW.action = 'submit'
+           AND reimbursement.created_by_user_id = NEW.actor_user_id
+           AND reimbursement.created_by_decision_id = NEW.id
+           AND reimbursement.status = 'submitted' AND reimbursement.version = 1
+           AND NEW.previous_status IS NULL AND NEW.desired_status = 'submitted'
+           AND NEW.expected_version = 0 AND NEW.result_version = 1
+           AND audit.action = 'reimbursement_submitted'
+           AND (SELECT count(*) FROM reimbursement_items item
+                WHERE item.tenant_id = reimbursement.tenant_id
+                  AND item.reimbursement_id = reimbursement.id) BETWEEN 1 AND 200)
+          OR
+          (NEW.action <> 'submit'
+           AND NEW.previous_status = reimbursement.status
+           AND NEW.expected_version = reimbursement.version
+           AND NEW.result_version = reimbursement.version + 1
+           AND audit.action = 'reimbursement_status_changed')
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_decision_scope_mismatch');
+END;
+
+CREATE TRIGGER reimbursement_decisions_apply_status
+AFTER INSERT ON reimbursement_status_decisions
+WHEN NEW.action <> 'submit'
+BEGIN
+    UPDATE reimbursements
+    SET status = NEW.desired_status,
+        version = NEW.result_version,
+        updated_at = NEW.created_at
+    WHERE tenant_id = NEW.tenant_id
+      AND id = NEW.reimbursement_id
+      AND status = NEW.previous_status
+      AND version = NEW.expected_version;
+
+    SELECT CASE WHEN changes() <> 1
+        THEN RAISE(ABORT, 'reimbursement_status_stale')
+    END;
+END;
+
+CREATE TRIGGER reimbursement_decisions_immutable
+BEFORE UPDATE ON reimbursement_status_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_decision_immutable');
+END;
+
+CREATE TRIGGER reimbursement_decisions_delete_forbidden
+BEFORE DELETE ON reimbursement_status_decisions
+BEGIN
+    SELECT RAISE(ABORT, 'reimbursement_decision_immutable');
 END;
 
 CREATE TRIGGER fact_field_origins_same_claim

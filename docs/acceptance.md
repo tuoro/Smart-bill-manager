@@ -1,6 +1,6 @@
 # 验收标准
 
-状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2 已完成（2026-08-31）；M3 邮箱归档与行程归属切片已完成（2026-08-31）
+状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2、M3 已完成（2026-08-31）
 硬边界：已达成共识
 量化指标：产品负责人已于 2026-08-27 批准当前数值
 
@@ -351,6 +351,26 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-08-31 通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，7 个 Vitest 文件共 27 项测试通过；邮箱、既有状态矩阵与行程归属浏览器组件场景 24 / 24 通过，其中 3 项新增行程场景覆盖冲突恢复、严格可空请求、四角色、键盘及 768px/384px 回流；关键不变量 92 / 92（100%）通过，其中新增 9 个行程映射；领域/应用层覆盖率 85.53%（2,594 / 3,033），基础设施/传输层覆盖率 74.07%（3,016 / 4,072）。本轮只使用纯合成数据，未调用真实 Provider、未连接真实邮箱或外部账号。可机读摘要见 `tests/evidence/m3/trip-attribution-gate-summary.json`。
 
+### M3 第三切片：报销快照、状态历史与确定性政策提示
+
+本切片以 `docs/decisions/0016-reimbursement-workflow-policy-findings.md` 为冻结决策。实现与验收只使用 confirmed Payment/Invoice、Trip、活动本地 Link 和纯合成业务数据；不得调用模型、读取邮件正文、连接真实外部报销系统或创建绕过 Claim 的新 Fact。
+
+- 预检只接受同一未删除 Trip 的 1～200 个唯一活动 TripFactAssignment ID；Assignment 必须对应未删除 Payment/Invoice。空、重复、错误 Trip、已终止、跨租户、已删除和第 201 项均明确失败，不自动移除或截断。
+- `reimbursement-policy/1` 唯一产生三类 Finding：Payment 没有选中 Link 发票时 `missing_invoice`；有选中相反类型 Link 但其金额合计不等于该 Fact 总额时 `amount_conflict`；同一 Fact 已在其他 submitted/reimbursed 记录时 `duplicate_reimbursement`。rejected 不计重复；Invoice 独立存在不产生“缺少支付”。
+- 金额只读取整数最小单位和活动 PaymentInvoiceLink；混合币种必须按币种分别汇总，禁止换汇或相加。Finding key、规范选择顺序、Finding 顺序与 `snapshot_hash` 在相同输入下必须稳定。
+- 预检不落库。提交回传同一选择、64 位 `expected_snapshot_hash`、完整且恰好相等的 `acknowledged_finding_keys`、1～500 字符理由和幂等键；事务内用同一规则重算。遗漏/伪造 Finding、选择/Link/其他报销状态变化或超过 1,000 Finding 全部零写入。
+- 成功提交必须原子创建一条 submitted Reimbursement、1～200 个不可变 Item、完整 Finding、submit Decision 和安全 AuditEvent。Item 冻结 Trip/Assignment/Fact 显示与金额快照但不参与当前 Fact/余额/归属计算；软删除来源后历史仍可解释并标明来源已删除。
+- 状态图只允许 submitted 到 reimbursed/rejected，以及两个终态到 submitted 重新打开；同一 Trip 同时最多一个 submitted。每次变化提交期望状态、期望 version、理由和幂等键，并原子追加 Decision/AuditEvent 与更新状态/version；同状态、非法跨越、陈旧和并发竞争零写入。
+- 创建和状态幂等身份覆盖全部规范请求；相同键同请求返回原 Reimbursement/Decision 且 `replayed=true`，同键改变 Trip、选择、快照、确认、状态、版本或理由返回 `idempotency_key_conflict`。Decision、Item、Finding 与 Reimbursement 不得删除，历史创建字段不可更新。
+- API 必须实现严格 JSON/CSRF 的预检与提交、默认 50/最大 100 的不透明列表游标、详情历史和状态决定；错误不得泄露 SQL、跨租户存在性、理由、金额、地点、Provider 或邮件数据。
+- `reimbursements.read` 允许 Owner/Finance/Viewer；`reimbursements.manage` 只允许 Owner/Finance。Reviewer 不能列表、详情、预检或写入；四角色、跨租户和真实外部 ID 拒绝均有测试。
+- Web 必须覆盖 Trip/Assignment 显式选择、分页、无项目、无提示、三类提示、混合币种、完整确认门禁、提交、状态变化/重新打开、详情历史、来源已删除、快照/版本冲突保留、只读、加载/失败/离线和权限不足。键盘、768px 与 384px 等效 200% 回流不能丢失选择、提示、确认、理由或动作。
+- `reimbursement_submitted` 与 `reimbursement_status_changed` safe metadata 只允许动作、前后状态和 Item/Finding 数量；不得记录 Trip/Fact/Assignment ID、地点、日期、名称、金额、币种、理由或 Finding 明细。
+
+最小纯合成场景固定包含：空/重复/201 个 Assignment、错误 Trip、已终止/删除/跨租户；Payment 无发票、选择外发票、全额/部分/多对多 Link、Invoice 单独存在、混合币种；其他 submitted/reimbursed/rejected 与多条重复 Finding；稳定排序/key/hash、完整/遗漏/多余确认、Link/Assignment/报销状态陈旧；首次提交、严格重放/改请求、同 Trip 并发；submitted 到两终态、两终态重新打开、非法/同状态/陈旧版本、重新打开唯一冲突；Item/Finding/Decision 不可变、软删除后历史、安全审计、列表/详情游标；四角色、严格 JSON/CSRF、Web 键盘和响应式。每个失败事务同时断言 Reimbursement、Item、Finding、Decision、AuditEvent 和当前状态/version 均无部分变化。
+
+验收结果：2026-08-31 通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，8 个 Vitest 文件共 30 项测试通过；M1/M2 状态矩阵与 M3 三个工作区浏览器组件场景 29 / 29 通过，其中 5 项报销场景覆盖三类提示、混合币种、无提示、快照/版本冲突、四角色、键盘及 768px/384px 回流；关键不变量 104 / 104（100%）通过；领域/应用层覆盖率 85.42%（2,900 / 3,395），基础设施/传输层覆盖率 75.13%（3,417 / 4,548）。本轮只使用纯合成数据，未调用真实 Provider、未连接真实邮箱或外部账号。可机读摘要见 `tests/evidence/m3/reimbursement-workflow-gate-summary.json`，M3 收口见 `tests/evidence/m3/m3-closure-gate-summary.json`。
+
 ## 八、租户与安全验收
 
 ### 租户
@@ -359,7 +379,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 - 数据访问接口必须显式接收租户上下文，不能从隐式全局状态推断。
 - 每个读写、下载、预览、重试、取消和确认入口都有跨租户拒绝测试。
 - 资源是否存在的差异不能向其他租户泄露。
-- `owner`、`finance`、`reviewer`、`viewer` 的每个允许与拒绝单元格都必须有权限测试；reviewer 可处理当前审核资料和候选摘要，但不能列出 Payment/Invoice/Trip，viewer 则相反。Trip 归属写入只允许 owner/finance。
+- `owner`、`finance`、`reviewer`、`viewer` 的每个允许与拒绝单元格都必须有权限测试；reviewer 可处理当前审核资料和候选摘要，但不能列出 Payment/Invoice/Trip 或 Reimbursement，viewer 则相反。Trip 归属和 Reimbursement 写入只允许 owner/finance。
 - 停用或降级最后一个 active owner 必须失败；suspended Membership 不能产生 TenantContext。
 - 空库 `bootstrap-owner` 只成功一次并原子创建 User/Tenant/active owner；密码不得出现在 argv、环境、日志或数据库明文字段。非空库执行、HTTP 访问和事务故障注入均必须失败且不留下半成品。
 
@@ -449,6 +469,8 @@ M2 第四切片不增加服务端批量实现；新增关键分支为：独立�
 M2 第五切片新增关键分支为：anchor-scoped 活动计划 hash、完整期望计划与请求 hash、补充/撤销/替换差异、零金额 anchor 与双方余额、陈旧和无变化零写入、严格幂等重放、不可变 Adjustment/Link 来源、安全审计 metadata、四角色权限、跨租户/删除/币种/日期边界、最后余额与 Fact 删除竞态、200 项显式上限，以及 HTTP 严格 JSON/CSRF/路径边界。它们进入 `tests/critical-invariants.tsv`，最终 72 / 72（100%）通过；Web 的完整计划、加载/空目标、撤销全部、冲突保留草稿、权限、键盘与响应式边界由单元测试和浏览器矩阵覆盖。
 
 M3 第二切片新增关键分支为：Trip 根区段互斥、最小字段与日期倒置、Trip 仍经人工 Review 创建、Trip 确认不接受金额关联计划、完整重复决定、Trip 字段来源；`trip-attribution/1` 日期/邻近/活动 PaymentInvoiceLink 原因；单 Fact 活动归属唯一、assign/move/unassign 期望快照、严格幂等、同 Fact 并发、不可变 Decision/Link、Fact 删除终止、安全审计、三种游标视图、四角色权限与跨租户边界。它们已逐项进入 `tests/critical-invariants.tsv`，最终 92 / 92（100%）通过；Web 的严格可空请求、冲突草稿保留、角色、键盘和响应式边界由单元测试与浏览器矩阵覆盖。
+
+M3 第三切片新增关键分支为：Assignment 选择归属/活动/上限，三类 `reimbursement-policy/1` Finding、稳定 key/hash、完整 Finding 确认、混合币种分组、提交重算、同 Trip submitted 唯一、创建/状态严格幂等、状态图/版本并发、不可变 Item/Finding/Decision、软删除后历史、安全审计、列表/详情游标、四角色权限与跨租户边界。它们已逐项进入 `tests/critical-invariants.tsv`，最终 104 / 104（100%）通过；Web 的选择、提示确认、冲突草稿保留、只读、键盘和响应式边界由单元测试与浏览器矩阵覆盖。
 
 ## 十三、M1 最小场景矩阵
 

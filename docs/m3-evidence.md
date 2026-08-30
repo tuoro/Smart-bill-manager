@@ -1,6 +1,6 @@
 # M3 分切片验收证据
 
-状态：前两个切片通过；M3 继续推进
+状态：三个切片全部通过；M3 已完成
 
 更新日期：2026-08-31
 
@@ -72,8 +72,44 @@
 - 工作区和 75 个精确暂存文件的 diff 检查通过，最大暂存文件为 91,199 字节的既有集成测试；高置信密钥前缀、私有资产路径、二进制/大文件、生成/临时产物和项目进程残留检查均通过。宿主只保留与本项目无关的 `shenlun` 容器，本轮未触碰。
 - 机读摘要见 `tests/evidence/m3/trip-attribution-gate-summary.json`；只记录纯合成场景、聚合门禁与安全元数据。
 
-## 当前边界与下一断点
+## 第二切片边界与当时断点
 
 - 本切片未调用真实 Provider、未发送真实图片、未执行模型正确率正式评测，也未安装或恢复本地 OCR、模型缓存或新依赖。
 - 未连接真实邮箱、云服务或外部账号，未创建或变更凭据，未推送、部署、发布或创建远端资源。
-- 下一断点是先冻结报销状态与确定性冲突提示的范围、数据模型、失败边界与验收标准，再实施领域、数据库、API、Web 和测试；真实外部联调继续需要重新授权。
+- 第三切片随后按 `docs/decisions/0016-reimbursement-workflow-policy-findings.md` 冻结报销快照、状态历史与确定性政策提示；真实外部联调继续需要重新授权。
+
+## 第三切片：报销快照、状态历史与确定性政策提示
+
+本切片以 ADR-0016 为冻结决策，只使用已确认的纯合成 Payment、Invoice、Trip、活动 Link 和本地数据库数据：
+
+- Reimbursement 不是 Fact，也不修改 Fact、PaymentInvoiceLink 或 TripFactAssignment；用户只能从一个 Trip 的当前活动 Assignment 中显式选择 1～200 项。
+- `reimbursement-policy/1` 只产生缺少选中发票、活动 Link 金额未覆盖 Fact 总额和其他有效报销重复三类确定性 Finding；混合币种独立汇总，rejected 历史不计重复。
+- 预检不落库；提交必须携带当前选择、完整 Finding 确认和 `snapshot_hash`，事务内以同一只读快照重算。Link、Assignment、来源业务日期或相关报销状态变化都会使旧预检显式陈旧。
+- 成功提交原子创建 submitted Reimbursement、不可变 Item/Finding/Decision 与安全 AuditEvent；状态变更通过数据库约束和追加 Decision 原子推进 version，不形成孤立历史。
+- 同一 Trip 最多一个 submitted；创建与状态变更均严格幂等，并对陈旧版本、并发竞争、审计故障、跨租户与软删除历史提供零部分写入或可解释读取。
+- Owner/Finance 可管理，Owner/Finance/Viewer 可读，Reviewer 不可枚举；HTTP 使用严格 JSON、CSRF、UUID、游标与安全不存在性边界。
+
+## 第三切片实现证据
+
+- 领域、SQLite、应用层、HTTP/OpenAPI、生成客户端和独立报销工作区已实现；确认时持久化的 Payment 业务日期是行程、重复和报销规则的唯一日期来源。
+- Finding 身份绑定相关 Link 的完整不可变身份；预检与详情读取使用数据库一致性快照，列表和详情从不可变 Item/Finding/Decision 历史解释软删除来源。
+- 数据库直接约束 Item/Finding/Decision 不可变、Reimbursement 不可删除、状态图/version 推进、同 Trip submitted 唯一和业务日期不可变；不存在旧状态兼容或第二数据源。
+- Web 覆盖显式选择、三类提示、无提示、混合币种、分页、提交、状态变化、冲突草稿保留、来源删除、四角色、加载/失败/离线、键盘和响应式回流。
+
+## 第三切片已执行验收
+
+- 固定 Go 1.26.7 禁网容器：`go test -p=1 -count=1 -timeout 60s ./...`、`go vet ./...` 与 `go build -buildvcs=false ./...` 全部通过；只读复用宿主既有模块缓存，未下载依赖。
+- Web：`npm run check` 通过 OpenAPI 客户端生成、类型检查、ESLint、Prettier、8 个 Vitest 文件共 30 项测试和生产构建。
+- 浏览器组件矩阵：`playwright test e2e/m1-state-matrix.spec.ts e2e/m3-email-sources.spec.ts e2e/m3-trip-attribution.spec.ts e2e/m3-reimbursements.spec.ts` 29 / 29 通过；其中 5 项新增报销场景覆盖 Owner/Finance/Viewer/Reviewer、三类提示、混合币种、无提示、503 恢复、冲突草稿、键盘、768px 与 384px 等效回流。
+- 关键不变量：104 / 104（100%）通过；新增映射覆盖选择上限、三类 Finding、稳定 key/hash、完整确认、混合币种、陈旧重算、创建/状态严格幂等与并发、同 Trip submitted 唯一、不可变历史、读取快照、Payment 业务日期、安全审计、权限/租户和 HTTP 生命周期。
+- 领域/应用层语句覆盖率 85.42%（2,900 / 3,395，门槛 85%）；基础设施/传输层 75.13%（3,417 / 4,548，门槛 70%）。
+- 浏览器场景中有意注入的 503 与冲突先由页面断言可见错误和草稿保留，再执行恢复；它们是已验证失败边界，不被改写为成功。
+- 最终工作区与 51 个精确暂存文件的 diff 检查通过，最大暂存文件为 81,560 字节的 Clean Slate 初始迁移；高置信凭据前缀、私有资产路径、二进制/大文件、生成/临时产物和项目进程残留检查均通过。宿主仅保留与本项目无关的 `shenlun` 容器，本轮未触碰。
+- 机读摘要见 `tests/evidence/m3/reimbursement-workflow-gate-summary.json`；M3 汇总见 `tests/evidence/m3/m3-closure-gate-summary.json`。
+
+## M3 收口与下一断点
+
+- 邮箱本地归档、Trip Fact/归属和报销工作流三个切片均与 ADR-0014～0016 一致，Source/Claim/Fact、人工审核、租户隔离、整数金额、不可变历史和安全审计边界保持不变。
+- 本轮未调用真实 Provider、未发送真实图片、未执行模型正确率正式评测，未连接真实邮箱、云服务或外部账号，未创建或变更凭据，也未安装或恢复本地 OCR、模型缓存或新依赖。
+- M3 完成不代表真实模型正确率、真实邮箱/Provider 联调、部署或发布通过；这些门禁继续明确排除。
+- 下一断点是先冻结 M4 首个本地切片的数据洞察与查询范围、失败边界和验收标准，再实施代码。

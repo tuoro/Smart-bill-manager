@@ -15,6 +15,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -41,23 +42,24 @@ type Config struct {
 }
 
 type Server struct {
-	auth        auth.Service
-	health      HealthChecker
-	readiness   ReadinessChecker
-	ids         system.IDGenerator
-	logger      *slog.Logger
-	config      Config
-	upload      documents.UploadService
-	documents   documents.QueryService
-	jobActions  documents.ActionService
-	deletions   documents.DeletionService
-	providers   providers.Service
-	reviews     reviews.Service
-	facts       reviews.FactService
-	allocations allocations.Service
-	emails      applicationemails.Service
-	trips       trips.Service
-	spa         http.Handler
+	auth           auth.Service
+	health         HealthChecker
+	readiness      ReadinessChecker
+	ids            system.IDGenerator
+	logger         *slog.Logger
+	config         Config
+	upload         documents.UploadService
+	documents      documents.QueryService
+	jobActions     documents.ActionService
+	deletions      documents.DeletionService
+	providers      providers.Service
+	reviews        reviews.Service
+	facts          reviews.FactService
+	allocations    allocations.Service
+	emails         applicationemails.Service
+	trips          trips.Service
+	reimbursements reimbursements.Service
+	spa            http.Handler
 }
 
 func NewServer(
@@ -72,6 +74,7 @@ func NewServer(
 	allocationService allocations.Service,
 	emailService applicationemails.Service,
 	tripService trips.Service,
+	reimbursementService reimbursements.Service,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -82,23 +85,24 @@ func NewServer(
 		return nil, fmt.Errorf("configure web application: %w", err)
 	}
 	return &Server{
-		auth:        authService,
-		upload:      uploadService,
-		documents:   documentQueries,
-		jobActions:  jobActions,
-		deletions:   documentDeletions,
-		providers:   providerService,
-		reviews:     reviewService,
-		facts:       factService,
-		allocations: allocationService,
-		emails:      emailService,
-		trips:       tripService,
-		health:      health,
-		readiness:   readiness,
-		ids:         system.IDGenerator{},
-		logger:      logger,
-		config:      config,
-		spa:         spa,
+		auth:           authService,
+		upload:         uploadService,
+		documents:      documentQueries,
+		jobActions:     jobActions,
+		deletions:      documentDeletions,
+		providers:      providerService,
+		reviews:        reviewService,
+		facts:          factService,
+		allocations:    allocationService,
+		emails:         emailService,
+		trips:          tripService,
+		reimbursements: reimbursementService,
+		health:         health,
+		readiness:      readiness,
+		ids:            system.IDGenerator{},
+		logger:         logger,
+		config:         config,
+		spa:            spa,
 	}, nil
 }
 
@@ -136,6 +140,11 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("DELETE /api/v1/trips/{trip_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteTripHandler))))
 	router.Handle("GET /api/v1/trips/{trip_id}/attribution-candidates", s.requireSession(http.HandlerFunc(s.listTripAttributionCandidatesHandler)))
 	router.Handle("POST /api/v1/trip-assignments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.assignTripFactHandler))))
+	router.Handle("POST /api/v1/reimbursement-previews", s.requireSession(s.requireCSRF(http.HandlerFunc(s.previewReimbursementHandler))))
+	router.Handle("POST /api/v1/reimbursements", s.requireSession(s.requireCSRF(http.HandlerFunc(s.submitReimbursementHandler))))
+	router.Handle("GET /api/v1/reimbursements", s.requireSession(http.HandlerFunc(s.listReimbursementsHandler)))
+	router.Handle("GET /api/v1/reimbursements/{reimbursement_id}", s.requireSession(http.HandlerFunc(s.getReimbursementHandler)))
+	router.Handle("POST /api/v1/reimbursements/{reimbursement_id}/status-decisions", s.requireSession(s.requireCSRF(http.HandlerFunc(s.changeReimbursementStatusHandler))))
 	router.Handle("GET /api/v1/allocations/{fact_type}/{fact_id}", s.requireSession(http.HandlerFunc(s.getAllocationWorkspaceHandler)))
 	router.Handle("POST /api/v1/allocations/{fact_type}/{fact_id}/adjustments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.adjustAllocationHandler))))
 	router.Handle("GET /api/v1/provider-configs", s.requireSession(http.HandlerFunc(s.listProviderConfigsHandler)))

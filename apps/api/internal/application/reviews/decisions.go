@@ -424,6 +424,14 @@ func (s Service) buildPaymentDraft(snapshot ports.ReviewSnapshot) (*ports.Paymen
 	if draft.SourceTimezone, err = fieldString(fields, "source_timezone"); err != nil {
 		return nil, nil, err
 	}
+	draft.BusinessDate, err = domain.PaymentBusinessDate(draft.TransactionTime, draft.SourceTimezone)
+	if err != nil {
+		return nil, nil, domain.NewRuleError(
+			"invalid_payment_business_date",
+			"支付交易时间与来源时区不能生成业务日期",
+			domain.ErrInvalidInput,
+		)
+	}
 	draft.PaymentMethod = optionalFieldString(fields, "payment_method")
 	draft.OrderNumber = optionalFieldString(fields, "order_number")
 	draft.Category = optionalFieldString(fields, "category")

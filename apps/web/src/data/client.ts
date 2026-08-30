@@ -14,6 +14,17 @@ export type TripAttributionCandidate = components['schemas']['TripAttributionCan
 export type TripAttributionPage = components['schemas']['TripAttributionPage']
 export type TripAssignmentRequest = components['schemas']['TripAssignmentRequest']
 export type TripAssignmentResult = components['schemas']['TripAssignmentResult']
+export type ReimbursementStatus = components['schemas']['ReimbursementStatus']
+export type ReimbursementPolicyItem = components['schemas']['ReimbursementPolicyItem']
+export type ReimbursementPolicyFinding = components['schemas']['ReimbursementPolicyFinding']
+export type ReimbursementPolicySnapshot = components['schemas']['ReimbursementPolicySnapshot']
+export type ReimbursementPreviewRequest = components['schemas']['ReimbursementPreviewRequest']
+export type ReimbursementSubmissionRequest = components['schemas']['ReimbursementSubmissionRequest']
+export type ReimbursementSummary = components['schemas']['ReimbursementSummary']
+export type ReimbursementPage = components['schemas']['ReimbursementPage']
+export type ReimbursementDetail = components['schemas']['ReimbursementDetail']
+export type ReimbursementStatusRequest = components['schemas']['ReimbursementStatusRequest']
+export type ReimbursementMutationResult = components['schemas']['ReimbursementMutationResult']
 export type AllocationFactType = components['schemas']['AllocationFactType']
 export type AllocationWorkspace = components['schemas']['AllocationWorkspace']
 export type AllocationAdjustmentRequest = components['schemas']['AllocationAdjustmentRequest']
@@ -190,6 +201,41 @@ export const api = {
     idempotencyKey: string,
   ): Promise<TripAssignmentResult> {
     return request('/trip-assignments', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+    })
+  },
+  reimbursementPreview(body: ReimbursementPreviewRequest): Promise<ReimbursementPolicySnapshot> {
+    return request('/reimbursement-previews', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+  reimbursements(cursor = '', limit = 50): Promise<ReimbursementPage> {
+    const query = new URLSearchParams({ limit: String(limit) })
+    if (cursor) query.set('cursor', cursor)
+    return request(`/reimbursements?${query.toString()}`)
+  },
+  submitReimbursement(
+    body: ReimbursementSubmissionRequest,
+    idempotencyKey: string,
+  ): Promise<ReimbursementMutationResult> {
+    return request('/reimbursements', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(body),
+    })
+  },
+  reimbursement(reimbursementId: string): Promise<ReimbursementDetail> {
+    return request(`/reimbursements/${encodeURIComponent(reimbursementId)}`)
+  },
+  changeReimbursementStatus(
+    reimbursementId: string,
+    body: ReimbursementStatusRequest,
+    idempotencyKey: string,
+  ): Promise<ReimbursementMutationResult> {
+    return request(`/reimbursements/${encodeURIComponent(reimbursementId)}/status-decisions`, {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(body),

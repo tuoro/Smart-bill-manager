@@ -276,7 +276,7 @@ func (s *Store) listReviewCandidates(ctx context.Context, tenantID, claimSetID s
 		)
 		SELECT c.id, 'payment', p.id, p.amount_minor,
 		       coalesce(a.allocated_minor, 0), p.amount_minor - coalesce(a.allocated_minor, 0),
-		       p.currency, p.transaction_time, p.source_timezone, p.merchant,
+		       p.currency, p.business_date, '', p.merchant,
 		       p.deleted_at IS NULL AND p.amount_minor > coalesce(a.allocated_minor, 0),
 		       c.name_exact, c.date_distance_days, c.reason_codes_json
 		FROM payment_invoice_link_candidates c
@@ -321,12 +321,6 @@ func (s *Store) listReviewCandidates(ctx context.Context, tenantID, claimSetID s
 			return nil, fmt.Errorf("scan review candidate: %w", err)
 		}
 		item.BusinessDate = temporal
-		if item.TargetType == domain.DocumentPayment {
-			item.BusinessDate, err = paymentBusinessDate(temporal, timezoneName)
-			if err != nil {
-				return nil, err
-			}
-		}
 		if err := json.Unmarshal([]byte(reasons), &item.ReasonCodes); err != nil {
 			return nil, fmt.Errorf("decode candidate reasons: %w", err)
 		}
@@ -429,16 +423,4 @@ func (s *Store) GetRejectReplay(
 		return ports.RejectReplay{}, domain.NewRuleError("idempotency_key_conflict", "幂等键已用于其他请求", domain.ErrConflict)
 	}
 	return replay, nil
-}
-
-func paymentBusinessDate(transactionTime, timezoneName string) (string, error) {
-	instant, err := time.Parse(time.RFC3339Nano, transactionTime)
-	if err != nil {
-		return "", fmt.Errorf("parse payment transaction time: %w", err)
-	}
-	location, err := time.LoadLocation(timezoneName)
-	if err != nil {
-		return "", fmt.Errorf("load payment source timezone: %w", err)
-	}
-	return instant.In(location).Format("2006-01-02"), nil
 }

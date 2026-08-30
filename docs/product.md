@@ -1,6 +1,6 @@
 # 产品基线
 
-状态：M0、M1、M2 已完成；M3 邮箱归档与行程归属两个切片已完成，下一切片待冻结
+状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
 产品名称：Smart Bill Manager
 产品形态：自托管优先、架构兼容未来托管服务的 AI 财务单据工作台
 
@@ -39,7 +39,7 @@ Source -> Claim -> Fact
 
 - Source 在其生命周期内保留原始文档身份和不可变哈希，不能被新上传覆盖。
 - AI 按 `bill-visible-text/2` 选择约定支付、发票或行程字段并只抄票面原文与页码；`claim-mapper/4` 在本地确定性组装候选值、Evidence、版本和字段级校验结果。
-- Fact 只保存已经被用户接受的正式支付、发票、行程或报销数据。
+- Fact 只保存从 Claim 经用户确认的正式 Payment、Invoice 或 Trip。Reimbursement 是这些 confirmed Fact 上的独立人工工作流快照，不是绕过 Claim 创建的新 Fact。
 
 ### 2. 只打扰真正需要判断的内容
 
@@ -110,6 +110,14 @@ Source -> Claim -> Fact
 3. 行程页对已确认 Payment/Invoice 按业务日期和既有支付—发票 Link 给出可解释建议，同时保留全部 Fact 的分页入口；
 4. Owner/Finance 为单个 Fact 填写理由并显式分配、移动或撤销行程归属；系统以期望当前 Link 防止覆盖并发决定；
 5. 历史归属不被原地改写，删除 Fact 只终止活动 Link。模型不自动接受建议，归属不改变金额分配或正式字段。
+
+## M3 报销工作流旅程
+
+1. Owner/Finance 选择一个 Trip，并从当前活动归属中显式勾选本次报销包含的 Payment/Invoice；系统不默认全选、不改变原 Fact 或 Link；
+2. 本地 `reimbursement-policy/1` 对当前选择给出缺少发票、选中 Link 金额未覆盖 Fact 总额和同一 Fact 已在其他有效报销中的确定性提示，并按币种分别汇总；
+3. 用户查看完整提示、显式确认当前全部 Finding 并填写理由；服务端在事务内重算快照，变化时保留草稿并要求刷新，不自动忽略提示；
+4. 成功后系统保存不可变 Trip/Assignment/Fact 快照、Finding、提交决定与 AuditEvent，当前状态为“已提交”；
+5. Owner/Finance 以期望状态和版本把记录标记为“已报销”或“已驳回”，也可带理由重新打开；每次变化追加历史，不覆盖旧决定。Viewer 只读，Reviewer 不可枚举。
 
 ## 产品成功的判断
 

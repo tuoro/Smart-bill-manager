@@ -132,6 +132,7 @@ type PaymentDraft struct {
 	Merchant        string
 	TransactionTime string
 	SourceTimezone  string
+	BusinessDate    string
 	PaymentMethod   *string
 	OrderNumber     *string
 	Category        *string

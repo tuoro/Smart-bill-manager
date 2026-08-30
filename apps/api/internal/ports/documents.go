@@ -118,6 +118,7 @@ type Transaction interface {
 	AllocationTransaction
 	EmailTransaction
 	TripAssignmentTransaction
+	ReimbursementTransaction
 	RequestJobCancellation(
 		ctx context.Context,
 		tenantID, jobID, actorUserID, decisionID, idempotencyKey string,

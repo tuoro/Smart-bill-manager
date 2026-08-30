@@ -468,6 +468,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reimbursement-previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["previewReimbursement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reimbursements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listReimbursements"];
+        put?: never;
+        post: operations["submitReimbursement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reimbursements/{reimbursement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getReimbursement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reimbursements/{reimbursement_id}/status-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeReimbursementStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/allocations/{fact_type}/{fact_id}": {
         parameters: {
             query?: never;
@@ -1082,6 +1146,176 @@ export interface components {
             assignment_id?: string;
             replayed: boolean;
         };
+        /** @enum {string} */
+        ReimbursementStatus: "submitted" | "reimbursed" | "rejected";
+        ReimbursementTripSnapshot: {
+            /** Format: uuid */
+            id: string;
+            destination: string;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+        };
+        ReimbursementPolicyItem: {
+            /** Format: uuid */
+            assignment_id: string;
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            fact_id: string;
+            display_name: string;
+            /** Format: date */
+            business_date: string;
+            /** Format: int64 */
+            amount_minor: number;
+            currency: components["schemas"]["Currency"];
+        };
+        ReimbursementCurrencyTotal: {
+            currency: components["schemas"]["Currency"];
+            /** Format: int64 */
+            amount_minor: number;
+        };
+        ReimbursementPolicyFinding: {
+            finding_key: string;
+            /** @enum {string} */
+            code: "missing_invoice" | "amount_conflict" | "duplicate_reimbursement";
+            /** Format: uuid */
+            assignment_id: string;
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            fact_id: string;
+            /** Format: int64 */
+            expected_minor?: number;
+            /** Format: int64 */
+            actual_minor?: number;
+            currency?: components["schemas"]["Currency"];
+            /** Format: uuid */
+            related_reimbursement_id?: string;
+            related_status?: components["schemas"]["ReimbursementStatus"];
+        };
+        ReimbursementPolicySnapshot: {
+            /** @constant */
+            rule_version: "reimbursement-policy/1";
+            trip: components["schemas"]["ReimbursementTripSnapshot"];
+            items: components["schemas"]["ReimbursementPolicyItem"][];
+            findings: components["schemas"]["ReimbursementPolicyFinding"][];
+            totals_by_currency: components["schemas"]["ReimbursementCurrencyTotal"][];
+            snapshot_hash: string;
+        };
+        ReimbursementPreviewRequest: {
+            /** Format: uuid */
+            trip_id: string;
+            assignment_ids: string[];
+        };
+        ReimbursementSubmissionRequest: {
+            /** Format: uuid */
+            trip_id: string;
+            assignment_ids: string[];
+            expected_snapshot_hash: string;
+            acknowledged_finding_keys: string[];
+            reason: string;
+        };
+        ReimbursementSummary: {
+            /** Format: uuid */
+            id: string;
+            trip: components["schemas"]["ReimbursementTripSnapshot"];
+            trip_deleted: boolean;
+            status: components["schemas"]["ReimbursementStatus"];
+            version: number;
+            item_count: number;
+            finding_count: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ReimbursementPage: {
+            items: components["schemas"]["ReimbursementSummary"][];
+            next_cursor?: string;
+        };
+        ReimbursementItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            assignment_id: string;
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            fact_id: string;
+            source_deleted: boolean;
+            display_name: string;
+            /** Format: date */
+            business_date: string;
+            /** Format: int64 */
+            amount_minor: number;
+            currency: components["schemas"]["Currency"];
+            sort_order: number;
+        };
+        ReimbursementFinding: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            item_id: string;
+            finding_key: string;
+            /** @enum {string} */
+            code: "missing_invoice" | "amount_conflict" | "duplicate_reimbursement";
+            /** Format: int64 */
+            expected_minor?: number;
+            /** Format: int64 */
+            actual_minor?: number;
+            currency?: components["schemas"]["Currency"];
+            /** Format: uuid */
+            related_reimbursement_id?: string;
+            related_status?: components["schemas"]["ReimbursementStatus"];
+        };
+        ReimbursementDecision: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            action: "submit" | "mark_reimbursed" | "reject" | "reopen";
+            previous_status: components["schemas"]["ReimbursementStatus"] | null;
+            desired_status: components["schemas"]["ReimbursementStatus"];
+            expected_version: number;
+            result_version: number;
+            reason: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ReimbursementDetail: {
+            /** Format: uuid */
+            id: string;
+            trip: components["schemas"]["ReimbursementTripSnapshot"];
+            trip_deleted: boolean;
+            status: components["schemas"]["ReimbursementStatus"];
+            version: number;
+            item_count: number;
+            finding_count: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** @constant */
+            rule_version: "reimbursement-policy/1";
+            snapshot_hash: string;
+            totals_by_currency: components["schemas"]["ReimbursementCurrencyTotal"][];
+            items: components["schemas"]["ReimbursementItem"][];
+            findings: components["schemas"]["ReimbursementFinding"][];
+            decisions: components["schemas"]["ReimbursementDecision"][];
+        };
+        ReimbursementStatusRequest: {
+            expected_status: components["schemas"]["ReimbursementStatus"];
+            desired_status: components["schemas"]["ReimbursementStatus"];
+            expected_version: number;
+            reason: string;
+        };
+        ReimbursementMutationResult: {
+            /** Format: uuid */
+            reimbursement_id: string;
+            /** Format: uuid */
+            decision_id: string;
+            status: components["schemas"]["ReimbursementStatus"];
+            version: number;
+            replayed: boolean;
+        };
         ProviderConfig: {
             /** Format: uuid */
             id: string;
@@ -1185,6 +1419,7 @@ export interface components {
         PaymentId: string;
         InvoiceId: string;
         TripId: string;
+        ReimbursementId: string;
         ProviderConfigId: string;
         EmailSourceId: string;
         EmailMessageId: string;
@@ -1998,6 +2233,158 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripAssignmentResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    previewReimbursement: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReimbursementPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description 基于当前活动 Trip 归属、分配 Link 与既有报销状态确定性计算的非持久化快照 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReimbursementPolicySnapshot"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listReimbursements: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前租户内不可变报销快照的稳定游标页 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReimbursementPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    submitReimbursement: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReimbursementSubmissionRequest"];
+            };
+        };
+        responses: {
+            /** @description 相同幂等键与规范请求的稳定重放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReimbursementMutationResult"];
+                };
+            };
+            /** @description 当前选择与完整政策提示已原子快照并提交 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReimbursementMutationResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getReimbursement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reimbursement_id: components["parameters"]["ReimbursementId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 报销快照、确定性提示与完整状态决定历史 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReimbursementDetail"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    changeReimbursementStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                reimbursement_id: components["parameters"]["ReimbursementId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReimbursementStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description 状态已按期望版本转换，或返回相同幂等请求的稳定结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReimbursementMutationResult"];
                 };
             };
             400: components["responses"]["BadRequest"];

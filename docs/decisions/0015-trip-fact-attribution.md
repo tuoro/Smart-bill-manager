@@ -31,7 +31,7 @@ M3 第二切片需要形成正式 Trip，并让已确认的 Payment 与 Invoice 
 
 `trip-attribution/1` 只读取已确认、未删除 Fact：
 
-- Payment 的业务日期是 `transaction_time` 在 `source_timezone` 下的本地日期；Invoice 使用 `invoice_date`；
+- Payment 的业务日期在 Fact 确认时按 `transaction_time` 在 `source_timezone` 下的本地日期计算并持久化为唯一 `business_date`；行程、关联、重复与报销查询只读取该列，不再从 RFC3339 字符串截取或重复换算；Invoice 使用 `invoice_date`；
 - 日期落在 Trip 闭区间内产生 `date_inside_trip`；距开始日前或结束日后不超过 3 个日历日分别产生 `date_within_3_days_before` 或 `date_within_3_days_after`；
 - 与该 Fact 存在活动 PaymentInvoiceLink 的另一端已归属于当前 Trip 时产生 `linked_fact_assigned_to_trip`；
 - 当前已经归属于所选 Trip 时产生 `currently_assigned`。

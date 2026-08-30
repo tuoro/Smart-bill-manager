@@ -36,6 +36,7 @@ import (
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -602,6 +603,425 @@ func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/trips/"+tripID, nil, ownerSession, true, ""), http.StatusNotFound)
 }
 
+func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
+	fixture := newHTTPTestFixture(t)
+	defer fixture.store.Close()
+
+	ownerSession := fixture.login(t, fixture.owner.TenantID)
+	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
+	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
+	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	tripID := newID(t)
+	assignmentID := newID(t)
+	reimbursementID := newID(t)
+	preview := fmt.Sprintf(`{"trip_id":%q,"assignment_ids":[%q]}`, tripID, assignmentID)
+	submission := fmt.Sprintf(
+		`{"trip_id":%q,"assignment_ids":[%q],"expected_snapshot_hash":%q,"acknowledged_finding_keys":[],"reason":"合成报销提交"}`,
+		tripID, assignmentID, strings.Repeat("a", 64),
+	)
+	statusDecision := `{"expected_status":"submitted","desired_status":"reimbursed","expected_version":1,"reason":"合成状态变化"}`
+
+	for _, readable := range []*testSession{ownerSession, financeSession, viewerSession} {
+		response := fixture.request(http.MethodGet, "/api/v1/reimbursements", nil, readable, false, "")
+		assertStatus(t, response, http.StatusOK)
+		if response.Body.String() != "{\"items\":[]}\n" {
+			t.Fatalf("empty reimbursement list = %s", response.Body.String())
+		}
+		assertStatus(t, fixture.request(
+			http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, readable, false, "",
+		), http.StatusNotFound)
+	}
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements", nil, reviewerSession, false, ""), http.StatusForbidden)
+	assertStatus(t, fixture.request(
+		http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, reviewerSession, false, "",
+	), http.StatusForbidden)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements?limit=101", nil, ownerSession, false, ""), http.StatusBadRequest)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements?cursor=%25%25%25", nil, ownerSession, false, ""), http.StatusBadRequest)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements/not-a-uuid", nil, ownerSession, false, ""), http.StatusBadRequest)
+
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(preview), ownerSession, false, "application/json",
+	), http.StatusForbidden)
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(preview[:len(preview)-1]+`,"unknown":true}`), ownerSession, true, "application/json",
+	), http.StatusBadRequest)
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(`{"trip_id":"not-a-uuid","assignment_ids":["also-invalid"]}`), ownerSession, true, "application/json",
+	), http.StatusBadRequest)
+	for _, manager := range []*testSession{ownerSession, financeSession} {
+		assertStatus(t, fixture.request(
+			http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(preview), manager, true, "application/json",
+		), http.StatusNotFound)
+	}
+	for _, denied := range []*testSession{reviewerSession, viewerSession} {
+		assertStatus(t, fixture.request(
+			http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(preview), denied, true, "application/json",
+		), http.StatusForbidden)
+	}
+
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements", strings.NewReader(submission), ownerSession, false,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-no-csrf"},
+	), http.StatusForbidden)
+	for _, manager := range []*testSession{ownerSession, financeSession} {
+		assertStatus(t, fixture.requestWithHeaders(
+			http.MethodPost, "/api/v1/reimbursements", strings.NewReader(submission), manager, true,
+			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-submit-" + manager.csrf},
+		), http.StatusNotFound)
+		assertStatus(t, fixture.requestWithHeaders(
+			http.MethodPost, "/api/v1/reimbursements/"+reimbursementID+"/status-decisions", strings.NewReader(statusDecision), manager, true,
+			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-status-" + manager.csrf},
+		), http.StatusNotFound)
+	}
+	for _, denied := range []*testSession{reviewerSession, viewerSession} {
+		assertStatus(t, fixture.requestWithHeaders(
+			http.MethodPost, "/api/v1/reimbursements", strings.NewReader(submission), denied, true,
+			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-denied-" + denied.csrf},
+		), http.StatusForbidden)
+		assertStatus(t, fixture.requestWithHeaders(
+			http.MethodPost, "/api/v1/reimbursements/"+reimbursementID+"/status-decisions", strings.NewReader(statusDecision), denied, true,
+			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-status-denied-" + denied.csrf},
+		), http.StatusForbidden)
+	}
+}
+
+func TestHTTPReimbursementSuccessfulLifecycleAndTenantIsolation(t *testing.T) {
+	fixture := newHTTPTestFixture(t)
+	defer fixture.store.Close()
+
+	ownerSession := fixture.login(t, fixture.owner.TenantID)
+	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
+	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	activateHTTPTestProvider(t, fixture, ownerSession)
+
+	paymentReview := processHTTPTestReview(
+		t, fixture, ownerSession, "reimbursement-payment.png", color.RGBA{R: 20, G: 90, B: 170, A: 255},
+	)
+	paymentConfirm := fixture.requestWithHeaders(
+		http.MethodPost,
+		"/api/v1/reviews/"+asString(t, paymentReview["job"].(map[string]any)["id"])+"/confirm",
+		bytes.NewReader(httpConfirmPayload(t, paymentReview, true)),
+		ownerSession,
+		true,
+		"application/json",
+		map[string]string{"Idempotency-Key": "reimbursement-http-confirm-payment"},
+	)
+	assertStatus(t, paymentConfirm, http.StatusOK)
+	paymentID := asString(t, decodeMap(t, paymentConfirm)["fact_id"])
+
+	tripReview := processHTTPTestReview(
+		t, fixture, ownerSession, "reimbursement-trip.png", color.RGBA{R: 180, G: 70, B: 25, A: 255},
+	)
+	tripJobID := asString(t, tripReview["job"].(map[string]any)["id"])
+	revisedTrip := fixture.request(
+		http.MethodPost,
+		"/api/v1/reviews/"+tripJobID+"/revisions",
+		bytes.NewReader(httpTripRevisionPayload(t, tripReview)),
+		ownerSession,
+		true,
+		"application/json",
+	)
+	assertStatus(t, revisedTrip, http.StatusCreated)
+	tripReview = decodeMap(t, revisedTrip)
+	tripConfirm := fixture.requestWithHeaders(
+		http.MethodPost,
+		"/api/v1/reviews/"+tripJobID+"/confirm",
+		bytes.NewReader(httpConfirmPayload(t, tripReview, false)),
+		ownerSession,
+		true,
+		"application/json",
+		map[string]string{"Idempotency-Key": "reimbursement-http-confirm-trip"},
+	)
+	assertStatus(t, tripConfirm, http.StatusOK)
+	tripID := asString(t, decodeMap(t, tripConfirm)["fact_id"])
+
+	assignmentPayload, err := json.Marshal(map[string]any{
+		"fact_type": "payment", "fact_id": paymentID, "desired_trip_id": tripID,
+		"expected_assignment_id": nil, "reason": "合成 HTTP 报销归属",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/trip-assignments", bytes.NewReader(assignmentPayload), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-assignment"},
+	)
+	assertStatus(t, assignmentResponse, http.StatusOK)
+	assignmentID := asString(t, decodeMap(t, assignmentResponse)["assignment_id"])
+
+	previewPayload, err := json.Marshal(map[string]any{"trip_id": tripID, "assignment_ids": []string{assignmentID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	previewResponse := fixture.request(
+		http.MethodPost, "/api/v1/reimbursement-previews", bytes.NewReader(previewPayload), ownerSession, true, "application/json",
+	)
+	assertStatus(t, previewResponse, http.StatusOK)
+	preview := decodeMap(t, previewResponse)
+	findings, ok := preview["findings"].([]any)
+	if !ok || len(findings) != 1 || findings[0].(map[string]any)["code"] != domain.ReimbursementFindingMissingInvoice {
+		t.Fatalf("HTTP reimbursement preview findings = %#v", preview["findings"])
+	}
+	totals := preview["totals_by_currency"].([]any)
+	if len(totals) != 1 || totals[0].(map[string]any)["currency"] != "CNY" || asInt(t, totals[0].(map[string]any)["amount_minor"]) != 1234 {
+		t.Fatalf("HTTP reimbursement preview totals = %#v", totals)
+	}
+	findingKey := asString(t, findings[0].(map[string]any)["finding_key"])
+	snapshotHash := asString(t, preview["snapshot_hash"])
+	submissionBody := map[string]any{
+		"trip_id": tripID, "assignment_ids": []string{assignmentID},
+		"expected_snapshot_hash": snapshotHash, "acknowledged_finding_keys": []string{findingKey},
+		"reason": "合成 HTTP 报销提交",
+	}
+	unknownSubmission := make(map[string]any, len(submissionBody)+1)
+	for key, value := range submissionBody {
+		unknownSubmission[key] = value
+	}
+	unknownSubmission["unknown"] = true
+	unknownEncoded, err := json.Marshal(unknownSubmission)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements", bytes.NewReader(unknownEncoded), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-submit-unknown"},
+	), http.StatusBadRequest)
+
+	unacknowledged := make(map[string]any, len(submissionBody))
+	for key, value := range submissionBody {
+		unacknowledged[key] = value
+	}
+	unacknowledged["acknowledged_finding_keys"] = []string{}
+	unacknowledgedEncoded, err := json.Marshal(unacknowledged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unacknowledgedResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements", bytes.NewReader(unacknowledgedEncoded), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-submit-unacknowledged"},
+	)
+	assertStatus(t, unacknowledgedResponse, http.StatusConflict)
+	for _, privateValue := range []string{tripID, paymentID, assignmentID, "1234", "合成 HTTP 报销提交"} {
+		if strings.Contains(unacknowledgedResponse.Body.String(), privateValue) {
+			t.Fatalf("reimbursement error exposed private value %q: %s", privateValue, unacknowledgedResponse.Body.String())
+		}
+	}
+
+	submissionEncoded, err := json.Marshal(submissionBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements", bytes.NewReader(submissionEncoded), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-submit-success"},
+	)
+	assertStatus(t, createdResponse, http.StatusCreated)
+	created := decodeMap(t, createdResponse)
+	reimbursementID := asString(t, created["reimbursement_id"])
+	if created["status"] != "submitted" || asInt(t, created["version"]) != 1 || created["replayed"] != false {
+		t.Fatalf("HTTP reimbursement creation = %#v", created)
+	}
+	replayResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements", bytes.NewReader(submissionEncoded), ownerSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-submit-success"},
+	)
+	assertStatus(t, replayResponse, http.StatusOK)
+	if replay := decodeMap(t, replayResponse); replay["reimbursement_id"] != reimbursementID || replay["replayed"] != true {
+		t.Fatalf("HTTP reimbursement replay = %#v", replay)
+	}
+
+	listResponse := fixture.request(http.MethodGet, "/api/v1/reimbursements?limit=1", nil, viewerSession, false, "")
+	assertStatus(t, listResponse, http.StatusOK)
+	listed := decodeMap(t, listResponse)["items"].([]any)
+	if len(listed) != 1 || listed[0].(map[string]any)["id"] != reimbursementID {
+		t.Fatalf("HTTP reimbursement list = %#v", listed)
+	}
+	detailResponse := fixture.request(http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, viewerSession, false, "")
+	assertStatus(t, detailResponse, http.StatusOK)
+	detail := decodeMap(t, detailResponse)
+	if detail["status"] != "submitted" || asInt(t, detail["version"]) != 1 ||
+		len(detail["items"].([]any)) != 1 || len(detail["findings"].([]any)) != 1 || len(detail["decisions"].([]any)) != 1 {
+		t.Fatalf("HTTP reimbursement detail = %#v", detail)
+	}
+
+	unknownStatus := []byte(`{"expected_status":"submitted","desired_status":"reimbursed","expected_version":1,"reason":"合成状态变化","unknown":true}`)
+	assertStatus(t, fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements/"+reimbursementID+"/status-decisions", bytes.NewReader(unknownStatus), financeSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-status-unknown"},
+	), http.StatusBadRequest)
+	statusBody := []byte(`{"expected_status":"submitted","desired_status":"reimbursed","expected_version":1,"reason":"合成财务完成"}`)
+	statusResponse := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements/"+reimbursementID+"/status-decisions", bytes.NewReader(statusBody), financeSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-status-success"},
+	)
+	assertStatus(t, statusResponse, http.StatusOK)
+	statusResult := decodeMap(t, statusResponse)
+	if statusResult["status"] != "reimbursed" || asInt(t, statusResult["version"]) != 2 {
+		t.Fatalf("HTTP reimbursement status = %#v", statusResult)
+	}
+	finalDetail := fixture.request(http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, ownerSession, false, "")
+	assertStatus(t, finalDetail, http.StatusOK)
+	if decoded := decodeMap(t, finalDetail); decoded["status"] != "reimbursed" || len(decoded["decisions"].([]any)) != 2 {
+		t.Fatalf("HTTP final reimbursement detail = %#v", decoded)
+	}
+
+	secondTenantID := newID(t)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := fixture.store.DB().Exec(
+		"INSERT INTO tenants (id, name, default_currency, timezone, created_at, updated_at) VALUES (?, 'Second', 'CNY', 'Asia/Shanghai', ?, ?)",
+		secondTenantID, now, now,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.store.DB().Exec(
+		"INSERT INTO memberships (tenant_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, 'owner', 'active', ?, ?)",
+		secondTenantID, fixture.owner.UserID, now, now,
+	); err != nil {
+		t.Fatal(err)
+	}
+	secondTenantSession := fixture.login(t, secondTenantID)
+	assertStatus(t, fixture.request(
+		http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, secondTenantSession, false, "",
+	), http.StatusNotFound)
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/reimbursement-previews", bytes.NewReader(previewPayload), secondTenantSession, true, "application/json",
+	), http.StatusNotFound)
+	crossTenantStatus := fixture.requestWithHeaders(
+		http.MethodPost, "/api/v1/reimbursements/"+reimbursementID+"/status-decisions", bytes.NewReader(statusBody), secondTenantSession, true,
+		"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-cross-tenant-status"},
+	)
+	assertStatus(t, crossTenantStatus, http.StatusNotFound)
+	for _, privateValue := range []string{tripID, paymentID, assignmentID, reimbursementID, "1234", "合成 HTTP 报销提交"} {
+		if strings.Contains(crossTenantStatus.Body.String(), privateValue) {
+			t.Fatalf("cross-tenant reimbursement error exposed private value %q: %s", privateValue, crossTenantStatus.Body.String())
+		}
+	}
+}
+
+func activateHTTPTestProvider(t *testing.T, fixture *httpTestFixture, ownerSession *testSession) {
+	t.Helper()
+	create := fixture.request(
+		http.MethodPost,
+		"/api/v1/provider-configs",
+		strings.NewReader(`{"base_url":"https://provider.example/v1","api_key":"synthetic-test-value","model":"vision-model","output_mode":"json_schema"}`),
+		ownerSession,
+		true,
+		"application/json",
+	)
+	assertStatus(t, create, http.StatusCreated)
+	providerID := asString(t, decodeMap(t, create)["id"])
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/provider-configs/"+providerID+"/detect", nil, ownerSession, true, "",
+	), http.StatusOK)
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/provider-configs/"+providerID+"/activate", nil, ownerSession, true, "",
+	), http.StatusOK)
+}
+
+func processHTTPTestReview(
+	t *testing.T,
+	fixture *httpTestFixture,
+	ownerSession *testSession,
+	name string,
+	fill color.RGBA,
+) map[string]any {
+	t.Helper()
+	upload := fixture.upload(t, ownerSession, name, "image/png", syntheticPNG(t, fill))
+	fixture.processNext(t)
+	response := fixture.request(
+		http.MethodGet, "/api/v1/reviews/"+asString(t, upload["job_id"]), nil, ownerSession, false, "",
+	)
+	assertStatus(t, response, http.StatusOK)
+	return decodeMap(t, response)
+}
+
+func httpConfirmPayload(t *testing.T, review map[string]any, withAssociation bool) []byte {
+	t.Helper()
+	resolutions := make([]map[string]any, 0)
+	if candidates, ok := review["duplicate_candidates"].([]any); ok {
+		for _, raw := range candidates {
+			candidate, ok := raw.(map[string]any)
+			if !ok {
+				t.Fatalf("HTTP duplicate candidate = %T", raw)
+			}
+			resolutions = append(resolutions, map[string]any{
+				"candidate_id": asString(t, candidate["id"]),
+				"action":       domain.DuplicateKeepDistinct,
+			})
+		}
+	}
+	payload := map[string]any{
+		"expected_revision":     review["revision"],
+		"duplicate_resolutions": resolutions,
+	}
+	if withAssociation {
+		mode := "no_candidate"
+		if candidates, ok := review["candidates"].([]any); ok && len(candidates) != 0 {
+			mode = "reject_all"
+		}
+		payload["association_mode"] = mode
+		payload["allocations"] = []any{}
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
+}
+
+func httpTripRevisionPayload(t *testing.T, review map[string]any) []byte {
+	t.Helper()
+	evidenceID := ""
+	fields, ok := review["fields"].([]any)
+	if !ok {
+		t.Fatalf("HTTP review fields = %T", review["fields"])
+	}
+	for _, raw := range fields {
+		field, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("HTTP review field = %T", raw)
+		}
+		evidence, _ := field["evidence"].([]any)
+		if len(evidence) == 0 {
+			continue
+		}
+		evidenceID = asString(t, evidence[0].(map[string]any)["id"])
+		break
+	}
+	if evidenceID == "" {
+		t.Fatal("HTTP review has no reusable synthetic evidence")
+	}
+	present := func(path, valueType, value string) map[string]any {
+		return map[string]any{
+			"path": path, "value_type": valueType, "presence": "present",
+			"value": value, "evidence_ids": []string{evidenceID},
+		}
+	}
+	absent := func(path, valueType string) map[string]any {
+		return map[string]any{"path": path, "value_type": valueType, "presence": "absent"}
+	}
+	payload := map[string]any{
+		"expected_revision":           review["revision"],
+		"expected_optimistic_version": review["optimistic_version"],
+		"document_type":               domain.DocumentTrip,
+		"fields": []map[string]any{
+			present("origin", "string", "合成出发地"),
+			present("destination", "string", "合成 HTTP 目的地"),
+			present("start_date", "date", "2026-08-27"),
+			present("end_date", "date", "2026-08-27"),
+			absent("traveler_name", "string"),
+			absent("transport_type", "string"),
+			absent("booking_reference", "string"),
+			absent("supplementary_fields", "supplementary"),
+		},
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
+}
+
 func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	t.Helper()
 	root := t.TempDir()
@@ -668,6 +1088,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
 	)
 	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
+	reimbursementService := reimbursements.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	webRoot := filepath.Join(root, "web")
 	if err := os.Mkdir(webRoot, 0o700); err != nil {
 		store.Close()
@@ -678,7 +1099,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, tripService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, tripService, reimbursementService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

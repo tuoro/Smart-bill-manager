@@ -51,12 +51,10 @@ func LinkInputFromValidated(validated domain.ValidatedClaim) (LinkMatchInput, bo
 		if instantErr != nil || timezoneErr != nil {
 			return LinkMatchInput{}, false
 		}
-		instant, instantErr := time.Parse(time.RFC3339Nano, instantText)
-		location, timezoneErr := time.LoadLocation(timezoneName)
-		if instantErr != nil || timezoneErr != nil {
+		input.BusinessDate, err = domain.PaymentBusinessDate(instantText, timezoneName)
+		if err != nil {
 			return LinkMatchInput{}, false
 		}
-		input.BusinessDate = instant.In(location).Format("2006-01-02")
 	case domain.DocumentInvoice:
 		input.AmountMinor, err = candidateInteger(fields["total_minor"].Value)
 		if err != nil {

@@ -38,6 +38,11 @@ const router = createRouter({
       component: () => import('../features/trips/TripsPage.vue'),
     },
     {
+      path: '/reimbursements',
+      name: 'reimbursements',
+      component: () => import('../features/reimbursements/ReimbursementsPage.vue'),
+    },
+    {
       path: '/allocations/:factType/:factId',
       name: 'allocation',
       component: () => import('../features/allocations/AllocationPage.vue'),

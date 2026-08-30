@@ -91,3 +91,15 @@ trip-assignment-lifecycle	assign、move、unassign、陈旧期望、删除收尾
 trip-assignment-permission	owner/finance 可管理、viewer 只读、reviewer 拒绝且真实跨租户 Trip ID 不泄露	./internal/application/reviews	TestTripAttributionAssignmentLifecycleAndDeletion
 trip-assignment-concurrency	同一 Fact 并发归属不同 Trip 时恰好一个成功且失败请求无部分决定或审计	./internal/application/reviews	TestConcurrentTripAssignmentsAllowOneWinner
 trip-attribution-http-boundary	严格 JSON、显式 nullable、CSRF、筛选上限、角色矩阵和安全不存在性经 HTTP 固定	./internal/transport/httpapi	TestHTTPTripAttributionContractAndPermissionBoundaries
+reimbursement-policy-findings	缺少所选发票、选中 Link 金额冲突与 submitted/reimbursed 重复由 reimbursement-policy/1 稳定派生，等额替换 Link 仍改变 Finding 身份	./internal/domain	TestEvaluateReimbursementPolicyProducesDeterministicFindingsAndCurrencyTotals
+reimbursement-policy-selection	选择规范排序、空白/重复/空项/第 201 项、快照身份与完整提示确认输入均显式校验	./internal/domain	TestCanonicalReimbursementSelectionAndRequests
+reimbursement-policy-limit	混合币种整数汇总、恰好 1000 条 Finding 完整保留且第 1001 条不静默截断	./internal/domain	TestReimbursementFindingAndRequestLimitsAreExplicit
+reimbursement-snapshot-lifecycle	Link、Assignment 与相关报销状态变化使旧预检失效；rejected 排除，列表详情、不可变历史与软删除快照保持单一事实来源	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
+reimbursement-idempotency-concurrency	创建和状态严格重放、同键改请求冲突、同 Trip 并发恰好一个成功且注入审计失败后整笔零残留	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
+reimbursement-status-machine	submitted 到两个终态、终态重新打开、状态并发恰好一个成功、陈旧版本与另一 submitted 唯一冲突均原子处理	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
+reimbursement-read-snapshot	并发状态竞争后详情的 status、version 与有序 Decision 历史保持同一读取快照	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
+reimbursement-payment-business-date	Payment 在来源时区跨日时只读取确认时持久化的唯一业务日期，数据库快照触发器接受同一日期	./internal/application/reviews	TestReimbursementPaymentBusinessDateCrossesSourceTimezoneBoundary
+reimbursement-audit-privacy	安全审计只含允许的动作/状态/数量，禁止财务字段、身份、理由和 Finding 明细	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
+reimbursement-permission-tenant	owner/finance 管理、viewer 只读、reviewer 拒绝且跨租户详情/预检统一不泄露	./internal/application/reviews	TestReimbursementSnapshotPolicyAndStatusLifecycle
+reimbursement-http-boundary	严格 JSON、CSRF、幂等头、游标上限、四角色和安全不存在性经 HTTP 固定	./internal/transport/httpapi	TestHTTPReimbursementContractAndPermissionBoundaries
+reimbursement-http-lifecycle	真实纯合成资源经 HTTP 完成预检、完整提示、提交重放、列表、详情、Finance 状态变化与跨租户安全错误	./internal/transport/httpapi	TestHTTPReimbursementSuccessfulLifecycleAndTenantIsolation

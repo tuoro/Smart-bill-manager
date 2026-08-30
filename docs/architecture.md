@@ -1,6 +1,6 @@
 # Clean Slate 架构基线
 
-状态：M0、M1、M2 已完成；M3 邮箱归档与行程归属两个切片已完成，下一切片待冻结
+状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
 
@@ -20,7 +20,7 @@ flowchart LR
     API --> Mail[IMAP 邮箱]
 ```
 
-M1、M2 只启用 Browser、Web、API、SQLite、文件存储和模型 API。M3 首切片只增加连接器中立的本地邮件归档端口，不装配邮箱网络连接；真实邮箱接入仍在独立门禁之后。
+M1、M2 只启用 Browser、Web、API、SQLite、文件存储和模型 API。M3 只在该模块化单体内增加连接器中立的邮件归档、行程归属和报销工作流；不装配邮箱网络连接，也不为报销连接外部系统。真实邮箱与外部报销系统接入仍在独立门禁之后。
 
 ## 目标目录
 
@@ -193,6 +193,28 @@ M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 i
 5. assign 创建新 Link；move/unassign 先以一个决定终止旧 Link，move 再创建新 Link。Decision 和历史 Link 不可更新或删除，删除 Fact 使用删除 AuditEvent 终止活动 Link。
 6. 候选读取使用不透明游标，默认 50、最大 100；排序和建议原因固定在 ADR-0015。并发变化不会被写端信任，陈旧 Link 必须冲突并要求刷新。
 
+### M3 报销快照与确定性政策提示
+
+1. Reimbursement 是 `application/reimbursements` 独立用例，不进入 AI Worker、Claim Mapper 或 Review 确认事务，也不提供模型、邮件或测试 fixture 自动创建入口。
+2. 读取端口按显式 Trip 和 1～200 个活动 TripFactAssignment 加载未删除 Fact、选中范围内的活动 PaymentInvoiceLink，以及其他 submitted/reimbursed 报销成员；领域层唯一 `reimbursement-policy/1` 计算 Finding、按币种汇总和规范快照 hash。
+3. 预检只返回计算结果且不落库。提交端在 immediate SQLite 事务内使用同一读取与领域算法重算，严格比较期望快照和完整 Finding key 确认，再原子写 Reimbursement、Item、Finding、Decision 和 AuditEvent。
+4. Item 冻结 Trip/Assignment/Fact 的历史显示与金额快照，不参与当前 Fact 查询、余额或归属计算。当前 Fact、PaymentInvoiceLink 和 TripFactAssignment 始终是提交前预检的唯一实时来源。
+5. 当前报销状态保存在 Reimbursement；每次合法变化必须与一个不可变 Decision 在同一事务内更新状态和版本。相同 Trip 同时最多一个 submitted，陈旧状态/版本或并发唯一冲突全部回滚。
+6. 列表使用不透明游标默认 50、最大 100；详情读取不可变 Item/Finding/Decision 历史。软删除 Trip/Fact 不删除历史快照，响应明确来源已删除。
+
+```mermaid
+flowchart LR
+    Trip[confirmed Trip] --> Assignment[活动 TripFactAssignment]
+    Assignment --> Selection[用户显式选择]
+    Selection --> Policy[reimbursement-policy/1]
+    Policy --> Preview[不落库预检]
+    Preview --> Confirm[完整 Finding 确认]
+    Confirm --> Reimbursement[不可变报销快照]
+    Reimbursement --> Decision[追加状态 Decision]
+```
+
+详细选择、提示、状态和失败边界见 `docs/decisions/0016-reimbursement-workflow-policy-findings.md`。
+
 ### M2 批量上传编排
 
 多 Document 批量上传不是新的服务端领域命令。Web 对一次选择的 1–20 个文件建立临时有序列表，并逐项调用唯一 `POST /api/v1/documents`；前一项终止后才发送后一项。每个请求继续独立执行既有暂存、边界校验、同租户 SHA-256 判重、Document/ProcessingJob 事务和对象提交补偿，中间失败不形成批次回滚，也不阻止后续项。
@@ -213,7 +235,7 @@ M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 i
 
 ### M2 金额分配交互
 
-- 候选硬条件固定为币种一致、目标剩余金额大于零、Payment 交易业务日期与 Invoice 开票日期相差不超过 30 天；金额完全相等只产生优先原因，不再是硬条件。
+- 候选硬条件固定为币种一致、目标剩余金额大于零、Payment 交易业务日期与 Invoice 开票日期相差不超过 30 天；Payment 业务日期在确认时由 `transaction_time + source_timezone` 一次性计算并持久化，后续候选、行程、重复和报销只读取这一投影；金额完全相等只产生优先原因，不再是硬条件。
 - 名称规范化固定为 Unicode NFKC、去除首尾空白、连续空白折叠为一个、拉丁字母大小写折叠，只影响排序和警告，不绕过硬条件。排序仍为名称一致优先、日期差升序、目标 Fact ID 升序。
 - Review 读取动态聚合候选的总额、活动已分配金额和剩余金额；候选记录本身仍只冻结目标与规则身份，确认事务必须重算余额，不能信任客户端数字。
 - 用户可勾选多个候选并为每项输入正整数最小单位金额；页面实时计算本次合计和新 Fact 剩余金额。未明确选择分配或拒绝全部前，确认动作禁用。

@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1、M2 已完成；M3 邮箱归档与行程归属两个切片已完成，下一切片待冻结
+状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -42,7 +42,7 @@ erDiagram
     TENANT ||--o{ AUDIT_EVENT : records
 ```
 
-M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailSource、EmailMessage 和 EmailAttachment；第二切片只新增已冻结的 Trip 与归属实体，Reimbursement 仍不预建空表。
+M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailSource、EmailMessage 和 EmailAttachment，第二切片新增 Trip 与归属实体，第三切片按 ADR-0016 新增报销快照、Finding 与状态历史；不存在预建空表或旧字段兼容。
 
 ## 通用约束
 
@@ -80,7 +80,7 @@ M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailS
 
 只有 `active` Membership 能产生 TenantContext；跨租户访问始终拒绝。每个 Tenant 必须至少有一个 active owner，停用或降级最后一个 owner 的事务必须失败。
 
-M1 权限矩阵固定如下；`reviewer` 在审核上下文中只能读取当前 Document、Claim、证据和候选摘要，不能借此枚举完整账单：
+当前权限矩阵固定如下；`reviewer` 在审核上下文中只能读取当前 Document、Claim、证据和候选摘要，不能借此枚举完整账单或报销：
 
 | 能力                                | owner | finance | reviewer | viewer |
 | ----------------------------------- | ----- | ------- | -------- | ------ |
@@ -89,7 +89,10 @@ M1 权限矩阵固定如下；`reviewer` 在审核上下文中只能读取当前
 | 上传、收件箱、重试与取消            | 是    | 是      | 是       | 否     |
 | Claim 修订、确认与驳回              | 是    | 是      | 是       | 否     |
 | 当前审核的 Source/证据/关联候选摘要 | 是    | 是      | 是       | 否     |
-| Payment/Invoice 列表与详情          | 是    | 是      | 否       | 是     |
+| Payment/Invoice/Trip 列表与详情     | 是    | 是      | 否       | 是     |
+| Trip 归属管理                       | 是    | 是      | 否       | 否     |
+| Reimbursement 列表与详情            | 是    | 是      | 否       | 是     |
+| Reimbursement 预检、提交与状态管理  | 是    | 是      | 否       | 否     |
 | Document 聚合或 Fact 删除           | 是    | 否      | 否       | 否     |
 
 空数据库只允许通过本地 `bootstrap-owner` 命令创建首个 User、Tenant 和 active owner Membership。命令必须在单一事务中完成，只在三张表都为空时可执行，重复执行明确失败；密码只从交互式标准输入或权限受限的挂载文件读取，不能出现在命令参数、环境变量或日志。该能力不暴露 HTTP 路由。首个 owner 登录后，后续用户与 Membership 只能通过带 `members.manage` 能力的受权用例创建。
@@ -259,6 +262,7 @@ Payment 与 Invoice 的 `allocated_minor`、`remaining_minor` 和 `allocation_st
 - amount_minor、currency；
 - merchant；
 - transaction_time、source_timezone；
+- business_date：确认时按 `transaction_time` 在 `source_timezone` 下的本地日期一次性计算并持久化；行程、关联、重复和报销读取同一列，禁止再次从时间字符串推导第二份日期；
 - payment_method、order_number；
 - category；
 - created_at、updated_at、version。
@@ -460,7 +464,45 @@ Decision 不可更新或删除。assign 要求无 previous 且有目标，move �
 
 FactFieldOrigin 增加可空 `trip_id` 并继续保证 Payment、Invoice、InvoiceItem、Trip 四者严格单选。ReviewDecision 的 confirm 记录显式 `fact_type`：Payment/Invoice 继续要求金额关联计划，Trip 要求该计划为空；三类确认都要求完整疑似重复计划。旧确认形状不保留兼容分支。
 
-Reimbursement 和政策 ValidationResult 在后续 M3 切片再定义，不预建空表或兼容字段。
+### Reimbursement（M3 第三切片）
+
+- tenant_id、id、trip_id；
+- trip_destination、trip_start_date、trip_end_date 快照；
+- status：`submitted | reimbursed | rejected`；
+- policy_rule_version：固定 `reimbursement-policy/1`；
+- snapshot_hash；
+- created_by_user_id、created_at、updated_at、version。
+
+Reimbursement 不是 Document Fact，不持有 source_review_decision_id，也不改变 Payment、Invoice 或 Trip。Trip 摘要是提交时的不可变历史快照；当前状态和 version 是唯一可变字段，只能通过匹配的 ReimbursementStatusDecision 在同一事务内推进。一个 Trip 同时最多一个 submitted 记录，Reimbursement 不删除。
+
+### ReimbursementItem
+
+- tenant_id、id、reimbursement_id、trip_fact_assignment_id；
+- fact_type：`payment | invoice`，以及严格二选一的 payment_id / invoice_id；
+- display_name、business_date、amount_minor、currency 的提交时快照；
+- sort_order、created_at。
+
+每个 Reimbursement 含 1～200 个 Item；Assignment 和 Fact 身份在同一记录内一致且不得重复。金额始终为整数最小单位，混合币种只按币种分别聚合。Item 快照只解释历史报销，不参与当前 Fact、余额或归属计算；Fact 或 Assignment 后续软删除/终止不删除 Item。
+
+### ReimbursementPolicyFinding
+
+- tenant_id、id、reimbursement_id、item_id；
+- finding_key、rule_version、code：`missing_invoice | amount_conflict | duplicate_reimbursement`；
+- expected_minor、actual_minor、currency，可按 code 为空；
+- related_reimbursement_id、related_reimbursement_status，可按 code 为空；
+- created_at。
+
+Finding 由提交事务使用 `reimbursement-policy/1` 重算并冻结，创建字段不可变且不可删除。`finding_key` 由规则输入确定性产生，在同一 Reimbursement 内唯一；最多 1,000 条，超过时明确拒绝而非截断。预检 Finding 不落库。
+
+### ReimbursementStatusDecision
+
+- tenant_id、id、reimbursement_id、actor_user_id；
+- previous_status，可为空；desired_status；expected_version、result_version；
+- action：`submit | mark_reimbursed | reject | reopen`；
+- idempotency_key、request_hash、reason；
+- audit_event_id、created_at。
+
+首次 submit 固定从空状态到 submitted、result_version 为 1；后续只允许 submitted 到 reimbursed/rejected，或两个终态重新打开到 submitted。Decision 不可更新或删除；`tenant_id + idempotency_key` 永久唯一，`tenant_id + reimbursement_id + result_version` 唯一。reason 是 1～500 字符租户私有说明，不写 AuditEvent。
 
 ## 删除与保留
 
@@ -469,6 +511,7 @@ Reimbursement 和政策 ValidationResult 在后续 M3 切片再定义，不预�
 - 邮件附件拥有的原件对象不随未确认 Document 删除；删除事务只移除 Document 及其派生聚合并把 EmailAttachment 的 Document 链接置空。EmailMessage、EmailAttachment 和归档对象继续按邮箱 Source 保留策略存在。
 - 已确认 Fact 的单项删除写入结构化 `fact_deleted` AuditEvent 和 Fact 删除标记；Source、Claim、FactFieldOrigin 和 Review 链在租户存在期间保留，避免产生不可解释的历史正式数据。
 - 删除 Payment、Invoice 或 Trip 时，同一删除 AuditEvent 一次性终止相关活动 TripFactAssignment；历史 AssignmentDecision 与已终止 Link 保留。
+- 删除 Trip、Payment 或 Invoice 不删除已有 Reimbursement、Item、Finding 或 StatusDecision；详情使用冻结快照并标明来源已删除。已删除资源不能进入新的预检或提交。
 - 删除 ProviderConfig 时立即删除对应密文；已有 AiRun 只保留不可逆安全指纹，不保留可恢复凭据。
 - 删除整个租户时物理删除全部业务行、对象文件、派生物、审计链和密钥材料，并输出按资源类型计数与对象哈希组成的删除清单。
 - 备份副本不接受应用内逐条修改；部署说明必须声明备份保留与销毁策略，过期备份整体销毁。恢复已删除租户的备份时，必须先重放租户删除清单，不能让已删除数据重新可见。

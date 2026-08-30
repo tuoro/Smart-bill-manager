@@ -25,7 +25,7 @@ func (s *Store) ListTripAttributionCandidates(
 		WITH fact_rows AS (
 		    SELECT 'payment' AS fact_type, payment.id AS fact_id,
 		           payment.merchant AS display_name,
-		           substr(payment.transaction_time, 1, 10) AS business_date,
+		           payment.business_date AS business_date,
 		           payment.amount_minor AS amount_minor, payment.currency AS currency
 		    FROM payments payment
 		    WHERE payment.tenant_id = ? AND payment.deleted_at IS NULL

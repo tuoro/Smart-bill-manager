@@ -1,6 +1,6 @@
 # 范围与非目标
 
-状态：M0、M1、M2 已完成；M3 邮箱归档与行程归属两个切片已完成，下一切片待冻结
+状态：M0、M1、M2、M3 已完成；下一阶段为 M4 本地功能
 适用范围：Clean Slate 新架构
 
 ## 最高边界
@@ -175,7 +175,7 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 
 ## M3：邮箱、行程与报销
 
-状态：首个“邮箱 Source、邮件与附件本地归档”切片已完成；第二个“行程 Fact 与确定性单据归属”切片已按 ADR-0015 完成。下一步先冻结报销状态与确定性冲突提示。
+状态：已完成；三个切片于 2026-08-31 全部通过本地验收。
 
 当前范围顺序固定为邮箱 Source、邮件与附件、行程归属、报销状态和确定性冲突提示。
 
@@ -216,6 +216,29 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 - 真实 Provider、正式正确率评测、真实邮箱连接、外部账号联调、部署或发布。
 
 完整决策见 `docs/decisions/0015-trip-fact-attribution.md`；验收证据见 `docs/m3-evidence.md` 与 `tests/evidence/m3/trip-attribution-gate-summary.json`。
+
+### 已完成的第三切片范围（2026-08-31）
+
+- Reimbursement 是已确认 Payment/Invoice 上的独立人工工作流记录，不是模型或手工直建的新 Fact；活动 AI 契约、Claim 与 Review 边界保持不变；
+- 用户从一个未删除 Trip 的活动归属中显式选择 1～200 个 Assignment，提交时冻结 Trip、Fact、金额、币种和 Assignment 摘要；不修改原 Fact、金额 Link 或行程归属；
+- `reimbursement-policy/1` 只产生 `missing_invoice`、`amount_conflict` 和 `duplicate_reimbursement` 三类确定性 Finding；按币种分别汇总，不换汇、不自动拒绝；
+- 预检返回当前完整 Finding 与 `snapshot_hash`；提交必须确认全部 Finding key，事务内重算并以严格幂等创建不可变 Reimbursement、Item、Finding、Decision 和安全 AuditEvent；
+- 状态固定为 `submitted | reimbursed | rejected`，终态只可重新打开为 submitted；同一 Trip 同时最多一个 submitted，期望状态、版本、理由与幂等键保护并发；
+- 报销列表、详情、稳定分页、预检、提交、状态历史 API 和独立 Web 工作区；Owner/Finance 管理，Owner/Finance/Viewer 读取，Reviewer 拒绝；
+- 纯合成测试覆盖三类 Finding、快照陈旧、并发、严格重放、软删除后历史、事务回滚、租户、权限、游标、响应式和可访问性。
+
+### 第三切片明确排除范围
+
+- 企业审批链、费用科目、预算、税务/发票验真、外部报销单号、打款、会计/ERP/邮箱/云服务同步；
+- 汇率换算、手工覆盖报销金额、部分 Item 金额、导出报销单、批量状态操作或模型生成政策；
+- 真实 Provider、正式正确率评测、真实邮箱/外部账号联调、部署或发布；
+- 旧 Trip 二值报销字段、旧 API、旧数据库或旧状态兼容。
+
+完整冻结决策见 `docs/decisions/0016-reimbursement-workflow-policy-findings.md`；验收证据见 `docs/m3-evidence.md` 与 `tests/evidence/m3/reimbursement-workflow-gate-summary.json`。
+
+### 退出条件
+
+退出条件已满足：三个切片的领域、数据库、API、Web、测试和证据均与冻结决策一致；Source/Claim/Fact、人工审核、活动 Link、租户和整数金额边界未改变，未增加旧兼容、第二数据源、OCR、真实 Provider 或真实邮箱连接。最终门禁见 `tests/evidence/m3/m3-closure-gate-summary.json`。M3 完成不代表正式模型正确率评测、真实外部账号联调、部署或发布通过。
 
 ## 范围变更规则
 

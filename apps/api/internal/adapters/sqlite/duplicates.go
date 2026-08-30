@@ -214,8 +214,8 @@ func (s *Store) listReviewDuplicateCandidates(
 		       coalesce(candidate.existing_payment_id, ''),
 		       coalesce(candidate.existing_invoice_id, ''),
 		       coalesce(document.original_name, payment.merchant, invoice.seller_name, ''),
-		       coalesce(payment.transaction_time, invoice.invoice_date, ''),
-		       coalesce(payment.source_timezone, ''),
+		       coalesce(payment.business_date, invoice.invoice_date, ''),
+		       '',
 		       coalesce(payment.amount_minor, invoice.total_minor),
 		       current_page.page_number, existing_page.page_number,
 		       candidate.dhash_distance, candidate.ahash_distance,
@@ -283,12 +283,6 @@ func (s *Store) listReviewDuplicateCandidates(
 		item.DHashDistance = nullableInt(dhashDistance)
 		item.AHashDistance = nullableInt(ahashDistance)
 		item.BusinessDate = temporal
-		if item.ExistingPaymentID != "" && temporal != "" && timezoneName != "" {
-			item.BusinessDate, err = paymentBusinessDate(temporal, timezoneName)
-			if err != nil {
-				return nil, err
-			}
-		}
 		if err := json.Unmarshal([]byte(reasons), &item.ReasonCodes); err != nil {
 			return nil, fmt.Errorf("decode duplicate candidate reasons: %w", err)
 		}

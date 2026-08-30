@@ -90,12 +90,11 @@ func loadPaymentAllocationAnchor(
 	tenantID, anchorID string,
 	anchor *ports.AllocationFactSummary,
 ) error {
-	var transactionTime, timezoneName string
 	err := queryer.QueryRowContext(ctx, `
 		SELECT p.amount_minor,
 		       coalesce((SELECT sum(l.allocated_minor) FROM payment_invoice_links l
 		                 WHERE l.tenant_id = p.tenant_id AND l.payment_id = p.id AND l.ended_at IS NULL), 0),
-		       p.currency, p.transaction_time, p.source_timezone, p.merchant
+		       p.currency, p.business_date, p.merchant
 		FROM payments p
 		JOIN review_decisions r ON r.tenant_id = p.tenant_id AND r.id = p.source_review_decision_id
 		WHERE p.tenant_id = ? AND p.id = ? AND p.deleted_at IS NULL AND r.action = 'confirm'
@@ -103,8 +102,7 @@ func loadPaymentAllocationAnchor(
 		&anchor.AmountMinor,
 		&anchor.AllocatedMinor,
 		&anchor.Currency,
-		&transactionTime,
-		&timezoneName,
+		&anchor.BusinessDate,
 		&anchor.DisplayName,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -116,8 +114,7 @@ func loadPaymentAllocationAnchor(
 	anchor.FactType = domain.DocumentPayment
 	anchor.ID = anchorID
 	anchor.RemainingMinor = anchor.AmountMinor - anchor.AllocatedMinor
-	anchor.BusinessDate, err = paymentBusinessDate(transactionTime, timezoneName)
-	return err
+	return nil
 }
 
 func loadInvoiceAllocationAnchor(
@@ -293,7 +290,7 @@ func loadPaymentAllocationTargets(
 		SELECT p.id, p.amount_minor,
 		       coalesce((SELECT sum(l.allocated_minor) FROM payment_invoice_links l
 		                 WHERE l.tenant_id = p.tenant_id AND l.payment_id = p.id AND l.ended_at IS NULL), 0),
-		       p.currency, p.transaction_time, p.source_timezone, p.merchant
+		       p.currency, p.business_date, p.merchant
 		FROM payments p
 		JOIN review_decisions r ON r.tenant_id = p.tenant_id AND r.id = p.source_review_decision_id
 		WHERE p.tenant_id = ? AND p.deleted_at IS NULL AND p.currency = ? AND r.action = 'confirm'
@@ -306,23 +303,17 @@ func loadPaymentAllocationTargets(
 	result := make([]ports.AllocationTarget, 0)
 	for rows.Next() {
 		var target ports.AllocationTarget
-		var transactionTime, timezoneName string
 		if err := rows.Scan(
 			&target.ID,
 			&target.AmountMinor,
 			&target.AllocatedMinor,
 			&target.Currency,
-			&transactionTime,
-			&timezoneName,
+			&target.BusinessDate,
 			&target.DisplayName,
 		); err != nil {
 			return nil, fmt.Errorf("scan payment allocation target: %w", err)
 		}
 		target.FactType = domain.DocumentPayment
-		target.BusinessDate, err = paymentBusinessDate(transactionTime, timezoneName)
-		if err != nil {
-			return nil, err
-		}
 		include, err := includeAllocationTarget(anchor, &target, current[target.ID])
 		if err != nil {
 			return nil, err

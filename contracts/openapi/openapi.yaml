@@ -15,6 +15,7 @@ tags:
   - name: facts
   - name: allocations
   - name: trips
+  - name: reimbursements
   - name: providers
   - name: email
 paths:
@@ -625,6 +626,134 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /reimbursement-previews:
+    post:
+      operationId: previewReimbursement
+      tags: [reimbursements]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReimbursementPreviewRequest"
+      responses:
+        "200":
+          description: 基于当前活动 Trip 归属、分配 Link 与既有报销状态确定性计算的非持久化快照
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReimbursementPolicySnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reimbursements:
+    get:
+      operationId: listReimbursements
+      tags: [reimbursements]
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 1024 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: 当前租户内不可变报销快照的稳定游标页
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReimbursementPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: submitReimbursement
+      tags: [reimbursements]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReimbursementSubmissionRequest"
+      responses:
+        "201":
+          description: 当前选择与完整政策提示已原子快照并提交
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReimbursementMutationResult"
+        "200":
+          description: 相同幂等键与规范请求的稳定重放
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReimbursementMutationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reimbursements/{reimbursement_id}:
+    get:
+      operationId: getReimbursement
+      tags: [reimbursements]
+      parameters:
+        - $ref: "#/components/parameters/ReimbursementId"
+      responses:
+        "200":
+          description: 报销快照、确定性提示与完整状态决定历史
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReimbursementDetail"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reimbursements/{reimbursement_id}/status-decisions:
+    post:
+      operationId: changeReimbursementStatus
+      tags: [reimbursements]
+      parameters:
+        - $ref: "#/components/parameters/ReimbursementId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReimbursementStatusRequest"
+      responses:
+        "200":
+          description: 状态已按期望版本转换，或返回相同幂等请求的稳定结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReimbursementMutationResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /allocations/{fact_type}/{fact_id}:
     get:
       operationId: getAllocationWorkspace
@@ -843,6 +972,13 @@ components:
         format: uuid
     TripId:
       name: trip_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReimbursementId:
+      name: reimbursement_id
       in: path
       required: true
       schema:
@@ -1444,8 +1580,7 @@ components:
     ConfirmRequest:
       type: object
       additionalProperties: false
-      required:
-        [expected_revision, duplicate_resolutions]
+      required: [expected_revision, duplicate_resolutions]
       description: Payment/Invoice 必须提交 association_mode 与 allocations；Trip 禁止提交这两个成员。
       properties:
         expected_revision: { type: integer, minimum: 1 }
@@ -1934,6 +2069,342 @@ components:
         action: { type: string, enum: [assign, move, unassign] }
         previous_assignment_id: { type: string, format: uuid }
         assignment_id: { type: string, format: uuid }
+        replayed: { type: boolean }
+    ReimbursementStatus:
+      type: string
+      enum: [submitted, reimbursed, rejected]
+    ReimbursementTripSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, destination, start_date, end_date]
+      properties:
+        id: { type: string, format: uuid }
+        destination: { type: string, minLength: 1, maxLength: 500 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+    ReimbursementPolicyItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          assignment_id,
+          fact_type,
+          fact_id,
+          display_name,
+          business_date,
+          amount_minor,
+          currency,
+        ]
+      properties:
+        assignment_id: { type: string, format: uuid }
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        fact_id: { type: string, format: uuid }
+        display_name: { type: string, minLength: 1 }
+        business_date: { type: string, format: date }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+    ReimbursementCurrencyTotal:
+      type: object
+      additionalProperties: false
+      required: [currency, amount_minor]
+      properties:
+        currency: { $ref: "#/components/schemas/Currency" }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+    ReimbursementPolicyFinding:
+      type: object
+      additionalProperties: false
+      required: [finding_key, code, assignment_id, fact_type, fact_id]
+      properties:
+        finding_key: { type: string, pattern: "^[a-f0-9]{64}$" }
+        code:
+          {
+            type: string,
+            enum: [missing_invoice, amount_conflict, duplicate_reimbursement],
+          }
+        assignment_id: { type: string, format: uuid }
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        fact_id: { type: string, format: uuid }
+        expected_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        actual_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        related_reimbursement_id: { type: string, format: uuid }
+        related_status: { $ref: "#/components/schemas/ReimbursementStatus" }
+    ReimbursementPolicySnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        [rule_version, trip, items, findings, totals_by_currency, snapshot_hash]
+      properties:
+        rule_version: { const: reimbursement-policy/1 }
+        trip: { $ref: "#/components/schemas/ReimbursementTripSnapshot" }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: "#/components/schemas/ReimbursementPolicyItem" }
+        findings:
+          type: array
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/ReimbursementPolicyFinding" }
+        totals_by_currency:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ReimbursementCurrencyTotal" }
+        snapshot_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+    ReimbursementPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [trip_id, assignment_ids]
+      properties:
+        trip_id: { type: string, format: uuid }
+        assignment_ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    ReimbursementSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          trip_id,
+          assignment_ids,
+          expected_snapshot_hash,
+          acknowledged_finding_keys,
+          reason,
+        ]
+      properties:
+        trip_id: { type: string, format: uuid }
+        assignment_ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        expected_snapshot_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        acknowledged_finding_keys:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items: { type: string, pattern: "^[a-f0-9]{64}$" }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    ReimbursementSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          trip,
+          trip_deleted,
+          status,
+          version,
+          item_count,
+          finding_count,
+          created_at,
+          updated_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        trip: { $ref: "#/components/schemas/ReimbursementTripSnapshot" }
+        trip_deleted: { type: boolean }
+        status: { $ref: "#/components/schemas/ReimbursementStatus" }
+        version: { type: integer, minimum: 1 }
+        item_count: { type: integer, minimum: 1, maximum: 200 }
+        finding_count: { type: integer, minimum: 0, maximum: 1000 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ReimbursementPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ReimbursementSummary" }
+        next_cursor: { type: string, minLength: 1, maxLength: 1024 }
+    ReimbursementItem:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          assignment_id,
+          fact_type,
+          fact_id,
+          source_deleted,
+          display_name,
+          business_date,
+          amount_minor,
+          currency,
+          sort_order,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        assignment_id: { type: string, format: uuid }
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        fact_id: { type: string, format: uuid }
+        source_deleted: { type: boolean }
+        display_name: { type: string, minLength: 1 }
+        business_date: { type: string, format: date }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        sort_order: { type: integer, minimum: 0, maximum: 199 }
+    ReimbursementFinding:
+      type: object
+      additionalProperties: false
+      required: [id, item_id, finding_key, code]
+      properties:
+        id: { type: string, format: uuid }
+        item_id: { type: string, format: uuid }
+        finding_key: { type: string, pattern: "^[a-f0-9]{64}$" }
+        code:
+          {
+            type: string,
+            enum: [missing_invoice, amount_conflict, duplicate_reimbursement],
+          }
+        expected_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        actual_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        related_reimbursement_id: { type: string, format: uuid }
+        related_status: { $ref: "#/components/schemas/ReimbursementStatus" }
+    ReimbursementDecision:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          action,
+          previous_status,
+          desired_status,
+          expected_version,
+          result_version,
+          reason,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        action:
+          { type: string, enum: [submit, mark_reimbursed, reject, reopen] }
+        previous_status:
+          oneOf:
+            - { $ref: "#/components/schemas/ReimbursementStatus" }
+            - { type: "null" }
+        desired_status: { $ref: "#/components/schemas/ReimbursementStatus" }
+        expected_version: { type: integer, minimum: 0 }
+        result_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        created_at: { type: string, format: date-time }
+    ReimbursementDetail:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          trip,
+          trip_deleted,
+          status,
+          version,
+          item_count,
+          finding_count,
+          created_at,
+          updated_at,
+          rule_version,
+          snapshot_hash,
+          totals_by_currency,
+          items,
+          findings,
+          decisions,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        trip: { $ref: "#/components/schemas/ReimbursementTripSnapshot" }
+        trip_deleted: { type: boolean }
+        status: { $ref: "#/components/schemas/ReimbursementStatus" }
+        version: { type: integer, minimum: 1 }
+        item_count: { type: integer, minimum: 1, maximum: 200 }
+        finding_count: { type: integer, minimum: 0, maximum: 1000 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        rule_version: { const: reimbursement-policy/1 }
+        snapshot_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        totals_by_currency:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ReimbursementCurrencyTotal" }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { $ref: "#/components/schemas/ReimbursementItem" }
+        findings:
+          type: array
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/ReimbursementFinding" }
+        decisions:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ReimbursementDecision" }
+    ReimbursementStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_status, desired_status, expected_version, reason]
+      properties:
+        expected_status: { $ref: "#/components/schemas/ReimbursementStatus" }
+        desired_status: { $ref: "#/components/schemas/ReimbursementStatus" }
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    ReimbursementMutationResult:
+      type: object
+      additionalProperties: false
+      required: [reimbursement_id, decision_id, status, version, replayed]
+      properties:
+        reimbursement_id: { type: string, format: uuid }
+        decision_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ReimbursementStatus" }
+        version: { type: integer, minimum: 1 }
         replayed: { type: boolean }
     ProviderConfig:
       type: object

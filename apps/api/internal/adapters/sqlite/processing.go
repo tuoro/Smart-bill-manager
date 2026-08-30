@@ -371,7 +371,7 @@ func (t transaction) ListEligibleLinkTargets(
 		query = `
 			SELECT p.id, p.amount_minor, coalesce(a.allocated_minor, 0),
 			       p.amount_minor - coalesce(a.allocated_minor, 0),
-			       p.currency, p.transaction_time, p.merchant, p.source_timezone
+			       p.currency, p.business_date, p.merchant, ''
 			FROM payments p
 			LEFT JOIN (
 			    SELECT tenant_id, payment_id, sum(allocated_minor) AS allocated_minor
@@ -411,10 +411,7 @@ func (t transaction) ListEligibleLinkTargets(
 			item.BusinessDate = temporal
 		} else {
 			item.DocumentType = domain.DocumentPayment
-			item.BusinessDate, err = paymentBusinessDate(temporal, timezoneName)
-			if err != nil {
-				return nil, err
-			}
+			item.BusinessDate = temporal
 		}
 		items = append(items, item)
 	}

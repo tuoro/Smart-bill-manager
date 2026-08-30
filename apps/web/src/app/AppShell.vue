@@ -75,6 +75,17 @@ async function logout() {
             </RouterLink>
           </section>
           <section
+            v-if="capabilities.has('reimbursements.read')"
+            class="nav-group"
+            aria-labelledby="nav-reimbursements"
+          >
+            <h2 id="nav-reimbursements">报销</h2>
+            <RouterLink class="nav-item" to="/reimbursements">
+              <span class="nav-icon" aria-hidden="true">报</span>
+              <span class="nav-label">报销管理</span>
+            </RouterLink>
+          </section>
+          <section
             v-if="capabilities.has('email_archive.read')"
             class="nav-group"
             aria-labelledby="nav-sources"

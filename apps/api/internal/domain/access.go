@@ -24,6 +24,8 @@ const (
 	CapabilityTripAssignmentsManage Capability = "trip_assignments.manage"
 	CapabilityEmailSourcesManage    Capability = "email_sources.manage"
 	CapabilityEmailArchiveRead      Capability = "email_archive.read"
+	CapabilityReimbursementsRead    Capability = "reimbursements.read"
+	CapabilityReimbursementsManage  Capability = "reimbursements.manage"
 	CapabilityResourcesDelete       Capability = "resources.delete"
 )
 
@@ -39,6 +41,8 @@ var roleCapabilities = map[Role][]Capability{
 		CapabilityTripAssignmentsManage,
 		CapabilityEmailSourcesManage,
 		CapabilityEmailArchiveRead,
+		CapabilityReimbursementsRead,
+		CapabilityReimbursementsManage,
 		CapabilityResourcesDelete,
 	},
 	RoleFinance: {
@@ -49,6 +53,8 @@ var roleCapabilities = map[Role][]Capability{
 		CapabilityAllocationsManage,
 		CapabilityTripAssignmentsManage,
 		CapabilityEmailArchiveRead,
+		CapabilityReimbursementsRead,
+		CapabilityReimbursementsManage,
 	},
 	RoleReviewer: {
 		CapabilityDocumentsProcess,
@@ -57,6 +63,7 @@ var roleCapabilities = map[Role][]Capability{
 	},
 	RoleViewer: {
 		CapabilityFactsRead,
+		CapabilityReimbursementsRead,
 	},
 }
 

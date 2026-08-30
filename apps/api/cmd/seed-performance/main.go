@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 )
 
 const totalFacts = 10_000
@@ -205,7 +206,7 @@ func prepareSeedStatements(ctx context.Context, tx *sql.Tx) (preparedStatements,
 		`INSERT INTO evidence (id, tenant_id, field_claim_id, document_page_id, quote, evidence_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		`INSERT INTO validation_results (id, tenant_id, claim_set_id, rule_code, severity, status, safe_message, rule_version, created_at) VALUES (?, ?, ?, 'claim_snapshot_complete', 'info', 'passed', 'synthetic performance claim', 'claim-validation/1', ?)`,
 		`INSERT INTO review_decisions (id, tenant_id, claim_set_id, actor_user_id, action, association_mode, duplicate_plan_hash, idempotency_key, expected_revision, created_at) VALUES (?, ?, ?, ?, 'confirm', 'no_candidate', '4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945', ?, 1, ?)`,
-		`INSERT INTO payments (id, tenant_id, source_review_decision_id, amount_minor, currency, merchant, transaction_time, source_timezone, created_at, updated_at, version) VALUES (?, ?, ?, ?, 'CNY', ?, ?, 'Asia/Shanghai', ?, ?, 1)`,
+		`INSERT INTO payments (id, tenant_id, source_review_decision_id, amount_minor, currency, merchant, transaction_time, source_timezone, business_date, created_at, updated_at, version) VALUES (?, ?, ?, ?, 'CNY', ?, ?, 'Asia/Shanghai', ?, ?, ?, 1)`,
 		`INSERT INTO invoices (id, tenant_id, source_review_decision_id, invoice_number, normalized_invoice_number, invoice_date, total_minor, currency, seller_name, buyer_name, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, 'CNY', ?, ?, ?, ?, 1)`,
 		`INSERT INTO invoice_items (id, tenant_id, invoice_id, item_key, name, quantity, unit, unit_price_minor, amount_minor, sort_order) VALUES (?, ?, ?, ?, 'Synthetic performance item', '1', 'item', ?, ?, 0)`,
 		`INSERT INTO fact_field_origins (id, tenant_id, payment_id, invoice_id, invoice_item_id, field_path, field_claim_id, review_decision_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -285,7 +286,11 @@ func (s seedContext) insertChain(ctx context.Context, index int, providerID stri
 	if documentType == "payment" {
 		merchant := fmt.Sprintf("Synthetic Merchant %05d", index)
 		transactionTime := createdAt.Format(time.RFC3339)
-		if _, err := s.queries.payment.ExecContext(ctx, factID, s.tenantID, decisionID, amount, merchant, transactionTime, formatTime(createdAt), formatTime(createdAt)); err != nil {
+		businessDate, err := domain.PaymentBusinessDate(transactionTime, "Asia/Shanghai")
+		if err != nil {
+			return err
+		}
+		if _, err := s.queries.payment.ExecContext(ctx, factID, s.tenantID, decisionID, amount, merchant, transactionTime, businessDate, formatTime(createdAt), formatTime(createdAt)); err != nil {
 			return err
 		}
 		for _, path := range []string{"amount_minor", "currency", "merchant", "transaction_time", "source_timezone"} {

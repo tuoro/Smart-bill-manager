@@ -340,6 +340,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/allocations/{fact_type}/{fact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAllocationWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/allocations/{fact_type}/{fact_id}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adjustAllocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/provider-configs": {
         parameters: {
             query?: never;
@@ -643,6 +675,85 @@ export interface components {
             /** Format: uuid */
             fact_id: string;
             link_ids: string[];
+            replayed: boolean;
+        };
+        /** @enum {string} */
+        AllocationFactType: "payment" | "invoice";
+        AllocationFactSummary: {
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            amount_minor: number;
+            /** Format: int64 */
+            allocated_minor: number;
+            /** Format: int64 */
+            remaining_minor: number;
+            currency: components["schemas"]["Currency"];
+            /** Format: date */
+            business_date: string;
+            display_name: string;
+        };
+        AllocationWorkspaceLink: {
+            /** Format: uuid */
+            id: string;
+            target_fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            target_fact_id: string;
+            /** Format: int64 */
+            allocated_minor: number;
+            currency: components["schemas"]["Currency"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        AllocationTarget: {
+            fact_type: components["schemas"]["AllocationFactType"];
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            amount_minor: number;
+            /** Format: int64 */
+            allocated_minor: number;
+            /** Format: int64 */
+            remaining_minor: number;
+            currency: components["schemas"]["Currency"];
+            /** Format: date */
+            business_date: string;
+            display_name: string;
+            name_exact: boolean;
+            date_distance_days: number;
+            /** Format: uuid */
+            current_link_id?: string;
+            /** Format: int64 */
+            current_allocated_minor: number;
+            /** Format: int64 */
+            maximum_allocatable_minor: number;
+        };
+        AllocationWorkspace: {
+            anchor: components["schemas"]["AllocationFactSummary"];
+            links: components["schemas"]["AllocationWorkspaceLink"][];
+            targets: components["schemas"]["AllocationTarget"][];
+            plan_hash: string;
+        };
+        DesiredAllocation: {
+            /** Format: uuid */
+            target_fact_id: string;
+            /** Format: int64 */
+            allocated_minor: number;
+        };
+        AllocationAdjustmentRequest: {
+            expected_plan_hash: string;
+            desired_allocations: components["schemas"]["DesiredAllocation"][];
+            reason: string;
+        };
+        AllocationAdjustmentResult: {
+            /** Format: uuid */
+            adjustment_id: string;
+            /** @enum {string} */
+            mode: "supplement" | "withdraw" | "replace";
+            ended_link_ids: string[];
+            created_link_ids: string[];
+            plan_hash: string;
             replayed: boolean;
         };
         Payment: {
@@ -1373,6 +1484,66 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["NotFound"];
+        };
+    };
+    getAllocationWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fact_type: components["schemas"]["AllocationFactType"];
+                fact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已确认 Fact 的当前活动分配计划与合格目标 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationWorkspace"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    adjustAllocation: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                fact_type: components["schemas"]["AllocationFactType"];
+                fact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllocationAdjustmentRequest"];
+            };
+        };
+        responses: {
+            /** @description 首次调整或严格幂等重放结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationAdjustmentResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listProviderConfigs: {

@@ -8,6 +8,10 @@ export type ConfirmRequest = components['schemas']['ConfirmRequest']
 export type ConfirmResult = components['schemas']['ConfirmResult']
 export type Payment = components['schemas']['Payment']
 export type Invoice = components['schemas']['Invoice']
+export type AllocationFactType = components['schemas']['AllocationFactType']
+export type AllocationWorkspace = components['schemas']['AllocationWorkspace']
+export type AllocationAdjustmentRequest = components['schemas']['AllocationAdjustmentRequest']
+export type AllocationAdjustmentResult = components['schemas']['AllocationAdjustmentResult']
 export type ProviderConfig = components['schemas']['ProviderConfig']
 export type UploadResult = components['schemas']['UploadResult']
 
@@ -130,6 +134,24 @@ export const api = {
   },
   invoices(): Promise<{ items: Invoice[] }> {
     return request('/invoices')
+  },
+  allocationWorkspace(factType: AllocationFactType, factId: string): Promise<AllocationWorkspace> {
+    return request(`/allocations/${encodeURIComponent(factType)}/${encodeURIComponent(factId)}`)
+  },
+  adjustAllocation(
+    factType: AllocationFactType,
+    factId: string,
+    body: AllocationAdjustmentRequest,
+    idempotencyKey: string,
+  ): Promise<AllocationAdjustmentResult> {
+    return request(
+      `/allocations/${encodeURIComponent(factType)}/${encodeURIComponent(factId)}/adjustments`,
+      {
+        method: 'POST',
+        headers: { 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(body),
+      },
+    )
   },
   providerConfigs(): Promise<{ items: ProviderConfig[] }> {
     return request('/provider-configs')

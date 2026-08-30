@@ -1,6 +1,6 @@
 # Clean Slate 架构基线
 
-状态：M0、M1 已完成；M2 进行中
+状态：M0、M1、M2 已完成；M3 首切片尚未冻结
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
 
@@ -192,6 +192,18 @@ M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 i
 - `needs_review` 或 `blocked` Job 仍不重新提取；用户只能创建完整修订、驳回或取消。审核“驳回”只进入终态 `rejected`，不隐式重试。
 
 详细不变量见 `docs/decisions/0009-payment-invoice-allocation.md`。
+
+### M2 已确认 Fact 的分配调整
+
+1. 调整是独立的 `application/allocations` 用例，不复用 Review 确认命令，也不修改 Claim、ReviewDecision 或 Fact。`owner` 与 `finance` 通过 `allocations.manage` 进入该边界。
+2. 读取端口以 anchor 类型、ID 和显式租户查询当前活动 Link，并返回最多 200 个同币种、日期窗口内的相反类型 Fact。当前对的可调整上限等于目标剩余金额加当前对金额；所有余额仍动态聚合活动 Link。
+3. 领域层对活动 Link 计算版本化 `plan_hash`，规范化用户提交的完整期望计划，派生 `supplement`、`withdraw` 或 `replace`，并计算请求身份和差异。无变化计划拒绝，不创建空审计记录。
+4. 写端口在 immediate SQLite 事务中先读取 `tenant_id + idempotency_key`；命中同一请求时重放原结果，命中不同请求时冲突。首次请求随后重读 anchor、活动 Link 与目标，校验期望 hash、租户、Fact 状态、币种、日期、余额和活动对唯一。
+5. 事务预生成 Adjustment、AuditEvent 和新 Link ID，先写安全 AuditEvent 与不可变 Adjustment，再终止撤销/替换的旧 Link并创建新 Link。任一语句失败则整体回滚；未变化 Link 不写入。
+6. 初次审核 Link 以 LinkDecision 为创建来源，独立调整 Link 以 Adjustment 为创建来源，两者严格二选一。Fact 删除和独立调整也是 Link 的两种互斥终止来源；数据库触发器重复约束来源、anchor scope、Fact 状态、币种、余额和不可变历史。
+7. Web 使用 `/allocations/:factType/:factId` 独立路由承载完整计划表单。提交后总是重新读取服务端工作区；陈旧快照保留理由和用户输入并要求刷新确认，不把客户端草稿写成第二数据源。
+
+详细协议与失败边界见 `docs/decisions/0013-confirmed-fact-allocation-adjustment.md`。
 
 ### M2 确定性重复检测
 

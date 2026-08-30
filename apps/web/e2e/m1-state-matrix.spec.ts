@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
-import type { JobSummary, Payment, Review, Session } from '../src/data/client'
+import type { AllocationWorkspace, JobSummary, Payment, Review, Session } from '../src/data/client'
 
 const timestamp = '2026-08-28T08:00:00Z'
 const transparentPNG = Buffer.from(
@@ -529,6 +529,143 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
+  test('分配调整：列表入口提交完整替换计划并刷新权威余额', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    const payment = syntheticPayment()
+    await page.route(paymentsURL, (route) => fulfillJSON(route, { items: [payment] }))
+    let workspace = allocationWorkspaceFixture()
+    let submitted: unknown
+    await page.route(allocationURL(payment.id), async (route) => {
+      if (route.request().method() === 'GET') {
+        await fulfillJSON(route, workspace)
+        return
+      }
+      submitted = route.request().postDataJSON()
+      expect(route.request().headers()['idempotency-key']).toMatch(/^allocation-/)
+      expect(route.request().headers()['x-csrf-token']).toBe('synthetic-csrf-token')
+      workspace = adjustedAllocationWorkspaceFixture()
+      await fulfillJSON(route, {
+        adjustment_id: '50000000-0000-4000-8000-000000000001',
+        mode: 'replace',
+        ended_link_ids: ['40000000-0000-4000-8000-000000000001'],
+        created_link_ids: [
+          '40000000-0000-4000-8000-000000000002',
+          '40000000-0000-4000-8000-000000000003',
+        ],
+        plan_hash: 'b'.repeat(64),
+        replayed: false,
+      })
+    })
+
+    await page.goto('/payments')
+    await page.getByRole('link', { name: '调整分配' }).click()
+    await expect(page.getByRole('heading', { name: '调整支付—发票分配' })).toBeVisible()
+    await expect(page.getByText('当前已分配').locator('..')).toContainText('4.00')
+
+    const invoiceARow = page.locator('.allocation-target-row').filter({ hasText: '合成发票 A' })
+    const invoiceBRow = page.locator('.allocation-target-row').filter({ hasText: '合成发票 B' })
+    await invoiceARow.getByLabel('期望分配（最小单位）').fill('500')
+    await invoiceBRow.getByRole('checkbox').check()
+    await invoiceBRow.getByLabel('期望分配（最小单位）').fill('300')
+    await page.getByLabel('调整理由').fill('  人工核对后替换计划  ')
+    await page.getByRole('button', { name: '确认替换分配' }).click()
+
+    await expect(page.getByRole('status').filter({ hasText: '替换分配已保存' })).toBeVisible()
+    expect(submitted).toEqual({
+      expected_plan_hash: 'a'.repeat(64),
+      desired_allocations: [
+        { target_fact_id: allocationInvoiceA, allocated_minor: 500 },
+        { target_fact_id: allocationInvoiceB, allocated_minor: 300 },
+      ],
+      reason: '人工核对后替换计划',
+    })
+    await expect(page.getByText('当前已分配').locator('..')).toContainText('8.00')
+
+    for (const viewport of [
+      { width: 768, height: 900 },
+      { width: 384, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expect(page.getByRole('button', { name: /确认/ })).toBeVisible()
+    }
+    await page.getByLabel('调整理由').focus()
+    expect(
+      await page.getByLabel('调整理由').evaluate((element) => document.activeElement === element),
+    ).toBe(true)
+    expect(pageErrors).toEqual([])
+  })
+
+  test('分配调整：加载后明确展示无合格目标状态', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    const payment = syntheticPayment()
+    let releaseWorkspace = () => {}
+    const workspaceResponse = new Promise<void>((resolve) => {
+      releaseWorkspace = resolve
+    })
+    await page.route(allocationURL(payment.id), async (route) => {
+      await workspaceResponse
+      await fulfillJSON(route, emptyAllocationWorkspaceFixture())
+    })
+
+    await page.goto(`/allocations/payment/${payment.id}`)
+    await expect(page.getByRole('status')).toContainText('正在加载当前分配')
+    releaseWorkspace()
+
+    await expect(page.getByText('没有合格目标')).toBeVisible()
+    await expect(page.getByText('当前没有同币种且日期相差不超过 30 天')).toBeVisible()
+    await expect(page.getByRole('button', { name: '确认没有变化' })).toBeDisabled()
+    expect(pageErrors).toEqual([])
+  })
+
+  test('分配调整：撤销全部需二次确认，陈旧冲突保留草稿', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    const payment = syntheticPayment()
+    await page.route(allocationURL(payment.id), async (route) => {
+      if (route.request().method() === 'GET') {
+        await fulfillJSON(route, allocationWorkspaceFixture())
+        return
+      }
+      await fulfillError(route, 409, 'allocation_plan_stale', '分配计划已变化，请刷新后重试')
+    })
+
+    await page.goto(`/allocations/payment/${payment.id}`)
+    await page.getByRole('checkbox', { name: /合成发票 A/ }).uncheck()
+    await page.getByLabel('调整理由').fill('撤销全部合成分配')
+    await page.getByRole('button', { name: '确认撤销分配' }).click()
+    await expect(page.getByText('撤销全部分配前需要再次确认')).toBeVisible()
+
+    await page.getByRole('checkbox', { name: /确认撤销全部/ }).check()
+    await page.getByRole('button', { name: '确认撤销分配' }).click()
+    const conflict = page.getByRole('alert')
+    await expect(conflict).toContainText('当前草稿已保留')
+    await expect(conflict.getByRole('button', { name: '刷新权威计划' })).toBeVisible()
+    await expect(page.getByLabel('调整理由')).toHaveValue('撤销全部合成分配')
+    await expect(page.getByRole('checkbox', { name: /合成发票 A/ })).not.toBeChecked()
+    expect(pageErrors).toEqual([])
+  })
+
+  test('分配调整：权限不足不展示计划内容', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page, reviewerSession())
+    const payment = syntheticPayment()
+    await page.route(allocationURL(payment.id), (route) =>
+      fulfillError(route, 403, 'forbidden', '当前账号没有执行此操作的权限'),
+    )
+
+    await page.goto(`/allocations/payment/${payment.id}`)
+    await expect(page.getByText('没有调整分配的权限')).toBeVisible()
+    await expect(page.locator('.allocation-target-list')).toHaveCount(0)
+    expect(pageErrors).toEqual([])
+  })
+
   test('账单列表：权限不足状态不泄露数据', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page, reviewerSession())
@@ -561,6 +698,11 @@ function invoicesURL(url: URL): boolean {
   return url.pathname === '/api/v1/invoices'
 }
 
+function allocationURL(factID: string): (url: URL) => boolean {
+  const workspacePath = `/api/v1/allocations/payment/${factID}`
+  return (url) => url.pathname === workspacePath || url.pathname === `${workspacePath}/adjustments`
+}
+
 function reviewURL(jobID: string): (url: URL) => boolean {
   return (url) => url.pathname === `/api/v1/reviews/${jobID}`
 }
@@ -570,7 +712,15 @@ function confirmURL(jobID: string): (url: URL) => boolean {
 }
 
 async function mockSession(page: Page, session: Session = ownerSession()) {
-  await page.route(sessionURL, (route) => fulfillJSON(route, session))
+  await page.route(sessionURL, (route) =>
+    route.fulfill({
+      status: 200,
+      json: session,
+      headers: {
+        'Set-Cookie': `sbm_csrf=${encodeURIComponent(session.csrf_token)}; Path=/; SameSite=Strict`,
+      },
+    }),
+  )
 }
 
 async function mockJobs(page: Page, current: () => JobSummary[]) {
@@ -608,7 +758,7 @@ function ownerSession(): Session {
       timezone: 'Asia/Shanghai',
     },
     role: 'owner',
-    capabilities: ['documents.process', 'facts.read', 'providers.manage'],
+    capabilities: ['documents.process', 'facts.read', 'allocations.manage', 'providers.manage'],
     csrf_token: 'synthetic-csrf-token',
     expires_at: '2026-08-29T08:00:00Z',
   }
@@ -754,6 +904,120 @@ function syntheticPayment(): Payment {
     order_number: 'SYN-STATE-001',
     category: '合成测试',
     created_at: timestamp,
+  }
+}
+
+const allocationInvoiceA = '20000000-0000-4000-8000-000000000001'
+const allocationInvoiceB = '20000000-0000-4000-8000-000000000002'
+
+function allocationWorkspaceFixture(): AllocationWorkspace {
+  return {
+    anchor: {
+      fact_type: 'payment',
+      id: syntheticPayment().id,
+      amount_minor: syntheticPayment().amount_minor,
+      allocated_minor: 400,
+      remaining_minor: syntheticPayment().amount_minor - 400,
+      currency: 'CNY',
+      business_date: '2026-08-28',
+      display_name: 'Synthetic State Merchant',
+    },
+    links: [
+      {
+        id: '40000000-0000-4000-8000-000000000001',
+        target_fact_type: 'invoice',
+        target_fact_id: allocationInvoiceA,
+        allocated_minor: 400,
+        currency: 'CNY',
+        created_at: timestamp,
+      },
+    ],
+    targets: [
+      allocationTarget(allocationInvoiceA, '合成发票 A', 600, 400, 400, 600, true, 0),
+      allocationTarget(allocationInvoiceB, '合成发票 B', 700, 0, 0, 700, false, 1),
+    ],
+    plan_hash: 'a'.repeat(64),
+  }
+}
+
+function adjustedAllocationWorkspaceFixture(): AllocationWorkspace {
+  return {
+    ...allocationWorkspaceFixture(),
+    anchor: {
+      ...allocationWorkspaceFixture().anchor,
+      allocated_minor: 800,
+      remaining_minor: syntheticPayment().amount_minor - 800,
+    },
+    links: [
+      {
+        id: '40000000-0000-4000-8000-000000000002',
+        target_fact_type: 'invoice',
+        target_fact_id: allocationInvoiceA,
+        allocated_minor: 500,
+        currency: 'CNY',
+        created_at: timestamp,
+      },
+      {
+        id: '40000000-0000-4000-8000-000000000003',
+        target_fact_type: 'invoice',
+        target_fact_id: allocationInvoiceB,
+        allocated_minor: 300,
+        currency: 'CNY',
+        created_at: timestamp,
+      },
+    ],
+    targets: [
+      allocationTarget(allocationInvoiceA, '合成发票 A', 600, 500, 500, 600, true, 0),
+      allocationTarget(allocationInvoiceB, '合成发票 B', 700, 300, 300, 700, false, 1),
+    ],
+    plan_hash: 'b'.repeat(64),
+  }
+}
+
+function emptyAllocationWorkspaceFixture(): AllocationWorkspace {
+  return {
+    ...allocationWorkspaceFixture(),
+    anchor: {
+      ...allocationWorkspaceFixture().anchor,
+      allocated_minor: 0,
+      remaining_minor: syntheticPayment().amount_minor,
+    },
+    links: [],
+    targets: [],
+    plan_hash: 'c'.repeat(64),
+  }
+}
+
+function allocationTarget(
+  id: string,
+  displayName: string,
+  amountMinor: number,
+  allocatedMinor: number,
+  currentAllocatedMinor: number,
+  maximumAllocatableMinor: number,
+  nameExact: boolean,
+  dateDistanceDays: number,
+): AllocationWorkspace['targets'][number] {
+  return {
+    fact_type: 'invoice',
+    id,
+    amount_minor: amountMinor,
+    allocated_minor: allocatedMinor,
+    remaining_minor: amountMinor - allocatedMinor,
+    currency: 'CNY',
+    business_date: dateDistanceDays === 0 ? '2026-08-28' : '2026-08-29',
+    display_name: displayName,
+    name_exact: nameExact,
+    date_distance_days: dateDistanceDays,
+    current_link_id: currentAllocatedMinor
+      ? currentAllocatedMinor === 400
+        ? '40000000-0000-4000-8000-000000000001'
+        : id === allocationInvoiceA
+          ? '40000000-0000-4000-8000-000000000002'
+          : '40000000-0000-4000-8000-000000000003'
+      : undefined,
+    current_allocated_minor: currentAllocatedMinor,
+    maximum_allocatable_minor: maximumAllocatableMinor,
   }
 }
 

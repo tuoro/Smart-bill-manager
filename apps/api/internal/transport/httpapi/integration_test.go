@@ -27,6 +27,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
@@ -240,6 +241,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	if confirmed["fact_type"] != "payment" || confirmed["fact_id"] == "" || len(confirmed["link_ids"].([]any)) != 0 {
 		t.Fatalf("unexpected confirm response: %+v", confirmed)
 	}
+	paymentID := asString(t, confirmed["fact_id"])
 	replay := fixture.requestWithHeaders(http.MethodPost, "/api/v1/reviews/"+firstUpload["job_id"]+"/confirm", strings.NewReader(confirmJSON), ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "confirm-0001"})
 	assertStatus(t, replay, http.StatusOK)
 	replayed := decodeMap(t, replay)
@@ -260,6 +262,21 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 		t.Fatalf("payment missing: %s", payments.Body.String())
 	}
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/invoices", nil, ownerSession, false, ""), http.StatusOK)
+	allocationWorkspaceResponse := fixture.request(http.MethodGet, "/api/v1/allocations/payment/"+paymentID, nil, ownerSession, false, "")
+	assertStatus(t, allocationWorkspaceResponse, http.StatusOK)
+	allocationWorkspace := decodeMap(t, allocationWorkspaceResponse)
+	planHash := asString(t, allocationWorkspace["plan_hash"])
+	if len(planHash) != 64 || len(allocationWorkspace["links"].([]any)) != 0 || len(allocationWorkspace["targets"].([]any)) != 0 {
+		t.Fatalf("empty allocation workspace = %#v", allocationWorkspace)
+	}
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/allocations/unknown/"+paymentID, nil, ownerSession, false, ""), http.StatusBadRequest)
+	missingPlan := `{"expected_plan_hash":"` + planHash + `","reason":"缺少完整数组"}`
+	assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/allocations/payment/"+paymentID+"/adjustments", strings.NewReader(missingPlan), ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "allocation-http-missing"}), http.StatusBadRequest)
+	unknownField := `{"expected_plan_hash":"` + planHash + `","desired_allocations":[],"reason":"严格 JSON","unknown":true}`
+	assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/allocations/payment/"+paymentID+"/adjustments", strings.NewReader(unknownField), ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "allocation-http-unknown"}), http.StatusBadRequest)
+	emptyPlan := `{"expected_plan_hash":"` + planHash + `","desired_allocations":[],"reason":"没有变化"}`
+	assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/allocations/payment/"+paymentID+"/adjustments", strings.NewReader(emptyPlan), ownerSession, false, "application/json", map[string]string{"Idempotency-Key": "allocation-http-no-csrf"}), http.StatusForbidden)
+	assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/allocations/payment/"+paymentID+"/adjustments", strings.NewReader(emptyPlan), ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "allocation-http-unchanged"}), http.StatusConflict)
 
 	secondUpload := fixture.upload(t, ownerSession, "reject.png", "image/png", syntheticPNG(t, color.RGBA{R: 80, G: 40, B: 180, A: 255}))
 	fixture.processNext(t)
@@ -302,12 +319,13 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodPost, "/api/v1/jobs/"+retryUpload["job_id"]+"/cancel", nil, secondTenantSession, true, ""), http.StatusNotFound)
 	crossTenantConfirm := fixture.requestWithHeaders(http.MethodPost, "/api/v1/reviews/"+secondUpload["job_id"]+"/confirm", strings.NewReader("{\"expected_revision\":1,\"association_mode\":\"no_candidate\",\"allocations\":[],\"duplicate_resolutions\":[]}"), secondTenantSession, true, "application/json", map[string]string{"Idempotency-Key": "tenant-0001"})
 	assertStatus(t, crossTenantConfirm, http.StatusNotFound)
-	paymentID := asString(t, confirmed["fact_id"])
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/allocations/payment/"+paymentID, nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/payments/"+paymentID, nil, secondTenantSession, true, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/provider-configs/"+providerID, nil, secondTenantSession, true, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/documents/"+secondUpload["document_id"], nil, secondTenantSession, true, ""), http.StatusNotFound)
 
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/payments/"+paymentID, nil, ownerSession, true, ""), http.StatusNoContent)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/allocations/payment/"+paymentID, nil, ownerSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/payments/"+paymentID, nil, ownerSession, true, ""), http.StatusNotFound)
 	paymentsAfterDelete := fixture.request(http.MethodGet, "/api/v1/payments", nil, ownerSession, false, "")
 	assertStatus(t, paymentsAfterDelete, http.StatusOK)
@@ -414,6 +432,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	documentDeletions := documents.NewDeletionService(store, objects, store, system.IDGenerator{}, system.Clock{})
 	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
+	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	webRoot := filepath.Join(root, "web")
 	if err := os.Mkdir(webRoot, 0o700); err != nil {
 		store.Close()
@@ -424,7 +443,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 		t.Fatal(err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

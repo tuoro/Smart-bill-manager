@@ -112,6 +112,7 @@ type JobSummary struct {
 type Transaction interface {
 	ProcessingTransaction
 	ReviewTransaction
+	AllocationTransaction
 	RequestJobCancellation(
 		ctx context.Context,
 		tenantID, jobID, actorUserID, decisionID, idempotencyKey string,

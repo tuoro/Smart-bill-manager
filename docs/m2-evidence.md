@@ -1,6 +1,6 @@
 # M2 分切片验收证据
 
-状态：通过；支付—发票金额分配、确定性重复检测、跨页明细分页审核与多 Document 批量上传四个切片已完成，M2 整体仍在进行中
+状态：通过；五个切片全部完成，M2 已于 2026-08-31 收口
 
 更新日期：2026-08-31
 
@@ -117,9 +117,36 @@
 - 最终工作区与暂存区 `git diff --check` 通过；19 个暂存文件中最大文件为 54,729 字节，已知凭据前缀与私有/生成资产路径扫描无命中。本轮 Web 构建与 Playwright 结果目录已清理，未留下 Vite、Playwright、Go 门禁进程或本项目容器。
 - 机读摘要见 `tests/evidence/m2/batch-upload-gate-summary.json`；只记录纯合成测试身份、聚合门禁和安全元数据。
 
+## 第五切片：已确认 Fact 的独立分配调整
+
+### 第五切片实现证据
+
+- 冻结决策：`docs/decisions/0013-confirmed-fact-allocation-adjustment.md`；
+- 一个已确认 Payment/Invoice 作为 anchor，GET 返回当前活动 Link、最多 200 个合格目标和版本化 `plan_hash`；
+- POST 提交完整期望活动计划、必填理由、期望 hash 与幂等键，并原子派生补充、撤销或替换；
+- 未变化 Link 不写，撤销/替换只终止旧 Link，新增/替换创建新不可变 Link；活动 Link 仍是余额唯一来源；
+- `owner`、`finance` 具有 `allocations.manage`，`reviewer`、`viewer` 拒绝；独立页面覆盖完整计划、撤销全部确认、冲突、键盘和响应式边界；
+- 不调用模型、不修改 Fact 字段、不增加跨币种、自动接受、旧兼容链路或第二余额数据源。
+
+- `apps/api/internal/domain/allocation_adjustment.go` 是活动计划 hash、完整期望计划、请求 hash、模式差异、理由/幂等边界及双方整数余额校验的唯一领域实现；零金额 Fact 可读取空工作区，但不能产生正数分配。
+- `apps/api/internal/adapters/sqlite/allocations.go` 在 immediate 事务内执行幂等重放、快照重读、目标资格、余额、差异和原子持久化；`payment_invoice_allocation_adjustments` 与 Link 创建/终止来源由 Clean Slate `0001` 的外键、CHECK、唯一索引和不可变触发器约束。
+- Adjustment 保存受租户隔离的业务理由；唯一 `payment_invoice_allocation_adjusted` AuditEvent 只记录模式、创建数和终止数，不包含理由、金额、名称或完整计划。活动 Link 仍是余额唯一来源。
+- HTTP/OpenAPI 和生成客户端公开唯一 GET/POST 契约；未知字段、缺失数组、非法路径、CSRF、权限和陈旧/冲突均显式失败。列表只对具备 `allocations.manage` 的会话展示入口。
+- Web 独立页面覆盖加载、无目标、当前计划、完整期望计划、理由、撤销全部二次确认、服务端冲突保留草稿、成功刷新、权限、键盘、768px 和 384px 等效 reflow。
+
+### 第五切片已执行验收
+
+- 固定 Go 1.26.7 禁网容器：`go test -p=1 -count=1 -timeout 60s ./...`、`go vet ./...` 与 `go build -buildvcs=false ./...` 全部通过；只读复用宿主既有模块缓存，未下载依赖。
+- Web：`npm run check` 通过 OpenAPI 客户端生成、类型检查、ESLint、Prettier、5 个 Vitest 文件共 21 项测试和生产构建。
+- 浏览器组件矩阵：`playwright test e2e/m1-state-matrix.spec.ts` 18 / 18 通过；新增场景覆盖入口、完整替换请求、CSRF/幂等头、权威余额刷新、加载/空目标、撤销全部、陈旧冲突保留草稿、权限、键盘、768px 与 384px 回流。
+- 关键不变量：72 / 72（100%）通过，其中 11 个新增映射覆盖快照、请求、模式、余额、生命周期、来源/隐私、权限/目标、并发、200 项上限和 HTTP 边界。
+- 领域/应用层语句覆盖率 85.86%（2,216 / 2,581，门槛 85%）；基础设施/传输层 73.01%（2,388 / 3,271，门槛 70%）。
+- 最终工作区与 42 个精确暂存文件的 diff 检查通过，最大暂存文件为 61,378 字节的 `docs/acceptance.md`；已知密钥前缀、私有资产路径、生成/临时产物和项目进程残留检查均通过。宿主仅有两个无关 `shenlun` PostgreSQL 容器，本轮未触碰。
+- 机读切片摘要见 `tests/evidence/m2/allocation-adjustment-gate-summary.json`；M2 五切片收口摘要见 `tests/evidence/m2/m2-closure-gate-summary.json`。两者只含纯合成身份、聚合门禁和安全元数据。
+
 ## 边界与下一断点
 
 - 本轮未调用真实 Provider，未处理模型正确率，未安装或恢复本地 OCR、RapidOCR、PaddleOCR 或模型缓存。
-- 本轮未实施已确认 Fact 的独立 Link 调整工作流。
-- 第四切片门禁记录时尚未部署、提交或推送；本文件随获授权的独立本地切片提交固化后，以包含本文件的本地 Git commit 为事实来源，仍不得推送或部署。
-- 下一断点是先冻结已确认 Fact 之间独立补充分配、撤销或替换工作流的范围、验收、状态机和必要 ADR。模型正确率继续保留到全部功能完成后的 M4 正式门禁。
+- 五个切片的当前全量门禁通过，M2 已收口；历史切片证据继续保留各自当时的分母与场景数，不改写为最终数字。
+- 本轮未连接真实邮箱、云服务或其他外部账号，未创建或变更凭据，未推送、部署、发布或创建远端资源。
+- 下一断点是先冻结 M3 首个“邮箱 Source、邮件与附件本地归档”切片，只以纯合成、本地可重复输入实施；真实邮箱账号连接与实联调仍需重新授权。模型正确率继续保留到全部本地功能完成后的 M4 正式门禁。

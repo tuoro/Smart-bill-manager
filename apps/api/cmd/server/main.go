@@ -17,6 +17,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
@@ -159,6 +160,7 @@ func run(logger *slog.Logger) error {
 	)
 	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
+	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	httpServer, err := httpapi.NewServer(
 		authService,
 		uploadService,
@@ -168,6 +170,7 @@ func run(logger *slog.Logger) error {
 		providerService,
 		reviewService,
 		factService,
+		allocationService,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,

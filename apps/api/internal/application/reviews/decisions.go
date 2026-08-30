@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
@@ -186,13 +185,8 @@ func (s Service) Reject(
 }
 
 func validateDecisionInput(idempotencyKey, requestID string) error {
-	if len(idempotencyKey) < 8 || len(idempotencyKey) > 128 {
-		return domain.NewRuleError("invalid_idempotency_key", "Idempotency-Key 长度必须为 8 到 128", domain.ErrInvalidInput)
-	}
-	for _, character := range idempotencyKey {
-		if unicode.IsControl(character) || unicode.IsSpace(character) {
-			return domain.NewRuleError("invalid_idempotency_key", "Idempotency-Key 不能包含空白或控制字符", domain.ErrInvalidInput)
-		}
+	if err := domain.ValidateIdempotencyKey(idempotencyKey); err != nil {
+		return err
 	}
 	if requestID == "" {
 		return errors.New("request id is required")

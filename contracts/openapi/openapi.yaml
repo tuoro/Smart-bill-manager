@@ -13,6 +13,7 @@ tags:
   - name: jobs
   - name: reviews
   - name: facts
+  - name: allocations
   - name: providers
 paths:
   /health:
@@ -419,6 +420,68 @@ paths:
           description: Invoice 已标记删除，活动关联已在同一事务中终止
         "404":
           $ref: "#/components/responses/NotFound"
+  /allocations/{fact_type}/{fact_id}:
+    get:
+      operationId: getAllocationWorkspace
+      tags: [allocations]
+      parameters:
+        - name: fact_type
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/AllocationFactType" }
+        - name: fact_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 已确认 Fact 的当前活动分配计划与合格目标
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationWorkspace"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /allocations/{fact_type}/{fact_id}/adjustments:
+    post:
+      operationId: adjustAllocation
+      tags: [allocations]
+      parameters:
+        - name: fact_type
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/AllocationFactType" }
+        - name: fact_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AllocationAdjustmentRequest"
+      responses:
+        "200":
+          description: 首次调整或严格幂等重放结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllocationAdjustmentResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /provider-configs:
     get:
       operationId: listProviderConfigs
@@ -1075,6 +1138,127 @@ components:
         link_ids:
           type: array
           items: { type: string, format: uuid }
+        replayed: { type: boolean }
+    AllocationFactType:
+      type: string
+      enum: [payment, invoice]
+    AllocationFactSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [fact_type, id, amount_minor, allocated_minor, remaining_minor, currency, business_date, display_name]
+      properties:
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        id: { type: string, format: uuid }
+        amount_minor:
+          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+        allocated_minor:
+          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+        remaining_minor:
+          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+        currency: { $ref: "#/components/schemas/Currency" }
+        business_date: { type: string, format: date }
+        display_name: { type: string }
+    AllocationWorkspaceLink:
+      type: object
+      additionalProperties: false
+      required: [id, target_fact_type, target_fact_id, allocated_minor, currency, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        target_fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        target_fact_id: { type: string, format: uuid }
+        allocated_minor:
+          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+        currency: { $ref: "#/components/schemas/Currency" }
+        created_at: { type: string, format: date-time }
+    AllocationTarget:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          fact_type,
+          id,
+          amount_minor,
+          allocated_minor,
+          remaining_minor,
+          currency,
+          business_date,
+          display_name,
+          name_exact,
+          date_distance_days,
+          current_allocated_minor,
+          maximum_allocatable_minor,
+        ]
+      properties:
+        fact_type: { $ref: "#/components/schemas/AllocationFactType" }
+        id: { type: string, format: uuid }
+        amount_minor:
+          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+        allocated_minor:
+          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+        remaining_minor:
+          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+        currency: { $ref: "#/components/schemas/Currency" }
+        business_date: { type: string, format: date }
+        display_name: { type: string }
+        name_exact: { type: boolean }
+        date_distance_days: { type: integer, minimum: 0, maximum: 30 }
+        current_link_id: { type: string, format: uuid }
+        current_allocated_minor:
+          { type: integer, format: int64, minimum: 0, maximum: 9007199254740991 }
+        maximum_allocatable_minor:
+          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+    AllocationWorkspace:
+      type: object
+      additionalProperties: false
+      required: [anchor, links, targets, plan_hash]
+      properties:
+        anchor: { $ref: "#/components/schemas/AllocationFactSummary" }
+        links:
+          type: array
+          maxItems: 200
+          items: { $ref: "#/components/schemas/AllocationWorkspaceLink" }
+        targets:
+          type: array
+          maxItems: 200
+          items: { $ref: "#/components/schemas/AllocationTarget" }
+        plan_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+    DesiredAllocation:
+      type: object
+      additionalProperties: false
+      required: [target_fact_id, allocated_minor]
+      properties:
+        target_fact_id: { type: string, format: uuid }
+        allocated_minor:
+          { type: integer, format: int64, minimum: 1, maximum: 9007199254740991 }
+    AllocationAdjustmentRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_plan_hash, desired_allocations, reason]
+      properties:
+        expected_plan_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+        desired_allocations:
+          type: array
+          maxItems: 200
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/DesiredAllocation" }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    AllocationAdjustmentResult:
+      type: object
+      additionalProperties: false
+      required: [adjustment_id, mode, ended_link_ids, created_link_ids, plan_hash, replayed]
+      properties:
+        adjustment_id: { type: string, format: uuid }
+        mode: { type: string, enum: [supplement, withdraw, replace] }
+        ended_link_ids:
+          type: array
+          maxItems: 200
+          items: { type: string, format: uuid }
+        created_link_ids:
+          type: array
+          maxItems: 200
+          items: { type: string, format: uuid }
+        plan_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
         replayed: { type: boolean }
     Payment:
       type: object

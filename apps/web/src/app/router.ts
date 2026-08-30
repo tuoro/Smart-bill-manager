@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import('../features/facts/InvoicesPage.vue'),
     },
     {
+      path: '/allocations/:factType/:factId',
+      name: 'allocation',
+      component: () => import('../features/allocations/AllocationPage.vue'),
+    },
+    {
       path: '/settings/ai',
       name: 'settings-ai',
       component: () => import('../features/settings/ProviderSettingsPage.vue'),

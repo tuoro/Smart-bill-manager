@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
@@ -38,20 +39,21 @@ type Config struct {
 }
 
 type Server struct {
-	auth       auth.Service
-	health     HealthChecker
-	readiness  ReadinessChecker
-	ids        system.IDGenerator
-	logger     *slog.Logger
-	config     Config
-	upload     documents.UploadService
-	documents  documents.QueryService
-	jobActions documents.ActionService
-	deletions  documents.DeletionService
-	providers  providers.Service
-	reviews    reviews.Service
-	facts      reviews.FactService
-	spa        http.Handler
+	auth        auth.Service
+	health      HealthChecker
+	readiness   ReadinessChecker
+	ids         system.IDGenerator
+	logger      *slog.Logger
+	config      Config
+	upload      documents.UploadService
+	documents   documents.QueryService
+	jobActions  documents.ActionService
+	deletions   documents.DeletionService
+	providers   providers.Service
+	reviews     reviews.Service
+	facts       reviews.FactService
+	allocations allocations.Service
+	spa         http.Handler
 }
 
 func NewServer(
@@ -63,6 +65,7 @@ func NewServer(
 	providerService providers.Service,
 	reviewService reviews.Service,
 	factService reviews.FactService,
+	allocationService allocations.Service,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -73,20 +76,21 @@ func NewServer(
 		return nil, fmt.Errorf("configure web application: %w", err)
 	}
 	return &Server{
-		auth:       authService,
-		upload:     uploadService,
-		documents:  documentQueries,
-		jobActions: jobActions,
-		deletions:  documentDeletions,
-		providers:  providerService,
-		reviews:    reviewService,
-		facts:      factService,
-		health:     health,
-		readiness:  readiness,
-		ids:        system.IDGenerator{},
-		logger:     logger,
-		config:     config,
-		spa:        spa,
+		auth:        authService,
+		upload:      uploadService,
+		documents:   documentQueries,
+		jobActions:  jobActions,
+		deletions:   documentDeletions,
+		providers:   providerService,
+		reviews:     reviewService,
+		facts:       factService,
+		allocations: allocationService,
+		health:      health,
+		readiness:   readiness,
+		ids:         system.IDGenerator{},
+		logger:      logger,
+		config:      config,
+		spa:         spa,
 	}, nil
 }
 
@@ -115,6 +119,8 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("DELETE /api/v1/payments/{payment_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deletePaymentHandler))))
 	router.Handle("GET /api/v1/invoices", s.requireSession(http.HandlerFunc(s.listInvoicesHandler)))
 	router.Handle("DELETE /api/v1/invoices/{invoice_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteInvoiceHandler))))
+	router.Handle("GET /api/v1/allocations/{fact_type}/{fact_id}", s.requireSession(http.HandlerFunc(s.getAllocationWorkspaceHandler)))
+	router.Handle("POST /api/v1/allocations/{fact_type}/{fact_id}/adjustments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.adjustAllocationHandler))))
 	router.Handle("GET /api/v1/provider-configs", s.requireSession(http.HandlerFunc(s.listProviderConfigsHandler)))
 	router.Handle("POST /api/v1/provider-configs", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createProviderConfigHandler))))
 	router.Handle("POST /api/v1/provider-configs/{provider_config_id}/detect", s.requireSession(s.requireCSRF(http.HandlerFunc(s.detectProviderConfigHandler))))

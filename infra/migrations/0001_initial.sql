@@ -814,26 +814,107 @@ BEGIN
     SELECT RAISE(ABORT, 'link_decision_scope_mismatch');
 END;
 
+CREATE TABLE payment_invoice_allocation_adjustments (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    actor_user_id TEXT NOT NULL,
+    anchor_fact_type TEXT NOT NULL,
+    anchor_payment_id TEXT,
+    anchor_invoice_id TEXT,
+    mode TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    expected_plan_hash TEXT NOT NULL,
+    resulting_plan_hash TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    audit_event_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (tenant_id, actor_user_id) REFERENCES memberships(tenant_id, user_id),
+    FOREIGN KEY (tenant_id, anchor_payment_id) REFERENCES payments(tenant_id, id),
+    FOREIGN KEY (tenant_id, anchor_invoice_id) REFERENCES invoices(tenant_id, id),
+    FOREIGN KEY (tenant_id, audit_event_id) REFERENCES audit_events(tenant_id, id),
+    CHECK (anchor_fact_type IN ('payment', 'invoice')),
+    CHECK ((anchor_fact_type = 'payment' AND anchor_payment_id IS NOT NULL AND anchor_invoice_id IS NULL)
+        OR (anchor_fact_type = 'invoice' AND anchor_invoice_id IS NOT NULL AND anchor_payment_id IS NULL)),
+    CHECK (mode IN ('supplement', 'withdraw', 'replace')),
+    CHECK (length(idempotency_key) BETWEEN 8 AND 128),
+    CHECK (instr(idempotency_key, ' ') = 0
+        AND instr(idempotency_key, char(9)) = 0
+        AND instr(idempotency_key, char(10)) = 0
+        AND instr(idempotency_key, char(13)) = 0),
+    CHECK (length(request_hash) = 64 AND request_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK (length(expected_plan_hash) = 64 AND expected_plan_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK (length(resulting_plan_hash) = 64 AND resulting_plan_hash NOT GLOB '*[^0-9a-f]*'),
+    CHECK (reason = trim(reason) AND length(reason) BETWEEN 1 AND 500),
+    UNIQUE (tenant_id, idempotency_key),
+    UNIQUE (tenant_id, audit_event_id),
+    UNIQUE (tenant_id, id)
+) STRICT;
+
+CREATE TRIGGER payment_invoice_allocation_adjustments_anchor_available
+BEFORE INSERT ON payment_invoice_allocation_adjustments
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM payments p
+    JOIN review_decisions r ON r.tenant_id = p.tenant_id AND r.id = p.source_review_decision_id
+    WHERE NEW.anchor_fact_type = 'payment'
+      AND p.tenant_id = NEW.tenant_id
+      AND p.id = NEW.anchor_payment_id
+      AND p.deleted_at IS NULL
+      AND r.action = 'confirm'
+    UNION ALL
+    SELECT 1
+    FROM invoices i
+    JOIN review_decisions r ON r.tenant_id = i.tenant_id AND r.id = i.source_review_decision_id
+    WHERE NEW.anchor_fact_type = 'invoice'
+      AND i.tenant_id = NEW.tenant_id
+      AND i.id = NEW.anchor_invoice_id
+      AND i.deleted_at IS NULL
+      AND r.action = 'confirm'
+)
+BEGIN
+    SELECT RAISE(ABORT, 'allocation_anchor_unavailable');
+END;
+
+CREATE TRIGGER payment_invoice_allocation_adjustments_immutable
+BEFORE UPDATE ON payment_invoice_allocation_adjustments
+BEGIN
+    SELECT RAISE(ABORT, 'allocation_adjustment_immutable');
+END;
+
+CREATE TRIGGER payment_invoice_allocation_adjustments_delete_forbidden
+BEFORE DELETE ON payment_invoice_allocation_adjustments
+BEGIN
+    SELECT RAISE(ABORT, 'allocation_adjustment_immutable');
+END;
+
 CREATE TABLE payment_invoice_links (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
     payment_id TEXT NOT NULL,
     invoice_id TEXT NOT NULL,
-    link_decision_id TEXT NOT NULL,
+    link_decision_id TEXT,
+    created_by_adjustment_id TEXT,
     allocated_minor INTEGER NOT NULL,
     currency TEXT NOT NULL,
     created_at TEXT NOT NULL,
     ended_at TEXT,
     ended_by_audit_event_id TEXT,
+    ended_by_adjustment_id TEXT,
     FOREIGN KEY (tenant_id, payment_id) REFERENCES payments(tenant_id, id),
     FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id),
     FOREIGN KEY (tenant_id, link_decision_id) REFERENCES payment_invoice_link_decisions(tenant_id, id),
+    FOREIGN KEY (tenant_id, created_by_adjustment_id) REFERENCES payment_invoice_allocation_adjustments(tenant_id, id),
     FOREIGN KEY (tenant_id, ended_by_audit_event_id) REFERENCES audit_events(tenant_id, id),
+    FOREIGN KEY (tenant_id, ended_by_adjustment_id) REFERENCES payment_invoice_allocation_adjustments(tenant_id, id),
     CHECK (allocated_minor BETWEEN 1 AND 9007199254740991),
     CHECK (currency IN ('CNY', 'USD', 'EUR', 'JPY')),
-    CHECK ((ended_at IS NULL AND ended_by_audit_event_id IS NULL)
-        OR (ended_at IS NOT NULL AND ended_by_audit_event_id IS NOT NULL)),
+    CHECK ((link_decision_id IS NOT NULL) + (created_by_adjustment_id IS NOT NULL) = 1),
+    CHECK ((ended_at IS NULL AND ended_by_audit_event_id IS NULL AND ended_by_adjustment_id IS NULL)
+        OR (ended_at IS NOT NULL
+            AND (ended_by_audit_event_id IS NOT NULL) + (ended_by_adjustment_id IS NOT NULL) = 1)),
     UNIQUE (tenant_id, link_decision_id),
+    UNIQUE (tenant_id, created_by_adjustment_id, payment_id, invoice_id),
     UNIQUE (tenant_id, id)
 ) STRICT;
 
@@ -842,7 +923,7 @@ ON payment_invoice_links (tenant_id, payment_id, invoice_id)
 WHERE ended_at IS NULL;
 
 CREATE TRIGGER payment_invoice_links_immutable_fields
-BEFORE UPDATE OF id, tenant_id, payment_id, invoice_id, link_decision_id,
+BEFORE UPDATE OF id, tenant_id, payment_id, invoice_id, link_decision_id, created_by_adjustment_id,
                  allocated_minor, currency, created_at
 ON payment_invoice_links
 WHEN NEW.id IS NOT OLD.id
@@ -850,6 +931,7 @@ WHEN NEW.id IS NOT OLD.id
   OR NEW.payment_id IS NOT OLD.payment_id
   OR NEW.invoice_id IS NOT OLD.invoice_id
   OR NEW.link_decision_id IS NOT OLD.link_decision_id
+  OR NEW.created_by_adjustment_id IS NOT OLD.created_by_adjustment_id
   OR NEW.allocated_minor IS NOT OLD.allocated_minor
   OR NEW.currency IS NOT OLD.currency
   OR NEW.created_at IS NOT OLD.created_at
@@ -858,13 +940,14 @@ BEGIN
 END;
 
 CREATE TRIGGER payment_invoice_links_end_once
-BEFORE UPDATE OF ended_at, ended_by_audit_event_id
+BEFORE UPDATE OF ended_at, ended_by_audit_event_id, ended_by_adjustment_id
 ON payment_invoice_links
 WHEN NOT (
     OLD.ended_at IS NULL
     AND OLD.ended_by_audit_event_id IS NULL
+    AND OLD.ended_by_adjustment_id IS NULL
     AND NEW.ended_at IS NOT NULL
-    AND NEW.ended_by_audit_event_id IS NOT NULL
+    AND (NEW.ended_by_audit_event_id IS NOT NULL) + (NEW.ended_by_adjustment_id IS NOT NULL) = 1
 )
 BEGIN
     SELECT RAISE(ABORT, 'payment_invoice_link_end_once');
@@ -878,7 +961,7 @@ END;
 
 CREATE TRIGGER payment_invoice_links_accept_only
 BEFORE INSERT ON payment_invoice_links
-WHEN NOT EXISTS (
+WHEN NEW.link_decision_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM payment_invoice_link_decisions d
     WHERE d.tenant_id = NEW.tenant_id
       AND d.id = NEW.link_decision_id
@@ -892,7 +975,7 @@ END;
 
 CREATE TRIGGER payment_invoice_links_candidate_scope
 BEFORE INSERT ON payment_invoice_links
-WHEN NOT EXISTS (
+WHEN NEW.link_decision_id IS NOT NULL AND NOT EXISTS (
     SELECT 1
     FROM payment_invoice_link_decisions d
     JOIN payment_invoice_link_candidates c
@@ -921,6 +1004,22 @@ WHEN NOT EXISTS (
 )
 BEGIN
     SELECT RAISE(ABORT, 'link_candidate_scope_mismatch');
+END;
+
+CREATE TRIGGER payment_invoice_links_adjustment_scope
+BEFORE INSERT ON payment_invoice_links
+WHEN NEW.created_by_adjustment_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+    FROM payment_invoice_allocation_adjustments a
+    WHERE a.tenant_id = NEW.tenant_id
+      AND a.id = NEW.created_by_adjustment_id
+      AND (
+          (a.anchor_fact_type = 'payment' AND a.anchor_payment_id = NEW.payment_id)
+          OR (a.anchor_fact_type = 'invoice' AND a.anchor_invoice_id = NEW.invoice_id)
+      )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'allocation_adjustment_scope_mismatch');
 END;
 
 CREATE TRIGGER payment_invoice_links_fact_state

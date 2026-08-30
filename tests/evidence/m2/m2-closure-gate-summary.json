@@ -1,0 +1,120 @@
+{
+  "report_kind": "m2-closure-gate-summary",
+  "evidence_version": "M2-CLOSURE-2026-08-31",
+  "recorded_date": "2026-08-31",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "e549ed55b0a8ac7519fc70a4d0f8f86f53e1f79f",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "complete",
+    "next_slice": "m3_email_source_scope_freeze",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "slices": [
+    {
+      "order": 1,
+      "name": "payment_invoice_amount_allocation",
+      "status": "complete",
+      "evidence": "tests/evidence/m2/gate-summary.json"
+    },
+    {
+      "order": 2,
+      "name": "deterministic_duplicate_detection",
+      "status": "complete",
+      "evidence": "tests/evidence/m2/duplicate-detection-gate-summary.json"
+    },
+    {
+      "order": 3,
+      "name": "cross_page_invoice_review",
+      "status": "complete",
+      "evidence": "tests/evidence/m2/cross-page-review-gate-summary.json"
+    },
+    {
+      "order": 4,
+      "name": "multi_document_batch_upload",
+      "status": "complete",
+      "evidence": "tests/evidence/m2/batch-upload-gate-summary.json"
+    },
+    {
+      "order": 5,
+      "name": "confirmed_fact_allocation_adjustment",
+      "status": "complete",
+      "evidence": "tests/evidence/m2/allocation-adjustment-gate-summary.json"
+    }
+  ],
+  "final_gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 5,
+      "passed": 21,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 18,
+      "failed": 0
+    },
+    "critical_invariant_branches": {
+      "passed": 72,
+      "total": 72,
+      "percentage": 100
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.86,
+      "covered": 2216,
+      "total": 2581,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 73.01,
+      "covered": 2388,
+      "total": 3271,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "repository_checkpoint": "tests/evidence/m2/allocation-adjustment-gate-summary.json#gates.repository_checkpoint"
+  },
+  "invariants": {
+    "source_claim_fact_boundary": "preserved",
+    "model_creates_fact": false,
+    "balance_source": "active_payment_invoice_links_only",
+    "tenant_isolation": "preserved",
+    "integer_minor_units": "preserved",
+    "legacy_compatibility": "not_added",
+    "local_ocr": "not_installed_or_used"
+  },
+  "excluded": {
+    "formal_real_model_accuracy_evaluation": "not_run",
+    "real_provider_calls": "not_run",
+    "real_mailbox_or_external_account_integration": "not_run",
+    "credentials": "not_created_or_changed",
+    "deployment_release_or_remote_resources": "not_run"
+  },
+  "next": {
+    "milestone": "m3",
+    "slice": "email_source_and_local_mail_attachment_archival_scope_freeze",
+    "input_boundary": "synthetic_local_reproducible_only",
+    "real_mailbox_connection": "requires_new_authorization"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1 已完成；M2 进行中
+状态：M0、M1、M2 已完成；M3 首切片尚未冻结
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -34,6 +34,9 @@ erDiagram
     PAYMENT_INVOICE_LINK_CANDIDATE ||--o| PAYMENT_INVOICE_LINK_DECISION : receives
     REVIEW_DECISION ||--o{ PAYMENT_INVOICE_LINK_DECISION : records
     PAYMENT_INVOICE_LINK_DECISION ||--o| PAYMENT_INVOICE_LINK : accepts
+    PAYMENT ||--o{ PAYMENT_INVOICE_ALLOCATION_ADJUSTMENT : anchors
+    INVOICE ||--o{ PAYMENT_INVOICE_ALLOCATION_ADJUSTMENT : anchors
+    PAYMENT_INVOICE_ALLOCATION_ADJUSTMENT ||--o{ PAYMENT_INVOICE_LINK : creates_or_ends
     PAYMENT ||--o{ PAYMENT_INVOICE_LINK : links
     INVOICE ||--o{ PAYMENT_INVOICE_LINK : links
     TENANT ||--o{ AUDIT_EVENT : records
@@ -331,16 +334,32 @@ Review 读取候选时从目标 Fact 与活动 Link 动态计算 `amount_minor`�
 
 - tenant_id；
 - payment_id、invoice_id；
-- link_decision_id；
+- link_decision_id 或 created_by_adjustment_id，必须且只能存在一个；
 - allocated_minor、currency；
 - created_at；
-- ended_at、ended_by_audit_event_id，可为空。
+- ended_at、ended_by_audit_event_id、ended_by_adjustment_id；活动时全部为空，终止时后两者必须且只能存在一个。
 
-只有 `accept` PaymentInvoiceLinkDecision 能产生 Link，且 Link 的金额与币种必须和决定完全一致。`allocated_minor` 为正整数最小单位，`currency` 必须与 Payment 和 Invoice 同时一致。数据库对活动 `tenant_id + payment_id + invoice_id` 建唯一约束，并对 `tenant_id + link_decision_id` 建永久唯一约束；同一 Fact 可通过不同活动对参与多条 Link。
+初次审核中只有 `accept` PaymentInvoiceLinkDecision 能产生 Link，且 Link 的金额与币种必须和决定完全一致；已确认 Fact 的独立调整则只能由 PaymentInvoiceAllocationAdjustment 产生，且 adjustment anchor 必须是 Link 的一端。`allocated_minor` 为正整数最小单位，`currency` 必须与 Payment 和 Invoice 同时一致。数据库对活动 `tenant_id + payment_id + invoice_id` 建唯一约束，并分别对非空 `tenant_id + link_decision_id` 与 `tenant_id + created_by_adjustment_id + payment_id + invoice_id` 建永久唯一约束；同一 Fact 可通过不同活动对参与多条 Link。
 
 数据库在插入 Link 前重算双方活动分配合计：`payment active allocated + NEW.allocated_minor <= payment.amount_minor`，`invoice active allocated + NEW.allocated_minor <= invoice.total_minor`。任一 Fact 已删除、币种不一致、决定不匹配或余额不足时拒绝插入。应用层执行同一规则以返回稳定业务错误，数据库约束负责防止并发绕过。
 
-Link 不原地改写金额或关系，也不允许普通业务写路径物理删除。删除任一 Fact 时，同一事务以 `fact_deleted` AuditEvent 终止其全部活动 Link，不删除候选、决定或历史 Link；未删除的另一端读取时自然恢复对应余额，并可在后续审核中重新进入候选。首切片不提供独立的 Link 调整入口；未来调整必须终止旧 Link 并创建带新决定的新 Link。未来整租户物理清除必须使用单独的受控清除机制，在核验租户范围并生成删除清单后处理 Link 历史保护约束，不能复用普通 Link 删除入口。
+Link 不原地改写金额或关系，也不允许普通业务写路径物理删除。删除任一 Fact 时，同一事务以 `fact_deleted` AuditEvent 终止其全部活动 Link，不删除候选、决定或历史 Link；独立分配调整以 Adjustment 终止撤销或替换的旧 Link，并为新增或变化的对创建新 Link。未变化 Link 保持原 ID 和来源。未删除另一端的余额始终从活动 Link 自然恢复。未来整租户物理清除必须使用单独的受控清除机制，在核验租户范围并生成删除清单后处理 Link 历史保护约束，不能复用普通 Link 删除入口。
+
+### PaymentInvoiceAllocationAdjustment
+
+- tenant_id、actor_user_id；
+- anchor_fact_type：`payment` 或 `invoice`；
+- anchor_payment_id 或 anchor_invoice_id，必须与类型一致且只能存在一个；
+- mode：`supplement`、`withdraw` 或 `replace`，由前后完整计划差异派生；
+- idempotency_key、request_hash；
+- expected_plan_hash、resulting_plan_hash；
+- reason；
+- audit_event_id；
+- created_at。
+
+Adjustment 是用户对已确认 Fact 活动分配计划作出的不可变业务决定，不是余额、候选或 Fact 字段的副本。`tenant_id + idempotency_key` 永久唯一；同键请求只有 request hash 完全一致才能重放。前后计划 hash 均使用 `payment-invoice-allocation-plan/1`，请求 hash 使用 `allocation-adjustment-request/1`。
+
+数据库要求 actor 是同租户 Membership、anchor 存在且未删除、类型与外键形状一致、两个 hash 为 64 位小写十六进制、理由 trim 后 1–500 字符，并禁止 UPDATE/DELETE。Adjustment 产生或终止的 Link 反向引用该记录；查询这些 Link 即可恢复本次创建和终止 ID，不再复制一份明细表。AuditEvent 的安全 metadata 只保存模式和数量，完整理由只保存在该受租户隔离的业务表。
 
 ### FactFieldOrigin
 

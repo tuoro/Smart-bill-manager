@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { sessionStore } from '../../app/session'
 import { ApiError, api, type Invoice } from '../../data/client'
 import { formatMinorUnits } from './money'
 
@@ -8,6 +9,9 @@ const items = ref<Invoice[]>([])
 const loading = ref(true)
 const forbidden = ref(false)
 const error = ref('')
+const canManageAllocations = computed(() =>
+  sessionStore.current.value?.capabilities.includes('allocations.manage'),
+)
 
 function allocationLabel(status: Invoice['allocation_status']) {
   return status === 'allocated' ? '已全部分配' : status === 'partial' ? '部分分配' : '未分配'
@@ -79,6 +83,7 @@ onMounted(() => void load())
               <th scope="col">明细</th>
               <th scope="col">状态</th>
               <th scope="col" class="numeric amount-column">价税合计</th>
+              <th v-if="canManageAllocations" scope="col">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -111,6 +116,13 @@ onMounted(() => void load())
                 {{ formatMinorUnits(invoice.total_minor, invoice.currency)
                 }}<small v-if="invoice.tax_minor !== undefined"
                   >含税 {{ formatMinorUnits(invoice.tax_minor, invoice.currency) }}</small
+                >
+              </td>
+              <td v-if="canManageAllocations">
+                <RouterLink
+                  class="text-button"
+                  :to="`/allocations/invoice/${encodeURIComponent(invoice.id)}`"
+                  >调整分配</RouterLink
                 >
               </td>
             </tr>

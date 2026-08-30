@@ -35,6 +35,17 @@ association-pair-history	同一 Payment/Invoice 活动对唯一；失败事务�
 association-balance-concurrency	两个事务争用同一 Fact 最后余额时最多一个成功，失败请求无部分 Fact 或 Link	./internal/application/reviews	TestConcurrentAllocationsRespectLastBalanceWithoutPartialWrites
 association-stale-candidate	候选确认前删除后必须拒绝且不产生部分 Fact	./internal/application/reviews	TestDeletedCandidateAbortsConfirmationWithoutPartialFact
 association-cross-tenant	提交其他租户真实候选 ID 时拒绝，Fact、决定、审计和 Job 均无部分变化	./internal/application/reviews	TestCrossTenantCandidateInjectionIsRejectedWithoutPartialWrites
+allocation-plan-snapshot	活动 Link 规范排序且 hash 同时绑定 anchor、Link 身份、金额和币种；非法或重复活动对拒绝	./internal/domain	TestCanonicalActiveAllocationPlanIsStableAndAnchorScoped
+allocation-adjustment-request	完整期望计划与理由规范化后，重排产生相同请求 hash	./internal/domain	TestCanonicalAllocationAdjustmentRequestNormalizesCompletePlan
+allocation-adjustment-request	非法 hash、目标、金额、重复、理由和超过 200 项均拒绝	./internal/domain	TestCanonicalAllocationAdjustmentRequestRejectsBoundaryErrors
+allocation-adjustment-mode	补充、单项或全部撤销、金额或目标替换按完整计划差异派生，未变化计划显式冲突	./internal/domain	TestBuildAllocationAdjustmentDiffDerivesModesAndPreservesUnchanged
+allocation-adjustment-balance	anchor 合计、目标最大可分配额、币种和目标可用性均由服务端整数校验	./internal/domain	TestValidateDesiredAllocationPlanChecksBothSides
+allocation-adjustment-lifecycle	补充、替换、单项撤销与全部撤销原子完成；陈旧、无变化和同键改请求零写入且重放稳定	./internal/application/reviews	TestConfirmedFactAllocationAdjustmentLifecycle
+allocation-adjustment-provenance	Adjustment、Audit 与 Link 创建/终止来源严格唯一且不可变，安全 metadata 不含金额或理由	./internal/application/reviews	TestConfirmedFactAllocationAdjustmentLifecycle
+allocation-adjustment-permission	owner/finance 可管理，reviewer/viewer 拒绝；跨租户、已删除、跨币种、超日期和超余额目标不可用	./internal/application/reviews	TestAllocationAdjustmentPermissionsAndTargetBoundaries
+allocation-adjustment-concurrency	两个事务争用最后目标余额最多一个成功；与 Fact 删除竞态后无活动孤链或部分审计	./internal/application/reviews	TestConcurrentAdjustmentsAndFactDeletionKeepBalancesAtomic
+allocation-target-limit	第 201 个合格目标使工作区显式失败而不静默截断	./internal/application/reviews	TestAllocationWorkspaceRejectsMoreThanTwoHundredTargetsWithoutTruncation
+allocation-http-boundary	非法路径、缺失完整数组、未知 JSON 字段、无 CSRF 与未变化计划经 HTTP 显式拒绝	./internal/transport/httpapi	TestHTTPWorkflowAndTenantIsolation
 money-integer-exponent	CNY、USD、EUR exponent 2 与 JPY exponent 0；超精度、溢出和 float 输入拒绝	./internal/domain	TestParseMoney
 money-integer-exponent	税额、价税合计与明细合计仅以整数校验，冲突进入 blocked	./internal/domain	TestInvoiceTaxAndItemPathFailures
 file-signature-mime	扩展名、声明 MIME 与 JPEG/PNG/WebP/PDF 签名字节不一致全部拒绝	./internal/adapters/localstorage	TestInspectorRejectsSignatureMismatch

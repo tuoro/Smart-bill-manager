@@ -1,6 +1,6 @@
 # 验收标准
 
-状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2 进行中
+状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2 已完成（2026-08-31）
 硬边界：已达成共识
 量化指标：产品负责人已于 2026-08-27 批准当前数值
 
@@ -286,6 +286,29 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、Web 完整检查、4 个 Vitest 文件共 17 项测试、14 / 14 浏览器组件场景、61 / 61 关键不变量及两层覆盖率门禁均通过；可机读摘要见 `tests/evidence/m2/batch-upload-gate-summary.json`，完整说明见 `docs/m2-evidence.md`。OpenAPI、数据库 Schema 和单 Document API 均未改变。
 
+### M2 第五切片：已确认 Fact 的独立分配调整
+
+本切片以 `docs/decisions/0013-confirmed-fact-allocation-adjustment.md` 为冻结决策。调整只作用于已确认 Fact 之间的活动 PaymentInvoiceLink，不修改 Source、Claim、ReviewDecision 或 Fact 字段。
+
+- `GET /allocations/{fact_type}/{fact_id}` 只接受 `payment` 或 `invoice`，返回同租户、未删除 anchor、当前活动 Link、合格目标及 `payment-invoice-allocation-plan/1` 的 `plan_hash`。合格目标必须类型相反、同币种、业务日期相差不超过 30 天，且有正数可分配余额或已与 anchor 存在活动 Link。
+- 工作区必须返回 anchor 和目标的总额、当前已分配、剩余、业务日期、显示名称；目标另返回与 anchor 当前 Link、当前对分配额和 `maximum_allocatable_minor`。排序为名称规范化完全一致优先、日期差升序、目标 ID 升序。所有金额均为整数最小单位，客户端数字不能替代事务校验。
+- 合格目标最多 200 个，查询第 201 个时返回 `allocation_target_limit_exceeded`；POST 完整期望计划最多 200 项。任何上限都不得静默截断、自动分页拼接或隐式排除当前活动目标。
+- POST 必须携带 8–128 字符且不含空白/控制字符的 `Idempotency-Key`、64 位小写十六进制 `expected_plan_hash`、显式 `desired_allocations` 数组和 trim 后 1–500 字符的 `reason`。未知 JSON 字段、缺失数组、重复目标、空目标 ID、零/负数、非整数或超过安全上限的金额必须拒绝。
+- `desired_allocations` 表示 anchor 的完整期望活动计划：新增且不改变现有项派生为 `supplement`；只移除并保持其余金额派生为 `withdraw`；改金额、替换目标或同时增删派生为 `replace`。完全相同计划返回 `allocation_plan_unchanged` 且零写入；空数组只表示明确撤销全部，不解释为“未提供”。
+- Web 必须以具名复选框和金额输入编辑完整计划，显示取消选择会撤销旧 Link，要求填写理由；当当前计划非空且期望计划为空时，还必须勾选“确认撤销全部”才能提交。该 UI 门禁不能替代服务端快照、权限和输入验证。
+- 事务必须先检查幂等重放，再在 immediate 写锁内重新计算当前计划 hash。首次请求 hash 陈旧返回 `allocation_plan_stale`；相同键和相同规范请求返回原 adjustment、终止/创建 Link ID 与结果 hash且 `replayed=true`，同键改变 anchor、hash、目标、金额或理由返回 `idempotency_key_conflict`。
+- anchor 与每个目标必须同租户、由确认 ReviewDecision 产生、未删除、类型相反、币种一致且在日期窗口内。跨租户 ID 与不存在 ID 对外同为未找到或不可用，不能泄露资源存在性。
+- anchor 期望合计不得超过自身金额；每个目标金额不得超过该目标当前剩余金额加该对当前分配金额。两个请求争用最后余额、Fact 删除或其他调整导致状态变化时最多一个成功，失败请求不得自动缩减、保留部分终止或创建部分 Link。
+- 未变化 Link 必须保持原 ID、创建来源和时间。撤销或被替换的 Link 只允许设置一次 `ended_at + ended_by_adjustment_id`；新增或替换项必须创建新 ID 的不可变 Link。创建来源严格二选一为原审核 LinkDecision 或 AllocationAdjustment；终止来源严格二选一为 Fact 删除 AuditEvent 或 AllocationAdjustment。
+- `payment_invoice_allocation_adjustments` 必须保存 actor、anchor、派生模式、幂等请求身份、前后计划 hash、业务理由和 AuditEvent，且不可更新或删除。活动 Link 仍是双方 `allocated_minor`、`remaining_minor` 和状态的唯一数据源。
+- 每次成功调整只写一条 `payment_invoice_allocation_adjusted` AuditEvent；safe metadata 只允许模式及创建/终止数量，不得包含金额、名称、理由、完整计划或其他财务字段。
+- `allocations.manage` 只授予 `owner` 与 `finance`。`reviewer`、`viewer` 对工作区读取和调整提交均为 403；四角色每个允许/拒绝单元格必须有测试。列表只对有 capability 的用户显示“调整分配”。
+- 独立页面必须覆盖加载、无合格目标、有当前分配、校验失败、陈旧冲突、权限不足和成功刷新状态。错误需通过 `aria-describedby` 或等价关系关联；键盘、768px 与等效 200% 缩放不得产生横向不可达或丢失理由、撤销确认和提交动作。
+
+最小纯合成场景固定包含：空计划补充新对、保留现有项再补充、撤销一项、撤销全部、同对增额与减额替换、换目标、同时增删、完全相同计划零写入、重复目标、非法金额、超过 200 项与目标第 201 项、缺失/空白/过长理由、缺失数组、非法路径类型、陈旧 hash、幂等重放、同键改变请求、跨租户 anchor/目标、已删除目标、错误币种、日期超过 30 天、anchor 超额、目标超额、活动对唯一、两个事务争用最后余额、Fact 删除竞态、数据库来源二选一、Adjustment/Link 不可变、权限矩阵、Web 完整计划与撤销全部确认、键盘、768px 和 384px 等效 reflow。每个失败事务同时断言 Adjustment、AuditEvent、Link 创建/终止和双方余额均无部分变化。
+
+验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、OpenAPI 客户端生成、Web 完整检查、5 个 Vitest 文件共 21 项测试、18 / 18 浏览器组件场景、72 / 72 关键不变量及两层覆盖率门禁均通过；领域/应用层为 85.86%（2,216 / 2,581），基础设施/传输层为 73.01%（2,388 / 3,271）。可机读摘要见 `tests/evidence/m2/allocation-adjustment-gate-summary.json`，M2 收口摘要见 `tests/evidence/m2/m2-closure-gate-summary.json`。
+
 ## 八、租户与安全验收
 
 ### 租户
@@ -381,6 +404,8 @@ M2 第三切片新增关键分支为：同一稳定明细的相邻跨页 Evidenc
 
 M2 第四切片不增加服务端批量实现；新增关键分支为：独立单 Document 命令在中间拒绝后仍能继续、成功项各自只创建一份 Document/Job且失败项零残留，以及客户端严格串行、原顺序、精确重复、超 20 项、单项超 20 MiB、网络失败继续和逐项安全反馈。后端独立性分支进入 `tests/critical-invariants.tsv` 唯一映射；客户端编排分支由单元测试与浏览器场景覆盖。
 
+M2 第五切片新增关键分支为：anchor-scoped 活动计划 hash、完整期望计划与请求 hash、补充/撤销/替换差异、零金额 anchor 与双方余额、陈旧和无变化零写入、严格幂等重放、不可变 Adjustment/Link 来源、安全审计 metadata、四角色权限、跨租户/删除/币种/日期边界、最后余额与 Fact 删除竞态、200 项显式上限，以及 HTTP 严格 JSON/CSRF/路径边界。它们进入 `tests/critical-invariants.tsv`，最终 72 / 72（100%）通过；Web 的完整计划、加载/空目标、撤销全部、冲突保留草稿、权限、键盘与响应式边界由单元测试和浏览器矩阵覆盖。
+
 ## 十三、M1 最小场景矩阵
 
 至少包含：
@@ -448,7 +473,7 @@ M2 第四切片不增加服务端批量实现；新增关键分支为：独立�
 - 批准范围：先冻结并实施支付—发票金额分配的领域、数据库、API、审核 UI 与自动化验收；其余 M2 能力保持未启动
 - 正确率边界：模型正确率专项继续保留到全部功能开发完成后的 M4，不得阻塞本切片，也不得改写历史失败
 - 工程边界：不提交、不推送、不部署、不引入本地 OCR，不保留 M1 一对一活动兼容分支
-- 验收结果：首切片于 2026-08-30 通过；M2 整体仍为进行中，后续切片继续执行“文档冻结后再实施”门禁
+- 验收结果：首切片于 2026-08-30 通过；在当时 M2 整体仍为进行中。后续四个切片继续执行“文档冻结后再实施”门禁，并于 2026-08-31 全部通过后收口 M2
 
 ### M2 至 M4 持续本地开发授权
 

@@ -3,7 +3,7 @@
 > **中文：** [README.md](README.md)
 
 > [!IMPORTANT]
-> M0 and M1 are complete. M2 is in progress: both its payment-to-invoice amount-allocation and deterministic duplicate-detection slices have passed acceptance. The new system does not preserve v0.x compatibility or read or migrate legacy data.
+> M0, M1, and M2 are complete. All five M2 slices—amount allocation, deterministic duplicate detection, cross-page review, batch upload, and confirmed-Fact allocation adjustment—have passed acceptance. The new system does not preserve v0.x compatibility or read or migrate legacy data.
 
 Smart Bill Manager is a self-hosted AI financial-document workspace for individuals and small teams. After a user uploads a payment screenshot or invoice, the system produces verifiable candidate fields and evidence. A candidate becomes a formal financial fact only after explicit user confirmation.
 
@@ -31,7 +31,7 @@ M0 was completed on 2026-08-27 and froze this executable design baseline:
 - independent workspace, baseline SHA, scoped diff, responsive, and accessibility evidence;
 - an independent read-only review.
 
-The independent read-only review found no M0 blocker, major, or minor issue; see the [M0 evidence](docs/m0-evidence.md). The [M1 AI inbox vertical slice](docs/scope.md) was completed on 2026-08-30; see the [M1 evidence](docs/m1-evidence.md). M2 was then explicitly authorized: its first slice replaced M1's full one-to-one link with human-confirmed one-to-many, many-to-one, and partial amount allocations, while its accepted second slice uses local versioned visual fingerprints and field combinations to create suspected-duplicate candidates that users must explicitly keep as distinct records; see the [M2 slice evidence](docs/m2-evidence.md). Clear, complete, unobstructed, and directly human-readable uploads remain the input commitment, while model-accuracy hardening is deferred until all functional development is complete.
+The independent read-only review found no M0 blocker, major, or minor issue; see the [M0 evidence](docs/m0-evidence.md). The [M1 AI inbox vertical slice](docs/scope.md) was completed on 2026-08-30; see the [M1 evidence](docs/m1-evidence.md). M2 completed five slices on 2026-08-31, bringing amount allocation, suspected duplicates, cross-page review, batch upload, and atomic confirmed-Fact allocation adjustment into the same Clean Slate flow; see the [M2 evidence](docs/m2-evidence.md). The next checkpoint is the documentation freeze for M3's first email-Source slice. Clear, complete, unobstructed, and directly human-readable uploads remain the input commitment, while model-accuracy hardening is deferred until all local functional development is complete.
 
 ## Authoritative documents
 
@@ -46,7 +46,7 @@ The independent read-only review found no M0 blocker, major, or minor issue; see
 | [UI/UX baseline](docs/ui-ux.md)                         | The sole visual direction, four-page structure, and accessibility      |
 | [M0 evidence](docs/m0-evidence.md)                      | Workspace, responsive, WCAG, link, and review evidence                 |
 | [M1 evidence](docs/m1-evidence.md)                      | Executed gates, real-model diagnostics, and the current stage decision |
-| [M2 first-slice evidence](docs/m2-evidence.md)          | Amount-allocation implementation, invariants, and executed gates       |
+| [M2 evidence](docs/m2-evidence.md)                      | Five slice implementations, invariants, and executed gates             |
 | [M1 backup and restore runbook](docs/backup-restore.md) | Offline consistent snapshots, manifests, restore, and retention policy |
 | [Roadmap](docs/roadmap.md)                              | Milestones and entry gates                                             |
 
@@ -58,6 +58,9 @@ Key decisions include:
 - [ADR-0004: separate the Provider generation schema from the authoritative local schema](docs/decisions/0004-provider-schema-projection.md)
 - [ADR-0009: payment-to-invoice amount allocation](docs/decisions/0009-payment-invoice-allocation.md)
 - [ADR-0010: deterministic duplicate detection](docs/decisions/0010-deterministic-duplicate-detection.md)
+- [ADR-0011: cross-page invoice review](docs/decisions/0011-cross-page-invoice-review.md)
+- [ADR-0012: client-orchestrated batch upload](docs/decisions/0012-client-orchestrated-batch-upload.md)
+- [ADR-0013: confirmed-Fact allocation adjustment](docs/decisions/0013-confirmed-fact-allocation-adjustment.md)
 
 ## Target directories
 

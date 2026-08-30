@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { sessionStore } from '../../app/session'
 import { ApiError, api, type Payment } from '../../data/client'
 import { formatMinorUnits } from './money'
 
@@ -8,6 +9,9 @@ const items = ref<Payment[]>([])
 const loading = ref(true)
 const forbidden = ref(false)
 const error = ref('')
+const canManageAllocations = computed(() =>
+  sessionStore.current.value?.capabilities.includes('allocations.manage'),
+)
 
 async function load() {
   loading.value = true
@@ -84,6 +88,7 @@ onMounted(() => void load())
               <th scope="col">方式 / 订单</th>
               <th scope="col">状态</th>
               <th scope="col" class="numeric amount-column">金额</th>
+              <th v-if="canManageAllocations" scope="col">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -116,6 +121,13 @@ onMounted(() => void load())
               </td>
               <td class="numeric amount-cell">
                 {{ formatMinorUnits(payment.amount_minor, payment.currency) }}
+              </td>
+              <td v-if="canManageAllocations">
+                <RouterLink
+                  class="text-button"
+                  :to="`/allocations/payment/${encodeURIComponent(payment.id)}`"
+                  >调整分配</RouterLink
+                >
               </td>
             </tr>
           </tbody>

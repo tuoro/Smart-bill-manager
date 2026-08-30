@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smart-bill-manager.local/schemas/document-claim/2",
+  "title": "Document Claim Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "document_type", "fields", "document_issues"],
+  "properties": {
+    "schema_version": {
+      "const": "document-claim/2"
+    },
+    "document_type": {
+      "enum": ["payment", "invoice", "unknown"]
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "document_issues": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^[a-z0-9_]+$"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page"],
+      "properties": {
+        "page": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "quote": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "region": { "$ref": "#/$defs/region" }
+      },
+      "anyOf": [
+        { "required": ["quote"] },
+        { "required": ["region"] }
+      ]
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "value_type", "presence", "issues"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[a-z][a-z0-9_.\\[\\]{}-]*$"
+        },
+        "value_type": {
+          "enum": ["string", "money_minor", "date", "instant", "integer", "decimal", "document_type", "supplementary"]
+        },
+        "presence": {
+          "enum": ["present", "absent"]
+        },
+        "value": {},
+        "normalized_value": {},
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" },
+          "maxItems": 8
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "presence": { "const": "present" } } },
+          "then": { "required": ["value", "evidence"] }
+        },
+        {
+          "if": { "properties": { "presence": { "const": "absent" } } },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["value"] },
+                { "required": ["normalized_value"] },
+                { "required": ["evidence"] }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

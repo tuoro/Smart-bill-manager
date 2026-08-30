@@ -1,0 +1,1136 @@
+openapi: 3.1.0
+info:
+  title: Smart Bill Manager API
+  version: 1.0.0-m1
+  description: Clean Slate M1 API。所有租户资源均从服务端会话解析 TenantContext。
+servers:
+  - url: /api/v1
+security:
+  - sessionCookie: []
+tags:
+  - name: session
+  - name: documents
+  - name: jobs
+  - name: reviews
+  - name: facts
+  - name: providers
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: 服务健康
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /ready:
+    get:
+      operationId: getReadiness
+      security: []
+      responses:
+        "200":
+          description: 数据库与任务调度器均已就绪
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /session/login:
+    post:
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功；同时设置 HttpOnly 会话 Cookie
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /session:
+    get:
+      operationId: getSession
+      responses:
+        "200":
+          description: 当前会话
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      operationId: logout
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: 会话已撤销
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /documents:
+    post:
+      operationId: uploadDocument
+      tags: [documents]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: 原件与 Job 已原子登记
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+  /documents/{document_id}/content:
+    get:
+      operationId: downloadDocument
+      tags: [documents]
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: 鉴权后的原始文件
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+            application/pdf: {}
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /documents/{document_id}:
+    get:
+      operationId: getDocument
+      tags: [documents]
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: 当前租户内的 Document 不可变元数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: 未形成 Fact 的 Document 聚合及对象已物理删除，只保留无财务内容墓碑
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              [
+                queued,
+                processing,
+                needs_review,
+                blocked,
+                failed,
+                cancel_requested,
+                cancelled,
+                completed,
+                rejected,
+              ]
+      responses:
+        "200":
+          description: 当前租户收件箱
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/JobSummary"
+  /jobs/{job_id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: Job 详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /jobs/{job_id}/cancel:
+    post:
+      operationId: cancelJob
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 取消已登记
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSummary"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /jobs/{job_id}/retry:
+    post:
+      operationId: retryJob
+      tags: [jobs]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 无 ClaimSet 的失败 Job 已重新入队
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobSummary"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reviews/{job_id}:
+    get:
+      operationId: getReview
+      tags: [reviews]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: 当前完整 Claim revision、证据、校验和候选
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /claim-sets/{claim_set_id}:
+    get:
+      operationId: getClaimSet
+      tags: [reviews]
+      parameters:
+        - $ref: "#/components/parameters/ClaimSetId"
+      responses:
+        "200":
+          description: 指定不可变 ClaimSet revision、证据、校验和候选
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reviews/{job_id}/revisions:
+    post:
+      operationId: reviseClaim
+      tags: [reviews]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevisionRequest"
+      responses:
+        "201":
+          description: 新完整 revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reviews/{job_id}/confirm:
+    post:
+      operationId: confirmReview
+      tags: [reviews]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfirmRequest"
+      responses:
+        "200":
+          description: 幂等重放或首次确认结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfirmResult"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /reviews/{job_id}/reject:
+    post:
+      operationId: rejectReview
+      tags: [reviews]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_revision]
+              properties:
+                expected_revision:
+                  type: integer
+                  minimum: 1
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        "204":
+          description: Claim 已拒绝且未创建 Fact
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [facts]
+      responses:
+        "200":
+          description: 未删除 Payment
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Payment"
+  /payments/{payment_id}:
+    delete:
+      operationId: deletePayment
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: Payment 已标记删除，活动关联已在同一事务中终止
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [facts]
+      responses:
+        "200":
+          description: 未删除 Invoice
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Invoice"
+  /invoices/{invoice_id}:
+    delete:
+      operationId: deleteInvoice
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: Invoice 已标记删除，活动关联已在同一事务中终止
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /provider-configs:
+    get:
+      operationId: listProviderConfigs
+      tags: [providers]
+      responses:
+        "200":
+          description: 不含可恢复密钥材料的配置列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProviderConfig"
+    post:
+      operationId: createProviderConfig
+      tags: [providers]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [base_url, api_key, model, output_mode]
+              properties:
+                base_url:
+                  type: string
+                  format: uri
+                api_key:
+                  type: string
+                  minLength: 1
+                  maxLength: 4096
+                model:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                output_mode:
+                  type: string
+                  enum: [json_schema, json_object]
+      responses:
+        "201":
+          description: 待检测配置
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConfig"
+  /provider-configs/{provider_config_id}/detect:
+    post:
+      operationId: detectProviderCapabilities
+      tags: [providers]
+      parameters:
+        - $ref: "#/components/parameters/ProviderConfigId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 能力检测结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConfig"
+  /provider-configs/{provider_config_id}/activate:
+    post:
+      operationId: activateProviderConfig
+      tags: [providers]
+      parameters:
+        - $ref: "#/components/parameters/ProviderConfigId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 已激活且检测通过的配置
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConfig"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /provider-configs/{provider_config_id}:
+    delete:
+      operationId: deleteProviderConfig
+      tags: [providers]
+      parameters:
+        - $ref: "#/components/parameters/ProviderConfigId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: 配置已停用，密文已立即清除并写入审计事件
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: sbm_session
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 256
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    DocumentId:
+      name: document_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ClaimSetId:
+      name: claim_set_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PaymentId:
+      name: payment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InvoiceId:
+      name: invoice_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProviderConfigId:
+      name: provider_config_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: 输入不合法
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: 未认证
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: 权限或 CSRF 校验失败
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: 资源不存在或对当前租户不可见
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: 幂等、版本、重复或状态冲突
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PayloadTooLarge:
+      description: 文件超过 20 MiB
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unavailable:
+      description: 服务尚未就绪
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, version]
+      properties:
+        status:
+          const: ok
+        version:
+          type: string
+    Readiness:
+      type: object
+      additionalProperties: false
+      required: [status, version]
+      properties:
+        status:
+          const: ready
+        version:
+          type: string
+    Error:
+      $ref: ../schemas/error.schema.json
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        tenant_id:
+          type: string
+          format: uuid
+    Session:
+      type: object
+      additionalProperties: false
+      required: [user, tenant, role, capabilities, csrf_token, expires_at]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        tenant:
+          $ref: "#/components/schemas/Tenant"
+        role:
+          $ref: "#/components/schemas/Role"
+        capabilities:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+        csrf_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, display_name]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string }
+    Tenant:
+      type: object
+      additionalProperties: false
+      required: [id, name, default_currency, timezone]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        default_currency: { $ref: "#/components/schemas/Currency" }
+        timezone: { type: string }
+    Role:
+      type: string
+      enum: [owner, finance, reviewer, viewer]
+    Currency:
+      type: string
+      enum: [CNY, USD, EUR, JPY]
+    UploadResult:
+      type: object
+      additionalProperties: false
+      required: [document_id, job_id, status, sha256]
+      properties:
+        document_id: { type: string, format: uuid }
+        job_id: { type: string, format: uuid }
+        status: { const: queued }
+        sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+    JobSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          document_id,
+          original_name,
+          detected_mime,
+          status,
+          attempt_count,
+          created_at,
+          version,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        original_name: { type: string }
+        detected_mime: { type: string }
+        status:
+          type: string
+          enum:
+            [
+              queued,
+              processing,
+              needs_review,
+              blocked,
+              failed,
+              cancel_requested,
+              cancelled,
+              completed,
+              rejected,
+            ]
+        attempt_count: { type: integer, minimum: 0 }
+        error_code: { type: string }
+        safe_error_message: { type: string }
+        created_at: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+    Document:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          original_name,
+          declared_mime,
+          detected_mime,
+          size_bytes,
+          sha256,
+          page_count,
+          status,
+          created_by_user_id,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        original_name: { type: string }
+        declared_mime:
+          {
+            type: string,
+            enum: [image/jpeg, image/png, image/webp, application/pdf],
+          }
+        detected_mime:
+          {
+            type: string,
+            enum: [image/jpeg, image/png, image/webp, application/pdf],
+          }
+        size_bytes: { type: integer, minimum: 1, maximum: 20971520 }
+        sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        page_count: { type: integer, minimum: 1, maximum: 20 }
+        status:
+          type: string
+          enum:
+            [
+              stored,
+              processing,
+              needs_review,
+              blocked,
+              failed,
+              completed,
+              cancelled,
+              rejected,
+            ]
+        created_by_user_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+    ClaimField:
+      type: object
+      additionalProperties: false
+      required: [id, path, value_type, presence, source, evidence]
+      properties:
+        id: { type: string, format: uuid }
+        path: { type: string }
+        value_type: { type: string }
+        presence: { type: string, enum: [present, absent] }
+        value: {}
+        normalized_value: {}
+        source: { type: string, enum: [ai, user] }
+        evidence:
+          type: array
+          items:
+            type: object
+            required: [id, page]
+            properties:
+              id: { type: string, format: uuid }
+              page: { type: integer, minimum: 1, maximum: 20 }
+              quote: { type: string }
+              region: { type: object }
+    ValidationResult:
+      type: object
+      additionalProperties: false
+      required: [id, rule_code, severity, status, safe_message]
+      properties:
+        id: { type: string, format: uuid }
+        field_claim_id: { type: string, format: uuid }
+        rule_code: { type: string }
+        severity: { type: string, enum: [info, warning, error, blocked] }
+        status: { type: string, enum: [passed, warning, error, blocked] }
+        safe_message: { type: string }
+    LinkCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          target_type,
+          target_id,
+          amount_minor,
+          allocated_minor,
+          remaining_minor,
+          currency,
+          business_date,
+          display_name,
+          available,
+          name_exact,
+          date_distance_days,
+          reason_codes,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        target_type: { type: string, enum: [payment, invoice] }
+        target_id: { type: string, format: uuid }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocated_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        remaining_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        business_date: { type: string, format: date }
+        display_name: { type: string }
+        available: { type: boolean }
+        name_exact: { type: boolean }
+        date_distance_days: { type: integer, minimum: 0, maximum: 30 }
+        reason_codes:
+          type: array
+          items: { type: string }
+    Review:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          job,
+          claim_set_id,
+          document_type,
+          revision,
+          optimistic_version,
+          claim_status,
+          fields,
+          validations,
+          candidates,
+        ]
+      properties:
+        job: { $ref: "#/components/schemas/JobSummary" }
+        claim_set_id: { type: string, format: uuid }
+        document_type: { type: string, enum: [payment, invoice, unknown] }
+        revision: { type: integer, minimum: 1 }
+        optimistic_version: { type: integer, minimum: 1 }
+        claim_status:
+          {
+            type: string,
+            enum:
+              [
+                draft,
+                ready_for_review,
+                blocked,
+                superseded,
+                confirmed,
+                rejected,
+                cancelled,
+              ],
+          }
+        fields:
+          type: array
+          items: { $ref: "#/components/schemas/ClaimField" }
+        validations:
+          type: array
+          items: { $ref: "#/components/schemas/ValidationResult" }
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/LinkCandidate" }
+    RevisionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [expected_revision, expected_optimistic_version, document_type, fields]
+      properties:
+        expected_revision: { type: integer, minimum: 1 }
+        expected_optimistic_version: { type: integer, minimum: 1 }
+        document_type: { type: string, enum: [payment, invoice, unknown] }
+        fields:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, value_type, presence]
+            properties:
+              path: { type: string }
+              value_type: { type: string }
+              presence: { type: string, enum: [present, absent] }
+              value: {}
+              evidence_ids:
+                type: array
+                items: { type: string, format: uuid }
+    ConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_revision, association_mode, allocations]
+      properties:
+        expected_revision: { type: integer, minimum: 1 }
+        association_mode:
+          {
+            type: string,
+            enum: [allocate_candidates, reject_all, no_candidate],
+          }
+        allocations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [candidate_id, allocated_minor]
+            properties:
+              candidate_id: { type: string, format: uuid }
+              allocated_minor:
+                {
+                  type: integer,
+                  format: int64,
+                  minimum: 1,
+                  maximum: 9007199254740991,
+                }
+    ConfirmResult:
+      type: object
+      additionalProperties: false
+      required: [review_decision_id, fact_type, fact_id, link_ids, replayed]
+      properties:
+        review_decision_id: { type: string, format: uuid }
+        fact_type: { type: string, enum: [payment, invoice] }
+        fact_id: { type: string, format: uuid }
+        link_ids:
+          type: array
+          items: { type: string, format: uuid }
+        replayed: { type: boolean }
+    Payment:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          amount_minor,
+          allocated_minor,
+          remaining_minor,
+          allocation_status,
+          currency,
+          merchant,
+          transaction_time,
+          source_timezone,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        amount_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocated_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        remaining_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocation_status:
+          { type: string, enum: [unallocated, partial, allocated] }
+        currency: { $ref: "#/components/schemas/Currency" }
+        merchant: { type: string }
+        transaction_time: { type: string, format: date-time }
+        source_timezone: { type: string }
+        payment_method: { type: string }
+        order_number: { type: string }
+        category: { type: string }
+        created_at: { type: string, format: date-time }
+    Invoice:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          invoice_number,
+          invoice_date,
+          total_minor,
+          allocated_minor,
+          remaining_minor,
+          allocation_status,
+          currency,
+          seller_name,
+          buyer_name,
+          items,
+          created_at,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        invoice_number: { type: string }
+        invoice_date: { type: string, format: date }
+        total_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocated_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        remaining_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        allocation_status:
+          { type: string, enum: [unallocated, partial, allocated] }
+        tax_minor:
+          {
+            type: integer,
+            format: int64,
+            minimum: 0,
+            maximum: 9007199254740991,
+          }
+        currency: { $ref: "#/components/schemas/Currency" }
+        seller_name: { type: string }
+        buyer_name: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [item_key, name, amount_minor, sort_order]
+            properties:
+              item_key: { type: string }
+              name: { type: string }
+              quantity: { type: string }
+              unit: { type: string }
+              unit_price_minor:
+                {
+                  type: integer,
+                  format: int64,
+                  minimum: 0,
+                  maximum: 9007199254740991,
+                }
+              amount_minor:
+                {
+                  type: integer,
+                  format: int64,
+                  minimum: 0,
+                  maximum: 9007199254740991,
+                }
+              tax_minor:
+                {
+                  type: integer,
+                  format: int64,
+                  minimum: 0,
+                  maximum: 9007199254740991,
+                }
+              sort_order: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+    ProviderConfig:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          base_url,
+          model,
+          output_mode,
+          capability_status,
+          active,
+          version,
+          safe_fingerprint,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        base_url: { type: string, format: uri }
+        model: { type: string }
+        output_mode: { type: string, enum: [json_schema, json_object] }
+        capability_status: { type: string, enum: [pending, passed, failed] }
+        capability_checked_at: { type: string, format: date-time }
+        capability_safe_message: { type: string }
+        capability_schema_version: { type: string }
+        capability_schema_sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        active: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        safe_fingerprint: { type: string }

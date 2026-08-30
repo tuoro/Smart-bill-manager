@@ -1,0 +1,774 @@
+{
+  "report_kind": "m1-model-diagnostic-analysis",
+  "analysis_version": "m1-model-diagnostic-analysis/1",
+  "recorded_at": "2026-08-28T00:00:00Z",
+  "synthetic_only": true,
+  "source_dataset": {
+    "version": "m1-synthetic-v1",
+    "manifest_sha256": "1ca338b15f5c060819323f5dd584758bba6a7e7d65460514a47857cac1a550ed"
+  },
+  "analyzed_configuration": {
+    "prompt_version": "document-extract/2",
+    "authoritative_schema_version": "document-claim/1",
+    "provider_schema_version": "document-claim-provider/1"
+  },
+  "aggregate_root_cause_signals": {
+    "core_money_expected": 106,
+    "core_money_value_exact": 30,
+    "core_money_normalized_exact": 80,
+    "core_money_normalized_rescues": 50,
+    "disallowed_field_emissions": 166,
+    "field_type_mismatches": 112,
+    "incomplete_claim_snapshots": 111,
+    "invalid_typed_values": 223
+  },
+  "conclusions": [
+    "金额主要失败模式是展示字符串被写入 value、正确最小单位整数被写入 normalized_value；本地权威校验按设计拒绝该输出。",
+    "旧 Prompt 的“每个字段都声明 present/absent”未限定为已选文档类型，导致跨类型字段和 unknown 全字段输出。",
+    "旧 Prompt 缺少逐路径 value_type 表，导致 money_minor、decimal 与 integer 类型混淆。",
+    "Provider 超时与 Schema 失败同时存在；Prompt/输出契约只能修复结构质量，不能把外部延迟伪装为通过。"
+  ],
+  "frozen_dataset_findings": [
+    {
+      "code": "payment_order_number_manifest_contradiction",
+      "affected_samples": 40,
+      "generator_observation": "payment images render ORDER: SYN-PAY-xxxx",
+      "manifest_observation": "the same payment samples mark order_number as expected missing",
+      "impact": "manifest_assertion_rate is not trustworthy for m1-synthetic-v1; published core-field metrics are unaffected",
+      "remediation": "do not edit frozen v1 in place; use an independent tuning set now and publish a new release dataset version before formal release evaluation"
+    }
+  ],
+  "runs": [
+    {
+      "model": "qwen3.7-flash",
+      "artifact": "tests/evidence/evaluation/diagnostic-pre-duplicate-path-fix-run.json",
+      "artifact_sha256": "c8ae930265f9ce02cf60cf43b358b55b1168fc209d83c3c4553e82a62ef5c9a7",
+      "outcomes": {
+        "local_claim_accepted": 59,
+        "job_terminal_without_claim": 26,
+        "rejected_before_model": 15
+      },
+      "claim_statuses": {
+        "blocked": 54,
+        "ready_for_review": 5
+      },
+      "root_cause_signals": {
+        "invalid_typed_values": 131,
+        "incomplete_claim_snapshots": 111,
+        "disallowed_field_emissions": 94,
+        "field_type_mismatches": 63
+      },
+      "validation_rules": {
+        "invalid_typed_value": 131,
+        "incomplete_claim_snapshot": 111,
+        "unknown_field_path": 94,
+        "field_type_mismatch": 63,
+        "required_field_absent": 22,
+        "claim_snapshot_complete": 5,
+        "unknown_document_type": 5,
+        "invoice_item_total_conflict": 1
+      },
+      "present_field_value_shapes": {
+        "string:value=string:normalized=string": 264,
+        "money_minor:value=string:normalized=number": 91,
+        "money_minor:value=number:normalized=number": 51,
+        "integer:value=string:normalized=number": 39,
+        "instant:value=string:normalized=string": 27,
+        "date:value=string:normalized=string": 27,
+        "integer:value=number:normalized=number": 15,
+        "money_minor:value=string:normalized=string": 3
+      },
+      "core_money": {
+        "expected": 48,
+        "value_exact": 19,
+        "normalized_exact": 42,
+        "normalized_rescues": 23,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "amount_minor",
+            "expected": 10137,
+            "value": "101.37",
+            "normalized_value": 10137,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-009",
+            "path": "amount_minor",
+            "expected": 11233,
+            "value": "112.33",
+            "normalized_value": 11233,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-012",
+            "path": "amount_minor",
+            "expected": 11644,
+            "value": "11644",
+            "normalized_value": 11644,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-013",
+            "path": "amount_minor",
+            "expected": 11781,
+            "value": "11781",
+            "normalized_value": 11781,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-014",
+            "path": "amount_minor",
+            "expected": 11918,
+            "value": "119.18",
+            "normalized_value": 11918,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-016",
+            "path": "amount_minor",
+            "expected": 12192,
+            "value": "12192",
+            "normalized_value": 12192,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-018",
+            "path": "amount_minor",
+            "expected": 12466,
+            "value": "124.66",
+            "normalized_value": 12466,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-026",
+            "path": "amount_minor",
+            "expected": 13562,
+            "value": "135.62",
+            "normalized_value": 13562,
+            "value_type": "money_minor"
+          }
+        ]
+      },
+      "all_money_including_tax": {
+        "expected": 68,
+        "value_exact": 26,
+        "normalized_exact": 61,
+        "normalized_rescues": 35,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "amount_minor",
+            "expected": 10137,
+            "value": "101.37",
+            "normalized_value": 10137,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-009",
+            "path": "amount_minor",
+            "expected": 11233,
+            "value": "112.33",
+            "normalized_value": 11233,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-012",
+            "path": "amount_minor",
+            "expected": 11644,
+            "value": "11644",
+            "normalized_value": 11644,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-013",
+            "path": "amount_minor",
+            "expected": 11781,
+            "value": "11781",
+            "normalized_value": 11781,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-014",
+            "path": "amount_minor",
+            "expected": 11918,
+            "value": "119.18",
+            "normalized_value": 11918,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-016",
+            "path": "amount_minor",
+            "expected": 12192,
+            "value": "12192",
+            "normalized_value": 12192,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-018",
+            "path": "amount_minor",
+            "expected": 12466,
+            "value": "124.66",
+            "normalized_value": 12466,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-026",
+            "path": "amount_minor",
+            "expected": 13562,
+            "value": "135.62",
+            "normalized_value": 13562,
+            "value_type": "money_minor"
+          }
+        ]
+      },
+      "expected_missing_fields": {
+        "checked": 96,
+        "incorrectly_present": 31,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "order_number",
+            "value": "SYN-PAY-0001"
+          },
+          {
+            "sample_id": "PAY-002",
+            "path": "order_number",
+            "value": "SYN-PAY-0002"
+          },
+          {
+            "sample_id": "PAY-004",
+            "path": "order_number",
+            "value": "SYN-PAY-0004"
+          },
+          {
+            "sample_id": "PAY-005",
+            "path": "order_number",
+            "value": "SYN-PAY-0005"
+          },
+          {
+            "sample_id": "PAY-006",
+            "path": "order_number",
+            "value": "SYN-PAY-0006"
+          },
+          {
+            "sample_id": "PAY-009",
+            "path": "order_number",
+            "value": "SYN-PAY-0009"
+          },
+          {
+            "sample_id": "PAY-010",
+            "path": "order_number",
+            "value": "SYN-PAY-0010"
+          },
+          {
+            "sample_id": "PAY-011",
+            "path": "order_number",
+            "value": "SYN-PAY-0011"
+          }
+        ]
+      },
+      "expected_paths_in_claims": {
+        "checked": 310,
+        "omitted": 5,
+        "examples": [
+          {
+            "sample_id": "PAY-002",
+            "path": "amount_minor"
+          },
+          {
+            "sample_id": "PAY-006",
+            "path": "amount_minor"
+          },
+          {
+            "sample_id": "PAY-010",
+            "path": "amount_minor"
+          },
+          {
+            "sample_id": "PAY-023",
+            "path": "amount_minor"
+          },
+          {
+            "sample_id": "PAY-027",
+            "path": "amount_minor"
+          }
+        ]
+      }
+    },
+    {
+      "model": "qwen3.7-plus",
+      "artifact": "tests/evidence/evaluation/diagnostic-qwen3.7-plus-run.json",
+      "artifact_sha256": "b84f1dacf59a4234eedc1c5ae6dd17c720c059e7b1ad16908d8aae27969aff5d",
+      "outcomes": {
+        "local_claim_accepted": 28,
+        "job_terminal_without_claim": 57,
+        "rejected_before_model": 15
+      },
+      "claim_statuses": {
+        "blocked": 26,
+        "ready_for_review": 2
+      },
+      "root_cause_signals": {
+        "invalid_typed_values": 37,
+        "incomplete_claim_snapshots": 0,
+        "disallowed_field_emissions": 28,
+        "field_type_mismatches": 29
+      },
+      "validation_rules": {
+        "invalid_typed_value": 37,
+        "field_type_mismatch": 29,
+        "unknown_field_path": 28,
+        "required_field_absent": 8,
+        "unknown_document_type": 3,
+        "claim_snapshot_complete": 2,
+        "duplicate_field_path": 1
+      },
+      "present_field_value_shapes": {
+        "string:value=string:normalized=string": 103,
+        "instant:value=string:normalized=string": 17,
+        "money_minor:value=string:normalized=number": 16,
+        "integer:value=string:normalized=number": 14,
+        "date:value=string:normalized=string": 7,
+        "money_minor:value=string:normalized=string": 5,
+        "integer:value=number:normalized=number": 4,
+        "money_minor:value=number:normalized=number": 2,
+        "integer:value=string:normalized=string": 2,
+        "string:value=string:normalized=undefined": 1,
+        "instant:value=string:normalized=undefined": 1
+      },
+      "core_money": {
+        "expected": 22,
+        "value_exact": 5,
+        "normalized_exact": 18,
+        "normalized_rescues": 13,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "amount_minor",
+            "expected": 10137,
+            "value": "10137",
+            "normalized_value": 10137,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-004",
+            "path": "amount_minor",
+            "expected": 10548,
+            "value": "10548",
+            "normalized_value": 10548,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-006",
+            "path": "amount_minor",
+            "expected": 10822,
+            "value": "10822",
+            "normalized_value": 10822,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-008",
+            "path": "amount_minor",
+            "expected": 11096,
+            "value": "11096",
+            "normalized_value": 11096,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-013",
+            "path": "amount_minor",
+            "expected": 11781,
+            "value": "11781",
+            "normalized_value": 11781,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-015",
+            "path": "amount_minor",
+            "expected": 12055,
+            "value": "120,55",
+            "normalized_value": 12055,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-018",
+            "path": "amount_minor",
+            "expected": 12466,
+            "value": "12466",
+            "normalized_value": 12466,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-030",
+            "path": "amount_minor",
+            "expected": 14110,
+            "value": "USD 141,10",
+            "normalized_value": 14110,
+            "value_type": "money_minor"
+          }
+        ]
+      },
+      "all_money_including_tax": {
+        "expected": 27,
+        "value_exact": 5,
+        "normalized_exact": 22,
+        "normalized_rescues": 17,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "amount_minor",
+            "expected": 10137,
+            "value": "10137",
+            "normalized_value": 10137,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-004",
+            "path": "amount_minor",
+            "expected": 10548,
+            "value": "10548",
+            "normalized_value": 10548,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-006",
+            "path": "amount_minor",
+            "expected": 10822,
+            "value": "10822",
+            "normalized_value": 10822,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-008",
+            "path": "amount_minor",
+            "expected": 11096,
+            "value": "11096",
+            "normalized_value": 11096,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "PAY-013",
+            "path": "amount_minor",
+            "expected": 11781,
+            "value": "11781",
+            "normalized_value": 11781,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-015",
+            "path": "amount_minor",
+            "expected": 12055,
+            "value": "120,55",
+            "normalized_value": 12055,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-018",
+            "path": "amount_minor",
+            "expected": 12466,
+            "value": "12466",
+            "normalized_value": 12466,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-030",
+            "path": "amount_minor",
+            "expected": 14110,
+            "value": "USD 141,10",
+            "normalized_value": 14110,
+            "value_type": "money_minor"
+          }
+        ]
+      },
+      "expected_missing_fields": {
+        "checked": 59,
+        "incorrectly_present": 18,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "order_number",
+            "value": "SYN-PAY-0001"
+          },
+          {
+            "sample_id": "PAY-002",
+            "path": "order_number",
+            "value": "SYN-PAY-0002"
+          },
+          {
+            "sample_id": "PAY-004",
+            "path": "order_number",
+            "value": "SYN-PAY-0004"
+          },
+          {
+            "sample_id": "PAY-006",
+            "path": "order_number",
+            "value": "SYN-PAY-0006"
+          },
+          {
+            "sample_id": "PAY-008",
+            "path": "order_number",
+            "value": "SYN-PAY-0008"
+          },
+          {
+            "sample_id": "PAY-010",
+            "path": "order_number",
+            "value": "SYN-PAY-0010"
+          },
+          {
+            "sample_id": "PAY-011",
+            "path": "order_number",
+            "value": "SYN-PAY-0011"
+          },
+          {
+            "sample_id": "PAY-012",
+            "path": "order_number",
+            "value": "SYN-PAY-0012"
+          }
+        ]
+      },
+      "expected_paths_in_claims": {
+        "checked": 134,
+        "omitted": 0,
+        "examples": []
+      }
+    },
+    {
+      "model": "qwen3.8-flash",
+      "artifact": "tests/evidence/evaluation/diagnostic-qwen3.8-flash-run.json",
+      "artifact_sha256": "8de4db7f51d73f1a8d5034586924ebd0dda5d5e65f6664d5e74eb5625c445241",
+      "outcomes": {
+        "local_claim_accepted": 42,
+        "job_terminal_without_claim": 43,
+        "rejected_before_model": 15
+      },
+      "claim_statuses": {
+        "blocked": 41,
+        "ready_for_review": 1
+      },
+      "root_cause_signals": {
+        "invalid_typed_values": 55,
+        "incomplete_claim_snapshots": 0,
+        "disallowed_field_emissions": 44,
+        "field_type_mismatches": 20
+      },
+      "validation_rules": {
+        "invalid_typed_value": 55,
+        "unknown_field_path": 44,
+        "field_type_mismatch": 20,
+        "required_field_absent": 20,
+        "unknown_document_type": 4,
+        "model_issue_total_amount_missing": 1,
+        "ambiguous_repeated_header": 1,
+        "claim_snapshot_complete": 1,
+        "model_issue_synthetic_unclassified_document": 1
+      },
+      "present_field_value_shapes": {
+        "string:value=string:normalized=string": 176,
+        "money_minor:value=string:normalized=number": 32,
+        "money_minor:value=number:normalized=number": 23,
+        "instant:value=string:normalized=string": 22,
+        "money_minor:value=string:normalized=string": 18,
+        "date:value=string:normalized=string": 15,
+        "integer:value=string:normalized=number": 5,
+        "integer:value=number:normalized=number": 5,
+        "string:value=string:normalized=undefined": 1,
+        "date:value=string:normalized=undefined": 1
+      },
+      "core_money": {
+        "expected": 36,
+        "value_exact": 6,
+        "normalized_exact": 20,
+        "normalized_rescues": 14,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "amount_minor",
+            "expected": 10137,
+            "value": "101.37",
+            "normalized_value": 10137,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-012",
+            "path": "amount_minor",
+            "expected": 11644,
+            "value": "11644",
+            "normalized_value": 11644,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-016",
+            "path": "amount_minor",
+            "expected": 12192,
+            "value": "12192",
+            "normalized_value": 12192,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-022",
+            "path": "amount_minor",
+            "expected": 13014,
+            "value": "USD 130,14",
+            "normalized_value": 13014,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-028",
+            "path": "amount_minor",
+            "expected": 13836,
+            "value": "13836",
+            "normalized_value": 13836,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "INV-042",
+            "path": "total_minor",
+            "expected": 20422,
+            "value": "204,22",
+            "normalized_value": 20422,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "INV-048",
+            "path": "total_minor",
+            "expected": 21688,
+            "value": "21688",
+            "normalized_value": 21688,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "INV-049",
+            "path": "total_minor",
+            "expected": 21899,
+            "value": "21899",
+            "normalized_value": 21899,
+            "value_type": "money_minor"
+          }
+        ]
+      },
+      "all_money_including_tax": {
+        "expected": 45,
+        "value_exact": 10,
+        "normalized_exact": 28,
+        "normalized_rescues": 18,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "amount_minor",
+            "expected": 10137,
+            "value": "101.37",
+            "normalized_value": 10137,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-012",
+            "path": "amount_minor",
+            "expected": 11644,
+            "value": "11644",
+            "normalized_value": 11644,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-016",
+            "path": "amount_minor",
+            "expected": 12192,
+            "value": "12192",
+            "normalized_value": 12192,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-022",
+            "path": "amount_minor",
+            "expected": 13014,
+            "value": "USD 130,14",
+            "normalized_value": 13014,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "PAY-028",
+            "path": "amount_minor",
+            "expected": 13836,
+            "value": "13836",
+            "normalized_value": 13836,
+            "value_type": "integer"
+          },
+          {
+            "sample_id": "INV-042",
+            "path": "tax_minor",
+            "expected": 1570,
+            "value": "15,70",
+            "normalized_value": 1570,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "INV-042",
+            "path": "total_minor",
+            "expected": 20422,
+            "value": "204,22",
+            "normalized_value": 20422,
+            "value_type": "money_minor"
+          },
+          {
+            "sample_id": "INV-048",
+            "path": "total_minor",
+            "expected": 21688,
+            "value": "21688",
+            "normalized_value": 21688,
+            "value_type": "money_minor"
+          }
+        ]
+      },
+      "expected_missing_fields": {
+        "checked": 75,
+        "incorrectly_present": 23,
+        "examples": [
+          {
+            "sample_id": "PAY-001",
+            "path": "order_number",
+            "value": "SYN-PAY-0001"
+          },
+          {
+            "sample_id": "PAY-003",
+            "path": "order_number",
+            "value": "SYN-PAY-0003"
+          },
+          {
+            "sample_id": "PAY-005",
+            "path": "order_number",
+            "value": "SYN-PAY-0005"
+          },
+          {
+            "sample_id": "PAY-006",
+            "path": "order_number",
+            "value": "SYN-PAY-0006"
+          },
+          {
+            "sample_id": "PAY-009",
+            "path": "order_number",
+            "value": "SYN-PAY-0009"
+          },
+          {
+            "sample_id": "PAY-011",
+            "path": "order_number",
+            "value": "SYN-PAY-0011"
+          },
+          {
+            "sample_id": "PAY-012",
+            "path": "order_number",
+            "value": "SYN-PAY-0012"
+          },
+          {
+            "sample_id": "PAY-014",
+            "path": "order_number",
+            "value": "SYN-PAY-0014"
+          }
+        ]
+      },
+      "expected_paths_in_claims": {
+        "checked": 213,
+        "omitted": 0,
+        "examples": []
+      }
+    }
+  ]
+}

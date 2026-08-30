@@ -1,0 +1,2198 @@
+{
+  "report_kind": "m1-model-evaluation-provider-telemetry",
+  "run_id": "run-1",
+  "latency_distribution_ms": {
+    "count": 85,
+    "min": 10240,
+    "p50": 37430,
+    "p95": 60001,
+    "max": 60001
+  },
+  "samples": [
+    {
+      "sample_id": "PAY-001",
+      "job_id": "16dc18cb-7689-43a6-8859-64ad59ac0be1",
+      "ai_runs": [
+        {
+          "id": "c9f01f8c-72c3-467a-a52a-343b78ce3b04",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:40:06.555839442Z",
+          "request_hash": "31d3915327176acc1d0b206eaf31dac68118f59531891702ca5ff78026159422",
+          "response_hash": "ebf6cd8cafbe6d8dc538214e6b23389b51b01c5f47598ad00fae318209cc21ec",
+          "input_tokens": 1116,
+          "output_tokens": 1811,
+          "latency_ms": 20714,
+          "finished_at": "2026-08-28T04:40:27.274049486Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-002",
+      "job_id": "a4cbe867-80ec-4515-be8d-f64247bc2ec9",
+      "ai_runs": [
+        {
+          "id": "c53241ec-b3f7-4db3-88a2-4412e9d7cc1a",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:40:06.566288336Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "9dc073d4ec6c9162d0b87320d1f3e0bf6a0eef0b1464e98ac1811698509b402f",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 20855,
+          "finished_at": "2026-08-28T04:40:27.432062955Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-003",
+      "job_id": "e79feaea-56b3-419c-bfd8-aea53fb4d8ee",
+      "ai_runs": [
+        {
+          "id": "2cec5dfc-35e8-40c4-b147-163c01714022",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:40:27.454023898Z",
+          "request_hash": "48c16200adc9039f9b23ebc777c246f93cdea710751f227a2ca75e0ac7b4795f",
+          "response_hash": "6ec0947160fc441cb90d47e5c757c30ea460bcbdcfc533d67fa74a79873acacb",
+          "input_tokens": 1116,
+          "output_tokens": 1801,
+          "latency_ms": 20858,
+          "finished_at": "2026-08-28T04:40:48.320181132Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-004",
+      "job_id": "907e1bb7-86f9-471a-8cf6-0cfdd75a4860",
+      "ai_runs": [
+        {
+          "id": "02ff30da-5507-40f8-a9c5-6b66d10e8730",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:40:28.057645271Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "ec02518180495e406fca7d8886619c5030142a720387d805776327d60d7c7e83",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 17484,
+          "finished_at": "2026-08-28T04:40:45.54944268Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-005",
+      "job_id": "25ab2a94-4bc3-41fc-bd81-4d97cab66f59",
+      "ai_runs": [
+        {
+          "id": "0d73ffee-73ab-4fc4-8d5d-b7c498fec1cf",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:40:46.058142103Z",
+          "request_hash": "7e5571c139533706975d5c04b07bae8cc253addb0457c416ebb0047b8458313d",
+          "response_hash": "f272bca71c0442196b8bbf8c79fee6d35243f8021601b5e2805df9f37fb9f575",
+          "input_tokens": 1116,
+          "output_tokens": 1580,
+          "latency_ms": 17265,
+          "finished_at": "2026-08-28T04:41:03.327873362Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-006",
+      "job_id": "4d438702-5b98-42fe-acdd-bde2c0269431",
+      "ai_runs": [
+        {
+          "id": "f8e5a7fa-874d-4712-90e9-667aa3b67299",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:40:49.059248893Z",
+          "request_hash": "d7cd097593b95047f480fe58f5f9c07a63a92bfe69cde5bd3330bc79099f936c",
+          "response_hash": "4c4b5fd5a1bf31033a6de259df43cacf97d9ef5e4b5da58e0c0ca99549ae2307",
+          "input_tokens": 1116,
+          "output_tokens": 2115,
+          "latency_ms": 23360,
+          "finished_at": "2026-08-28T04:41:12.428630992Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-007",
+      "job_id": "61fe9e9a-451d-4800-80e1-2206262c1249",
+      "ai_runs": [
+        {
+          "id": "1d918f57-dfbd-4e88-8897-1309c185e254",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:04.058347384Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "8d2e77e47b572e9e56a860c4ee719ab853a07dca45e8b4c4777c94de0e7ee14b",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 16714,
+          "finished_at": "2026-08-28T04:41:20.776143421Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-008",
+      "job_id": "a6173782-995c-49bb-80a8-c8c9c56f349d",
+      "ai_runs": [
+        {
+          "id": "9ede9239-1e56-4aeb-8b40-6004825caf96",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:13.063841204Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "3ac61785229ae48756d7328c610334b047a7777ce16828ab72cbe25114f525c9",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 11049,
+          "finished_at": "2026-08-28T04:41:24.118336003Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-009",
+      "job_id": "eb29e091-6186-45d6-8b7c-f0d938712fa5",
+      "ai_runs": [
+        {
+          "id": "fcd1450b-41a7-4713-8dc2-27d2b169a02c",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:21.554319313Z",
+          "request_hash": "344a65fd6e2f8506acfae92be5caffbb8531e301265bdaafa6d7e85f71c6c2db",
+          "response_hash": "24d9dd69de47b2ce62ed8dae98aa549dd14e9fbe31c5f6b8af18cda1b5338ce2",
+          "input_tokens": 1116,
+          "output_tokens": 1293,
+          "latency_ms": 14582,
+          "finished_at": "2026-08-28T04:41:36.144794875Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-010",
+      "job_id": "6e1a9260-f11d-4af8-93f9-a73a6e2c4a46",
+      "ai_runs": [
+        {
+          "id": "168d9c36-bda7-4f62-8cc4-3581275cc98b",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:25.056916468Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "802b5a6441b61ea09759d469b54bf92ae67cc45f0455af578df8eea125459b98",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 15926,
+          "finished_at": "2026-08-28T04:41:40.988082325Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-011",
+      "job_id": "b31b4138-3c72-432c-b4f3-f9ed078c9b2d",
+      "ai_runs": [
+        {
+          "id": "8ab389e9-ef40-4ab6-88c6-7668241b2818",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:36.561071571Z",
+          "request_hash": "620cfacff3fee0501dc8425da451eeb95ac38b2559e6c7417e859e6e7c000a96",
+          "response_hash": "6f94aedf254770da1fb226ec8f12aa4e019ca55acfa9e0528002637911f8987c",
+          "input_tokens": 1116,
+          "output_tokens": 1891,
+          "latency_ms": 19508,
+          "finished_at": "2026-08-28T04:41:56.079142324Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-012",
+      "job_id": "8d27fbe3-ca4e-4a43-a1e5-a0b89bc56e9f",
+      "ai_runs": [
+        {
+          "id": "e5967971-dde0-453c-84e8-77674cbca745",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:41.560306941Z",
+          "request_hash": "f8be9125899c7ed5b06d2c352b10bc65a2fb55fddd1ee94ef0f0a49ee65c10d1",
+          "response_hash": "3dee015986ffdfab1ad56b449534a962e0583b196890d6b90b2dcf400a667630",
+          "input_tokens": 1116,
+          "output_tokens": 2441,
+          "latency_ms": 23306,
+          "finished_at": "2026-08-28T04:42:04.878743759Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-013",
+      "job_id": "e12ea6b3-487c-42cf-9788-77fed8ceedc2",
+      "ai_runs": [
+        {
+          "id": "1390e17d-24ac-4709-9085-179deffddd9d",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:41:56.556933935Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "c084f3ff69622835f0c144b34d84297f298142f2419e9aebd97ac80e54d6a0bf",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 14282,
+          "finished_at": "2026-08-28T04:42:10.843983074Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-014",
+      "job_id": "5d5fc4d0-7e27-4f9e-a8db-145a37bf350c",
+      "ai_runs": [
+        {
+          "id": "7e776e81-797c-49a3-941a-2cb265db5f66",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:42:05.556531508Z",
+          "request_hash": "7316e7110bee833c738d6b0b2d84c5f6357749cb237b0312372f8cc9c88436c6",
+          "response_hash": "91a7fa63915a54ac3a9d42476089aead764113111f0402eb63d9570ed028f1ad",
+          "input_tokens": 1116,
+          "output_tokens": 2264,
+          "latency_ms": 24516,
+          "finished_at": "2026-08-28T04:42:30.083735741Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-015",
+      "job_id": "3069d1f3-4a94-4448-af2e-12bb1088b064",
+      "ai_runs": [
+        {
+          "id": "9d362b07-7dc4-4dc3-bc26-e6994da07a1a",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:42:11.054550232Z",
+          "request_hash": "47bbcb44b7b34a4d8d44244c3a06f81b73dc4c48d1ef337976769ca0c66c42ad",
+          "response_hash": "acabae9b61572ef2293ddd382a75b1f9696bf66614faa7ca9b15211abacc9ae0",
+          "input_tokens": 1116,
+          "output_tokens": 1664,
+          "latency_ms": 17593,
+          "finished_at": "2026-08-28T04:42:28.659420502Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-016",
+      "job_id": "961f3d54-2428-42e5-b066-27219fd39cce",
+      "ai_runs": [
+        {
+          "id": "7ce31806-60b4-42d6-996a-ca95eb08848e",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:42:29.061205266Z",
+          "request_hash": "95bb5d69c06594ed243f7e7dbaf04211e236a4276d36b693d28c4cf1904de445",
+          "response_hash": "3a3d907669a4d28bc00d765163f231157e1334d225b00704e6709ecb2871fd3b",
+          "input_tokens": 1116,
+          "output_tokens": 2113,
+          "latency_ms": 21513,
+          "finished_at": "2026-08-28T04:42:50.584883349Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-017",
+      "job_id": "52f97a9b-56ad-439d-8ef7-ceed871af3a1",
+      "ai_runs": [
+        {
+          "id": "3a6a280f-7a86-417d-b043-0cb549d697cb",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:42:30.55922321Z",
+          "request_hash": "bf4781f9f3eb2008114110d0b72fd9ceb30070e8e2a13b625c0c77d85926ab64",
+          "response_hash": "bbaca5b44de5cb40239f611e8d7c09fadea29b22efd586fcac6e0af872684622",
+          "input_tokens": 1116,
+          "output_tokens": 2072,
+          "latency_ms": 22803,
+          "finished_at": "2026-08-28T04:42:53.371926323Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-018",
+      "job_id": "d140749c-9262-4c36-8e6e-3c75cf2aecd3",
+      "ai_runs": [
+        {
+          "id": "4879fe91-0c69-4954-97e0-a6f736a13281",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:42:51.055048894Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "68dd79ae6e2d254e5f2e95109472ebed60d02a47ca2e3666525318a2bcfd8ced",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 11645,
+          "finished_at": "2026-08-28T04:43:02.70343444Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-019",
+      "job_id": "1da9ad65-73d5-4665-9e58-82f145a8ac90",
+      "ai_runs": [
+        {
+          "id": "3e332a7a-dd2a-4f0d-b936-9c1a725bd019",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:42:54.061018164Z",
+          "request_hash": "33dc79efcd24d44a68db5f98f2300a2de6573beff002603ee905cfcb7f067f30",
+          "response_hash": "d8feec73e632d14d67be98cef7bc48c55b36db9d28021fa795ba9380a4d95554",
+          "input_tokens": 1116,
+          "output_tokens": 1716,
+          "latency_ms": 17593,
+          "finished_at": "2026-08-28T04:43:11.658466145Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-020",
+      "job_id": "21cc992f-bdd7-491e-a077-43eaa185541a",
+      "ai_runs": [
+        {
+          "id": "55afb17d-ffaa-4bd4-9f1a-4760b63325fd",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:43:03.055505786Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "c13f3f806f11073b2f9bb18070476ca106e3e9d1b53451a24de4b23474f750e6",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 12804,
+          "finished_at": "2026-08-28T04:43:15.863168431Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-021",
+      "job_id": "ad2ced28-f3ae-418b-8093-60903cbfdf72",
+      "ai_runs": [
+        {
+          "id": "426ba09f-4fed-42f9-b429-be1d20ead16c",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:43:12.060249242Z",
+          "request_hash": "cc86644b3ba1837d8e7f0ed6f4c07634676157f48b1874f451571b51fe74b13d",
+          "response_hash": "ed8460712c9af1f41142d995faa902269d64271b53a44466fc5d0c846817da8a",
+          "input_tokens": 1116,
+          "output_tokens": 1223,
+          "latency_ms": 12721,
+          "finished_at": "2026-08-28T04:43:24.784971041Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-022",
+      "job_id": "833e9139-5b79-4f25-8089-ac4742c00a57",
+      "ai_runs": [
+        {
+          "id": "cdf60d95-4356-4293-9352-4cd6ffc7025b",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:43:16.558173738Z",
+          "request_hash": "3f902d059a1a47561ffaba70239665ea5f9a21722dac74f2c7ad2e8a34667565",
+          "response_hash": "3d52d5a6c51554258ac655ed5a2ccf160a6002d6bdd788bd5c108a338bb50dc5",
+          "input_tokens": 1116,
+          "output_tokens": 3376,
+          "latency_ms": 37430,
+          "finished_at": "2026-08-28T04:43:54.005609986Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-023",
+      "job_id": "e07bd3c1-fd17-4da0-bc91-88d4ab8e6898",
+      "ai_runs": [
+        {
+          "id": "29f7f7e3-c003-4efb-b814-1d7e19f145d9",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:43:25.06036108Z",
+          "request_hash": "f7f71b2e84b246dc24aa7359fa34234df230a30ea1bd8842ebc1aa839a69003f",
+          "response_hash": "3f3c45920cefe332717af78d8bd35647a1baa4c0ccb04f5a801246712439d151",
+          "input_tokens": 1116,
+          "output_tokens": 1944,
+          "latency_ms": 22307,
+          "finished_at": "2026-08-28T04:43:47.377076012Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-024",
+      "job_id": "f2c12875-33a2-4077-a68e-52566f74cffe",
+      "ai_runs": [
+        {
+          "id": "6844163e-e2c7-4403-9782-5b68df13a33e",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:43:48.058039273Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "69494755ab5db144a21b3c2334c8dd334f62f08c16050d6767861ff9df6fa60f",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 14140,
+          "finished_at": "2026-08-28T04:44:02.207730214Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-025",
+      "job_id": "2eabf0e2-fa3a-47fc-a93c-02ec61c93277",
+      "ai_runs": [
+        {
+          "id": "1a8d5247-016b-4cde-ad56-dac00f84712d",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:43:54.555547909Z",
+          "request_hash": "b8f57ed97f393d0f29c7c5d551369e5cd867d5a9aed4c859a43c2c3e6ba58e18",
+          "response_hash": "5ee11dc238c15beba9d59c202b8b88138f3da8a1b050e8f5ca0ad89716c295dd",
+          "input_tokens": 1116,
+          "output_tokens": 2826,
+          "latency_ms": 33668,
+          "finished_at": "2026-08-28T04:44:28.233357332Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-026",
+      "job_id": "ee9d3381-c381-4370-bc77-747e85c072bf",
+      "ai_runs": [
+        {
+          "id": "3d261bb4-f0c2-4e27-a93f-05b771fc03c3",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:44:03.058542581Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "387d0775da8fa6a3d3d878ff33d7b3e5f1b63016f4a893385e98ed7ed77b9ad8",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 20235,
+          "finished_at": "2026-08-28T04:44:23.297276746Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-027",
+      "job_id": "76413d7d-7e22-41ec-892d-3b4df9277159",
+      "ai_runs": [
+        {
+          "id": "64779cea-7b33-423d-a932-6ce2cc9f5fa5",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:44:24.058250145Z",
+          "request_hash": "bd414eaafd6e3c2e906001123b068f69979f8df75ccdbd0028bd1f03503400ed",
+          "response_hash": "54bb6e50c73d943e921d52d8bec92e07d50715946ec7eb2a1b9ae5b964966946",
+          "input_tokens": 1116,
+          "output_tokens": 1335,
+          "latency_ms": 14092,
+          "finished_at": "2026-08-28T04:44:38.162345353Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-028",
+      "job_id": "7c2ef810-7732-46c7-a445-7ab35c35eec2",
+      "ai_runs": [
+        {
+          "id": "b3660a18-3988-47e5-9fc7-23c6ddd90859",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:44:29.057495031Z",
+          "request_hash": "9534b5b6f46c75a0954222dcd50ead4495bdd9795807cb6ac2f6405a42dfa461",
+          "response_hash": "72dc212131596bc4b4afe174d63134e710cd936bf9fda63068c1b1026f4b00ee",
+          "input_tokens": 1116,
+          "output_tokens": 1659,
+          "latency_ms": 16571,
+          "finished_at": "2026-08-28T04:44:45.632086001Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-029",
+      "job_id": "864eeec9-e702-4ae9-8f2c-3a876d29d27d",
+      "ai_runs": [
+        {
+          "id": "0b3f7ae8-5c36-4039-a6b6-b8b3116624fc",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:44:38.559676635Z",
+          "request_hash": "4d9cf3ae962f0ec50ee9a4e06d8289fb137ee423fb43dc88ed077d7e03e8fc59",
+          "response_hash": "8630d2e670563c691ce66461cd3eaf6a3b3cba4cbd9334e69a60af2a10bdf379",
+          "input_tokens": 1116,
+          "output_tokens": 2733,
+          "latency_ms": 27820,
+          "finished_at": "2026-08-28T04:45:06.390139769Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-030",
+      "job_id": "7e6e3180-c682-4f6c-a121-696bf4e92828",
+      "ai_runs": [
+        {
+          "id": "2e281bca-048b-4908-882e-1b7e1acc3c7c",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:44:46.054809022Z",
+          "request_hash": "186338ba9bdc30fed166fe6ad7c3b9977261486ae356cdee4ce371c933c8199e",
+          "response_hash": "fd6a520b1818136ad67e0ebe8ec97e3771543efb274907ed2ed3c430735f937d",
+          "input_tokens": 1116,
+          "output_tokens": 1898,
+          "latency_ms": 20405,
+          "finished_at": "2026-08-28T04:45:06.469103686Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-031",
+      "job_id": "737e8fcc-15f6-4263-a732-3550be0a4b20",
+      "ai_runs": [
+        {
+          "id": "81130670-d0f8-41a4-81d5-b990b0b3df80",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:45:07.062541136Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "d25e95d84b154646bc308d22fda590da6cdd09e19c9ad0577f99a74115edbca6",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 17198,
+          "finished_at": "2026-08-28T04:45:24.270432396Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-032",
+      "job_id": "b382761e-6811-4fc3-a1cd-9a755f09a2d8",
+      "ai_runs": [
+        {
+          "id": "93e0a1a1-253d-4912-b6a0-c8694c8db8df",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:45:07.073877617Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "c6a3c183b25f702d15b7039229c80ba16a0ff6a3a1ef9adbb5c46ebdad70cf36",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 10240,
+          "finished_at": "2026-08-28T04:45:17.317434427Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-033",
+      "job_id": "6b261ddd-ecc6-4e91-b36a-999db83796de",
+      "ai_runs": [
+        {
+          "id": "28f5d51b-200a-459d-a231-40d853c51bef",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:45:18.060058444Z",
+          "request_hash": "e76fc91eb5746402c40b755936c7112eab765beeec71033a412f7f25e280013f",
+          "response_hash": "b065eaf72b68387b57249f89bb72c9bea4423876d7589ce5fffcc3d44ab20467",
+          "input_tokens": 1116,
+          "output_tokens": 2478,
+          "latency_ms": 27334,
+          "finished_at": "2026-08-28T04:45:45.405146739Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-034",
+      "job_id": "5edf0327-af8d-4c3b-8909-4e966181df85",
+      "ai_runs": [
+        {
+          "id": "6a29db14-6430-4d1e-814b-65d6848cd71b",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:45:24.558888068Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "ba53ed2836405dee82261e69a26c97ee91b41f1a159013e105efd54a6fa305ac",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 27413,
+          "finished_at": "2026-08-28T04:45:51.982347998Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-035",
+      "job_id": "b63a079c-85e4-49e0-a36d-550b87203926",
+      "ai_runs": [
+        {
+          "id": "8f8d0d21-a44d-4018-a162-4187e16cce6a",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:45:46.05890086Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "d83f5c9921581d409d917d2466f31eb17ed3251fac6b1b7adbf5258fa5d5c1b9",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 23460,
+          "finished_at": "2026-08-28T04:46:09.530114524Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-036",
+      "job_id": "16d59158-3b20-4124-8a99-eb93dac1e99b",
+      "ai_runs": [
+        {
+          "id": "210134ad-b7d8-484a-8222-da375190ceff",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:45:52.556106298Z",
+          "error_code": "provider_timeout",
+          "request_hash": "f7171df8512c786098b5ba0fbc37348cf856c543b090c68fcd849632ba23dc28",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:46:52.559834962Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-037",
+      "job_id": "c4b6a76e-823e-464a-939a-a434d048c322",
+      "ai_runs": [
+        {
+          "id": "096eb329-2021-46f9-aeb8-85942637a8f2",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:46:10.061778765Z",
+          "error_code": "provider_timeout",
+          "request_hash": "e4dded059ace51c8b6d59a9b7316b1d1aaca0a4764fe997d488ac11f4ceb7d5e",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60001,
+          "finished_at": "2026-08-28T04:47:10.065904687Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-038",
+      "job_id": "b2093ca2-42b9-42a9-9570-5d43645a3eed",
+      "ai_runs": [
+        {
+          "id": "29d81c85-d5a2-4e51-a3c7-7525a94b7ba4",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:46:53.054717606Z",
+          "error_code": "provider_timeout",
+          "request_hash": "f2edb8acd76de86fb1e6d1cdd853392f8ae19a3503d99882efa6948d2d40e020",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:47:53.058669243Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-039",
+      "job_id": "3d9ce0cd-dc99-4813-b1ba-fc01650f9739",
+      "ai_runs": [
+        {
+          "id": "9a381d09-48c1-4154-b5fe-d150681b8d20",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:47:10.556266801Z",
+          "request_hash": "124c89b20ee080a5011341cc7f229c3aeeba9e299e0e493161f64adce6846cf4",
+          "response_hash": "089f652d3aed760333117bcaf587369f2424a4f3021bc69d930e01c52425e3b8",
+          "input_tokens": 1116,
+          "output_tokens": 2616,
+          "latency_ms": 34438,
+          "finished_at": "2026-08-28T04:47:45.008013619Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "PAY-040",
+      "job_id": "3a43d0c1-9e7d-4a25-80db-f90fe5edb699",
+      "ai_runs": [
+        {
+          "id": "d311dc2e-cf5c-458a-90bd-15f6a46b9fe2",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:47:45.561360467Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "838e305bb5ef6c0dc938d86491987af4c85dc152fceee9bc40872d6f615f88b2",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 53289,
+          "finished_at": "2026-08-28T04:48:38.873614987Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-041",
+      "job_id": "9cf67488-041b-40f2-ab69-46d0bc973ba3",
+      "ai_runs": [
+        {
+          "id": "2d708fa5-3785-43cc-a8c9-bfc3c8a9bfa4",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:47:54.058360536Z",
+          "error_code": "provider_timeout",
+          "request_hash": "1c41533741305829d8cf50a555e74dc08831571fa3debae5e6fc944d31b2f609",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:48:54.060796631Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-042",
+      "job_id": "987880f5-9d59-4e2f-8bf7-9e0bacc55808",
+      "ai_runs": [
+        {
+          "id": "58d40c74-f6a4-4951-89bf-1cd3e666816f",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:48:39.559880088Z",
+          "request_hash": "bf95a96bf24511029e71e715ac004696f4302bee1d293294c88e92f0bc9547b3",
+          "response_hash": "ef7443f53f08de96c2031d06cfae361038d2dcb3e04b74e72fd44a4e09b362b7",
+          "input_tokens": 1116,
+          "output_tokens": 2936,
+          "latency_ms": 32260,
+          "finished_at": "2026-08-28T04:49:11.829956367Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-043",
+      "job_id": "71bb9683-a333-4e92-8b40-bf0c43a100cd",
+      "ai_runs": [
+        {
+          "id": "3cf6528e-bd3b-4902-bff2-2eea5d61403a",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:48:54.55760512Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "cdfe552cb0430a761d805a4042e3d4aec5b03c8b8b32950890bd0de61852d56b",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 29338,
+          "finished_at": "2026-08-28T04:49:23.904929529Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-044",
+      "job_id": "f788cd3c-1694-4d51-a3c0-2fa3ad648177",
+      "ai_runs": [
+        {
+          "id": "47d49566-ec22-4c70-9eb3-55bbc89f2888",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:49:12.555723422Z",
+          "request_hash": "53db5093b1b2263313f4940a421a7adaecc9a613cfa9ed13a7a5bc24479fe061",
+          "response_hash": "c2fe279ed4aaf74be4f66ed9ba8162940337b6949abe387b5e1c8d1160cdf8f9",
+          "input_tokens": 1116,
+          "output_tokens": 2763,
+          "latency_ms": 29461,
+          "finished_at": "2026-08-28T04:49:42.027170376Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-045",
+      "job_id": "918a813b-3c59-424a-89d1-539f0d1c851d",
+      "ai_runs": [
+        {
+          "id": "0232eb38-755f-44df-b776-bdc71d91e0ba",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:49:24.555658726Z",
+          "request_hash": "fac331c4c733ba0f6e4605b2336306f4de94522f28d5ef9b90e0e1e76e574bb2",
+          "response_hash": "a0c830bd5eeb20eb16493afc4740054bbfe9125a39257eec3fc9af9026b077b9",
+          "input_tokens": 1116,
+          "output_tokens": 3335,
+          "latency_ms": 38021,
+          "finished_at": "2026-08-28T04:50:02.586989729Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-046",
+      "job_id": "d4c1de5b-34ff-45a9-99be-ec571730f22c",
+      "ai_runs": [
+        {
+          "id": "24d0b22a-25b6-40c0-8638-571dd0391431",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:49:42.561365605Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "fb0e55fd7d5721b134e0154650b1e833d821d14f880f64213316fdd00ec8a9cc",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 53941,
+          "finished_at": "2026-08-28T04:50:36.512550272Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-047",
+      "job_id": "1db355bf-7897-497e-ad27-4d263b759592",
+      "ai_runs": [
+        {
+          "id": "2ae17f0e-bac0-4513-a713-6fe2d84076c8",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:50:03.056391431Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "9191d2740287dad03e745c7d70e606e745e46fd3e30e34ad5b7ad7d0d873c0b6",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 37252,
+          "finished_at": "2026-08-28T04:50:40.318277995Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-048",
+      "job_id": "b1c2f812-5b22-4a75-b99e-d8d6337226de",
+      "ai_runs": [
+        {
+          "id": "7440e7fa-b755-4f9e-a5b4-bd505c5bbd14",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:50:37.06074454Z",
+          "request_hash": "a69dea4738334ae06f5fafd42ef09c8e7fa3e30872149e5eac4f8fc633e51247",
+          "response_hash": "861a8e918a5963a7d32cf7f22affda104ddd3f7c3857fa31fef621446f62702d",
+          "input_tokens": 1116,
+          "output_tokens": 4414,
+          "latency_ms": 46950,
+          "finished_at": "2026-08-28T04:51:24.031374141Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-049",
+      "job_id": "b4e2265d-1875-425e-bc8c-636795bd1bcb",
+      "ai_runs": [
+        {
+          "id": "66213de3-1bfe-41ca-9c2b-6eecaee932e2",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:50:41.059160813Z",
+          "request_hash": "07f798c45e2895f350e4d047e0aff3d8fca0cd42aa6150b32217af3ecec7caca",
+          "response_hash": "7dfc86f6c0a08bde732b2ba67a89f09662182e6de52ff9734d5b682a14e658c0",
+          "input_tokens": 1116,
+          "output_tokens": 3655,
+          "latency_ms": 40337,
+          "finished_at": "2026-08-28T04:51:21.405151343Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-050",
+      "job_id": "a1cd4bca-c65e-4c18-860d-a526409949c9",
+      "ai_runs": [
+        {
+          "id": "c3472c62-f5a2-41d3-87d8-52a82906166f",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:51:21.582108569Z",
+          "request_hash": "41f2761d4b815625513d3442b0280f2c6202d6e038d2be9584db9184f4d684a2",
+          "response_hash": "232347c3139d7bb38de318c16ad5dccabd101b1c82816f038148a2918c79e941",
+          "input_tokens": 1116,
+          "output_tokens": 3069,
+          "latency_ms": 32187,
+          "finished_at": "2026-08-28T04:51:53.783209443Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-051",
+      "job_id": "ed52e2fb-d8af-4832-811d-e923241f1cc8",
+      "ai_runs": [
+        {
+          "id": "1a997bb7-b614-415a-8790-5ee9ef0e42ca",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:51:24.556135833Z",
+          "error_code": "provider_timeout",
+          "request_hash": "32243ad126116c39c0df99c8d92014a1db5dc37b2056865cbe998796d14340b1",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:52:24.559492947Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-052",
+      "job_id": "27872236-345c-4c4c-9ede-3e229c3e5ae4",
+      "ai_runs": [
+        {
+          "id": "8e6d64c1-88f8-40cf-a610-776d7105c037",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:51:54.559803764Z",
+          "request_hash": "1890fcf3c0e6835399408d5ec63c933004b762cadfc4a95112f75a07e0fbdd28",
+          "response_hash": "e5b49e8af80a339c9bb37bceb0c1bf646c4511be4594b3a051a729b4c4bacaea",
+          "input_tokens": 1116,
+          "output_tokens": 5113,
+          "latency_ms": 54157,
+          "finished_at": "2026-08-28T04:52:48.739620067Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-053",
+      "job_id": "3f85ec3b-5094-488c-8fb1-bfdcaad91aa2",
+      "ai_runs": [
+        {
+          "id": "a6ae361b-a986-4e02-b93e-995f661291b7",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:52:25.245111698Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "732fccdf94d88792fc95359d4256eb36a50224dc9fab9f0b4180225e01221805",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 52629,
+          "finished_at": "2026-08-28T04:53:17.901626692Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-054",
+      "job_id": "324f81e2-b92f-4394-a244-c4793cfce85c",
+      "ai_runs": [
+        {
+          "id": "7267eb21-dd4c-48ce-8b82-9bc27105a6ce",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:52:49.560423416Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "1d9ce25db9dce9fc08473a192ac13c2c1b2749973986f858665e0bfe83296f5a",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 39923,
+          "finished_at": "2026-08-28T04:53:29.493913936Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-055",
+      "job_id": "6e64c657-c9cf-4aa2-90fd-4e796a2f99b5",
+      "ai_runs": [
+        {
+          "id": "082eb50a-86ed-44b0-91d0-d86cd26fa963",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:53:18.560060559Z",
+          "request_hash": "3803c01cded375da58609b04d01d2f03c2a3b3ff51ce596919d2f0c7ced6833e",
+          "response_hash": "5b66e7b1d3c6cb4d7bb6dbb5352e204f41613d55d48cdabe2d1225c0ef5e6b3b",
+          "input_tokens": 1116,
+          "output_tokens": 3691,
+          "latency_ms": 38707,
+          "finished_at": "2026-08-28T04:53:57.279002768Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-056",
+      "job_id": "f1bb0834-5a7e-48fe-a521-3e49a0dc6f1a",
+      "ai_runs": [
+        {
+          "id": "a915b199-474a-4e4a-99bc-806c52f62e07",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:53:30.06524221Z",
+          "request_hash": "6a1408e3c3d1963d0eb18a7b0be26fa18251f270f601d3977009d0b7a824b06d",
+          "response_hash": "14ae99b4ee41ed5756764ee6fa28a3b6344bda5093d1d3f42055a63652675394",
+          "input_tokens": 1116,
+          "output_tokens": 5095,
+          "latency_ms": 54561,
+          "finished_at": "2026-08-28T04:54:24.64916323Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-057",
+      "job_id": "36b7da6b-b2c4-4d19-bc4d-f90789696c8b",
+      "ai_runs": [
+        {
+          "id": "65bc717a-7dcf-496b-a746-19840f67c9c6",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:53:57.558029213Z",
+          "error_code": "provider_timeout",
+          "request_hash": "49315f31c102690a545900b23a2f164acd4745848b6136cd7315c068c232fe58",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60001,
+          "finished_at": "2026-08-28T04:54:57.564192146Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-058",
+      "job_id": "69390175-528f-4435-b818-bb00debac923",
+      "ai_runs": [
+        {
+          "id": "803ce9ba-1e39-47fb-85fb-1d358c0a1cfd",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:54:25.056109275Z",
+          "request_hash": "3242997609680e138cd7a9668af70181f9413a18e30188e70de6fa073bf7ab81",
+          "response_hash": "0056ada099ead3483dd6c1ffb366f0d36d91eb478b84366a53d98dc2a11d7bd6",
+          "input_tokens": 1116,
+          "output_tokens": 4390,
+          "latency_ms": 47851,
+          "finished_at": "2026-08-28T04:55:12.930265851Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-059",
+      "job_id": "3e0cfeaf-ddf2-4bc5-a86f-f71c13241bf8",
+      "ai_runs": [
+        {
+          "id": "a880a8e0-2c57-4141-a47f-d88bb7b4e67e",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:54:58.060056342Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "1e9f1b17d665eca788b456eace6079ba0836b0f0ea2ca0c0168c1bf912afa066",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 48664,
+          "finished_at": "2026-08-28T04:55:46.736034578Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-060",
+      "job_id": "48537bc8-f0c7-4d01-ae30-9844f925de64",
+      "ai_runs": [
+        {
+          "id": "a34e7993-745c-4906-9e7d-1484aba687be",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:55:13.561550307Z",
+          "request_hash": "50a03c5d948df0cbdae42493c6bd85e0d67fbaea12d89fa2c82a9f2672b02047",
+          "response_hash": "7234aa294651d7d98c0fcd1c439aef0239641ac3feef117ab481d41c7978035a",
+          "input_tokens": 1116,
+          "output_tokens": 3861,
+          "latency_ms": 40925,
+          "finished_at": "2026-08-28T04:55:54.496981252Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-061",
+      "job_id": "7932942f-ba59-4316-a56f-768bb3a0d13a",
+      "ai_runs": [
+        {
+          "id": "b72606de-510f-4baa-9562-0c6c00c9ce73",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:55:47.059024302Z",
+          "error_code": "provider_timeout",
+          "request_hash": "a6c193bf1deca30fa6d50d71b9507a216a2b78add41fd0c88e734a1821c2bb84",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60001,
+          "finished_at": "2026-08-28T04:56:47.063508915Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-062",
+      "job_id": "43188dee-d409-422c-b4ce-cc7bab7b7603",
+      "ai_runs": [
+        {
+          "id": "572c1079-d9bd-4dcb-9d13-0650da647590",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:55:55.06232325Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "ea38222c52579405b5a77b055dce2933ef06f3ee566b8481d7b86af480ead32f",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 49345,
+          "finished_at": "2026-08-28T04:56:44.417345244Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-063",
+      "job_id": "ec1811ef-2872-4caf-8a6d-f3888a6f6270",
+      "ai_runs": [
+        {
+          "id": "8b0db0ca-0345-4573-9aa9-308ca643f139",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:56:45.066005764Z",
+          "error_code": "provider_timeout",
+          "request_hash": "b50559bac0e6f5f13df12cd7bcb73f8663280c9cab10af3d9dda10c8c843624b",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:57:45.070201483Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-064",
+      "job_id": "5612b4ac-fa86-4547-99d1-5b1ee1102a4a",
+      "ai_runs": [
+        {
+          "id": "cd273b8c-8a9c-4f37-9755-af62efcab125",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:56:47.560610876Z",
+          "error_code": "provider_timeout",
+          "request_hash": "a229b546c3959be5c75e10c40d0e0435a6918d1cf32c20aee4cf6c0061d77ed7",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:57:47.564262954Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-065",
+      "job_id": "342f4be3-6483-4adf-8cb2-93617e2dca8c",
+      "ai_runs": [
+        {
+          "id": "74af5da6-5648-4dc0-8021-e2e3463e0f82",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:57:45.559815664Z",
+          "error_code": "provider_timeout",
+          "request_hash": "681e54c6f556018dce9a68800473b66c6dda8ae2bd88cac83cba069ade46b6ed",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:58:45.563653254Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-066",
+      "job_id": "829e88c1-15d2-4ece-b119-cf12036785ed",
+      "ai_runs": [
+        {
+          "id": "a1da3160-deba-4e29-9c8f-e5bd06287517",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:57:48.060604423Z",
+          "error_code": "provider_timeout",
+          "request_hash": "5b4517110d1b6e99f8cbe9001cfe1fe9665a5f11e2340969b98130b20d288ee0",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T04:58:48.064611673Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-067",
+      "job_id": "44b46d35-68f3-4a97-b3e2-214f641dbe1f",
+      "ai_runs": [
+        {
+          "id": "a9a19399-ebe6-4555-97af-5e1562257f9e",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:58:46.058135586Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "20001234c951bdc3996eef5cbd40af829126eefe194da4139d5175abf8867b8c",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 55820,
+          "finished_at": "2026-08-28T04:59:41.902987116Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-068",
+      "job_id": "b2becf33-1a53-4038-82e6-408aaabe6452",
+      "ai_runs": [
+        {
+          "id": "8f204481-a2c7-409f-ab5b-438d40bffd06",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:58:48.559471242Z",
+          "request_hash": "3b8a3bd9d406ca82f079c4cf2fdb69aac8b36ce5610b2142ad3b69e414e44961",
+          "response_hash": "77b1178ba97888f05b6412209df229cd65ad59d62b289eb933a93416da899dc2",
+          "input_tokens": 1116,
+          "output_tokens": 5371,
+          "latency_ms": 57475,
+          "finished_at": "2026-08-28T04:59:46.045827879Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-069",
+      "job_id": "9373db61-d497-4c97-bb83-b697f3b1d26f",
+      "ai_runs": [
+        {
+          "id": "292c1164-97bb-4693-8a06-7a4125633390",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:59:42.059809193Z",
+          "request_hash": "f7f509e810358766de8a60018b84f6290ee1a9ff44c98e4ece6dcc8c8391bb41",
+          "response_hash": "3017b06b5f41d360772f769829b961ae9e746f1cdbd8b881253574977bc583f3",
+          "input_tokens": 1116,
+          "output_tokens": 5175,
+          "latency_ms": 52677,
+          "finished_at": "2026-08-28T05:00:34.747665591Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-070",
+      "job_id": "0b76f8bd-1c3d-46c3-bffb-8a743c31752a",
+      "ai_runs": [
+        {
+          "id": "b3ab8d6d-1471-4c8e-8b7c-a8bd08f12cc5",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T04:59:46.564487738Z",
+          "request_hash": "fa9281e7031b83d86e2addf721e2223d904890a138ed966ae3d6d620e2bdc39f",
+          "response_hash": "e91d16fa19a4b91a20c73c8fe5623d2778c14769e6c354f2d439225dde0578da",
+          "input_tokens": 1116,
+          "output_tokens": 4966,
+          "latency_ms": 49134,
+          "finished_at": "2026-08-28T05:00:35.709390243Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-071",
+      "job_id": "71977fec-864d-4169-904f-ad1359c98f9b",
+      "ai_runs": [
+        {
+          "id": "496cf4a0-43cc-4a09-a1f0-1e07bc9da5d7",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:00:35.557482711Z",
+          "error_code": "provider_timeout",
+          "request_hash": "e0d1947a25fa0f00fb3e6dc1b0996d1c43c4e51ff2e7d5b1504f439feb11cfa2",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60001,
+          "finished_at": "2026-08-28T05:01:35.561104932Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-072",
+      "job_id": "286efa9b-51fb-46c2-995e-4eeb7340d39d",
+      "ai_runs": [
+        {
+          "id": "2ee9d038-e05e-44d9-aed6-5ecc47cd1432",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:00:36.560087348Z",
+          "error_code": "provider_timeout",
+          "request_hash": "f2a66504f10ad26ca35936ab9b7d7222d459cd0f2d4e899637847511800f5f1a",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T05:01:36.563161917Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-073",
+      "job_id": "2596f703-6c8f-4d51-a920-32965dceaa3a",
+      "ai_runs": [
+        {
+          "id": "c23dd474-2dec-457e-b478-ffe7fbbb0eec",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:01:36.061773154Z",
+          "error_code": "provider_timeout",
+          "request_hash": "8052273911baa1c8652d66df9e5302d3d6d01f93ace61dd674619697a9d009df",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T05:02:36.064777413Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-074",
+      "job_id": "776d8dfd-b8cd-4469-bd6c-30d5aac476ee",
+      "ai_runs": [
+        {
+          "id": "255585e0-354a-4988-b209-bfa13b30f9e7",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:01:37.059080299Z",
+          "error_code": "provider_timeout",
+          "request_hash": "03640d0263a499f893f60815883bba7f093335f4b96071e7f59b02e1770b197f",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60001,
+          "finished_at": "2026-08-28T05:02:37.062837715Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-075",
+      "job_id": "2528f2d0-6e49-46ae-a696-c2e56f0c5cf9",
+      "ai_runs": [
+        {
+          "id": "3e9bdbde-61e9-47c2-bc37-9f78b90f6dde",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:02:36.559680427Z",
+          "error_code": "provider_timeout",
+          "request_hash": "071f47ce98869a9d14a418dbf3a8342809b650814c4b5b2c4c4c508516b8a11c",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T05:03:36.570363902Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-076",
+      "job_id": "6ce529e7-86cf-4f5f-9196-4c7009e9460f",
+      "ai_runs": [
+        {
+          "id": "824d40c2-0996-4429-bea4-2078bf412db3",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:02:37.561163956Z",
+          "error_code": "provider_timeout",
+          "request_hash": "bef7ace61ec1c730ec2b4764e38b3383a17e5c7b59764554587bc3390df3f0db",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T05:03:37.565171587Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-077",
+      "job_id": "107e6b47-437a-4fb8-bdfb-dd5e49155939",
+      "ai_runs": [
+        {
+          "id": "f370d7aa-5aac-4d77-863b-4e71f8a26a89",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:03:37.063365065Z",
+          "request_hash": "37689ec65c45d8521f1462f0ce6a3e8691a834c06e0c2e8bc6df912a65e8944d",
+          "response_hash": "91464ebb82587006b5dc718d29618ebfed5c3000920243e674deaffb7b04323b",
+          "input_tokens": 1116,
+          "output_tokens": 3914,
+          "latency_ms": 46723,
+          "finished_at": "2026-08-28T05:04:23.796178594Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-078",
+      "job_id": "740e58fd-e533-4332-b157-d5d2dfe509a1",
+      "ai_runs": [
+        {
+          "id": "45016230-cc02-47c6-89d2-e184deddf150",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:03:38.059629177Z",
+          "error_code": "provider_timeout",
+          "request_hash": "c6b0ec3cae673a5639f2266b0bfce1303a92f169a09b82d8ec4624b91812fe35",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 60000,
+          "finished_at": "2026-08-28T05:04:38.063649985Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-079",
+      "job_id": "c0745014-0252-47fd-8e85-a090660cbc8d",
+      "ai_runs": [
+        {
+          "id": "8b65a172-5b4f-4e34-8a88-c63876124a4e",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:04:24.057395487Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "4f99f013872091176ba98f35b7020095e9af8cd26e38dc9838e66cafff6bb1f8",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 47086,
+          "finished_at": "2026-08-28T05:05:11.154048073Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-080",
+      "job_id": "15e4d21f-10fb-4caa-9d08-eb32bb6ac937",
+      "ai_runs": [
+        {
+          "id": "ece7c361-5291-40ef-8e5f-362e4a491b0b",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:04:38.561798369Z",
+          "request_hash": "10788d884fc0e2ef68fbfdaa842db894d6de59f5e0567bde7547d3ae73d7cd08",
+          "response_hash": "a9766c20119876eb490bc6cd673592f2ce94a8859599a3c15ede4aa32374937a",
+          "input_tokens": 1116,
+          "output_tokens": 4767,
+          "latency_ms": 50218,
+          "finished_at": "2026-08-28T05:05:28.798898917Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "EDGE-081",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-082",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-083",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-084",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-085",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-086",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-087",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-088",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-089",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-090",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-091",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-092",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-093",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-094",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-095",
+      "ai_runs": []
+    },
+    {
+      "sample_id": "EDGE-096",
+      "job_id": "ddcf4189-494b-4f87-9475-5c30573ddde7",
+      "ai_runs": [
+        {
+          "id": "a0c8fd90-ee2c-4a1b-aad1-0fa0f7bf0b6d",
+          "outcome": "failed",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:05:11.555200809Z",
+          "error_code": "schema_validation_failed",
+          "request_hash": "8c703e8763442b91d0a4607282f77691bb5482a911dffdb989229453d5f51c77",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "latency_ms": 20139,
+          "finished_at": "2026-08-28T05:05:31.704541166Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "EDGE-097",
+      "job_id": "45426518-3318-4205-84a6-71cb2c3c7832",
+      "ai_runs": [
+        {
+          "id": "ba0a90aa-f1d3-4beb-aee5-1a1eb3124129",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:05:29.557709898Z",
+          "request_hash": "1c9c71941cf6346410f86fa0a3293dd2fc69907ae38a1c0ed630ae4bf0fd8d3b",
+          "response_hash": "be94fbe26c964c4e1a1282669382a24911518d250a830cb36afbc5d6596659a9",
+          "input_tokens": 1116,
+          "output_tokens": 2869,
+          "latency_ms": 34127,
+          "finished_at": "2026-08-28T05:06:03.696159142Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "EDGE-098",
+      "job_id": "9fe0bb4a-8d1c-49af-969e-afd932320fe9",
+      "ai_runs": [
+        {
+          "id": "6a516ff8-1cd4-4ebb-9d38-31e351127e25",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:05:32.058668177Z",
+          "request_hash": "b5fa7b0fb7a4f944532ad44f0494130b04517d823f7b8ae4094b02f160ad066b",
+          "response_hash": "6a38f54ca89a71fed8efa83093ca6afdc3c5b69cb2a6c6a83588dd78c33e5d89",
+          "input_tokens": 1116,
+          "output_tokens": 4458,
+          "latency_ms": 55203,
+          "finished_at": "2026-08-28T05:06:27.285012472Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "EDGE-099",
+      "job_id": "aad65100-97df-4e58-9752-b09ebe8045d2",
+      "ai_runs": [
+        {
+          "id": "16f84cf3-cc7c-47d7-aa04-a3667cfd3c51",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:06:04.057148822Z",
+          "request_hash": "22d0113a196a4767cce097502b663391bf7b359bdd7f89134ba5c056c9865587",
+          "response_hash": "23f7b0babac01be3a21e236d70e36f3a4f9a113d7657a842dd8c2bff0112e2dd",
+          "input_tokens": 1116,
+          "output_tokens": 4374,
+          "latency_ms": 53085,
+          "finished_at": "2026-08-28T05:06:57.164382844Z"
+        }
+      ]
+    },
+    {
+      "sample_id": "EDGE-100",
+      "job_id": "a097f6d6-d772-4062-b7e3-6d922245d568",
+      "ai_runs": [
+        {
+          "id": "b79d672f-4b87-4975-8c9e-64d77835a6a3",
+          "outcome": "succeeded",
+          "provider_config_version": 1,
+          "provider_config_safe_fingerprint": "89f448cbffd1e1834b22aaf21d753f3bbc2e0e220fbd853fbc9eb3ad1b3cd47f",
+          "model": "qwen3.8-flash",
+          "prompt_version": "document-extract/2",
+          "schema_version": "document-claim/1",
+          "provider_schema_version": "document-claim-provider/1",
+          "provider_schema_sha256": "50b4f15ccfc2380d345802e5349494fe02fa4c8d0b4f78a55956f36bd436a6cd",
+          "input_processing_version": "document-normalize/1",
+          "started_at": "2026-08-28T05:06:28.056699111Z",
+          "request_hash": "da774d972a6d4ac851957d0a85e853749c994588d3909f68a63347d3633f24c2",
+          "response_hash": "efb5d34b0eb71cdcbe2c5abf7621198019078ac9e26d0507982f1e76080e2701",
+          "input_tokens": 1116,
+          "output_tokens": 4576,
+          "latency_ms": 54294,
+          "finished_at": "2026-08-28T05:07:22.374007641Z"
+        }
+      ]
+    }
+  ]
+}

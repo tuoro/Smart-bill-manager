@@ -1,0 +1,92 @@
+{
+  "evidence_version": "historical-m1-observation-assembler-gate/1",
+  "date": "2026-08-29",
+  "scope": "M1 AI output contract and Claim Assembler refactor",
+  "phase_status": "m1_in_progress_model_quality_not_yet_requalified",
+  "contracts": {
+    "prompt": "document-observe/1",
+    "observation_schema": "document-observation/1",
+    "provider_schema": "document-observation-provider/1",
+    "claim_assembler": "claim-assembler/1",
+    "claim_schema": "document-claim/1",
+    "input_processing": "document-normalize/2",
+    "processing_job_kind": "document_process",
+    "provider_output_retry_policy": "schema_validation_single_retry/1"
+  },
+  "legacy_direct_claim_path": {
+    "provider_runtime_entrypoints": 0,
+    "runner_entrypoints": 0,
+    "scorer_compatibility_branches": 0,
+    "legacy_document_extract_job_kind_occurrences": 0,
+    "v10_provider_calls": 0,
+    "v10_status": "frozen_and_stopped",
+    "obsolete_active_tool_scripts_removed": 7
+  },
+  "verification": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "domain_application_statement_coverage_percent": 85.28,
+    "domain_application_statement_coverage_required_percent": 85,
+    "infrastructure_transport_statement_coverage_percent": 72.51,
+    "infrastructure_transport_statement_coverage_required_percent": 70,
+    "critical_invariant_branches": "37/37",
+    "web_check": "passed",
+    "web_component_tests": {
+      "passed": 9,
+      "failed": 0
+    },
+    "node_tool_syntax": "passed",
+    "synthetic_dataset_checks": "passed",
+    "release_scorer_self_test": "passed",
+    "preflight_scorer_self_test": "passed",
+    "v10_pre_network_guard": "passed"
+  },
+  "production_image": {
+    "id": "sha256:8297cfc916d074143c4538ad2a99efadaaadbe981526cb2e83ec56cbfc4a1917",
+    "size_bytes": 22929014,
+    "revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-observation-assembler-v1",
+    "app_file_count": 16,
+    "observation_schema_sha256": "25de993a635fdd6710656ee633594d3cf3beaf73ce1197151b61d92affe1b7c3",
+    "observation_schema_present": true,
+    "legacy_claim_provider_schema_present": false,
+    "test_or_evaluation_assets_present": false
+  },
+  "fresh_compose_e2e": {
+    "health": "ok",
+    "ready": "ready",
+    "playwright_passed": 13,
+    "playwright_failed": 0,
+    "synthetic_provider": {
+      "requests": 2,
+      "probes": 1,
+      "observations": 1
+    },
+    "database_snapshot": {
+      "successful_ai_runs": 1,
+      "claim_sets": 1,
+      "payments": 1,
+      "business_field_claims": 8,
+      "document_type_field_claims": 1,
+      "evidence_rows": 5,
+      "blocking_or_error_validations": 0,
+      "processing_job_kind": "document_process",
+      "all_contract_versions_matched": true
+    }
+  },
+  "privacy": {
+    "real_provider_calls": 0,
+    "real_images_uploaded": 0,
+    "image_history_exact_secret_matches": 0,
+    "image_files_exact_secret_matches": 0,
+    "container_logs_exact_secret_matches": 0,
+    "runtime_data_exact_secret_matches": 0,
+    "temporary_containers_networks_volumes_and_credentials_removed": true
+  },
+  "prohibited_actions": {
+    "entered_m2": false,
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "acceptance_thresholds_lowered": false
+  }
+}

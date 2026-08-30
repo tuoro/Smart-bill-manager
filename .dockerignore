@@ -9,6 +9,18 @@
 **/.gitignore
 **/.env
 **/.env.*
+**/MODEL_API_KEY*.txt
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.sqlite
+**/*.sqlite3
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.db
+**/*.db-shm
+**/*.db-wal
 **/README.md
 **/LICENSE
 
@@ -42,8 +54,28 @@
 # Development-only deterministic regression fixtures never enter image builds
 /backend-go/internal/services/testdata/regression/
 
+# Clean Slate M1 build context: legacy runtime trees are never sent to this image build.
+/backend-go/
+/frontend/
+/scripts/
+/Dockerfile
+/docker-compose.yml
+/docker-compose.production.yml
+/nginx.conf
+/supervisord.conf
+
+# M1 production image is assembled only from apps, contracts and required infra assets.
+/docs/
+/tests/
+/tools/
+/apps/web/dist/
+/tests/evaluation/real-local/
+/tests/evidence/evaluation/real-local/
+
 # Local secrets and recoverable backups
 /.env
 /.env.*
+/MODEL_API_KEY*.txt
+/.tmp_*/
 /backend-go/email_password.key
 /backup-*/

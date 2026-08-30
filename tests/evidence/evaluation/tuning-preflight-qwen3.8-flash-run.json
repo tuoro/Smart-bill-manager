@@ -1,0 +1,1276 @@
+{
+  "result_kind": "m1-model-tuning-preflight-run",
+  "run_id": "preflight",
+  "dataset_version": "m1-prompt-dev-v1",
+  "dataset_manifest_sha256": "1bea5129832ea2e536792f7b023c1df61f4f9113ed180de66b67b7a7724d89f3",
+  "eligible_for_release_evidence": false,
+  "started_at": "2026-08-28T07:00:10.941Z",
+  "finished_at": "2026-08-28T07:04:17.213Z",
+  "frozen_configuration": {
+    "provider_config_safe_fingerprint": "42e9508432f82124021364c699dfc5f973a9b0bea9027f209c148cfaeae86907",
+    "provider_base_url_host": "api.shuaiapi.com",
+    "model": "qwen3.8-flash",
+    "prompt_version": "document-extract/3",
+    "schema_version": "document-claim/1",
+    "provider_schema_version": "document-claim-provider/2",
+    "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+    "input_processing_version": "document-normalize/1",
+    "connection_timeout_seconds": 10,
+    "model_timeout_seconds": 60,
+    "job_timeout_seconds": 150,
+    "temperature": "provider_default_not_configurable",
+    "seed": "provider_not_supported"
+  },
+  "ai_direct_fact_count": 0,
+  "samples": [
+    {
+      "sample_id": "TUNE-PAY-001",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "6a064892-56ce-492a-991e-e8229dbef6d6",
+      "job_id": "28e4e556-8369-41f2-ac37-116e0cf6bc9a",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 15324,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "15055d2e-1575-4bca-8989-931cbe3c33a0",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 8870,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TOTAL: CNY 88.70",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Meals",
+            "normalized_value": "meals",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CATEGORY: Meals",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "CNY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: CNY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Prompt Lab Cafe",
+            "normalized_value": "prompt lab cafe",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Prompt Lab Cafe",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "DEV-PAY-0001",
+            "normalized_value": "dev-pay-0001",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ORDER_NUMBER: DEV-PAY-0001",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Synthetic Wallet",
+            "normalized_value": "synthetic wallet",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "PAYMENT_METHOD: Synthetic Wallet",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Asia/Shanghai",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZONE: Asia/Shanghai",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-08-01T09:15:00+08:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-08-01T09:15:00+08:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-PAY-002",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "faf48985-9238-4524-bb2d-7c05757b3b1e",
+      "job_id": "07d23a32-56dc-44b8-98d8-ca859c7f1f56",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "schema_validation_failed",
+      "elapsed_ms": 32691,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-PAY-003",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "8f7ad1dd-72ee-4ff9-956a-cc23a37e9ddf",
+      "job_id": "523d6625-4202-4919-954e-67544a4b7851",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "schema_validation_failed",
+      "elapsed_ms": 27035,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-PAY-004",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "fb5dec08-9e33-4573-9220-9930aae12b75",
+      "job_id": "41a9256a-1624-4881-b7db-58a2004ec2e3",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 19886,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "c2141978-1d9a-4f94-a578-9cf249af8ba7",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1200,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TOTAL: JPY 1200",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "JPY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: JPY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Tokyo Synthetic Kiosk",
+            "normalized_value": "tokyo synthetic kiosk",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Tokyo Synthetic Kiosk",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "DEV-JP-0004",
+            "normalized_value": "dev-jp-0004",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ORDER_NUMBER: DEV-JP-0004",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Test Card",
+            "normalized_value": "test card",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "PAYMENT_METHOD: Test Card",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Asia/Tokyo",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZONE: Asia/Tokyo",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-08-04T11:00:00+09:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-08-04T11:00:00+09:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-PAY-005",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "f1b18e72-3e4c-4dd3-927f-83901a32b3ec",
+      "job_id": "c9c41299-ef18-4cee-a3ce-ef285e02f424",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 22450,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "9655e831-f214-43f4-8e2b-267f3f1474a3",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "CNY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: CNY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Missing Amount Sandbox",
+            "normalized_value": "missing amount sandbox",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Missing Amount Sandbox",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Asia/Shanghai",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZONE: Asia/Shanghai",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-08-05T08:30:00+08:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-08-05T08:30:00+08:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "missing_required_field",
+            "severity": "blocked",
+            "status": "blocked"
+          },
+          {
+            "field_claim_id": "f0ec505f-bbb2-4b8a-8db1-e550a0272f4c",
+            "rule_code": "required_field_absent",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-PAY-006",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "34dcd8e3-298f-43c0-bff8-13e710c1cedd",
+      "job_id": "9d1c5439-a975-4cd2-945e-83b9c933dc27",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 39796,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "adae18fe-f96f-458a-a8dc-e585aeb24550",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "USD",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: USD",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Conflict Amount Sandbox",
+            "normalized_value": "conflict amount sandbox",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Conflict Amount Sandbox",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "UTC",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZONE: UTC",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-08-06T16:45:00+00:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-08-06T16:45:00+00:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "conflicting_values",
+            "severity": "blocked",
+            "status": "blocked"
+          },
+          {
+            "field_claim_id": "033db729-c668-4fe2-b199-a8be69a0f474",
+            "rule_code": "required_field_absent",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-INV-001",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "b6d286f7-f752-492b-aff3-751e744f3483",
+      "job_id": "364ac8d7-0815-4f04-8316-cce93a9f046a",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "schema_validation_failed",
+      "elapsed_ms": 17334,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-INV-002",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "162f1d22-8c3a-40d9-be2c-6b94d1501c90",
+      "job_id": "da027ca3-8b73-43e3-8209-cae7491e5943",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "schema_validation_failed",
+      "elapsed_ms": 50962,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-INV-003",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "5c1af422-57a3-40a3-933f-028dc62c80ce",
+      "job_id": "cede2a2b-6caa-4634-8088-6abb117ad9da",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "schema_validation_failed",
+      "elapsed_ms": 22922,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-INV-004",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "d8c158d6-1618-4dc2-bd1c-9273e8dd7352",
+      "job_id": "c11f8161-7a1e-46bf-a933-0a7a8d7f369a",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 48914,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "848b16eb-f540-4f31-af92-cff68fdeb619",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Synthetic Japan Lab",
+            "normalized_value": "synthetic japan lab",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "BUYER: Synthetic Japan Lab",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "JPY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: JPY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-07-14",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "INVOICE_DATE: 2026-07-14",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "DEV-INV-JPY-0004",
+            "normalized_value": "dev-inv-jpy-0004",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "INVOICE_NUMBER: DEV-INV-JPY-0004",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 3000,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "AMOUNT: JPY 3000",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Synthetic Part B",
+            "normalized_value": "synthetic part b",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 1 | NAME: Synthetic Part B | SORT_ORDER: 1",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 1,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 1 | NAME: Synthetic Part B | SORT_ORDER: 1",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[25d9da78-c61d-4eda-be63-f943a5eb48f0].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 2000,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "AMOUNT: JPY 2000",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Synthetic Part A",
+            "normalized_value": "synthetic part a",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 0 | NAME: Synthetic Part A | SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 0 | NAME: Synthetic Part A | SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[431b78f0-5cb3-405b-be2a-9739bc8a1f2e].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Tokyo Prompt Works",
+            "normalized_value": "tokyo prompt works",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SELLER: Tokyo Prompt Works",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 5000,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TOTAL: JPY 5000",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "missing_required_field",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-INV-005",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "e4226729-7570-4c08-b5cd-8ea08ed434db",
+      "job_id": "71b9e3b5-da8a-4032-9bae-3ebb79b71f8c",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "schema_validation_failed",
+      "elapsed_ms": 32110,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-INV-006",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "c1bcbcd4-87c4-4960-9e0b-4dfef1008a40",
+      "job_id": "b6be37d6-a2dc-4389-a7a7-e0f17b65ac01",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "provider_timeout",
+      "elapsed_ms": 60625,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-INV-007",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "a54b4a47-50f4-4f51-b735-a30eb5fa83da",
+      "job_id": "82913f39-8347-44d7-9fbc-96eb17c11652",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 20377,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "02504ecd-2ccc-45fc-b140-d7457053300c",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Type Contract Buyer",
+            "normalized_value": "type contract buyer",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "BUYER: Type Contract Buyer",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "CNY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: CNY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-07-17",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "INVOICE_DATE: 2026-07-17",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "DEV-INV-TYPE-0007",
+            "normalized_value": "dev-inv-type-0007",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "INVOICE_NUMBER: DEV-INV-TYPE-0007",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1200,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "AMOUNT: CNY 12.00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Synthetic Material",
+            "normalized_value": "synthetic material",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 0 | NAME: Synthetic Material | SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].quantity",
+            "value_type": "decimal",
+            "presence": "present",
+            "value": "1.5",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "QTY: 1.5",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].tax_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 60,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TAX: CNY 0.60",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].unit",
+            "value_type": "string",
+            "presence": "present",
+            "value": "kg",
+            "normalized_value": "kg",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UNIT: kg",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[be0962f7-6c0d-4888-8c41-46d7093fbd3e].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 800,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UNIT_PRICE: CNY 8.00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Type Contract Seller",
+            "normalized_value": "type contract seller",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SELLER: Type Contract Seller",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 60,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TAX: CNY 0.60",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1260,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TOTAL: CNY 12.60",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-INV-008",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "3e49fae6-1fc1-4d35-a00c-c1579cba33c8",
+      "job_id": "469c6420-fe7b-47a3-9892-ce10a9dc75a7",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "provider_timeout",
+      "elapsed_ms": 60664,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE-UNK-001",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "ff6ff4f5-f7b6-437d-b3c3-b288592cfe68",
+      "job_id": "76c6cbae-28b9-4f78-905a-8cefacc539c6",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 5630,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "ec466898-9246-4b18-81de-948dedd7e6e8",
+        "document_type": "unknown",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "unknown",
+            "normalized_value": "unknown",
+            "source": "ai",
+            "evidence": []
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "09043753-f204-4509-a099-cdab2bd5be28",
+            "rule_code": "unknown_document_type",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE-UNK-002",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "8c6cf472-e7fa-4020-ad92-8ea988265841",
+      "job_id": "78ff9f57-471a-4d63-8b8b-168ee95b88f4",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "elapsed_ms": 5621,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "17aec792-018e-4cef-b18b-d7906dcd79ba",
+        "document_type": "unknown",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "unknown",
+            "normalized_value": "unknown",
+            "source": "ai",
+            "evidence": []
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "4acdd0ce-c858-4e60-b065-add7eeabce4a",
+            "rule_code": "unknown_document_type",
+            "severity": "blocked",
+            "status": "blocked"
+          },
+          {
+            "field_claim_id": "",
+            "rule_code": "model_issue_non_financial_document",
+            "severity": "warning",
+            "status": "warning"
+          }
+        ]
+      }
+    }
+  ]
+}

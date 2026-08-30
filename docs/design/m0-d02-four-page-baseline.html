@@ -1,0 +1,3213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src blob: data:; font-src data:; media-src blob: data:; worker-src blob:; connect-src 'none'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>智能账单管理 M0 方向 02 四页基线</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe referrerpolicy="no-referrer" title="智能账单管理 M0 方向 02 四页基线" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27;; img-src blob: data:; font-src data:; media-src blob: data:; worker-src blob:; connect-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;智能账单管理 M0 方向 02 四页基线&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: var(--border-radius-lg, 12.5px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress {
+  display: flex;
+  height: 6px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 6px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed=&quot;true&quot;],
+  [aria-selected=&quot;true&quot;],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: 16px !important;
+  height: 16px !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;sbm02-four-pages&quot;&gt;
+  &lt;style&gt;
+    #sbm02-four-pages {
+      width: 100%;
+      color-scheme: light dark;
+      color: inherit;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;PingFang SC&quot;, &quot;Microsoft YaHei&quot;, sans-serif;
+    }
+
+    #sbm02-four-pages * {
+      box-sizing: border-box;
+    }
+
+    #sbm02-four-pages [hidden] {
+      display: none !important;
+    }
+
+    #sbm02-four-pages button,
+    #sbm02-four-pages input,
+    #sbm02-four-pages select {
+      font: inherit;
+    }
+
+    #sbm02-four-pages i[data-lucide] {
+      display: inline-block;
+      flex: 0 0 auto;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid currentColor;
+      border-radius: 3px;
+      font-style: normal;
+    }
+
+    #sbm02-four-pages .sbm02-baseline-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    #sbm02-four-pages .sbm02-baseline-kicker,
+    #sbm02-four-pages .sbm02-page-index {
+      margin: 0 0 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      opacity: .64;
+    }
+
+    #sbm02-four-pages .sbm02-baseline-title {
+      margin: 0;
+      font-size: clamp(24px, 4vw, 34px);
+      font-weight: 500;
+      letter-spacing: -.04em;
+      line-height: 1.1;
+    }
+
+    #sbm02-four-pages .sbm02-page-section + .sbm02-page-section {
+      margin-top: 42px;
+    }
+
+    #sbm02-four-pages .sbm02-page-review-bar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 0 2px 11px;
+    }
+
+    #sbm02-four-pages .sbm02-page-title {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 500;
+      letter-spacing: -.02em;
+    }
+
+    #sbm02-four-pages .sbm02-scenario-controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 5px;
+    }
+
+    #sbm02-four-pages .sbm02-window {
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid light-dark(#cbd2dc, #343e4b);
+      border-radius: 8px;
+      background: light-dark(#f4f6f9, #10141b);
+      color: light-dark(#1f252d, #edf2f7);
+      box-shadow: 0 13px 34px light-dark(rgba(31, 47, 75, .13), rgba(0, 0, 0, .3));
+    }
+
+    #sbm02-four-pages[data-preview-theme=&quot;light&quot;] .sbm02-window {
+      color-scheme: light;
+    }
+
+    #sbm02-four-pages[data-preview-theme=&quot;dark&quot;] .sbm02-window {
+      color-scheme: dark;
+    }
+
+    #sbm02-four-pages .sbm02-window input,
+    #sbm02-four-pages .sbm02-window select {
+      color: inherit;
+    }
+
+    #sbm02-four-pages .sbm02-window svg {
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    #sbm02-four-pages .sbm02-topbar {
+      display: grid;
+      grid-template-columns: 210px minmax(180px, 380px) minmax(160px, 1fr);
+      align-items: center;
+      min-height: 52px;
+      padding: 0 18px;
+      background: light-dark(#2f5fd0, #224aab);
+      color: light-dark(#ffffff, #ffffff);
+    }
+
+    #sbm02-four-pages .sbm02-brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-brand-mark {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: light-dark(rgba(255, 255, 255, .18), rgba(255, 255, 255, .16));
+      font-family: ui-serif, Georgia, &quot;Songti SC&quot;, serif;
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-global-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 11px;
+      border: 1px solid light-dark(rgba(255, 255, 255, .22), rgba(255, 255, 255, .18));
+      border-radius: 5px;
+      background: light-dark(rgba(17, 34, 76, .22), rgba(8, 20, 48, .28));
+      color: light-dark(rgba(255, 255, 255, .78), rgba(255, 255, 255, .8));
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    #sbm02-four-pages .sbm02-top-action {
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: light-dark(#ffffff, #ffffff);
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-top-action:hover {
+      background: light-dark(rgba(255, 255, 255, .13), rgba(255, 255, 255, .12));
+    }
+
+    #sbm02-four-pages .sbm02-app-body {
+      display: grid;
+      grid-template-columns: 196px minmax(0, 1fr);
+      min-height: 700px;
+    }
+
+    #sbm02-four-pages .sbm02-sidebar {
+      min-width: 0;
+      padding: 12px 10px;
+      border-right: 1px solid light-dark(#dfe3ea, #29313d);
+      background: light-dark(#ffffff, #171c24);
+    }
+
+    #sbm02-four-pages .sbm02-nav-group {
+      margin: 14px 10px 6px;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-nav-entry {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      min-height: 36px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: light-dark(#4c5561, #b4beca);
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-nav-entry:hover {
+      background: light-dark(#f1f4f9, #202733);
+    }
+
+    #sbm02-four-pages .sbm02-nav-entry[aria-current=&quot;page&quot;] {
+      background: light-dark(#eaf0ff, #1c2b4f);
+      color: light-dark(#2453bd, #9eb7ff);
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-nav-count {
+      margin-left: auto;
+      min-width: 20px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: light-dark(#e6e9ee, #2a323e);
+      color: light-dark(#596572, #aeb8c4);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    #sbm02-four-pages .sbm02-main {
+      min-width: 0;
+      padding: 24px;
+      background: light-dark(#f4f6f9, #10141b);
+    }
+
+    #sbm02-four-pages .sbm02-breadcrumb {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 12px;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    #sbm02-four-pages .sbm02-product-title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: -.025em;
+      line-height: 1.2;
+    }
+
+    #sbm02-four-pages .sbm02-product-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0 0;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-page-actions,
+    #sbm02-four-pages .sbm02-filter-actions,
+    #sbm02-four-pages .sbm02-dock-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #sbm02-four-pages .sbm02-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 36px;
+      padding: 7px 12px;
+      border: 1px solid light-dark(#cdd4de, #3b4654);
+      border-radius: 4px;
+      background: light-dark(#ffffff, #1b222c);
+      color: light-dark(#303844, #e0e6ed);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-action:hover {
+      background: light-dark(#f7f9fc, #242d38);
+    }
+
+    #sbm02-four-pages .sbm02-action-primary {
+      min-height: 40px;
+      border-color: light-dark(#2f5fd0, #4c77dd);
+      background: light-dark(#2f5fd0, #315fc8);
+      color: light-dark(#ffffff, #ffffff);
+    }
+
+    #sbm02-four-pages .sbm02-action-primary:hover {
+      background: light-dark(#2854bd, #3a69d4);
+    }
+
+    #sbm02-four-pages .sbm02-action-danger {
+      color: light-dark(#b83333, #ff9b98);
+    }
+
+    #sbm02-four-pages .sbm02-action:disabled,
+    #sbm02-four-pages .sbm02-top-action:disabled {
+      cursor: default;
+      opacity: .56;
+    }
+
+    #sbm02-four-pages .sbm02-panel {
+      min-width: 0;
+      border: 1px solid light-dark(#dce1e8, #2e3743);
+      border-radius: 6px;
+      background: light-dark(#ffffff, #171c24);
+    }
+
+    #sbm02-four-pages .sbm02-panel-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 13px;
+      border-bottom: 1px solid light-dark(#e5e8ed, #2b3440);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-panel-tools {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    #sbm02-four-pages .sbm02-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      background: light-dark(#eef1f5, #242c36);
+      color: light-dark(#59636f, #b1bbc6);
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    #sbm02-four-pages .sbm02-tag-attention {
+      background: light-dark(#fff4d8, #3e3219);
+      color: light-dark(#8b610b, #e9bd5b);
+    }
+
+    #sbm02-four-pages .sbm02-tag-success {
+      background: light-dark(#eaf7ef, #183326);
+      color: light-dark(#237b4b, #79d39f);
+    }
+
+    #sbm02-four-pages .sbm02-tag-danger {
+      background: light-dark(#fff0ef, #3b2021);
+      color: light-dark(#b83333, #ff9b98);
+    }
+
+    #sbm02-four-pages .sbm02-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border-left: 3px solid light-dark(#2f5fd0, #6f94eb);
+      background: light-dark(#edf3ff, #172443);
+      color: light-dark(#3d5f9f, #b4c8f7);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #sbm02-four-pages .sbm02-notice-warning {
+      border-left-color: light-dark(#d69a25, #e9bd5b);
+      background: light-dark(#fff8e6, #332b18);
+      color: light-dark(#795817, #e7c572);
+    }
+
+    #sbm02-four-pages .sbm02-notice-danger {
+      border-left-color: light-dark(#c73532, #ff8784);
+      background: light-dark(#fff0ef, #3a2021);
+      color: light-dark(#9f2e2d, #ffaaa7);
+    }
+
+    #sbm02-four-pages .sbm02-field-label {
+      display: grid;
+      gap: 6px;
+      color: light-dark(#4d5662, #c0c9d3);
+      font-size: 13px;
+    }
+
+    #sbm02-four-pages .sbm02-input,
+    #sbm02-four-pages .sbm02-select {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 10px;
+      border: 1px solid light-dark(#cfd6df, #3a4553);
+      border-radius: 4px;
+      background: light-dark(#ffffff, #171d25);
+      color: light-dark(#202731, #edf2f7);
+      font-size: 14px;
+    }
+
+    #sbm02-four-pages .sbm02-input[aria-invalid=&quot;true&quot;] {
+      border-color: light-dark(#c73532, #ff8784);
+    }
+
+    #sbm02-four-pages .sbm02-checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: light-dark(#59636f, #aeb8c4);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    #sbm02-four-pages .sbm02-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-table th,
+    #sbm02-four-pages .sbm02-table td {
+      padding: 11px 12px;
+      border-bottom: 1px solid light-dark(#e8ebef, #29323d);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    #sbm02-four-pages .sbm02-table th {
+      background: light-dark(#fafbfc, #151b22);
+      color: light-dark(#596572, #aab5c1);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    #sbm02-four-pages .sbm02-table tbody tr:hover {
+      background: light-dark(#f7f9fc, #1c232d);
+    }
+
+    #sbm02-four-pages .sbm02-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    #sbm02-four-pages .sbm02-number {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    #sbm02-four-pages .sbm02-quiet {
+      color: light-dark(#596572, #aab5c1);
+    }
+
+    #sbm02-four-pages .sbm02-inline-document {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 180px;
+    }
+
+    #sbm02-four-pages .sbm02-document-icon {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 5px;
+      background: light-dark(#eef2f8, #232c37);
+      color: light-dark(#536273, #aebdd0);
+    }
+
+    #sbm02-four-pages .sbm02-document-name {
+      display: grid;
+      gap: 2px;
+    }
+
+    #sbm02-four-pages .sbm02-document-name strong {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-document-name span {
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-filter-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 11px 12px;
+      border: 1px solid light-dark(#dce1e8, #2e3743);
+      border-radius: 6px;
+      background: light-dark(#ffffff, #171c24);
+    }
+
+    #sbm02-four-pages .sbm02-search-field {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 210px;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid light-dark(#d1d7e0, #384452);
+      border-radius: 4px;
+      background: light-dark(#ffffff, #161c24);
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-segmented {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px;
+      border-radius: 5px;
+      background: light-dark(#eef1f5, #222a34);
+    }
+
+    #sbm02-four-pages .sbm02-segment {
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: light-dark(#626c78, #a6b0bc);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-segment[aria-pressed=&quot;true&quot;],
+    #sbm02-four-pages .sbm02-segment[aria-selected=&quot;true&quot;] {
+      background: light-dark(#ffffff, #303945);
+      color: light-dark(#2453bd, #a8bfff);
+      box-shadow: 0 1px 2px light-dark(rgba(31, 47, 75, .12), rgba(0, 0, 0, .22));
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-empty-state,
+    #sbm02-four-pages .sbm02-permission-state,
+    #sbm02-four-pages .sbm02-loading-state {
+      display: grid;
+      place-items: center;
+      min-height: 360px;
+      padding: 32px;
+      text-align: center;
+    }
+
+    #sbm02-four-pages .sbm02-state-content {
+      display: grid;
+      justify-items: center;
+      max-width: 390px;
+    }
+
+    #sbm02-four-pages .sbm02-state-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 14px;
+      border-radius: 8px;
+      background: light-dark(#edf2fb, #202b3d);
+      color: light-dark(#2f5fd0, #8dacfa);
+    }
+
+    #sbm02-four-pages .sbm02-state-title {
+      margin: 0 0 7px;
+      font-size: 17px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-state-note {
+      margin: 0 0 16px;
+      color: light-dark(#6c7784, #98a4b1);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    #sbm02-four-pages .sbm02-progress-line {
+      width: min(100%, 320px);
+      height: 6px;
+      margin: 12px 0 8px;
+      overflow: hidden;
+      border-radius: 3px;
+      background: light-dark(#e6eaf0, #29323d);
+    }
+
+    #sbm02-four-pages .sbm02-progress-fill {
+      width: 64%;
+      height: 100%;
+      background: light-dark(#2f5fd0, #6f94eb);
+    }
+
+    /* 登录 */
+    #sbm02-four-pages .sbm02-login-window {
+      min-height: 680px;
+      background: light-dark(#eef2f7, #10141b);
+    }
+
+    #sbm02-four-pages .sbm02-login-topbar {
+      grid-template-columns: 1fr auto;
+    }
+
+    #sbm02-four-pages .sbm02-login-links {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-login-link {
+      border: 0;
+      background: transparent;
+      color: light-dark(rgba(255, 255, 255, .84), rgba(255, 255, 255, .84));
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-login-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(330px, .92fr);
+      min-height: 628px;
+    }
+
+    #sbm02-four-pages .sbm02-login-story {
+      display: grid;
+      align-content: center;
+      padding: 58px clamp(34px, 7vw, 78px);
+      background: light-dark(#f4f6f9, #10141b);
+    }
+
+    #sbm02-four-pages .sbm02-login-eyebrow {
+      margin: 0 0 13px;
+      color: light-dark(#2f5fd0, #8eabf6);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-login-headline {
+      max-width: 520px;
+      margin: 0;
+      font-size: clamp(28px, 5vw, 46px);
+      font-weight: 500;
+      letter-spacing: -.045em;
+      line-height: 1.08;
+    }
+
+    #sbm02-four-pages .sbm02-login-description {
+      max-width: 520px;
+      margin: 18px 0 0;
+      color: light-dark(#5f6a77, #aab5c1);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    #sbm02-four-pages .sbm02-trace-flow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+      max-width: 520px;
+      margin-top: 34px;
+      border-top: 1px solid light-dark(#ccd4df, #35404d);
+    }
+
+    #sbm02-four-pages .sbm02-trace-step {
+      position: relative;
+      padding: 17px 14px 0 0;
+    }
+
+    #sbm02-four-pages .sbm02-trace-step::before {
+      content: &quot;&quot;;
+      position: absolute;
+      top: -4px;
+      left: 0;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: light-dark(#2f5fd0, #6f94eb);
+    }
+
+    #sbm02-four-pages .sbm02-trace-step strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-trace-step span {
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #sbm02-four-pages .sbm02-login-form-area {
+      display: grid;
+      place-items: center;
+      padding: 36px;
+      border-left: 1px solid light-dark(#dce1e8, #2c3541);
+      background: light-dark(#ffffff, #161b23);
+    }
+
+    #sbm02-four-pages .sbm02-login-form {
+      width: min(100%, 360px);
+    }
+
+    #sbm02-four-pages .sbm02-login-form h4 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: -.025em;
+    }
+
+    #sbm02-four-pages .sbm02-login-form &gt; p {
+      margin: 7px 0 22px;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    #sbm02-four-pages .sbm02-login-fields {
+      display: grid;
+      gap: 15px;
+    }
+
+    #sbm02-four-pages .sbm02-login-submit {
+      width: 100%;
+      margin-top: 4px;
+    }
+
+    #sbm02-four-pages .sbm02-form-error {
+      margin: -2px 0 0;
+      color: light-dark(#b83333, #ff9b98);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-login-security {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid light-dark(#e3e7ec, #2b3440);
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    /* AI 收件箱 */
+    #sbm02-four-pages .sbm02-queue-action {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      border: 0;
+      background: transparent;
+      color: light-dark(#2f5fd0, #9eb7ff);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-failure-reason {
+      max-width: 250px;
+      color: light-dark(#8f3333, #f29a98);
+      line-height: 1.45;
+    }
+
+    /* 审核工作台 */
+    #sbm02-four-pages .sbm02-review-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      margin: 0 0 14px;
+      padding: 13px 15px;
+      border: 1px solid light-dark(#dde2ea, #2d3642);
+      border-radius: 6px;
+      background: light-dark(#ffffff, #171c24);
+      list-style: none;
+    }
+
+    #sbm02-four-pages .sbm02-review-step {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-review-step:not(:last-child)::after {
+      content: &quot;&quot;;
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      left: 84px;
+      height: 1px;
+      background: light-dark(#d8dde5, #36404c);
+    }
+
+    #sbm02-four-pages .sbm02-review-step-index {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border: 1px solid light-dark(#cbd1da, #475362);
+      border-radius: 50%;
+      background: light-dark(#ffffff, #171c24);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #sbm02-four-pages .sbm02-review-step-done,
+    #sbm02-four-pages .sbm02-review-step-current {
+      color: light-dark(#2f5fd0, #91adff);
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-review-step-done .sbm02-review-step-index {
+      border-color: light-dark(#2f5fd0, #6f94eb);
+      background: light-dark(#2f5fd0, #315fc8);
+      color: light-dark(#ffffff, #ffffff);
+    }
+
+    #sbm02-four-pages .sbm02-review-step-current .sbm02-review-step-index {
+      border: 2px solid light-dark(#2f5fd0, #6f94eb);
+      color: light-dark(#2f5fd0, #9eb7ff);
+    }
+
+    #sbm02-four-pages .sbm02-review-grid {
+      display: grid;
+      grid-template-columns: minmax(260px, .85fr) minmax(320px, 1fr) minmax(230px, .72fr);
+      gap: 11px;
+      align-items: start;
+    }
+
+    #sbm02-four-pages .sbm02-document-stage {
+      display: grid;
+      place-items: center;
+      min-height: 470px;
+      padding: 22px;
+      background: light-dark(#eef1f5, #11161d);
+    }
+
+    #sbm02-four-pages .sbm02-paper {
+      width: min(100%, 310px);
+      min-height: 410px;
+      padding: 26px 23px;
+      border: 1px solid light-dark(#d2d5da, #454b51);
+      background: light-dark(#fffefb, #262720);
+      color: light-dark(#34342f, #efede4);
+      box-shadow: 0 7px 18px light-dark(rgba(37, 43, 51, .13), rgba(0, 0, 0, .24));
+      font-family: &quot;Songti SC&quot;, ui-serif, Georgia, serif;
+    }
+
+    #sbm02-four-pages .sbm02-paper h5 {
+      margin: 0 0 22px;
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: .12em;
+    }
+
+    #sbm02-four-pages .sbm02-paper-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 9px 0;
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-paper-row span:first-child {
+      color: light-dark(#77736b, #aaa399);
+    }
+
+    #sbm02-four-pages .sbm02-paper-row strong {
+      font-weight: 500;
+      text-align: right;
+    }
+
+    #sbm02-four-pages .sbm02-paper-rule {
+      height: 1px;
+      margin: 13px 0;
+      background: light-dark(#ded9ce, #4b473f);
+    }
+
+    #sbm02-four-pages .sbm02-paper-table {
+      width: 100%;
+      margin: 15px 0;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-paper-table th,
+    #sbm02-four-pages .sbm02-paper-table td {
+      padding: 8px 0;
+      border-bottom: 1px solid light-dark(#e1dcd1, #4b473f);
+      text-align: left;
+      font-weight: 400;
+    }
+
+    #sbm02-four-pages .sbm02-paper-table th:last-child,
+    #sbm02-four-pages .sbm02-paper-table td:last-child {
+      text-align: right;
+    }
+
+    #sbm02-four-pages .sbm02-paper-evidence-active {
+      background: light-dark(#dfe9ff, #24345a);
+      box-shadow: 0 0 0 3px light-dark(#dfe9ff, #24345a);
+    }
+
+    #sbm02-four-pages .sbm02-review-tabs {
+      display: flex;
+      border-bottom: 1px solid light-dark(#e5e8ed, #2b3440);
+    }
+
+    #sbm02-four-pages .sbm02-review-tab {
+      position: relative;
+      min-height: 42px;
+      padding: 0 14px;
+      border: 0;
+      background: transparent;
+      color: light-dark(#6b7581, #95a0ac);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-review-tab[aria-pressed=&quot;true&quot;] {
+      color: light-dark(#2453bd, #9eb7ff);
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-review-tab[aria-pressed=&quot;true&quot;]::after {
+      content: &quot;&quot;;
+      position: absolute;
+      right: 12px;
+      bottom: -1px;
+      left: 12px;
+      height: 2px;
+      background: light-dark(#2f5fd0, #6f94eb);
+    }
+
+    #sbm02-four-pages .sbm02-field-list {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    #sbm02-four-pages .sbm02-review-field-row {
+      display: grid;
+      grid-template-columns: 92px minmax(0, 1fr);
+      align-items: center;
+      gap: 10px;
+    }
+
+    #sbm02-four-pages .sbm02-review-field-label {
+      color: light-dark(#59636f, #aeb8c4);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    #sbm02-four-pages .sbm02-review-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid light-dark(#ccd3dc, #3b4653);
+      border-radius: 4px;
+      background: light-dark(#ffffff, #161c24);
+      color: light-dark(#252c35, #e8edf3);
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-review-field:hover {
+      border-color: light-dark(#93a4bb, #687789);
+    }
+
+    #sbm02-four-pages .sbm02-review-field[aria-pressed=&quot;true&quot;] {
+      border-color: light-dark(#2f5fd0, #6f94eb);
+      box-shadow: inset 0 0 0 1px light-dark(#2f5fd0, #6f94eb);
+    }
+
+    #sbm02-four-pages .sbm02-field-source {
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    #sbm02-four-pages .sbm02-field-value {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    #sbm02-four-pages .sbm02-field-value small {
+      color: light-dark(#66717e, #aab5c1);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    #sbm02-four-pages .sbm02-field-tip {
+      display: flex;
+      gap: 8px;
+      margin: 0 14px 14px;
+      padding: 10px;
+      border: 1px solid light-dark(#d5def0, #334363);
+      border-radius: 4px;
+      background: light-dark(#f2f6ff, #17233c);
+      color: light-dark(#536988, #a8b9d5);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #sbm02-four-pages .sbm02-audit-body {
+      display: grid;
+      gap: 16px;
+      padding: 14px;
+    }
+
+    #sbm02-four-pages .sbm02-audit-warning {
+      padding: 10px;
+      border-left: 3px solid light-dark(#d59b29, #e9bd5b);
+      background: light-dark(#fff8e7, #332b18);
+      color: light-dark(#725518, #e7c572);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #sbm02-four-pages .sbm02-audit-warning strong,
+    #sbm02-four-pages .sbm02-section-heading {
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-section-heading {
+      margin: 0 0 8px;
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-check-list {
+      display: grid;
+      gap: 0;
+    }
+
+    #sbm02-four-pages .sbm02-check-row {
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      gap: 7px;
+      padding: 9px 0;
+      border-bottom: 1px solid light-dark(#e9ecf0, #29323d);
+      color: light-dark(#5f6975, #aab4c0);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    #sbm02-four-pages .sbm02-check-row:last-child {
+      border-bottom: 0;
+    }
+
+    #sbm02-four-pages .sbm02-check-mark {
+      display: grid;
+      place-items: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      background: light-dark(#e8f6ee, #183326);
+      color: light-dark(#237b4b, #79d39f);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-match-box {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+      margin: 0;
+      padding: 10px;
+      border: 1px solid light-dark(#d8dee6, #35404c);
+      border-radius: 4px;
+      background: light-dark(#f8fafc, #141a22);
+    }
+
+    #sbm02-four-pages .sbm02-match-option {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      min-height: 32px;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-match-option + .sbm02-match-option {
+      padding-top: 8px;
+      border-top: 1px solid light-dark(#e0e5eb, #303a46);
+    }
+
+    #sbm02-four-pages .sbm02-match-option input {
+      margin: 2px 0 0;
+      accent-color: light-dark(#1769e0, #7db2ff);
+    }
+
+    #sbm02-four-pages .sbm02-match-copy {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    #sbm02-four-pages .sbm02-match-box strong {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-match-box span {
+      color: light-dark(#596572, #aab5c1);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #sbm02-four-pages .sbm02-review-dock {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 11px;
+      padding: 12px 14px;
+      border: 1px solid light-dark(#dce1e8, #2e3743);
+      border-radius: 6px;
+      background: light-dark(#ffffff, #171c24);
+    }
+
+    #sbm02-four-pages .sbm02-review-summary {
+      color: light-dark(#66717e, #9ba7b3);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    #sbm02-four-pages .sbm02-review-summary strong {
+      color: light-dark(#27303a, #e4eaf0);
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-skeleton-grid {
+      display: grid;
+      grid-template-columns: .85fr 1fr .72fr;
+      gap: 11px;
+      width: 100%;
+    }
+
+    #sbm02-four-pages .sbm02-skeleton-panel {
+      min-height: 420px;
+      padding: 18px;
+      border: 1px solid light-dark(#dce1e8, #2e3743);
+      border-radius: 6px;
+      background: light-dark(#ffffff, #171c24);
+    }
+
+    #sbm02-four-pages .sbm02-skeleton-line {
+      height: 12px;
+      margin-bottom: 14px;
+      border-radius: 3px;
+      background: light-dark(#e9edf2, #28313c);
+    }
+
+    #sbm02-four-pages .sbm02-skeleton-line:nth-child(2n) {
+      width: 72%;
+    }
+
+    /* 账单列表 */
+    #sbm02-four-pages .sbm02-bill-tabs {
+      display: flex;
+      gap: 22px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid light-dark(#dce1e8, #2e3743);
+    }
+
+    #sbm02-four-pages .sbm02-bill-tab {
+      position: relative;
+      min-height: 38px;
+      padding: 0 2px;
+      border: 0;
+      background: transparent;
+      color: light-dark(#596572, #aab5c1);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-bill-tab[aria-pressed=&quot;true&quot;] {
+      color: light-dark(#2453bd, #9eb7ff);
+      font-weight: 500;
+    }
+
+    #sbm02-four-pages .sbm02-bill-tab[aria-pressed=&quot;true&quot;]::after {
+      content: &quot;&quot;;
+      position: absolute;
+      right: 0;
+      bottom: -1px;
+      left: 0;
+      height: 2px;
+      background: light-dark(#2f5fd0, #6f94eb);
+    }
+
+    #sbm02-four-pages .sbm02-bills-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 11px;
+      align-items: start;
+    }
+
+    #sbm02-four-pages .sbm02-bill-row-button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: light-dark(#2453bd, #9eb7ff);
+      font-size: 12px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    #sbm02-four-pages .sbm02-table tr[data-selected=&quot;true&quot;] {
+      background: light-dark(#eef3ff, #192640);
+    }
+
+    #sbm02-four-pages .sbm02-detail-body {
+      display: grid;
+      gap: 0;
+      padding: 4px 13px 13px;
+    }
+
+    #sbm02-four-pages .sbm02-detail-row {
+      display: grid;
+      grid-template-columns: 78px 1fr;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid light-dark(#e8ebef, #29323d);
+      font-size: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-detail-row:last-child {
+      border-bottom: 0;
+    }
+
+    #sbm02-four-pages .sbm02-detail-row span:first-child {
+      color: light-dark(#596572, #aab5c1);
+    }
+
+    #sbm02-four-pages .sbm02-detail-row strong {
+      font-weight: 500;
+      word-break: break-word;
+    }
+
+    #sbm02-four-pages .sbm02-table-loading {
+      padding: 12px;
+    }
+
+    #sbm02-four-pages .sbm02-table-loading .sbm02-skeleton-line {
+      height: 38px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 1439px) {
+      #sbm02-four-pages .sbm02-review-grid {
+        grid-template-columns: minmax(250px, .9fr) minmax(300px, 1.1fr);
+      }
+
+      #sbm02-four-pages .sbm02-review-grid &gt; .sbm02-panel:last-child {
+        grid-column: 1 / -1;
+      }
+
+      #sbm02-four-pages .sbm02-audit-body {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      #sbm02-four-pages .sbm02-skeleton-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      #sbm02-four-pages .sbm02-skeleton-panel:last-child {
+        grid-column: 1 / -1;
+        min-height: 180px;
+      }
+    }
+
+    @media (max-width: 1279px) {
+      #sbm02-four-pages .sbm02-app-body {
+        grid-template-columns: 64px minmax(0, 1fr);
+      }
+
+      #sbm02-four-pages .sbm02-sidebar {
+        padding: 10px 8px;
+      }
+
+      #sbm02-four-pages .sbm02-nav-group,
+      #sbm02-four-pages .sbm02-nav-label,
+      #sbm02-four-pages .sbm02-nav-count {
+        display: none;
+      }
+
+      #sbm02-four-pages .sbm02-nav-entry {
+        justify-content: center;
+        min-height: 40px;
+        padding: 8px;
+      }
+
+      #sbm02-four-pages .sbm02-bills-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #sbm02-four-pages .sbm02-detail-panel {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+      }
+
+      #sbm02-four-pages .sbm02-detail-panel .sbm02-panel-heading {
+        align-items: flex-start;
+        padding-top: 13px;
+        border-right: 1px solid light-dark(#e5e8ed, #2b3440);
+        border-bottom: 0;
+      }
+    }
+
+    @media (min-width: 768px) and (max-width: 1023px) {
+      #sbm02-four-pages .sbm02-main {
+        padding: 16px;
+      }
+    }
+
+    @media (max-width: 767px) {
+      #sbm02-four-pages .sbm02-baseline-header,
+      #sbm02-four-pages .sbm02-page-review-bar {
+        display: block;
+      }
+
+      #sbm02-four-pages .sbm02-baseline-header .btn,
+      #sbm02-four-pages .sbm02-scenario-controls {
+        margin-top: 10px;
+      }
+
+      #sbm02-four-pages .sbm02-scenario-controls {
+        justify-content: flex-start;
+      }
+
+      #sbm02-four-pages .sbm02-topbar {
+        grid-template-columns: 1fr auto;
+        padding: 0 12px;
+      }
+
+      #sbm02-four-pages .sbm02-global-search {
+        display: none;
+      }
+
+      #sbm02-four-pages .sbm02-brand span:last-child {
+        white-space: nowrap;
+      }
+
+      #sbm02-four-pages .sbm02-app-body {
+        display: block;
+        min-height: 0;
+      }
+
+      #sbm02-four-pages .sbm02-sidebar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2px;
+        padding: 7px 9px;
+        border-right: 0;
+        border-bottom: 1px solid light-dark(#dfe3ea, #29313d);
+      }
+
+      #sbm02-four-pages .sbm02-nav-entry {
+        width: 36px;
+        min-height: 36px;
+        padding: 7px;
+      }
+
+      #sbm02-four-pages .sbm02-main {
+        padding: 15px 12px 20px;
+      }
+
+      #sbm02-four-pages .sbm02-page-header,
+      #sbm02-four-pages .sbm02-filter-bar,
+      #sbm02-four-pages .sbm02-review-dock {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      #sbm02-four-pages .sbm02-page-actions .sbm02-action,
+      #sbm02-four-pages .sbm02-dock-actions .sbm02-action {
+        flex: 1 1 0;
+      }
+
+      #sbm02-four-pages .sbm02-filter-actions,
+      #sbm02-four-pages .sbm02-search-field {
+        width: 100%;
+        min-width: 0;
+      }
+
+      #sbm02-four-pages .sbm02-segmented {
+        width: 100%;
+      }
+
+      #sbm02-four-pages .sbm02-segment {
+        flex: 1 1 auto;
+        padding-inline: 6px;
+      }
+
+      #sbm02-four-pages .sbm02-login-main {
+        grid-template-columns: 1fr;
+      }
+
+      #sbm02-four-pages .sbm02-login-story {
+        padding: 34px 24px;
+      }
+
+      #sbm02-four-pages .sbm02-login-headline {
+        font-size: 31px;
+      }
+
+      #sbm02-four-pages .sbm02-login-form-area {
+        padding: 30px 24px;
+        border-top: 1px solid light-dark(#dce1e8, #2c3541);
+        border-left: 0;
+      }
+
+      #sbm02-four-pages .sbm02-login-links .sbm02-login-link:first-child {
+        display: none;
+      }
+
+      #sbm02-four-pages .sbm02-review-steps {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 8px;
+      }
+
+      #sbm02-four-pages .sbm02-review-step:nth-child(2)::after {
+        display: none;
+      }
+
+      #sbm02-four-pages .sbm02-review-step:not(:last-child)::after {
+        left: 72px;
+      }
+
+      #sbm02-four-pages .sbm02-review-grid,
+      #sbm02-four-pages .sbm02-skeleton-grid,
+      #sbm02-four-pages .sbm02-audit-body {
+        grid-template-columns: 1fr;
+      }
+
+      #sbm02-four-pages .sbm02-review-grid &gt; .sbm02-panel:last-child,
+      #sbm02-four-pages .sbm02-skeleton-panel:last-child {
+        grid-column: auto;
+      }
+
+      #sbm02-four-pages .sbm02-review-field-row {
+        grid-template-columns: 1fr;
+        gap: 5px;
+      }
+
+      #sbm02-four-pages .sbm02-review-field-label {
+        text-align: left;
+      }
+
+      #sbm02-four-pages .sbm02-detail-panel {
+        display: block;
+      }
+
+      #sbm02-four-pages .sbm02-detail-panel .sbm02-panel-heading {
+        padding-top: 0;
+        border-right: 0;
+        border-bottom: 1px solid light-dark(#e5e8ed, #2b3440);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #sbm02-four-pages *,
+      #sbm02-four-pages *::before,
+      #sbm02-four-pages *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  &lt;/style&gt;
+
+  &lt;header class=&quot;sbm02-baseline-header&quot;&gt;
+    &lt;div&gt;
+      &lt;p class=&quot;sbm02-baseline-kicker&quot;&gt;方向 02 · M0 基线&lt;/p&gt;
+      &lt;h2 class=&quot;sbm02-baseline-title&quot;&gt;四个代表页面&lt;/h2&gt;
+    &lt;/div&gt;
+    &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-theme-cycle aria-label=&quot;切换页面明暗模式&quot;&gt;外观：跟随系统&lt;/button&gt;
+  &lt;/header&gt;
+
+  &lt;main class=&quot;sbm02-baseline-pages&quot; aria-label=&quot;四页产品基线&quot;&gt;
+  &lt;section class=&quot;sbm02-page-section&quot; aria-labelledby=&quot;sbm02-login-title&quot;&gt;
+    &lt;header class=&quot;sbm02-page-review-bar&quot;&gt;
+      &lt;div&gt;
+        &lt;p class=&quot;sbm02-page-index&quot;&gt;页面 01&lt;/p&gt;
+        &lt;h3 class=&quot;sbm02-page-title&quot; id=&quot;sbm02-login-title&quot;&gt;登录&lt;/h3&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;sbm02-scenario-controls&quot; aria-label=&quot;登录状态预览&quot;&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;login&quot; data-scenario-state=&quot;default&quot; aria-pressed=&quot;true&quot;&gt;默认&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;login&quot; data-scenario-state=&quot;error&quot; aria-pressed=&quot;false&quot;&gt;凭据错误&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;login&quot; data-scenario-state=&quot;loading&quot; aria-pressed=&quot;false&quot;&gt;提交中&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;login&quot; data-scenario-state=&quot;denied&quot; aria-pressed=&quot;false&quot;&gt;权限不足&lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/header&gt;
+
+    &lt;div class=&quot;sbm02-window sbm02-login-window&quot; data-page-window=&quot;login&quot; data-state=&quot;default&quot;&gt;
+      &lt;header class=&quot;sbm02-topbar sbm02-login-topbar&quot;&gt;
+        &lt;div class=&quot;sbm02-brand&quot;&gt;&lt;span class=&quot;sbm02-brand-mark&quot;&gt;账&lt;/span&gt;&lt;span&gt;智能账单管理&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-login-links&quot;&gt;&lt;button class=&quot;sbm02-login-link&quot; type=&quot;button&quot;&gt;部署文档&lt;/button&gt;&lt;button class=&quot;sbm02-login-link&quot; type=&quot;button&quot;&gt;服务状态&lt;/button&gt;&lt;/div&gt;
+      &lt;/header&gt;
+      &lt;div class=&quot;sbm02-login-main&quot; role=&quot;region&quot; aria-labelledby=&quot;sbm02-login-title&quot;&gt;
+        &lt;section class=&quot;sbm02-login-story&quot;&gt;
+          &lt;p class=&quot;sbm02-login-eyebrow&quot;&gt;可信赖的 AI 财务工作台&lt;/p&gt;
+          &lt;h4 class=&quot;sbm02-login-headline&quot;&gt;把每一条财务结论，连回原始证据&lt;/h4&gt;
+          &lt;p class=&quot;sbm02-login-description&quot;&gt;系统负责理解、校验和关联单据；只有需要判断的内容交给你确认。AI 不直接写入正式账单。&lt;/p&gt;
+          &lt;div class=&quot;sbm02-trace-flow&quot; aria-label=&quot;Source Claim Fact 流程&quot;&gt;
+            &lt;div class=&quot;sbm02-trace-step&quot;&gt;&lt;strong&gt;Source&lt;/strong&gt;&lt;span&gt;不可变原始单据&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-trace-step&quot;&gt;&lt;strong&gt;Claim&lt;/strong&gt;&lt;span&gt;AI 候选与证据&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-trace-step&quot;&gt;&lt;strong&gt;Fact&lt;/strong&gt;&lt;span&gt;人工确认的事实&lt;/span&gt;&lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/section&gt;
+        &lt;section class=&quot;sbm02-login-form-area&quot;&gt;
+          &lt;form class=&quot;sbm02-login-form&quot; aria-label=&quot;登录表单&quot;&gt;
+            &lt;h4&gt;登录工作区&lt;/h4&gt;
+            &lt;p&gt;使用组织账户访问你的财务资料。&lt;/p&gt;
+            &lt;div class=&quot;sbm02-notice sbm02-notice-danger&quot; data-login-denied hidden role=&quot;alert&quot;&gt;&lt;i data-lucide=&quot;shield-x&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;此账户没有访问“青禾咨询”的权限。请联系组织管理员。&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-login-fields&quot;&gt;
+              &lt;label class=&quot;sbm02-field-label&quot;&gt;邮箱&lt;input class=&quot;sbm02-input&quot; type=&quot;email&quot; value=&quot;finance@qinghe.example&quot; autocomplete=&quot;username&quot; aria-describedby=&quot;sbm02-login-error&quot; data-login-email&gt;&lt;/label&gt;
+              &lt;label class=&quot;sbm02-field-label&quot;&gt;密码&lt;input class=&quot;sbm02-input&quot; type=&quot;password&quot; value=&quot;synthetic-pass&quot; autocomplete=&quot;current-password&quot; aria-describedby=&quot;sbm02-login-error&quot; data-login-password&gt;&lt;/label&gt;
+              &lt;p class=&quot;sbm02-form-error&quot; id=&quot;sbm02-login-error&quot; data-login-error hidden role=&quot;alert&quot;&gt;邮箱或密码不正确。请检查后重试。&lt;/p&gt;
+              &lt;label class=&quot;sbm02-checkbox-row&quot;&gt;&lt;input type=&quot;checkbox&quot; checked&gt;在此设备保持登录&lt;/label&gt;
+              &lt;button class=&quot;sbm02-action sbm02-action-primary sbm02-login-submit&quot; type=&quot;button&quot; data-login-submit&gt;登录&lt;/button&gt;
+            &lt;/div&gt;
+            &lt;div class=&quot;sbm02-login-security&quot;&gt;&lt;i data-lucide=&quot;shield-check&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;连接由当前自托管实例处理。凭据不会发送给模型 Provider。&lt;/span&gt;&lt;/div&gt;
+          &lt;/form&gt;
+        &lt;/section&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;section class=&quot;sbm02-page-section&quot; aria-labelledby=&quot;sbm02-inbox-title&quot;&gt;
+    &lt;header class=&quot;sbm02-page-review-bar&quot;&gt;
+      &lt;div&gt;
+        &lt;p class=&quot;sbm02-page-index&quot;&gt;页面 02&lt;/p&gt;
+        &lt;h3 class=&quot;sbm02-page-title&quot; id=&quot;sbm02-inbox-title&quot;&gt;AI 收件箱&lt;/h3&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;sbm02-scenario-controls&quot; aria-label=&quot;收件箱状态预览&quot;&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;inbox&quot; data-scenario-state=&quot;default&quot; aria-pressed=&quot;true&quot;&gt;混合队列&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;inbox&quot; data-scenario-state=&quot;processing&quot; aria-pressed=&quot;false&quot;&gt;处理中&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;inbox&quot; data-scenario-state=&quot;partial&quot; aria-pressed=&quot;false&quot;&gt;部分结果&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;inbox&quot; data-scenario-state=&quot;failed&quot; aria-pressed=&quot;false&quot;&gt;失败&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;inbox&quot; data-scenario-state=&quot;empty&quot; aria-pressed=&quot;false&quot;&gt;空状态&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;inbox&quot; data-scenario-state=&quot;offline&quot; aria-pressed=&quot;false&quot;&gt;离线&lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/header&gt;
+
+    &lt;div class=&quot;sbm02-window&quot; data-page-window=&quot;inbox&quot; data-state=&quot;default&quot;&gt;
+      &lt;header class=&quot;sbm02-topbar&quot;&gt;
+        &lt;div class=&quot;sbm02-brand&quot;&gt;&lt;span class=&quot;sbm02-brand-mark&quot;&gt;账&lt;/span&gt;&lt;span&gt;智能账单管理&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-global-search&quot;&gt;&lt;i data-lucide=&quot;search&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;搜索单据、支付、发票&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-top-actions&quot;&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;创建&quot;&gt;&lt;i data-lucide=&quot;plus&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;帮助&quot;&gt;&lt;i data-lucide=&quot;circle-help&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;通知&quot;&gt;&lt;i data-lucide=&quot;bell&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;用户&quot;&gt;&lt;i data-lucide=&quot;circle-user-round&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;/div&gt;
+      &lt;/header&gt;
+      &lt;div class=&quot;sbm02-app-body&quot;&gt;
+        &lt;nav class=&quot;sbm02-sidebar&quot; aria-label=&quot;AI 收件箱主导航&quot;&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;工作台&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-current=&quot;page&quot; aria-label=&quot;AI 收件箱&quot;&gt;&lt;i data-lucide=&quot;inbox&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;AI 收件箱&lt;/span&gt;&lt;span class=&quot;sbm02-nav-count&quot;&gt;6&lt;/span&gt;&lt;/button&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;待我审核&quot;&gt;&lt;i data-lucide=&quot;list-checks&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;待我审核&lt;/span&gt;&lt;span class=&quot;sbm02-nav-count&quot;&gt;2&lt;/span&gt;&lt;/button&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;财务数据&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;支付管理&quot;&gt;&lt;i data-lucide=&quot;wallet-cards&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;支付管理&lt;/span&gt;&lt;/button&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;发票管理&quot;&gt;&lt;i data-lucide=&quot;receipt-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;发票管理&lt;/span&gt;&lt;/button&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;系统&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;AI 配置&quot;&gt;&lt;i data-lucide=&quot;bot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;AI 配置&lt;/span&gt;&lt;/button&gt;
+        &lt;/nav&gt;
+        &lt;div class=&quot;sbm02-main&quot; role=&quot;region&quot; aria-labelledby=&quot;sbm02-inbox-title&quot;&gt;
+          &lt;nav class=&quot;sbm02-breadcrumb&quot; aria-label=&quot;AI 收件箱面包屑&quot;&gt;&lt;span&gt;工作台&lt;/span&gt;&lt;span&gt;/&lt;/span&gt;&lt;span&gt;AI 收件箱&lt;/span&gt;&lt;/nav&gt;
+          &lt;header class=&quot;sbm02-page-header&quot;&gt;
+            &lt;div&gt;&lt;h4 class=&quot;sbm02-product-title&quot;&gt;AI 收件箱&lt;/h4&gt;&lt;p class=&quot;sbm02-product-meta&quot;&gt;统一处理上传单据、模型结果和需要人工判断的任务。&lt;/p&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-page-actions&quot;&gt;&lt;button class=&quot;sbm02-action&quot; type=&quot;button&quot;&gt;&lt;i data-lucide=&quot;refresh-cw&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;刷新&lt;/button&gt;&lt;button class=&quot;sbm02-action sbm02-action-primary&quot; type=&quot;button&quot; data-inbox-upload&gt;&lt;i data-lucide=&quot;upload&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;上传单据&lt;/button&gt;&lt;/div&gt;
+          &lt;/header&gt;
+
+          &lt;div data-state-only=&quot;default&quot;&gt;
+            &lt;div class=&quot;sbm02-notice&quot;&gt;&lt;i data-lucide=&quot;loader-circle&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;&lt;strong&gt;2 个任务正在处理。&lt;/strong&gt; 新结果会自动出现在队列中，不需要重复上传。&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-filter-bar&quot;&gt;
+              &lt;div class=&quot;sbm02-search-field&quot;&gt;&lt;i data-lucide=&quot;search&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;按文件名或来源筛选&lt;/span&gt;&lt;/div&gt;
+              &lt;div class=&quot;sbm02-filter-actions&quot;&gt;&lt;div class=&quot;sbm02-segmented&quot; aria-label=&quot;任务筛选&quot;&gt;&lt;button class=&quot;sbm02-segment&quot; type=&quot;button&quot; data-inbox-filter=&quot;all&quot; aria-pressed=&quot;true&quot;&gt;全部&lt;/button&gt;&lt;button class=&quot;sbm02-segment&quot; type=&quot;button&quot; data-inbox-filter=&quot;review&quot; aria-pressed=&quot;false&quot;&gt;待确认&lt;/button&gt;&lt;button class=&quot;sbm02-segment&quot; type=&quot;button&quot; data-inbox-filter=&quot;processing&quot; aria-pressed=&quot;false&quot;&gt;处理中&lt;/button&gt;&lt;button class=&quot;sbm02-segment&quot; type=&quot;button&quot; data-inbox-filter=&quot;failed&quot; aria-pressed=&quot;false&quot;&gt;失败&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;
+            &lt;/div&gt;
+            &lt;section class=&quot;sbm02-panel&quot; aria-label=&quot;任务队列&quot;&gt;
+              &lt;div class=&quot;sbm02-table-wrap&quot;&gt;
+                &lt;table class=&quot;sbm02-table&quot;&gt;
+                  &lt;thead&gt;&lt;tr&gt;&lt;th&gt;单据&lt;/th&gt;&lt;th&gt;来源&lt;/th&gt;&lt;th&gt;状态&lt;/th&gt;&lt;th&gt;需要处理&lt;/th&gt;&lt;th&gt;更新时间&lt;/th&gt;&lt;th&gt;操作&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+                  &lt;tbody&gt;
+                    &lt;tr data-inbox-row-status=&quot;review&quot;&gt;&lt;td&gt;&lt;div class=&quot;sbm02-inline-document&quot;&gt;&lt;span class=&quot;sbm02-document-icon&quot;&gt;&lt;i data-lucide=&quot;file-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-document-name&quot;&gt;&lt;strong&gt;星环云服务发票.pdf&lt;/strong&gt;&lt;span&gt;1 页 · 发票&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/td&gt;&lt;td&gt;手动上传&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;&lt;i data-lucide=&quot;clock-3&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;待确认&lt;/span&gt;&lt;/td&gt;&lt;td&gt;销售方名称不一致&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;4 分钟前&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;开始审核&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+                    &lt;tr data-inbox-row-status=&quot;processing&quot;&gt;&lt;td&gt;&lt;div class=&quot;sbm02-inline-document&quot;&gt;&lt;span class=&quot;sbm02-document-icon&quot;&gt;&lt;i data-lucide=&quot;image&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-document-name&quot;&gt;&lt;strong&gt;付款截图_0826.png&lt;/strong&gt;&lt;span&gt;图片 · 支付凭证&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/td&gt;&lt;td&gt;手动上传&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag&quot;&gt;&lt;i data-lucide=&quot;loader-circle&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;处理中&lt;/span&gt;&lt;/td&gt;&lt;td&gt;正在提取字段&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;1 分钟前&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;查看进度&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+                    &lt;tr data-inbox-row-status=&quot;review&quot;&gt;&lt;td&gt;&lt;div class=&quot;sbm02-inline-document&quot;&gt;&lt;span class=&quot;sbm02-document-icon&quot;&gt;&lt;i data-lucide=&quot;file-warning&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-document-name&quot;&gt;&lt;strong&gt;酒店发票.pdf&lt;/strong&gt;&lt;span&gt;2 页 · 部分结果&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/td&gt;&lt;td&gt;手动上传&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;&lt;i data-lucide=&quot;triangle-alert&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;部分结果&lt;/span&gt;&lt;/td&gt;&lt;td&gt;第 2 页缺少金额&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;18 分钟前&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;检查字段&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+                    &lt;tr data-inbox-row-status=&quot;failed&quot;&gt;&lt;td&gt;&lt;div class=&quot;sbm02-inline-document&quot;&gt;&lt;span class=&quot;sbm02-document-icon&quot;&gt;&lt;i data-lucide=&quot;file-x&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-document-name&quot;&gt;&lt;strong&gt;付款截图_4.png&lt;/strong&gt;&lt;span&gt;图片 · 未分类&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/td&gt;&lt;td&gt;手动上传&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-danger&quot;&gt;&lt;i data-lucide=&quot;circle-x&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;失败&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-failure-reason&quot;&gt;Provider 超时，未写入候选结果&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;31 分钟前&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;重试&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+                    &lt;tr data-inbox-row-status=&quot;cancelled&quot;&gt;&lt;td&gt;&lt;div class=&quot;sbm02-inline-document&quot;&gt;&lt;span class=&quot;sbm02-document-icon&quot;&gt;&lt;i data-lucide=&quot;file-minus&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-document-name&quot;&gt;&lt;strong&gt;重复上传.pdf&lt;/strong&gt;&lt;span&gt;1 页 · 已取消&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/td&gt;&lt;td&gt;手动上传&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag&quot;&gt;已取消&lt;/span&gt;&lt;/td&gt;&lt;td&gt;用户取消，未创建 Fact&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;昨天&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;查看记录&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+                    &lt;tr data-inbox-row-status=&quot;completed&quot;&gt;&lt;td&gt;&lt;div class=&quot;sbm02-inline-document&quot;&gt;&lt;span class=&quot;sbm02-document-icon&quot;&gt;&lt;i data-lucide=&quot;circle-check-big&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-document-name&quot;&gt;&lt;strong&gt;企业卡流水截图.png&lt;/strong&gt;&lt;span&gt;图片 · 支付凭证&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;&lt;/td&gt;&lt;td&gt;手动上传&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已完成&lt;/span&gt;&lt;/td&gt;&lt;td&gt;Payment Fact 已创建&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;昨天&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;查看事实&lt;/button&gt;&lt;/td&gt;&lt;/tr&gt;
+                  &lt;/tbody&gt;
+                &lt;/table&gt;
+              &lt;/div&gt;
+            &lt;/section&gt;
+          &lt;/div&gt;
+
+          &lt;section class=&quot;sbm02-panel sbm02-loading-state&quot; data-state-only=&quot;processing&quot; hidden aria-live=&quot;polite&quot;&gt;
+            &lt;div class=&quot;sbm02-state-content&quot;&gt;&lt;span class=&quot;sbm02-state-icon&quot;&gt;&lt;i data-lucide=&quot;scan-line&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;h5 class=&quot;sbm02-state-title&quot;&gt;正在分析付款截图_0826.png&lt;/h5&gt;&lt;p class=&quot;sbm02-state-note&quot;&gt;已完成文件验证和类型识别，正在提取字段证据。&lt;/p&gt;&lt;div class=&quot;sbm02-progress-line&quot; role=&quot;progressbar&quot; aria-label=&quot;任务进度&quot; aria-valuenow=&quot;64&quot; aria-valuemin=&quot;0&quot; aria-valuemax=&quot;100&quot;&gt;&lt;div class=&quot;sbm02-progress-fill&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;span class=&quot;sbm02-quiet sbm02-number&quot;&gt;步骤 3 / 5 · 64%&lt;/span&gt;&lt;/div&gt;
+          &lt;/section&gt;
+
+          &lt;section class=&quot;sbm02-panel&quot; data-state-only=&quot;partial&quot; hidden&gt;
+            &lt;div class=&quot;sbm02-notice sbm02-notice-warning&quot;&gt;&lt;i data-lucide=&quot;triangle-alert&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;&lt;strong&gt;已保存部分结果。&lt;/strong&gt; 酒店账单第 2 页缺少清晰金额，现有字段可以先审核。&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-table-wrap&quot;&gt;&lt;table class=&quot;sbm02-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;字段&lt;/th&gt;&lt;th&gt;候选值&lt;/th&gt;&lt;th&gt;证据&lt;/th&gt;&lt;th&gt;结果&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;商户&lt;/td&gt;&lt;td&gt;云栖酒店（测试）&lt;/td&gt;&lt;td&gt;p1-04&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已提取&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;入住日期&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;2026-08-24&lt;/td&gt;&lt;td&gt;p1-07&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已提取&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;价税合计&lt;/td&gt;&lt;td&gt;—&lt;/td&gt;&lt;td&gt;p2 图像模糊&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;需要填写&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;
+          &lt;/section&gt;
+
+          &lt;section class=&quot;sbm02-panel&quot; data-state-only=&quot;failed&quot; hidden&gt;
+            &lt;div class=&quot;sbm02-permission-state&quot;&gt;&lt;div class=&quot;sbm02-state-content&quot;&gt;&lt;span class=&quot;sbm02-state-icon&quot;&gt;&lt;i data-lucide=&quot;server-off&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;h5 class=&quot;sbm02-state-title&quot;&gt;模型请求超时&lt;/h5&gt;&lt;p class=&quot;sbm02-state-note&quot;&gt;任务没有生成 Claim，也没有写入正式数据。可使用相同输入安全重试。&lt;/p&gt;&lt;button class=&quot;sbm02-action sbm02-action-primary&quot; type=&quot;button&quot;&gt;重试任务&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;
+          &lt;/section&gt;
+
+          &lt;section class=&quot;sbm02-panel&quot; data-state-only=&quot;empty&quot; hidden&gt;
+            &lt;div class=&quot;sbm02-empty-state&quot;&gt;&lt;div class=&quot;sbm02-state-content&quot;&gt;&lt;span class=&quot;sbm02-state-icon&quot;&gt;&lt;i data-lucide=&quot;inbox&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;h5 class=&quot;sbm02-state-title&quot;&gt;收件箱为空&lt;/h5&gt;&lt;p class=&quot;sbm02-state-note&quot;&gt;上传一张支付截图或一份发票，第一条任务会显示在这里。&lt;/p&gt;&lt;button class=&quot;sbm02-action sbm02-action-primary&quot; type=&quot;button&quot;&gt;&lt;i data-lucide=&quot;upload&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;上传第一份单据&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;
+          &lt;/section&gt;
+
+          &lt;section data-state-only=&quot;offline&quot; hidden&gt;
+            &lt;div class=&quot;sbm02-notice sbm02-notice-danger&quot; role=&quot;alert&quot;&gt;&lt;i data-lucide=&quot;wifi-off&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;&lt;strong&gt;连接已中断。&lt;/strong&gt; 当前显示 10:42 的缓存队列；恢复连接前不能上传、重试或确认。&lt;/span&gt;&lt;/div&gt;
+            &lt;section class=&quot;sbm02-panel&quot;&gt;&lt;div class=&quot;sbm02-table-wrap&quot;&gt;&lt;table class=&quot;sbm02-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;单据&lt;/th&gt;&lt;th&gt;缓存状态&lt;/th&gt;&lt;th&gt;最近同步&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;星环云服务发票.pdf&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;待确认&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;10:42&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;付款截图_0826.png&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag&quot;&gt;处理中&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;10:41&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;&lt;/section&gt;
+          &lt;/section&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;section class=&quot;sbm02-page-section&quot; aria-labelledby=&quot;sbm02-review-title&quot;&gt;
+    &lt;header class=&quot;sbm02-page-review-bar&quot;&gt;
+      &lt;div&gt;
+        &lt;p class=&quot;sbm02-page-index&quot;&gt;页面 03&lt;/p&gt;
+        &lt;h3 class=&quot;sbm02-page-title&quot; id=&quot;sbm02-review-title&quot;&gt;审核工作台&lt;/h3&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;sbm02-scenario-controls&quot; aria-label=&quot;审核状态预览&quot;&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;review&quot; data-scenario-state=&quot;default&quot; aria-pressed=&quot;true&quot;&gt;待审核&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;review&quot; data-scenario-state=&quot;blocked&quot; aria-pressed=&quot;false&quot;&gt;阻断&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;review&quot; data-scenario-state=&quot;stale&quot; aria-pressed=&quot;false&quot;&gt;版本冲突&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;review&quot; data-scenario-state=&quot;loading&quot; aria-pressed=&quot;false&quot;&gt;加载中&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;review&quot; data-scenario-state=&quot;completed&quot; aria-pressed=&quot;false&quot;&gt;已完成&lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/header&gt;
+
+    &lt;div class=&quot;sbm02-window&quot; data-page-window=&quot;review&quot; data-state=&quot;default&quot;&gt;
+      &lt;header class=&quot;sbm02-topbar&quot;&gt;
+        &lt;div class=&quot;sbm02-brand&quot;&gt;&lt;span class=&quot;sbm02-brand-mark&quot;&gt;账&lt;/span&gt;&lt;span&gt;智能账单管理&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-global-search&quot;&gt;&lt;i data-lucide=&quot;search&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;搜索单据、支付、发票&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-top-actions&quot;&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;创建&quot;&gt;&lt;i data-lucide=&quot;plus&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;帮助&quot;&gt;&lt;i data-lucide=&quot;circle-help&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;通知&quot;&gt;&lt;i data-lucide=&quot;bell&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;用户&quot;&gt;&lt;i data-lucide=&quot;circle-user-round&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;/div&gt;
+      &lt;/header&gt;
+      &lt;div class=&quot;sbm02-app-body&quot;&gt;
+        &lt;nav class=&quot;sbm02-sidebar&quot; aria-label=&quot;审核工作台主导航&quot;&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;工作台&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;AI 收件箱&quot;&gt;&lt;i data-lucide=&quot;inbox&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;AI 收件箱&lt;/span&gt;&lt;span class=&quot;sbm02-nav-count&quot;&gt;6&lt;/span&gt;&lt;/button&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-current=&quot;page&quot; aria-label=&quot;待我审核&quot;&gt;&lt;i data-lucide=&quot;list-checks&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;待我审核&lt;/span&gt;&lt;span class=&quot;sbm02-nav-count&quot;&gt;2&lt;/span&gt;&lt;/button&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;财务数据&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;支付管理&quot;&gt;&lt;i data-lucide=&quot;wallet-cards&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;支付管理&lt;/span&gt;&lt;/button&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;发票管理&quot;&gt;&lt;i data-lucide=&quot;receipt-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;发票管理&lt;/span&gt;&lt;/button&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;系统&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;AI 配置&quot;&gt;&lt;i data-lucide=&quot;bot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;AI 配置&lt;/span&gt;&lt;/button&gt;
+        &lt;/nav&gt;
+        &lt;div class=&quot;sbm02-main&quot; role=&quot;region&quot; aria-labelledby=&quot;sbm02-review-title&quot;&gt;
+          &lt;nav class=&quot;sbm02-breadcrumb&quot; aria-label=&quot;审核工作台面包屑&quot;&gt;&lt;span&gt;待我审核&lt;/span&gt;&lt;span&gt;/&lt;/span&gt;&lt;span&gt;发票审核&lt;/span&gt;&lt;span&gt;/&lt;/span&gt;&lt;span&gt;AR-0042&lt;/span&gt;&lt;/nav&gt;
+          &lt;header class=&quot;sbm02-page-header&quot;&gt;
+            &lt;div&gt;&lt;h4 class=&quot;sbm02-product-title&quot;&gt;发票审核&lt;/h4&gt;&lt;p class=&quot;sbm02-product-meta&quot;&gt;&lt;span&gt;星环云服务发票.pdf&lt;/span&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot; data-review-status&gt;&lt;i data-lucide=&quot;clock-3&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;待审核&lt;/span&gt;&lt;/span&gt;&lt;span&gt;更新时间：2026-08-27 10:42&lt;/span&gt;&lt;/p&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-page-actions&quot;&gt;&lt;button class=&quot;sbm02-action&quot; type=&quot;button&quot;&gt;&lt;i data-lucide=&quot;arrow-left&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;返回收件箱&lt;/button&gt;&lt;button class=&quot;sbm02-action&quot; type=&quot;button&quot;&gt;&lt;i data-lucide=&quot;more-horizontal&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;更多&lt;/button&gt;&lt;/div&gt;
+          &lt;/header&gt;
+
+          &lt;div class=&quot;sbm02-notice sbm02-notice-danger&quot; data-review-banner=&quot;blocked&quot; hidden role=&quot;alert&quot;&gt;&lt;i data-lucide=&quot;octagon-x&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;&lt;strong&gt;金额校验未通过。&lt;/strong&gt; 未税金额与税额之和不等于价税合计，必须修正后才能生成 Fact。&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;sbm02-notice sbm02-notice-warning&quot; data-review-banner=&quot;stale&quot; hidden role=&quot;alert&quot;&gt;&lt;i data-lucide=&quot;refresh-cw&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;&lt;strong&gt;任务版本已更新。&lt;/strong&gt; 另一会话在 10:44 修改了销售方名称，请重新加载后继续。&lt;/span&gt;&lt;/div&gt;
+          &lt;div class=&quot;sbm02-notice&quot; data-review-banner=&quot;completed&quot; hidden aria-live=&quot;polite&quot;&gt;&lt;i data-lucide=&quot;circle-check-big&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;&lt;strong&gt;审核已通过。&lt;/strong&gt; 发票事实与关联决定已经创建，审计链完整保留。&lt;/span&gt;&lt;/div&gt;
+
+          &lt;ol class=&quot;sbm02-review-steps&quot; aria-label=&quot;处理进度&quot; data-review-steps&gt;
+            &lt;li class=&quot;sbm02-review-step sbm02-review-step-done&quot;&gt;&lt;span class=&quot;sbm02-review-step-index&quot;&gt;✓&lt;/span&gt;&lt;span&gt;上传完成&lt;/span&gt;&lt;/li&gt;
+            &lt;li class=&quot;sbm02-review-step sbm02-review-step-done&quot;&gt;&lt;span class=&quot;sbm02-review-step-index&quot;&gt;✓&lt;/span&gt;&lt;span&gt;AI 提取&lt;/span&gt;&lt;/li&gt;
+            &lt;li class=&quot;sbm02-review-step sbm02-review-step-current&quot; data-review-step=&quot;review&quot;&gt;&lt;span class=&quot;sbm02-review-step-index&quot;&gt;3&lt;/span&gt;&lt;span&gt;人工审核&lt;/span&gt;&lt;/li&gt;
+            &lt;li class=&quot;sbm02-review-step&quot; data-review-step=&quot;fact&quot;&gt;&lt;span class=&quot;sbm02-review-step-index&quot;&gt;4&lt;/span&gt;&lt;span&gt;生成事实&lt;/span&gt;&lt;/li&gt;
+          &lt;/ol&gt;
+
+          &lt;div data-review-content=&quot;normal&quot;&gt;
+            &lt;div class=&quot;sbm02-review-grid&quot;&gt;
+              &lt;section class=&quot;sbm02-panel&quot; aria-label=&quot;原始单据&quot;&gt;
+                &lt;header class=&quot;sbm02-panel-heading&quot;&gt;&lt;span&gt;原始单据&lt;/span&gt;&lt;span class=&quot;sbm02-panel-tools&quot;&gt;&lt;i data-lucide=&quot;file-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;1 / 1 页 · 100%&lt;/span&gt;&lt;/header&gt;
+                &lt;div class=&quot;sbm02-document-stage&quot;&gt;
+                  &lt;article class=&quot;sbm02-paper&quot;&gt;
+                    &lt;h5 data-review-evidence=&quot;type&quot;&gt;电子发票&lt;/h5&gt;
+                    &lt;div class=&quot;sbm02-paper-row&quot;&gt;&lt;span&gt;发票号码&lt;/span&gt;&lt;strong data-review-evidence=&quot;number&quot;&gt;25312000000047290114&lt;/strong&gt;&lt;/div&gt;
+                    &lt;div class=&quot;sbm02-paper-row&quot;&gt;&lt;span&gt;开票日期&lt;/span&gt;&lt;strong data-review-evidence=&quot;date&quot;&gt;2026年08月18日&lt;/strong&gt;&lt;/div&gt;
+                    &lt;div class=&quot;sbm02-paper-rule&quot;&gt;&lt;/div&gt;
+                    &lt;div class=&quot;sbm02-paper-row&quot;&gt;&lt;span&gt;购买方&lt;/span&gt;&lt;strong data-review-evidence=&quot;buyer&quot;&gt;青禾咨询（测试）&lt;/strong&gt;&lt;/div&gt;
+                    &lt;div class=&quot;sbm02-paper-row&quot;&gt;&lt;span&gt;销售方&lt;/span&gt;&lt;strong data-review-evidence=&quot;seller&quot;&gt;星环云服务（测试）&lt;/strong&gt;&lt;/div&gt;
+                    &lt;table class=&quot;sbm02-paper-table&quot; aria-label=&quot;发票明细&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;项目&lt;/th&gt;&lt;th&gt;税率&lt;/th&gt;&lt;th&gt;金额&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;云计算服务费&lt;/td&gt;&lt;td&gt;6%&lt;/td&gt;&lt;td&gt;¥1,132.08&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;技术支持服务&lt;/td&gt;&lt;td&gt;6%&lt;/td&gt;&lt;td&gt;¥754.72&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;
+                    &lt;div class=&quot;sbm02-paper-row&quot;&gt;&lt;span&gt;价税合计&lt;/span&gt;&lt;strong class=&quot;sbm02-paper-evidence-active&quot; data-review-evidence=&quot;amount&quot;&gt;¥ 2,000.00&lt;/strong&gt;&lt;/div&gt;
+                    &lt;div class=&quot;sbm02-paper-row&quot;&gt;&lt;span&gt;税额&lt;/span&gt;&lt;strong data-review-evidence=&quot;tax&quot;&gt;¥ 113.20&lt;/strong&gt;&lt;/div&gt;
+                  &lt;/article&gt;
+                &lt;/div&gt;
+              &lt;/section&gt;
+
+              &lt;section class=&quot;sbm02-panel&quot; aria-label=&quot;结构化字段&quot;&gt;
+                &lt;div class=&quot;sbm02-review-tabs&quot; aria-label=&quot;字段类别&quot;&gt;&lt;button class=&quot;sbm02-review-tab&quot; type=&quot;button&quot; aria-pressed=&quot;true&quot;&gt;基础信息&lt;/button&gt;&lt;button class=&quot;sbm02-review-tab&quot; type=&quot;button&quot; aria-pressed=&quot;false&quot;&gt;明细信息&lt;/button&gt;&lt;button class=&quot;sbm02-review-tab&quot; type=&quot;button&quot; aria-pressed=&quot;false&quot;&gt;关联数据&lt;/button&gt;&lt;/div&gt;
+                &lt;div class=&quot;sbm02-field-list&quot;&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;发票类型&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;type&quot; aria-pressed=&quot;false&quot;&gt;&lt;span&gt;增值税电子普通发票&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;AI&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;发票号码&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;number&quot; aria-pressed=&quot;false&quot;&gt;&lt;span&gt;25312000000047290114&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;p1-03&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;开票日期&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;date&quot; aria-pressed=&quot;false&quot;&gt;&lt;span&gt;2026-08-18&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;p1-04&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;销售方名称&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;seller&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;sbm02-field-value&quot;&gt;&lt;span&gt;星环云服务（测试）&lt;/span&gt;&lt;small&gt;AI 原值：星环云服务有限（测试）&lt;/small&gt;&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;用户修订 · p1-08&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;购买方名称&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;buyer&quot; aria-pressed=&quot;false&quot;&gt;&lt;span&gt;青禾咨询（测试）&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;p1-07&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;价税合计&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;amount&quot; aria-pressed=&quot;true&quot;&gt;&lt;span&gt;CNY 2,000.00&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;p1-15&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-review-field-row&quot;&gt;&lt;span class=&quot;sbm02-review-field-label&quot;&gt;税额&lt;/span&gt;&lt;button class=&quot;sbm02-review-field&quot; type=&quot;button&quot; data-review-field=&quot;tax&quot; aria-pressed=&quot;false&quot;&gt;&lt;span&gt;CNY 113.20&lt;/span&gt;&lt;span class=&quot;sbm02-field-source&quot;&gt;p1-16&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;
+                &lt;/div&gt;
+                &lt;p class=&quot;sbm02-field-tip&quot;&gt;&lt;i data-lucide=&quot;sparkles&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;字段基于 AI 提取；用户修订项同时显示 AI 原值。点击字段可定位原文，人工确认前不会写入正式账单。&lt;/span&gt;&lt;/p&gt;
+              &lt;/section&gt;
+
+              &lt;aside class=&quot;sbm02-panel&quot; aria-label=&quot;校验与关联&quot;&gt;
+                &lt;header class=&quot;sbm02-panel-heading&quot;&gt;&lt;span&gt;校验与关联&lt;/span&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;1 项待处理&lt;/span&gt;&lt;/header&gt;
+                &lt;div class=&quot;sbm02-audit-body&quot;&gt;
+                  &lt;div class=&quot;sbm02-audit-warning&quot;&gt;&lt;strong&gt;销售方名称不一致&lt;/strong&gt;&lt;br&gt;候选支付中的商户名称为“星环科技”。&lt;/div&gt;
+                  &lt;div&gt;&lt;h5 class=&quot;sbm02-section-heading&quot;&gt;规则校验&lt;/h5&gt;&lt;div class=&quot;sbm02-check-list&quot;&gt;&lt;div class=&quot;sbm02-check-row&quot;&gt;&lt;span class=&quot;sbm02-check-mark&quot;&gt;✓&lt;/span&gt;&lt;span&gt;金额平衡&lt;br&gt;未税金额 + 税额 = 合计&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-check-row&quot;&gt;&lt;span class=&quot;sbm02-check-mark&quot;&gt;✓&lt;/span&gt;&lt;span&gt;日期合法&lt;br&gt;格式正确且不在未来&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-check-row&quot;&gt;&lt;span class=&quot;sbm02-check-mark&quot;&gt;✓&lt;/span&gt;&lt;span&gt;证据完整&lt;br&gt;7 个字段均可定位&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+                  &lt;div&gt;&lt;h5 class=&quot;sbm02-section-heading&quot;&gt;候选支付&lt;/h5&gt;&lt;fieldset class=&quot;sbm02-match-box&quot;&gt;&lt;legend class=&quot;sr-only&quot;&gt;选择支付关联&lt;/legend&gt;&lt;label class=&quot;sbm02-match-option&quot;&gt;&lt;input type=&quot;radio&quot; name=&quot;sbm02-link-choice&quot; value=&quot;accept&quot;&gt;&lt;span class=&quot;sbm02-match-copy&quot;&gt;&lt;strong&gt;星环科技（测试）&lt;/strong&gt;&lt;span&gt;2026-08-18 · CNY 2,000.00&lt;br&gt;金额、日期一致 · 名称不一致&lt;/span&gt;&lt;/span&gt;&lt;/label&gt;&lt;label class=&quot;sbm02-match-option&quot;&gt;&lt;input type=&quot;radio&quot; name=&quot;sbm02-link-choice&quot; value=&quot;reject&quot;&gt;&lt;span class=&quot;sbm02-match-copy&quot;&gt;&lt;strong&gt;不关联任何候选&lt;/strong&gt;&lt;span&gt;仅确认发票事实，并保留拒绝决定&lt;/span&gt;&lt;/span&gt;&lt;/label&gt;&lt;/fieldset&gt;&lt;/div&gt;
+                &lt;/div&gt;
+              &lt;/aside&gt;
+            &lt;/div&gt;
+
+            &lt;footer class=&quot;sbm02-review-dock&quot;&gt;&lt;div class=&quot;sbm02-review-summary&quot; data-review-summary&gt;&lt;strong&gt;审核结果：&lt;/strong&gt;7 个字段通过，1 个名称差异和关联选择需要确认&lt;/div&gt;&lt;div class=&quot;sbm02-dock-actions&quot;&gt;&lt;button class=&quot;sbm02-action&quot; type=&quot;button&quot;&gt;驳回&lt;/button&gt;&lt;button class=&quot;sbm02-action sbm02-action-primary&quot; type=&quot;button&quot; data-review-confirm disabled&gt;请选择关联结果&lt;/button&gt;&lt;/div&gt;&lt;/footer&gt;
+          &lt;/div&gt;
+
+          &lt;div data-review-content=&quot;loading&quot; hidden aria-live=&quot;polite&quot;&gt;
+            &lt;div class=&quot;sbm02-skeleton-grid&quot;&gt;&lt;div class=&quot;sbm02-skeleton-panel&quot;&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-panel&quot;&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-panel&quot;&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+  &lt;section class=&quot;sbm02-page-section&quot; aria-labelledby=&quot;sbm02-bills-title&quot;&gt;
+    &lt;header class=&quot;sbm02-page-review-bar&quot;&gt;
+      &lt;div&gt;
+        &lt;p class=&quot;sbm02-page-index&quot;&gt;页面 04&lt;/p&gt;
+        &lt;h3 class=&quot;sbm02-page-title&quot; id=&quot;sbm02-bills-title&quot;&gt;账单列表&lt;/h3&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;sbm02-scenario-controls&quot; aria-label=&quot;账单状态预览&quot;&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;bills&quot; data-scenario-state=&quot;default&quot; aria-pressed=&quot;true&quot;&gt;有数据&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;bills&quot; data-scenario-state=&quot;loading&quot; aria-pressed=&quot;false&quot;&gt;加载中&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;bills&quot; data-scenario-state=&quot;empty&quot; aria-pressed=&quot;false&quot;&gt;空状态&lt;/button&gt;
+        &lt;button class=&quot;btn btn-ghost&quot; type=&quot;button&quot; data-scenario-page=&quot;bills&quot; data-scenario-state=&quot;denied&quot; aria-pressed=&quot;false&quot;&gt;权限不足&lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/header&gt;
+
+    &lt;div class=&quot;sbm02-window&quot; data-page-window=&quot;bills&quot; data-state=&quot;default&quot;&gt;
+      &lt;header class=&quot;sbm02-topbar&quot;&gt;
+        &lt;div class=&quot;sbm02-brand&quot;&gt;&lt;span class=&quot;sbm02-brand-mark&quot;&gt;账&lt;/span&gt;&lt;span&gt;智能账单管理&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-global-search&quot;&gt;&lt;i data-lucide=&quot;search&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;搜索单据、支付、发票&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;sbm02-top-actions&quot;&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;创建&quot;&gt;&lt;i data-lucide=&quot;plus&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;帮助&quot;&gt;&lt;i data-lucide=&quot;circle-help&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;通知&quot;&gt;&lt;i data-lucide=&quot;bell&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;button class=&quot;sbm02-top-action&quot; type=&quot;button&quot; aria-label=&quot;用户&quot;&gt;&lt;i data-lucide=&quot;circle-user-round&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/button&gt;&lt;/div&gt;
+      &lt;/header&gt;
+      &lt;div class=&quot;sbm02-app-body&quot;&gt;
+        &lt;nav class=&quot;sbm02-sidebar&quot; aria-label=&quot;账单列表主导航&quot;&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;工作台&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;AI 收件箱&quot;&gt;&lt;i data-lucide=&quot;inbox&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;AI 收件箱&lt;/span&gt;&lt;span class=&quot;sbm02-nav-count&quot;&gt;6&lt;/span&gt;&lt;/button&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;待我审核&quot;&gt;&lt;i data-lucide=&quot;list-checks&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;待我审核&lt;/span&gt;&lt;span class=&quot;sbm02-nav-count&quot;&gt;2&lt;/span&gt;&lt;/button&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;财务数据&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-current=&quot;page&quot; aria-label=&quot;支付管理&quot;&gt;&lt;i data-lucide=&quot;wallet-cards&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;支付管理&lt;/span&gt;&lt;/button&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;发票管理&quot;&gt;&lt;i data-lucide=&quot;receipt-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;发票管理&lt;/span&gt;&lt;/button&gt;
+          &lt;p class=&quot;sbm02-nav-group&quot;&gt;系统&lt;/p&gt;
+          &lt;button class=&quot;sbm02-nav-entry&quot; type=&quot;button&quot; aria-label=&quot;AI 配置&quot;&gt;&lt;i data-lucide=&quot;bot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span class=&quot;sbm02-nav-label&quot;&gt;AI 配置&lt;/span&gt;&lt;/button&gt;
+        &lt;/nav&gt;
+        &lt;div class=&quot;sbm02-main&quot; role=&quot;region&quot; aria-labelledby=&quot;sbm02-bills-title&quot;&gt;
+          &lt;nav class=&quot;sbm02-breadcrumb&quot; aria-label=&quot;账单列表面包屑&quot;&gt;&lt;span&gt;财务数据&lt;/span&gt;&lt;span&gt;/&lt;/span&gt;&lt;span&gt;账单列表&lt;/span&gt;&lt;/nav&gt;
+          &lt;header class=&quot;sbm02-page-header&quot;&gt;
+            &lt;div&gt;&lt;h4 class=&quot;sbm02-product-title&quot;&gt;账单列表&lt;/h4&gt;&lt;p class=&quot;sbm02-product-meta&quot;&gt;只展示已经确认的 Fact；候选结果仍留在 AI 收件箱。&lt;/p&gt;&lt;/div&gt;
+            &lt;div class=&quot;sbm02-page-actions&quot;&gt;&lt;button class=&quot;sbm02-action&quot; type=&quot;button&quot;&gt;&lt;i data-lucide=&quot;columns-3&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;管理列&lt;/button&gt;&lt;button class=&quot;sbm02-action sbm02-action-primary&quot; type=&quot;button&quot;&gt;&lt;i data-lucide=&quot;inbox&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;前往 AI 收件箱&lt;/button&gt;&lt;/div&gt;
+          &lt;/header&gt;
+
+          &lt;div class=&quot;sbm02-bill-tabs&quot; aria-label=&quot;账单类型&quot;&gt;&lt;button class=&quot;sbm02-bill-tab&quot; type=&quot;button&quot; data-bill-tab=&quot;all&quot; aria-pressed=&quot;true&quot;&gt;全部 60&lt;/button&gt;&lt;button class=&quot;sbm02-bill-tab&quot; type=&quot;button&quot; data-bill-tab=&quot;payment&quot; aria-pressed=&quot;false&quot;&gt;支付 42&lt;/button&gt;&lt;button class=&quot;sbm02-bill-tab&quot; type=&quot;button&quot; data-bill-tab=&quot;invoice&quot; aria-pressed=&quot;false&quot;&gt;发票 18&lt;/button&gt;&lt;/div&gt;
+
+          &lt;div data-state-only=&quot;default&quot;&gt;
+            &lt;div class=&quot;sbm02-filter-bar&quot;&gt;
+              &lt;div class=&quot;sbm02-search-field&quot;&gt;&lt;i data-lucide=&quot;search&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;span&gt;搜索商户、发票号或金额&lt;/span&gt;&lt;/div&gt;
+              &lt;div class=&quot;sbm02-filter-actions&quot;&gt;&lt;label class=&quot;sbm02-field-label&quot;&gt;&lt;span class=&quot;sr-only&quot;&gt;日期范围&lt;/span&gt;&lt;select class=&quot;sbm02-select&quot;&gt;&lt;option&gt;最近 30 天&lt;/option&gt;&lt;option&gt;本季度&lt;/option&gt;&lt;option&gt;今年&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;label class=&quot;sbm02-field-label&quot;&gt;&lt;span class=&quot;sr-only&quot;&gt;关联状态&lt;/span&gt;&lt;select class=&quot;sbm02-select&quot;&gt;&lt;option&gt;全部关联状态&lt;/option&gt;&lt;option&gt;已关联&lt;/option&gt;&lt;option&gt;未关联&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;/div&gt;
+            &lt;/div&gt;
+            &lt;div class=&quot;sbm02-bills-grid&quot;&gt;
+              &lt;section class=&quot;sbm02-panel&quot; aria-label=&quot;正式账单&quot;&gt;
+                &lt;div class=&quot;sbm02-table-wrap&quot;&gt;&lt;table class=&quot;sbm02-table&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;日期&lt;/th&gt;&lt;th&gt;商户 / 销售方&lt;/th&gt;&lt;th&gt;类型&lt;/th&gt;&lt;th&gt;关联&lt;/th&gt;&lt;th&gt;金额&lt;/th&gt;&lt;th&gt;状态&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;
+                  &lt;tr data-bill-kind=&quot;invoice&quot; data-bill-id=&quot;invoice-18&quot; data-selected=&quot;true&quot;&gt;&lt;td class=&quot;sbm02-number&quot;&gt;2026-08-18&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-bill-row-button&quot; type=&quot;button&quot; data-select-bill=&quot;invoice-18&quot;&gt;星环云服务（测试）&lt;/button&gt;&lt;br&gt;&lt;span class=&quot;sbm02-quiet&quot;&gt;253120…90114&lt;/span&gt;&lt;/td&gt;&lt;td&gt;发票&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已关联&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;CNY 2,000.00&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已确认&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;
+                  &lt;tr data-bill-kind=&quot;payment&quot; data-bill-id=&quot;payment-42&quot; data-selected=&quot;false&quot;&gt;&lt;td class=&quot;sbm02-number&quot;&gt;2026-08-18&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-bill-row-button&quot; type=&quot;button&quot; data-select-bill=&quot;payment-42&quot;&gt;星环科技（测试）&lt;/button&gt;&lt;br&gt;&lt;span class=&quot;sbm02-quiet&quot;&gt;企业卡 · 8127&lt;/span&gt;&lt;/td&gt;&lt;td&gt;支付&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已关联&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;CNY 2,000.00&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已确认&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;
+                  &lt;tr data-bill-kind=&quot;invoice&quot; data-bill-id=&quot;invoice-17&quot; data-selected=&quot;false&quot;&gt;&lt;td class=&quot;sbm02-number&quot;&gt;2026-08-16&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-bill-row-button&quot; type=&quot;button&quot; data-select-bill=&quot;invoice-17&quot;&gt;青岚出行（测试）&lt;/button&gt;&lt;br&gt;&lt;span class=&quot;sbm02-quiet&quot;&gt;253120…88120&lt;/span&gt;&lt;/td&gt;&lt;td&gt;发票&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;未关联&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;CNY 486.00&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已确认&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;
+                  &lt;tr data-bill-kind=&quot;payment&quot; data-bill-id=&quot;payment-41&quot; data-selected=&quot;false&quot;&gt;&lt;td class=&quot;sbm02-number&quot;&gt;2026-08-14&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;sbm02-bill-row-button&quot; type=&quot;button&quot; data-select-bill=&quot;payment-41&quot;&gt;云栖酒店（测试）&lt;/button&gt;&lt;br&gt;&lt;span class=&quot;sbm02-quiet&quot;&gt;企业卡 · 8127&lt;/span&gt;&lt;/td&gt;&lt;td&gt;支付&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-attention&quot;&gt;待发票&lt;/span&gt;&lt;/td&gt;&lt;td class=&quot;sbm02-number&quot;&gt;CNY 1,268.00&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;sbm02-tag sbm02-tag-success&quot;&gt;已确认&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;
+                &lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;
+              &lt;/section&gt;
+
+              &lt;aside class=&quot;sbm02-panel sbm02-detail-panel&quot; aria-label=&quot;账单详情&quot;&gt;
+                &lt;header class=&quot;sbm02-panel-heading&quot;&gt;&lt;span&gt;账单详情&lt;/span&gt;&lt;button class=&quot;sbm02-queue-action&quot; type=&quot;button&quot;&gt;打开详情&lt;/button&gt;&lt;/header&gt;
+                &lt;div class=&quot;sbm02-detail-body&quot; aria-live=&quot;polite&quot;&gt;
+                  &lt;div class=&quot;sbm02-detail-row&quot;&gt;&lt;span&gt;对象&lt;/span&gt;&lt;strong data-bill-detail=&quot;name&quot;&gt;星环云服务（测试）&lt;/strong&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-detail-row&quot;&gt;&lt;span&gt;类型&lt;/span&gt;&lt;strong data-bill-detail=&quot;kind&quot;&gt;发票&lt;/strong&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-detail-row&quot;&gt;&lt;span&gt;金额&lt;/span&gt;&lt;strong class=&quot;sbm02-number&quot; data-bill-detail=&quot;amount&quot;&gt;CNY 2,000.00&lt;/strong&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-detail-row&quot;&gt;&lt;span&gt;业务日期&lt;/span&gt;&lt;strong class=&quot;sbm02-number&quot; data-bill-detail=&quot;date&quot;&gt;2026-08-18&lt;/strong&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-detail-row&quot;&gt;&lt;span&gt;来源&lt;/span&gt;&lt;strong data-bill-detail=&quot;source&quot;&gt;星环云服务发票.pdf&lt;/strong&gt;&lt;/div&gt;
+                  &lt;div class=&quot;sbm02-detail-row&quot;&gt;&lt;span&gt;审计&lt;/span&gt;&lt;strong data-bill-detail=&quot;audit&quot;&gt;由 finance@qinghe.example 确认&lt;/strong&gt;&lt;/div&gt;
+                &lt;/div&gt;
+              &lt;/aside&gt;
+            &lt;/div&gt;
+          &lt;/div&gt;
+
+          &lt;section class=&quot;sbm02-panel&quot; data-state-only=&quot;loading&quot; hidden aria-live=&quot;polite&quot;&gt;&lt;div class=&quot;sbm02-table-loading&quot;&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;div class=&quot;sbm02-skeleton-line&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;
+          &lt;section class=&quot;sbm02-panel&quot; data-state-only=&quot;empty&quot; hidden&gt;&lt;div class=&quot;sbm02-empty-state&quot;&gt;&lt;div class=&quot;sbm02-state-content&quot;&gt;&lt;span class=&quot;sbm02-state-icon&quot;&gt;&lt;i data-lucide=&quot;receipt-text&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;h5 class=&quot;sbm02-state-title&quot;&gt;还没有正式账单&lt;/h5&gt;&lt;p class=&quot;sbm02-state-note&quot;&gt;完成第一条审核后，确认的支付或发票会出现在这里。&lt;/p&gt;&lt;button class=&quot;sbm02-action sbm02-action-primary&quot; type=&quot;button&quot;&gt;前往 AI 收件箱&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;
+          &lt;section class=&quot;sbm02-panel&quot; data-state-only=&quot;denied&quot; hidden&gt;&lt;div class=&quot;sbm02-permission-state&quot;&gt;&lt;div class=&quot;sbm02-state-content&quot;&gt;&lt;span class=&quot;sbm02-state-icon&quot;&gt;&lt;i data-lucide=&quot;shield-x&quot; aria-hidden=&quot;true&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;h5 class=&quot;sbm02-state-title&quot;&gt;无权查看账单&lt;/h5&gt;&lt;p class=&quot;sbm02-state-note&quot;&gt;你的账户可以处理收件箱任务，但没有“财务数据：读取”权限。&lt;/p&gt;&lt;button class=&quot;sbm02-action&quot; type=&quot;button&quot;&gt;返回工作台&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;&lt;/section&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+  &lt;/main&gt;
+
+  &lt;script data-sbm02-inline-icons&gt;
+    (() =&gt; {
+      const iconNodes = {&quot;arrow-left&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;m12 19-7-7 7-7&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M19 12H5&quot;}]],&quot;bell&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M10.268 21a2 2 0 0 0 3.464 0&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326&quot;}]],&quot;bot&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M12 8V4H8&quot;}],[&quot;rect&quot;,{&quot;width&quot;:&quot;16&quot;,&quot;height&quot;:&quot;12&quot;,&quot;x&quot;:&quot;4&quot;,&quot;y&quot;:&quot;8&quot;,&quot;rx&quot;:&quot;2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M2 14h2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M20 14h2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M15 13v2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M9 13v2&quot;}]],&quot;circle-check-big&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M21.801 10A10 10 0 1 1 17 3.335&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m9 11 3 3L22 4&quot;}]],&quot;circle-help&quot;:[[&quot;circle&quot;,{&quot;cx&quot;:&quot;12&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;10&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 17h.01&quot;}]],&quot;circle-user-round&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M17.925 20.056a6 6 0 0 0-11.851.001&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;12&quot;,&quot;cy&quot;:&quot;11&quot;,&quot;r&quot;:&quot;4&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;12&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;10&quot;}]],&quot;circle-x&quot;:[[&quot;circle&quot;,{&quot;cx&quot;:&quot;12&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;10&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m15 9-6 6&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m9 9 6 6&quot;}]],&quot;clock-3&quot;:[[&quot;circle&quot;,{&quot;cx&quot;:&quot;12&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;10&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 6v6h4&quot;}]],&quot;columns-3&quot;:[[&quot;rect&quot;,{&quot;width&quot;:&quot;18&quot;,&quot;height&quot;:&quot;18&quot;,&quot;x&quot;:&quot;3&quot;,&quot;y&quot;:&quot;3&quot;,&quot;rx&quot;:&quot;2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M9 3v18&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M15 3v18&quot;}]],&quot;file-minus&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M14 2v5a1 1 0 0 0 1 1h5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M9 15h6&quot;}]],&quot;file-text&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M14 2v5a1 1 0 0 0 1 1h5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M10 9H8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M16 13H8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M16 17H8&quot;}]],&quot;file-warning&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 9v4&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 17h.01&quot;}]],&quot;file-x&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M14 2v5a1 1 0 0 0 1 1h5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m14.5 12.5-5 5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m9.5 12.5 5 5&quot;}]],&quot;image&quot;:[[&quot;rect&quot;,{&quot;width&quot;:&quot;18&quot;,&quot;height&quot;:&quot;18&quot;,&quot;x&quot;:&quot;3&quot;,&quot;y&quot;:&quot;3&quot;,&quot;rx&quot;:&quot;2&quot;,&quot;ry&quot;:&quot;2&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;9&quot;,&quot;cy&quot;:&quot;9&quot;,&quot;r&quot;:&quot;2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21&quot;}]],&quot;inbox&quot;:[[&quot;polyline&quot;,{&quot;points&quot;:&quot;22 12 16 12 14 15 10 15 8 12 2 12&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z&quot;}]],&quot;list-checks&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M13 5h8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M13 12h8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M13 19h8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m3 17 2 2 4-4&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m3 7 2 2 4-4&quot;}]],&quot;loader-circle&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M21 12a9 9 0 1 1-6.219-8.56&quot;}]],&quot;more-horizontal&quot;:[[&quot;circle&quot;,{&quot;cx&quot;:&quot;12&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;1&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;19&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;1&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;5&quot;,&quot;cy&quot;:&quot;12&quot;,&quot;r&quot;:&quot;1&quot;}]],&quot;octagon-x&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;m15 9-6 6&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m9 9 6 6&quot;}]],&quot;plus&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M5 12h14&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 5v14&quot;}]],&quot;receipt-text&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M13 16H8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M14 8H8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M16 12H8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z&quot;}]],&quot;refresh-cw&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M21 3v5h-5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M8 16H3v5&quot;}]],&quot;scan-line&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M3 7V5a2 2 0 0 1 2-2h2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M17 3h2a2 2 0 0 1 2 2v2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M21 17v2a2 2 0 0 1-2 2h-2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M7 21H5a2 2 0 0 1-2-2v-2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M7 12h10&quot;}]],&quot;search&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;m21 21-4.34-4.34&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;11&quot;,&quot;cy&quot;:&quot;11&quot;,&quot;r&quot;:&quot;8&quot;}]],&quot;server-off&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M7 2h13a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M10 10 2.5 2.5C2 2 2 2.5 2 5v3a2 2 0 0 0 2 2h6z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M22 17v-1a2 2 0 0 0-2-2h-1&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M4 14a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16.5l1-.5.5.5-8-8H4z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M6 18h.01&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m2 2 20 20&quot;}]],&quot;shield-check&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m9 12 2 2 4-4&quot;}]],&quot;shield-x&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m14.5 9.5-5 5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m9.5 9.5 5 5&quot;}]],&quot;sparkles&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M20 2v4&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M22 4h-4&quot;}],[&quot;circle&quot;,{&quot;cx&quot;:&quot;4&quot;,&quot;cy&quot;:&quot;20&quot;,&quot;r&quot;:&quot;2&quot;}]],&quot;triangle-alert&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 9v4&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M12 17h.01&quot;}]],&quot;upload&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M12 3v12&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m17 8-5-5-5 5&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4&quot;}]],&quot;wallet-cards&quot;:[[&quot;rect&quot;,{&quot;width&quot;:&quot;18&quot;,&quot;height&quot;:&quot;18&quot;,&quot;x&quot;:&quot;3&quot;,&quot;y&quot;:&quot;3&quot;,&quot;rx&quot;:&quot;2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M3 11h3c.8 0 1.6.3 2.1.9l1.1.9c1.6 1.6 4.1 1.6 5.7 0l1.1-.9c.5-.5 1.3-.9 2.1-.9H21&quot;}]],&quot;wifi-off&quot;:[[&quot;path&quot;,{&quot;d&quot;:&quot;M12 20h.01&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M8.5 16.429a5 5 0 0 1 7 0&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M5 12.859a10 10 0 0 1 5.17-2.69&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M19 12.859a10 10 0 0 0-2.007-1.523&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M2 8.82a15 15 0 0 1 4.177-2.643&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;M22 8.82a15 15 0 0 0-11.288-3.764&quot;}],[&quot;path&quot;,{&quot;d&quot;:&quot;m2 2 20 20&quot;}]]};
+      const root = document.getElementById(&quot;sbm02-four-pages&quot;);
+      if (!root) return;
+      const namespace = &quot;http://www.w3.org/2000/svg&quot;;
+      const createNode = ([tag, attributes, children = []]) =&gt; {
+        const node = document.createElementNS(namespace, tag);
+        Object.entries(attributes).forEach(([name, value]) =&gt; node.setAttribute(name, String(value)));
+        children.forEach((child) =&gt; node.appendChild(createNode(child)));
+        return node;
+      };
+      root.querySelectorAll(&quot;i[data-lucide]&quot;).forEach((placeholder) =&gt; {
+        const name = placeholder.dataset.lucide;
+        const nodes = iconNodes[name];
+        if (!nodes) return;
+        const svg = document.createElementNS(namespace, &quot;svg&quot;);
+        const attributes = {
+          width: 16,
+          height: 16,
+          viewBox: &quot;0 0 24 24&quot;,
+          fill: &quot;none&quot;,
+          stroke: &quot;currentColor&quot;,
+          &quot;stroke-width&quot;: 2,
+          &quot;stroke-linecap&quot;: &quot;round&quot;,
+          &quot;stroke-linejoin&quot;: &quot;round&quot;,
+          &quot;aria-hidden&quot;: &quot;true&quot;,
+          focusable: &quot;false&quot;
+        };
+        Object.entries(attributes).forEach(([key, value]) =&gt; svg.setAttribute(key, String(value)));
+        svg.setAttribute(&quot;class&quot;, `lucide lucide-${name}`);
+        nodes.forEach((node) =&gt; svg.appendChild(createNode(node)));
+        placeholder.replaceWith(svg);
+      });
+    })();
+  &lt;/script&gt;
+
+  &lt;script&gt;
+    (() =&gt; {
+      const root = document.getElementById(&#x27;sbm02-four-pages&#x27;);
+      if (!root) return;
+
+      const themeButton = root.querySelector(&#x27;[data-theme-cycle]&#x27;);
+      const themeModes = [&#x27;auto&#x27;, &#x27;dark&#x27;, &#x27;light&#x27;];
+      let themeIndex = 0;
+      const themeLabels = {
+        auto: &#x27;外观：跟随系统&#x27;,
+        dark: &#x27;外观：深色&#x27;,
+        light: &#x27;外观：浅色&#x27;
+      };
+
+      if (themeButton) {
+        themeButton.addEventListener(&#x27;click&#x27;, () =&gt; {
+          themeIndex = (themeIndex + 1) % themeModes.length;
+          const mode = themeModes[themeIndex];
+          if (mode === &#x27;auto&#x27;) delete root.dataset.previewTheme;
+          else root.dataset.previewTheme = mode;
+          themeButton.textContent = themeLabels[mode];
+        });
+      }
+
+      const setScenario = (page, state) =&gt; {
+        const pageWindow = root.querySelector(`[data-page-window=&quot;${page}&quot;]`);
+        if (!pageWindow) return;
+        pageWindow.dataset.state = state;
+        root.querySelectorAll(`[data-scenario-page=&quot;${page}&quot;]`).forEach((button) =&gt; {
+          button.setAttribute(&#x27;aria-pressed&#x27;, String(button.dataset.scenarioState === state));
+        });
+
+        pageWindow.querySelectorAll(&#x27;[data-state-only]&#x27;).forEach((view) =&gt; {
+          view.hidden = view.dataset.stateOnly !== state;
+        });
+
+        if (page === &#x27;login&#x27;) {
+          const error = pageWindow.querySelector(&#x27;[data-login-error]&#x27;);
+          const denied = pageWindow.querySelector(&#x27;[data-login-denied]&#x27;);
+          const email = pageWindow.querySelector(&#x27;[data-login-email]&#x27;);
+          const password = pageWindow.querySelector(&#x27;[data-login-password]&#x27;);
+          const submit = pageWindow.querySelector(&#x27;[data-login-submit]&#x27;);
+          if (error) error.hidden = state !== &#x27;error&#x27;;
+          if (denied) denied.hidden = state !== &#x27;denied&#x27;;
+          if (email) email.setAttribute(&#x27;aria-invalid&#x27;, String(state === &#x27;error&#x27;));
+          if (password) password.setAttribute(&#x27;aria-invalid&#x27;, String(state === &#x27;error&#x27;));
+          if (submit) {
+            submit.disabled = state === &#x27;loading&#x27; || state === &#x27;denied&#x27;;
+            submit.textContent = state === &#x27;loading&#x27; ? &#x27;正在验证…&#x27; : &#x27;登录&#x27;;
+          }
+        }
+
+        if (page === &#x27;review&#x27;) {
+          const normal = pageWindow.querySelector(&#x27;[data-review-content=&quot;normal&quot;]&#x27;);
+          const loading = pageWindow.querySelector(&#x27;[data-review-content=&quot;loading&quot;]&#x27;);
+          const status = pageWindow.querySelector(&#x27;[data-review-status] span&#x27;);
+          const confirm = pageWindow.querySelector(&#x27;[data-review-confirm]&#x27;);
+          const summary = pageWindow.querySelector(&#x27;[data-review-summary]&#x27;);
+          let linkChoice = pageWindow.querySelector(&#x27;input[name=&quot;sbm02-link-choice&quot;]:checked&#x27;)?.value;
+          if (state === &#x27;completed&#x27; &amp;&amp; !linkChoice) {
+            const accepted = pageWindow.querySelector(&#x27;input[name=&quot;sbm02-link-choice&quot;][value=&quot;accept&quot;]&#x27;);
+            if (accepted) accepted.checked = true;
+            linkChoice = &#x27;accept&#x27;;
+          }
+          const reviewStep = pageWindow.querySelector(&#x27;[data-review-step=&quot;review&quot;]&#x27;);
+          const factStep = pageWindow.querySelector(&#x27;[data-review-step=&quot;fact&quot;]&#x27;);
+          pageWindow.querySelectorAll(&#x27;[data-review-banner]&#x27;).forEach((banner) =&gt; {
+            banner.hidden = banner.dataset.reviewBanner !== state;
+          });
+          if (normal) normal.hidden = state === &#x27;loading&#x27;;
+          if (loading) loading.hidden = state !== &#x27;loading&#x27;;
+          if (status) status.textContent = state === &#x27;completed&#x27; ? &#x27;审核通过&#x27; : state === &#x27;blocked&#x27; ? &#x27;已阻断&#x27; : state === &#x27;stale&#x27; ? &#x27;版本冲突&#x27; : state === &#x27;loading&#x27; ? &#x27;加载中&#x27; : &#x27;待审核&#x27;;
+          if (confirm) {
+            confirm.disabled = state === &#x27;blocked&#x27; || state === &#x27;loading&#x27; || state === &#x27;completed&#x27; || (state === &#x27;default&#x27; &amp;&amp; !linkChoice);
+            confirm.textContent = state === &#x27;blocked&#x27; ? &#x27;解决阻断项后确认&#x27; : state === &#x27;stale&#x27; ? &#x27;重新加载最新版本&#x27; : state === &#x27;completed&#x27; ? &#x27;已生成事实&#x27; : state === &#x27;loading&#x27; ? &#x27;正在加载…&#x27; : !linkChoice ? &#x27;请选择关联结果&#x27; : &#x27;确认并生成事实&#x27;;
+          }
+          if (summary) summary.innerHTML = state === &#x27;blocked&#x27; ? &#x27;&lt;strong&gt;审核结果：&lt;/strong&gt;1 个金额错误阻断提交&#x27; : state === &#x27;stale&#x27; ? &#x27;&lt;strong&gt;审核结果：&lt;/strong&gt;当前修改尚未提交，请先同步版本&#x27; : state === &#x27;completed&#x27; ? linkChoice === &#x27;reject&#x27; ? &#x27;&lt;strong&gt;审核结果：&lt;/strong&gt;发票事实已创建，候选关联已拒绝&#x27; : &#x27;&lt;strong&gt;审核结果：&lt;/strong&gt;发票事实与关联记录已创建&#x27; : linkChoice ? &#x27;&lt;strong&gt;审核结果：&lt;/strong&gt;7 个字段通过，关联结果已选择&#x27; : &#x27;&lt;strong&gt;审核结果：&lt;/strong&gt;7 个字段通过，1 个名称差异和关联选择需要确认&#x27;;
+          if (reviewStep &amp;&amp; factStep) {
+            reviewStep.className = `sbm02-review-step ${state === &#x27;completed&#x27; ? &#x27;sbm02-review-step-done&#x27; : &#x27;sbm02-review-step-current&#x27;}`;
+            reviewStep.querySelector(&#x27;.sbm02-review-step-index&#x27;).textContent = state === &#x27;completed&#x27; ? &#x27;✓&#x27; : &#x27;3&#x27;;
+            factStep.className = `sbm02-review-step ${state === &#x27;completed&#x27; ? &#x27;sbm02-review-step-done&#x27; : &#x27;&#x27;}`;
+            factStep.querySelector(&#x27;.sbm02-review-step-index&#x27;).textContent = state === &#x27;completed&#x27; ? &#x27;✓&#x27; : &#x27;4&#x27;;
+          }
+        }
+      };
+
+      root.querySelectorAll(&#x27;[data-scenario-page]&#x27;).forEach((button) =&gt; {
+        button.addEventListener(&#x27;click&#x27;, () =&gt; setScenario(button.dataset.scenarioPage, button.dataset.scenarioState));
+      });
+
+      const reviewWindow = root.querySelector(&#x27;[data-page-window=&quot;review&quot;]&#x27;);
+      if (reviewWindow) {
+        reviewWindow.querySelectorAll(&#x27;.sbm02-review-tab&#x27;).forEach((tab) =&gt; {
+          tab.addEventListener(&#x27;click&#x27;, () =&gt; {
+            reviewWindow.querySelectorAll(&#x27;.sbm02-review-tab&#x27;).forEach((button) =&gt; button.setAttribute(&#x27;aria-pressed&#x27;, String(button === tab)));
+          });
+        });
+        reviewWindow.querySelectorAll(&#x27;[data-review-field]&#x27;).forEach((field) =&gt; {
+          field.addEventListener(&#x27;click&#x27;, () =&gt; {
+            const key = field.dataset.reviewField;
+            reviewWindow.querySelectorAll(&#x27;[data-review-field]&#x27;).forEach((item) =&gt; item.setAttribute(&#x27;aria-pressed&#x27;, String(item === field)));
+            reviewWindow.querySelectorAll(&#x27;[data-review-evidence]&#x27;).forEach((evidence) =&gt; evidence.classList.remove(&#x27;sbm02-paper-evidence-active&#x27;));
+            const evidence = reviewWindow.querySelector(`[data-review-evidence=&quot;${key}&quot;]`);
+            if (evidence) evidence.classList.add(&#x27;sbm02-paper-evidence-active&#x27;);
+          });
+        });
+        reviewWindow.querySelectorAll(&#x27;input[name=&quot;sbm02-link-choice&quot;]&#x27;).forEach((choice) =&gt; {
+          choice.addEventListener(&#x27;change&#x27;, () =&gt; setScenario(&#x27;review&#x27;, reviewWindow.dataset.state));
+        });
+        const confirm = reviewWindow.querySelector(&#x27;[data-review-confirm]&#x27;);
+        if (confirm) confirm.addEventListener(&#x27;click&#x27;, () =&gt; {
+          if (reviewWindow.dataset.state === &#x27;stale&#x27;) setScenario(&#x27;review&#x27;, &#x27;default&#x27;);
+          else setScenario(&#x27;review&#x27;, &#x27;completed&#x27;);
+        });
+      }
+
+      const inboxWindow = root.querySelector(&#x27;[data-page-window=&quot;inbox&quot;]&#x27;);
+      if (inboxWindow) {
+        inboxWindow.querySelectorAll(&#x27;[data-inbox-filter]&#x27;).forEach((filter) =&gt; {
+          filter.addEventListener(&#x27;click&#x27;, () =&gt; {
+            const value = filter.dataset.inboxFilter;
+            inboxWindow.querySelectorAll(&#x27;[data-inbox-filter]&#x27;).forEach((button) =&gt; button.setAttribute(&#x27;aria-pressed&#x27;, String(button === filter)));
+            inboxWindow.querySelectorAll(&#x27;[data-inbox-row-status]&#x27;).forEach((row) =&gt; {
+              row.hidden = value !== &#x27;all&#x27; &amp;&amp; row.dataset.inboxRowStatus !== value;
+            });
+          });
+        });
+        const upload = inboxWindow.querySelector(&#x27;[data-inbox-upload]&#x27;);
+        if (upload) upload.addEventListener(&#x27;click&#x27;, () =&gt; setScenario(&#x27;inbox&#x27;, &#x27;processing&#x27;));
+      }
+
+      const billWindow = root.querySelector(&#x27;[data-page-window=&quot;bills&quot;]&#x27;);
+      const billDetails = {
+        &#x27;invoice-18&#x27;: { name: &#x27;星环云服务（测试）&#x27;, kind: &#x27;发票&#x27;, amount: &#x27;CNY 2,000.00&#x27;, date: &#x27;2026-08-18&#x27;, source: &#x27;星环云服务发票.pdf&#x27;, audit: &#x27;由 finance@qinghe.example 确认&#x27; },
+        &#x27;payment-42&#x27;: { name: &#x27;星环科技（测试）&#x27;, kind: &#x27;支付&#x27;, amount: &#x27;CNY 2,000.00&#x27;, date: &#x27;2026-08-18&#x27;, source: &#x27;企业卡流水截图.png&#x27;, audit: &#x27;由 finance@qinghe.example 确认&#x27; },
+        &#x27;invoice-17&#x27;: { name: &#x27;青岚出行（测试）&#x27;, kind: &#x27;发票&#x27;, amount: &#x27;CNY 486.00&#x27;, date: &#x27;2026-08-16&#x27;, source: &#x27;青岚出行电子发票.pdf&#x27;, audit: &#x27;由 owner@qinghe.example 确认&#x27; },
+        &#x27;payment-41&#x27;: { name: &#x27;云栖酒店（测试）&#x27;, kind: &#x27;支付&#x27;, amount: &#x27;CNY 1,268.00&#x27;, date: &#x27;2026-08-14&#x27;, source: &#x27;企业卡流水截图.png&#x27;, audit: &#x27;由 finance@qinghe.example 确认&#x27; }
+      };
+
+      if (billWindow) {
+        billWindow.querySelectorAll(&#x27;[data-bill-tab]&#x27;).forEach((tab) =&gt; {
+          tab.addEventListener(&#x27;click&#x27;, () =&gt; {
+            const kind = tab.dataset.billTab;
+            billWindow.querySelectorAll(&#x27;[data-bill-tab]&#x27;).forEach((button) =&gt; button.setAttribute(&#x27;aria-pressed&#x27;, String(button === tab)));
+            billWindow.querySelectorAll(&#x27;[data-bill-kind]&#x27;).forEach((row) =&gt; {
+              row.hidden = kind !== &#x27;all&#x27; &amp;&amp; row.dataset.billKind !== kind;
+            });
+          });
+        });
+
+        billWindow.querySelectorAll(&#x27;[data-select-bill]&#x27;).forEach((button) =&gt; {
+          button.addEventListener(&#x27;click&#x27;, () =&gt; {
+            const id = button.dataset.selectBill;
+            const detail = billDetails[id];
+            if (!detail) return;
+            billWindow.querySelectorAll(&#x27;[data-bill-id]&#x27;).forEach((row) =&gt; row.dataset.selected = String(row.dataset.billId === id));
+            Object.entries(detail).forEach(([key, value]) =&gt; {
+              const target = billWindow.querySelector(`[data-bill-detail=&quot;${key}&quot;]`);
+              if (target) target.textContent = value;
+            });
+          });
+        });
+      }
+
+      const loginSubmit = root.querySelector(&#x27;[data-login-submit]&#x27;);
+      if (loginSubmit) {
+        loginSubmit.addEventListener(&#x27;click&#x27;, () =&gt; {
+          setScenario(&#x27;login&#x27;, &#x27;loading&#x27;);
+          setTimeout(() =&gt; setScenario(&#x27;login&#x27;, &#x27;error&#x27;), 650);
+        });
+      }
+    })();
+  &lt;/script&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+<script>
+window.addEventListener("load", () => {
+  const checkScript = document.createElement("script");
+  checkScript.src = "./m0-browser-check.js";
+  checkScript.dataset.m0Evidence = "browser-check";
+  document.head.append(checkScript);
+}, { once: true });
+</script>
+</body>
+</html>

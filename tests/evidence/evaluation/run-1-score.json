@@ -1,0 +1,352 @@
+{
+  "report_kind": "m1-model-evaluation-single-run-score",
+  "dataset_version": "m1-synthetic-v2",
+  "dataset_manifest_sha256": "08ce3ea739eaa482ba8410ccf71b9f3f1806bbf613d0c960549ae9110566c91d",
+  "scoring_protocol": "m1-evaluation-score/1",
+  "counts_toward_release_runs": true,
+  "release_gate_complete": false,
+  "completed_release_runs": 1,
+  "required_release_runs": 3,
+  "thresholds": {
+    "schema_valid_rate": 100,
+    "classification_accuracy": 97,
+    "amount_exact_rate": 98,
+    "invoice_number_exact_rate": 95,
+    "date_normalization_exact_rate": 95,
+    "name_normalization_exact_rate": 90,
+    "critical_evidence_coverage": 100,
+    "missing_conflict_recall": 100,
+    "manifest_assertion_rate": 100
+  },
+  "passed": false,
+  "failed_gates": [
+    {
+      "metric": "classification_accuracy",
+      "actual_percentage": 90.59,
+      "required_percentage": 97,
+      "failed_sample_ids": [
+        "INV-043",
+        "INV-060",
+        "INV-071",
+        "INV-072",
+        "INV-073",
+        "INV-075",
+        "INV-079",
+        "PAY-017"
+      ]
+    },
+    {
+      "metric": "amount_exact_rate",
+      "actual_percentage": 93.85,
+      "required_percentage": 98,
+      "failed_sample_ids": [
+        "INV-043",
+        "INV-060",
+        "INV-079",
+        "PAY-017"
+      ]
+    },
+    {
+      "metric": "invoice_number_exact_rate",
+      "actual_percentage": 82.5,
+      "required_percentage": 95,
+      "failed_sample_ids": [
+        "INV-043",
+        "INV-060",
+        "INV-071",
+        "INV-072",
+        "INV-073",
+        "INV-075",
+        "INV-079"
+      ]
+    },
+    {
+      "metric": "date_normalization_exact_rate",
+      "actual_percentage": 85,
+      "required_percentage": 95,
+      "failed_sample_ids": [
+        "INV-043",
+        "INV-060",
+        "INV-071",
+        "INV-072",
+        "INV-073",
+        "INV-075",
+        "INV-079",
+        "PAY-017",
+        "PAY-033",
+        "PAY-034",
+        "PAY-035",
+        "PAY-036"
+      ]
+    },
+    {
+      "metric": "name_normalization_exact_rate",
+      "actual_percentage": 85.83,
+      "required_percentage": 90,
+      "failed_sample_ids": [
+        "INV-043",
+        "INV-060",
+        "INV-071",
+        "INV-072",
+        "INV-073",
+        "INV-075",
+        "INV-079",
+        "PAY-017",
+        "PAY-034",
+        "PAY-035"
+      ]
+    },
+    {
+      "metric": "critical_evidence_coverage",
+      "actual_percentage": 85.21,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "INV-041",
+        "INV-042",
+        "INV-044",
+        "INV-045",
+        "INV-046",
+        "INV-047",
+        "INV-049",
+        "INV-050",
+        "INV-051",
+        "INV-054",
+        "INV-055",
+        "INV-057",
+        "INV-058",
+        "INV-059",
+        "INV-062",
+        "INV-063",
+        "INV-065",
+        "INV-066",
+        "INV-067",
+        "INV-069",
+        "INV-070",
+        "INV-077",
+        "INV-078",
+        "PAY-001",
+        "PAY-002",
+        "PAY-003",
+        "PAY-005",
+        "PAY-006",
+        "PAY-007",
+        "PAY-010",
+        "PAY-011",
+        "PAY-013",
+        "PAY-014",
+        "PAY-015",
+        "PAY-018",
+        "PAY-019",
+        "PAY-022",
+        "PAY-023",
+        "PAY-025",
+        "PAY-026",
+        "PAY-027",
+        "PAY-029",
+        "PAY-030",
+        "PAY-033",
+        "PAY-034",
+        "PAY-035",
+        "PAY-036"
+      ]
+    },
+    {
+      "metric": "manifest_assertion_rate",
+      "actual_percentage": 96.55,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "INV-043",
+        "INV-060",
+        "INV-068",
+        "INV-071",
+        "INV-072",
+        "INV-073",
+        "INV-075",
+        "INV-076",
+        "INV-079",
+        "PAY-017"
+      ]
+    }
+  ],
+  "run": {
+    "run_id": "run-1",
+    "frozen_configuration": {
+      "provider_config_safe_fingerprint": "46fd3ac187528ce3b5a512ff4dedb1eff42e8e80a5bd11255b45e24f1e4436ce",
+      "provider_base_url_host": "api.shuaiapi.com",
+      "model": "qwen3.8-flash",
+      "prompt_version": "document-extract/4",
+      "schema_version": "document-claim/1",
+      "provider_schema_version": "document-claim-provider/2",
+      "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+      "input_processing_version": "document-normalize/1",
+      "provider_output_retry_policy": "schema_validation_single_retry/1",
+      "connection_timeout_seconds": 10,
+      "model_timeout_seconds": 60,
+      "job_timeout_seconds": 150,
+      "temperature": "provider_default_not_configurable",
+      "seed": "provider_not_supported"
+    },
+    "ai_direct_fact_count": 0,
+    "metrics": {
+      "schema_valid_rate": {
+        "numerator": 77,
+        "denominator": 77,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "classification_accuracy": {
+        "numerator": 77,
+        "denominator": 85,
+        "percentage": 90.59,
+        "failed_sample_ids": [
+          "INV-043",
+          "INV-060",
+          "INV-071",
+          "INV-072",
+          "INV-073",
+          "INV-075",
+          "INV-079",
+          "PAY-017"
+        ]
+      },
+      "amount_exact_rate": {
+        "numerator": 61,
+        "denominator": 65,
+        "percentage": 93.85,
+        "failed_sample_ids": [
+          "INV-043",
+          "INV-060",
+          "INV-079",
+          "PAY-017"
+        ]
+      },
+      "invoice_number_exact_rate": {
+        "numerator": 33,
+        "denominator": 40,
+        "percentage": 82.5,
+        "failed_sample_ids": [
+          "INV-043",
+          "INV-060",
+          "INV-071",
+          "INV-072",
+          "INV-073",
+          "INV-075",
+          "INV-079"
+        ]
+      },
+      "date_normalization_exact_rate": {
+        "numerator": 68,
+        "denominator": 80,
+        "percentage": 85,
+        "failed_sample_ids": [
+          "INV-043",
+          "INV-060",
+          "INV-071",
+          "INV-072",
+          "INV-073",
+          "INV-075",
+          "INV-079",
+          "PAY-017",
+          "PAY-033",
+          "PAY-034",
+          "PAY-035",
+          "PAY-036"
+        ]
+      },
+      "name_normalization_exact_rate": {
+        "numerator": 103,
+        "denominator": 120,
+        "percentage": 85.83,
+        "failed_sample_ids": [
+          "INV-043",
+          "INV-060",
+          "INV-071",
+          "INV-072",
+          "INV-073",
+          "INV-075",
+          "INV-079",
+          "PAY-017",
+          "PAY-034",
+          "PAY-035"
+        ]
+      },
+      "critical_evidence_coverage": {
+        "numerator": 288,
+        "denominator": 338,
+        "percentage": 85.21,
+        "failed_sample_ids": [
+          "INV-041",
+          "INV-042",
+          "INV-044",
+          "INV-045",
+          "INV-046",
+          "INV-047",
+          "INV-049",
+          "INV-050",
+          "INV-051",
+          "INV-054",
+          "INV-055",
+          "INV-057",
+          "INV-058",
+          "INV-059",
+          "INV-062",
+          "INV-063",
+          "INV-065",
+          "INV-066",
+          "INV-067",
+          "INV-069",
+          "INV-070",
+          "INV-077",
+          "INV-078",
+          "PAY-001",
+          "PAY-002",
+          "PAY-003",
+          "PAY-005",
+          "PAY-006",
+          "PAY-007",
+          "PAY-010",
+          "PAY-011",
+          "PAY-013",
+          "PAY-014",
+          "PAY-015",
+          "PAY-018",
+          "PAY-019",
+          "PAY-022",
+          "PAY-023",
+          "PAY-025",
+          "PAY-026",
+          "PAY-027",
+          "PAY-029",
+          "PAY-030",
+          "PAY-033",
+          "PAY-034",
+          "PAY-035",
+          "PAY-036"
+        ]
+      },
+      "missing_conflict_recall": {
+        "numerator": 15,
+        "denominator": 15,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "manifest_assertion_rate": {
+        "numerator": 280,
+        "denominator": 290,
+        "percentage": 96.55,
+        "failed_sample_ids": [
+          "INV-043",
+          "INV-060",
+          "INV-068",
+          "INV-071",
+          "INV-072",
+          "INV-073",
+          "INV-075",
+          "INV-076",
+          "INV-079",
+          "PAY-017"
+        ]
+      }
+    }
+  }
+}

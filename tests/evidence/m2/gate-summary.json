@@ -1,0 +1,99 @@
+{
+  "report_kind": "m2-first-slice-gate-summary",
+  "evidence_version": "M2-ALLOCATION-SLICE-2026-08-30",
+  "recorded_date": "2026-08-30",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2",
+    "recorded_from_uncommitted_worktree": true,
+    "local_checkpoint_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "in_progress",
+    "payment_invoice_allocation_first_slice": "complete",
+    "model_accuracy_gate": "deferred_to_m4_after_functional_development"
+  },
+  "contracts": {
+    "link_rule": "payment-invoice-link/2",
+    "association_modes": ["allocate_candidates", "reject_all", "no_candidate"],
+    "plan_identity": "sha256_of_canonical_candidate_order",
+    "balance_source": "active_payment_invoice_links"
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 3,
+      "passed": 10,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 10,
+      "failed": 0
+    },
+    "repository_checkpoint": {
+      "working_tree_diff_check": "passed",
+      "staged_diff_check": "passed",
+      "staged_file_count": 374,
+      "largest_staged_blob_bytes": 521163,
+      "known_credential_prefix_scan": "passed",
+      "private_asset_path_check": "passed"
+    },
+    "critical_invariant_branches": {
+      "passed": 43,
+      "total": 43,
+      "percentage": 100
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 86.7,
+      "covered": 1656,
+      "total": 1910,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 72.7,
+      "covered": 1917,
+      "total": 2637,
+      "required_percentage": 70,
+      "passed": true
+    }
+  },
+  "functional_scenarios": [
+    "one_payment_to_multiple_invoices",
+    "multiple_payments_to_one_invoice",
+    "partial_and_full_balance_projections",
+    "canonical_plan_idempotent_replay",
+    "same_key_changed_amount_conflict",
+    "invalid_duplicate_cross_tenant_and_cross_currency_allocations_rejected",
+    "aggregate_and_target_balance_overflow_without_partial_writes",
+    "duplicate_active_pair_rejected_without_partial_writes",
+    "link_amount_and_relationship_immutable_with_ended_history_retained",
+    "concurrent_last_balance_contention",
+    "fact_deletion_ends_links_and_restores_peer_balance"
+  ],
+  "excluded": {
+    "model_accuracy": "deferred_until_all_functional_development_is_complete",
+    "real_provider_calls": false,
+    "local_ocr_installed_or_used": false,
+    "standalone_reallocation_workflow_implemented": false,
+    "later_m2_slices_implemented": false
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

@@ -1,0 +1,173 @@
+{
+  "report_kind": "m1-model-tuning-preflight-score",
+  "dataset_version": "m1-prompt-dev-v1",
+  "dataset_manifest_sha256": "1bea5129832ea2e536792f7b023c1df61f4f9113ed180de66b67b7a7724d89f3",
+  "scoring_protocol": "m1-tuning-preflight-score/1",
+  "eligible_for_release_evidence": false,
+  "thresholds": {
+    "model_completion_rate": 100,
+    "claim_contract_rate": 100,
+    "schema_valid_rate": 100,
+    "classification_accuracy": 97,
+    "amount_exact_rate": 98,
+    "invoice_number_exact_rate": 95,
+    "date_normalization_exact_rate": 95,
+    "name_normalization_exact_rate": 90,
+    "critical_evidence_coverage": 100,
+    "missing_conflict_recall": 100,
+    "manifest_assertion_rate": 100
+  },
+  "passed": false,
+  "failed_gates": [
+    {
+      "metric": "model_completion_rate",
+      "actual_percentage": 93.75,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "TUNE-INV-006"
+      ]
+    },
+    {
+      "metric": "claim_contract_rate",
+      "actual_percentage": 93.75,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "TUNE-INV-006"
+      ]
+    },
+    {
+      "metric": "classification_accuracy",
+      "actual_percentage": 93.75,
+      "required_percentage": 97,
+      "failed_sample_ids": [
+        "TUNE-INV-006"
+      ]
+    },
+    {
+      "metric": "invoice_number_exact_rate",
+      "actual_percentage": 85.71,
+      "required_percentage": 95,
+      "failed_sample_ids": [
+        "TUNE-INV-006"
+      ]
+    },
+    {
+      "metric": "date_normalization_exact_rate",
+      "actual_percentage": 92.86,
+      "required_percentage": 95,
+      "failed_sample_ids": [
+        "TUNE-INV-006"
+      ]
+    },
+    {
+      "metric": "manifest_assertion_rate",
+      "actual_percentage": 98.78,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "TUNE-INV-006"
+      ]
+    }
+  ],
+  "run": {
+    "run_id": "preflight",
+    "frozen_configuration": {
+      "provider_config_safe_fingerprint": "2e1ea9b33743ad9eac65d2ff25d3f4c3e9b688345e44aebb941d25cad5609ea5",
+      "provider_base_url_host": "api.shuaiapi.com",
+      "model": "qwen3.8-flash",
+      "prompt_version": "document-extract/4",
+      "schema_version": "document-claim/1",
+      "provider_schema_version": "document-claim-provider/2",
+      "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+      "input_processing_version": "document-normalize/1",
+      "provider_output_retry_policy": "schema_validation_single_retry/1",
+      "connection_timeout_seconds": 10,
+      "model_timeout_seconds": 60,
+      "job_timeout_seconds": 150,
+      "temperature": "provider_default_not_configurable",
+      "seed": "provider_not_supported"
+    },
+    "ai_direct_fact_count": 0,
+    "metrics": {
+      "model_completion_rate": {
+        "numerator": 15,
+        "denominator": 16,
+        "percentage": 93.75,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      },
+      "claim_contract_rate": {
+        "numerator": 15,
+        "denominator": 16,
+        "percentage": 93.75,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      },
+      "schema_valid_rate": {
+        "numerator": 15,
+        "denominator": 15,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "classification_accuracy": {
+        "numerator": 15,
+        "denominator": 16,
+        "percentage": 93.75,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      },
+      "amount_exact_rate": {
+        "numerator": 11,
+        "denominator": 11,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "invoice_number_exact_rate": {
+        "numerator": 6,
+        "denominator": 7,
+        "percentage": 85.71,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      },
+      "date_normalization_exact_rate": {
+        "numerator": 13,
+        "denominator": 14,
+        "percentage": 92.86,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      },
+      "name_normalization_exact_rate": {
+        "numerator": 20,
+        "denominator": 22,
+        "percentage": 90.91,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      },
+      "critical_evidence_coverage": {
+        "numerator": 63,
+        "denominator": 63,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "missing_conflict_recall": {
+        "numerator": 4,
+        "denominator": 4,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "manifest_assertion_rate": {
+        "numerator": 81,
+        "denominator": 82,
+        "percentage": 98.78,
+        "failed_sample_ids": [
+          "TUNE-INV-006"
+        ]
+      }
+    }
+  }
+}

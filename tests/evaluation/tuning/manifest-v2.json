@@ -1,0 +1,1472 @@
+{
+  "created_at": "2026-08-29T00:00:00Z",
+  "dataset_version": "m1-prompt-dev-v2",
+  "excluded_from_release_evidence": true,
+  "generator": "tests/evaluation/tuning/generator/generate_v2.py",
+  "generator_dependencies": {
+    "v1_generator_sha256": "60f4af2c61024068ed4799537ccc10f48ae6ae1ca55805a6d2dcab7d1375f3fb",
+    "v1_manifest_sha256": "1bea5129832ea2e536792f7b023c1df61f4f9113ed180de66b67b7a7724d89f3"
+  },
+  "generator_runtime": {
+    "font": "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "font_sha256": "a54dca07c76d6289e717e75e0a58c0128f6d7269ef3faf76417c9d7d3bba37ab",
+    "pillow": "12.3.0",
+    "python": "3.12.13"
+  },
+  "intended_use": "prompt_provider_contract_tuning_only",
+  "render_profile": {
+    "body_font_px": 10,
+    "header_font_px": 11,
+    "height": 400,
+    "low_contrast_assets": 5,
+    "width": 600
+  },
+  "samples": [
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Literal Dot Market",
+          "LITERAL DOT MARKET",
+          "  Literal Dot Market  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 9.07"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Literal Dot Market"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "LIT-PAY-09-001"
+        },
+        "payment_method": {
+          "page": 1,
+          "quote": "Test Card 2048"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "America/Chicago"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-09-11T07:08:09-05:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 907,
+        "currency": "USD",
+        "merchant": "Literal Dot Market",
+        "order_number": "LIT-PAY-09-001",
+        "payment_method": "Test Card 2048",
+        "source_timezone": "America/Chicago",
+        "transaction_time": "2026-09-11T07:08:09-05:00"
+      },
+      "expected_missing_fields": [
+        "category"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-pay-001.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-pay-001.png",
+      "sample_id": "TUNE2-PAY-001",
+      "scenario_tags": [
+        "payment_screenshot",
+        "compact_bitmap",
+        "literal_evidence",
+        "dot_decimal"
+      ],
+      "sha256": "783126b41f54824e97674eb78c126715f92aee23d7f7a9df7302a8837238c2b7"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Comma Proof Studio",
+          "COMMA PROOF STUDIO",
+          "  Comma Proof Studio  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 8.765,43"
+        },
+        "category": {
+          "page": 1,
+          "quote": "Design-Lab"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Comma Proof Studio"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Europe/Paris"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-09-12T18:03:04+02:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 876543,
+        "category": "Design-Lab",
+        "currency": "EUR",
+        "merchant": "Comma Proof Studio",
+        "source_timezone": "Europe/Paris",
+        "transaction_time": "2026-09-12T18:03:04+02:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "order_number"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-pay-002.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-pay-002.png",
+      "sample_id": "TUNE2-PAY-002",
+      "scenario_tags": [
+        "payment_screenshot",
+        "compact_bitmap",
+        "literal_evidence",
+        "comma_decimal"
+      ],
+      "sha256": "0214ec2a040c25c20e29179111903af7c91fdf73936908c6dd4faedd26dc848a"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Low-Contrast Corner",
+          "LOW-CONTRAST CORNER",
+          "  Low-Contrast Corner  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 12.34"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Low-Contrast Corner"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "LC-03-A7"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-09-13T06:05:04+08:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 1234,
+        "currency": "CNY",
+        "merchant": "Low-Contrast Corner",
+        "order_number": "LC-03-A7",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-09-13T06:05:04+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-pay-003.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-pay-003.png",
+      "sample_id": "TUNE2-PAY-003",
+      "scenario_tags": [
+        "payment_screenshot",
+        "compact_bitmap",
+        "literal_evidence",
+        "low_contrast"
+      ],
+      "sha256": "05722c9c5e9fbefb4ca20039b6688eab3447a1994f3c0c680c7456030171be32"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Zero Yen Kiosk",
+          "ZERO YEN KIOSK",
+          "  Zero Yen Kiosk  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 4070"
+        },
+        "category": {
+          "page": 1,
+          "quote": "Transit"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Zero Yen Kiosk"
+        },
+        "payment_method": {
+          "page": 1,
+          "quote": "Synthetic Cash"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Tokyo"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-09-14T00:01:02+09:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 4070,
+        "category": "Transit",
+        "currency": "JPY",
+        "merchant": "Zero Yen Kiosk",
+        "payment_method": "Synthetic Cash",
+        "source_timezone": "Asia/Tokyo",
+        "transaction_time": "2026-09-14T00:01:02+09:00"
+      },
+      "expected_missing_fields": [
+        "order_number"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-pay-004.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-pay-004.png",
+      "sample_id": "TUNE2-PAY-004",
+      "scenario_tags": [
+        "payment_screenshot",
+        "compact_bitmap",
+        "literal_evidence",
+        "zero_decimal_currency"
+      ],
+      "sha256": "7846d3df70b9b063607d84186ebb2119b6706028c4a8083a7c0e21979ea14f3b"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Absent Total Workshop",
+          "ABSENT TOTAL WORKSHOP",
+          "  Absent Total Workshop  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Absent Total Workshop"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-09-15T12:13:14+08:00"
+        }
+      },
+      "expected_fields": {
+        "currency": "CNY",
+        "merchant": "Absent Total Workshop",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-09-15T12:13:14+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "order_number",
+        "category"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-pay-005.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-pay-005.png",
+      "sample_id": "TUNE2-PAY-005",
+      "scenario_tags": [
+        "payment_screenshot",
+        "missing_conflict",
+        "compact_bitmap",
+        "literal_evidence",
+        "low_contrast"
+      ],
+      "sha256": "1b854e8df4e50b696175cc1184d8fad97600f75e29a8ccd43a98db94ee5c246c"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Dual Total Workshop",
+          "DUAL TOTAL WORKSHOP",
+          "  Dual Total Workshop  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Dual Total Workshop"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "UTC"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-09-16T21:22:23+00:00"
+        }
+      },
+      "expected_fields": {
+        "currency": "USD",
+        "merchant": "Dual Total Workshop",
+        "source_timezone": "UTC",
+        "transaction_time": "2026-09-16T21:22:23+00:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "order_number",
+        "category"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-pay-006.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-pay-006.png",
+      "sample_id": "TUNE2-PAY-006",
+      "scenario_tags": [
+        "payment_screenshot",
+        "missing_conflict",
+        "compact_bitmap",
+        "literal_evidence",
+        "conflicting_punctuation"
+      ],
+      "sha256": "ccf0fe6d2debc70e55965f349f50c44570327d2a5b49fc7931ef5f88c9c6ca71"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Colon Test Labs",
+          "COLON TEST LABS",
+          "  Colon Test Labs  "
+        ],
+        "seller_name": [
+          "Exact Name Supply",
+          "EXACT NAME SUPPLY",
+          "  Exact Name Supply  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Colon Test Labs"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-17"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "LIT-INV-2026-0917-A"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 39.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Line-One Service"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 1"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].tax_minor": {
+          "page": 1,
+          "quote": "TAX: USD 3.42"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: job"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: USD 39.00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Exact Name Supply"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 3.42"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 42.42"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Colon Test Labs",
+        "currency": "USD",
+        "invoice_date": "2026-09-17",
+        "invoice_number": "LIT-INV-2026-0917-A",
+        "items[0].amount_minor": 3900,
+        "items[0].name": "Line-One Service",
+        "items[0].quantity": "1",
+        "items[0].sort_order": 0,
+        "items[0].tax_minor": 342,
+        "items[0].unit": "job",
+        "items[0].unit_price_minor": 3900,
+        "seller_name": "Exact Name Supply",
+        "tax_minor": 342,
+        "total_minor": 4242
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-001.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-001.png",
+      "sample_id": "TUNE2-INV-001",
+      "scenario_tags": [
+        "single_item_invoice",
+        "compact_bitmap",
+        "literal_evidence",
+        "root_key_guard"
+      ],
+      "sha256": "4a705c6d6e5e44c8594261e97e5a352c7bd1dd4a59a08f9d5b08cb519a05ec02"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Buyer 18-B",
+          "BUYER 18-B",
+          "  Buyer 18-B  "
+        ],
+        "seller_name": [
+          "Dash-Name Seller",
+          "DASH-NAME SELLER",
+          "  Dash-Name Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Buyer 18-B"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-18"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "LIT-INV-2026-0918-B"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: CNY 48.80"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Alpha-Part"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 2"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: pc"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: CNY 24.40"
+        },
+        "items[1].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: CNY 60.00"
+        },
+        "items[1].name": {
+          "page": 1,
+          "quote": "NAME: Beta-Part"
+        },
+        "items[1].quantity": {
+          "page": 1,
+          "quote": "QTY: 1"
+        },
+        "items[1].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 1"
+        },
+        "items[1].unit": {
+          "page": 1,
+          "quote": "UNIT: pc"
+        },
+        "items[1].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: CNY 60.00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Dash-Name Seller"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 108.80"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Buyer 18-B",
+        "currency": "CNY",
+        "invoice_date": "2026-09-18",
+        "invoice_number": "LIT-INV-2026-0918-B",
+        "items[0].amount_minor": 4880,
+        "items[0].name": "Alpha-Part",
+        "items[0].quantity": "2",
+        "items[0].sort_order": 0,
+        "items[0].unit": "pc",
+        "items[0].unit_price_minor": 2440,
+        "items[1].amount_minor": 6000,
+        "items[1].name": "Beta-Part",
+        "items[1].quantity": "1",
+        "items[1].sort_order": 1,
+        "items[1].unit": "pc",
+        "items[1].unit_price_minor": 6000,
+        "seller_name": "Dash-Name Seller",
+        "total_minor": 10880
+      },
+      "expected_missing_fields": [
+        "tax_minor",
+        "items[0].tax_minor",
+        "items[1].tax_minor"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "items[1].amount_minor": "money_minor",
+        "items[1].name": "string",
+        "items[1].quantity": "decimal",
+        "items[1].sort_order": "integer",
+        "items[1].tax_minor": "money_minor",
+        "items[1].unit": "string",
+        "items[1].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-002.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-002.png",
+      "sample_id": "TUNE2-INV-002",
+      "scenario_tags": [
+        "multi_item_invoice",
+        "compact_bitmap",
+        "literal_evidence",
+        "multi_item_exact_order"
+      ],
+      "sha256": "c9a18a8635f8e7aca13cb6f653fd0074a28d4c2d2ed33175bdcfaa883ce6a0b7"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Literal Buyer SARL",
+          "LITERAL BUYER SARL",
+          "  Literal Buyer SARL  "
+        ],
+        "seller_name": [
+          "Punkt und Komma GmbH",
+          "PUNKT UND KOMMA GMBH",
+          "  Punkt und Komma GmbH  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Literal Buyer SARL"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-19"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "EU-LITERAL-19-C"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: EUR 1.000,00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Format-Pruefung"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 2.5"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].tax_minor": {
+          "page": 1,
+          "quote": "TAX: EUR 200,50"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: hour"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: EUR 400,00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Punkt und Komma GmbH"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 200,50"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 1.200,50"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Literal Buyer SARL",
+        "currency": "EUR",
+        "invoice_date": "2026-09-19",
+        "invoice_number": "EU-LITERAL-19-C",
+        "items[0].amount_minor": 100000,
+        "items[0].name": "Format-Pruefung",
+        "items[0].quantity": "2.5",
+        "items[0].sort_order": 0,
+        "items[0].tax_minor": 20050,
+        "items[0].unit": "hour",
+        "items[0].unit_price_minor": 40000,
+        "seller_name": "Punkt und Komma GmbH",
+        "tax_minor": 20050,
+        "total_minor": 120050
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-003.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-003.png",
+      "sample_id": "TUNE2-INV-003",
+      "scenario_tags": [
+        "single_item_invoice",
+        "compact_bitmap",
+        "literal_evidence",
+        "comma_decimal"
+      ],
+      "sha256": "44860043bafba54946e086fee7e4dd5d4200181da84391170a04669bc54f4ac0"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Tiny Type Office",
+          "TINY TYPE OFFICE",
+          "  Tiny Type Office  "
+        ],
+        "seller_name": [
+          "Gray Pixel Works",
+          "GRAY PIXEL WORKS",
+          "  Gray Pixel Works  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Tiny Type Office"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-20"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "GRAY-INV-20-D"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: JPY 7650"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Compact Print"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Gray Pixel Works"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 7650"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Tiny Type Office",
+        "currency": "JPY",
+        "invoice_date": "2026-09-20",
+        "invoice_number": "GRAY-INV-20-D",
+        "items[0].amount_minor": 7650,
+        "items[0].name": "Compact Print",
+        "items[0].sort_order": 0,
+        "seller_name": "Gray Pixel Works",
+        "total_minor": 7650
+      },
+      "expected_missing_fields": [
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-004.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-004.png",
+      "sample_id": "TUNE2-INV-004",
+      "scenario_tags": [
+        "single_item_invoice",
+        "compact_bitmap",
+        "literal_evidence",
+        "low_contrast"
+      ],
+      "sha256": "b5db0f91bab1cffacf9529a52c2a0dfc8818ec71b4e3100d505ed57dd72aa67b"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Review Queue Buyer",
+          "REVIEW QUEUE BUYER",
+          "  Review Queue Buyer  "
+        ],
+        "seller_name": [
+          "No Number Seller",
+          "NO NUMBER SELLER",
+          "  No Number Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [
+        "missing:invoice_number"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Review Queue Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-21"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 15.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Review Item"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "No Number Seller"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 15.00"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Review Queue Buyer",
+        "currency": "USD",
+        "invoice_date": "2026-09-21",
+        "items[0].amount_minor": 1500,
+        "items[0].name": "Review Item",
+        "items[0].sort_order": 0,
+        "seller_name": "No Number Seller",
+        "total_minor": 1500
+      },
+      "expected_missing_fields": [
+        "invoice_number",
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-005.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-005.png",
+      "sample_id": "TUNE2-INV-005",
+      "scenario_tags": [
+        "single_item_invoice",
+        "missing_conflict",
+        "compact_bitmap",
+        "literal_evidence",
+        "low_contrast"
+      ],
+      "sha256": "3bc82fa66ec1f2df5953d135007374a26eb2116023fdb2b0569702e99670627a"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Conflict Buyer",
+          "CONFLICT BUYER",
+          "  Conflict Buyer  "
+        ],
+        "seller_name": [
+          "Conflict Seller",
+          "CONFLICT SELLER",
+          "  Conflict Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Conflict Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-22"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DUAL-INV-22-F"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: CNY 17.10"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Visible Item"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Conflict Seller"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Conflict Buyer",
+        "currency": "CNY",
+        "invoice_date": "2026-09-22",
+        "invoice_number": "DUAL-INV-22-F",
+        "items[0].amount_minor": 1710,
+        "items[0].name": "Visible Item",
+        "items[0].sort_order": 0,
+        "seller_name": "Conflict Seller"
+      },
+      "expected_missing_fields": [
+        "total_minor",
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-006.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-006.png",
+      "sample_id": "TUNE2-INV-006",
+      "scenario_tags": [
+        "single_item_invoice",
+        "missing_conflict",
+        "compact_bitmap",
+        "literal_evidence",
+        "conflicting_punctuation"
+      ],
+      "sha256": "ac4ba0ac4c78d25dd53a63fee3b29bbc117d0cc1b758fad1111023640e29cb8f"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Typed Value Buyer",
+          "TYPED VALUE BUYER",
+          "  Typed Value Buyer  "
+        ],
+        "seller_name": [
+          "Typed Value Seller",
+          "TYPED VALUE SELLER",
+          "  Typed Value Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Typed Value Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-23"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "TYPE-INV-23-G"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 50.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Quarter Hour"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 1.25"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].tax_minor": {
+          "page": 1,
+          "quote": "TAX: USD 0.50"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: hour"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: USD 40.00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Typed Value Seller"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 0.50"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 50.50"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Typed Value Buyer",
+        "currency": "USD",
+        "invoice_date": "2026-09-23",
+        "invoice_number": "TYPE-INV-23-G",
+        "items[0].amount_minor": 5000,
+        "items[0].name": "Quarter Hour",
+        "items[0].quantity": "1.25",
+        "items[0].sort_order": 0,
+        "items[0].tax_minor": 50,
+        "items[0].unit": "hour",
+        "items[0].unit_price_minor": 4000,
+        "seller_name": "Typed Value Seller",
+        "tax_minor": 50,
+        "total_minor": 5050
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-007.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-007.png",
+      "sample_id": "TUNE2-INV-007",
+      "scenario_tags": [
+        "single_item_invoice",
+        "compact_bitmap",
+        "literal_evidence",
+        "typed_value_contract"
+      ],
+      "sha256": "a93cf48a6fdeacf20463fc064de03ee178afd60857856ebfbf89bf081e7704cf"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Ordered Rows Buyer",
+          "ORDERED ROWS BUYER",
+          "  Ordered Rows Buyer  "
+        ],
+        "seller_name": [
+          "Ordered Rows Seller",
+          "ORDERED ROWS SELLER",
+          "  Ordered Rows Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Ordered Rows Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-09-24"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "ORDER-INV-24-H"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: EUR 11,11"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Row-A"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[1].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: EUR 22,22"
+        },
+        "items[1].name": {
+          "page": 1,
+          "quote": "NAME: Row-B"
+        },
+        "items[1].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 1"
+        },
+        "items[2].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: EUR 33,33"
+        },
+        "items[2].name": {
+          "page": 1,
+          "quote": "NAME: Row-C"
+        },
+        "items[2].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 2"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Ordered Rows Seller"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 66,66"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Ordered Rows Buyer",
+        "currency": "EUR",
+        "invoice_date": "2026-09-24",
+        "invoice_number": "ORDER-INV-24-H",
+        "items[0].amount_minor": 1111,
+        "items[0].name": "Row-A",
+        "items[0].sort_order": 0,
+        "items[1].amount_minor": 2222,
+        "items[1].name": "Row-B",
+        "items[1].sort_order": 1,
+        "items[2].amount_minor": 3333,
+        "items[2].name": "Row-C",
+        "items[2].sort_order": 2,
+        "seller_name": "Ordered Rows Seller",
+        "total_minor": 6666
+      },
+      "expected_missing_fields": [
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor",
+        "items[1].quantity",
+        "items[1].unit",
+        "items[1].unit_price_minor",
+        "items[1].tax_minor",
+        "items[2].quantity",
+        "items[2].unit",
+        "items[2].unit_price_minor",
+        "items[2].tax_minor"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "items[1].amount_minor": "money_minor",
+        "items[1].name": "string",
+        "items[1].quantity": "decimal",
+        "items[1].sort_order": "integer",
+        "items[1].tax_minor": "money_minor",
+        "items[1].unit": "string",
+        "items[1].unit_price_minor": "money_minor",
+        "items[2].amount_minor": "money_minor",
+        "items[2].name": "string",
+        "items[2].quantity": "decimal",
+        "items[2].sort_order": "integer",
+        "items[2].tax_minor": "money_minor",
+        "items[2].unit": "string",
+        "items[2].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v2/tune2-inv-008.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-inv-008.png",
+      "sample_id": "TUNE2-INV-008",
+      "scenario_tags": [
+        "multi_item_invoice",
+        "compact_bitmap",
+        "literal_evidence",
+        "multi_item_exact_order",
+        "root_key_guard"
+      ],
+      "sha256": "60ac1ded5fbc3faab654e57d19b6855483e6e345379f40800eb1e8dba0b0f07b"
+    },
+    {
+      "allowed_normalizations": {},
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_evidence": {},
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_review_state": "blocked",
+      "expected_value_types": {},
+      "file": "assets/m1-prompt-dev-v2/tune2-unk-001.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-unk-001.png",
+      "sample_id": "TUNE2-UNK-001",
+      "scenario_tags": [
+        "supported_unknown",
+        "compact_bitmap",
+        "root_key_guard",
+        "low_contrast"
+      ],
+      "sha256": "2adc9ef47a49cbd2ba41cdb3c50f16a7be21e7302d2c61d564c4b9cd12e188d8"
+    },
+    {
+      "allowed_normalizations": {},
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_evidence": {},
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_review_state": "blocked",
+      "expected_value_types": {},
+      "file": "assets/m1-prompt-dev-v2/tune2-unk-002.png",
+      "model_stage_eligible": true,
+      "original_name": "tune2-unk-002.png",
+      "sample_id": "TUNE2-UNK-002",
+      "scenario_tags": [
+        "supported_unknown",
+        "compact_bitmap",
+        "root_key_guard"
+      ],
+      "sha256": "76cac8edbd5283b76bb3c9a0e489f000b567404d77d9d43d0d1355d186d63e4a"
+    }
+  ],
+  "source_dataset_versions": [],
+  "supersedes_dataset_version": "m1-prompt-dev-v1",
+  "synthetic_only": true
+}

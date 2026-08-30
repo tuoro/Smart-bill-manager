@@ -21,6 +21,24 @@ __pycache__/
 /.env.local
 /.env.*.local
 
+# Secrets and local databases at any depth; committed templates stay visible.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/MODEL_API_KEY*.txt
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.sqlite
+**/*.sqlite3
+**/*.sqlite-shm
+**/*.sqlite-wal
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
 # IDE
 .idea/
 .vscode/
@@ -53,4 +71,16 @@ Thumbs.db
 
 # Local keys and recoverable deployment backups.
 /backend-go/email_password.key
+/MODEL_API_KEY*.txt
 /backup-*/
+
+# Local-only real-world model evaluation corpus and raw evidence.
+/tests/evaluation/real-local/
+/tests/evidence/evaluation/real-local/
+
+# Clean Slate M1 generated artifacts
+/apps/web/node_modules/
+/apps/web/dist/
+/apps/web/coverage/
+/apps/web/test-results/
+/apps/api/coverage.out

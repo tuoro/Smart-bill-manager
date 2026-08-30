@@ -1,0 +1,5841 @@
+{
+  "dataset_version": "m1-synthetic-v2",
+  "frozen_at": "2026-08-29T00:00:00Z",
+  "synthetic_only": true,
+  "intended_use": "m1_release_model_evaluation",
+  "generator": "tools/publish-evaluation-dataset-v2.mjs",
+  "supersedes_dataset_version": "m1-synthetic-v1",
+  "source_manifest_sha256": "1ca338b15f5c060819323f5dd584758bba6a7e7d65460514a47857cac1a550ed",
+  "asset_policy": "reuse_immutable_m1_synthetic_v1_assets",
+  "correction_scope": [
+    "payment.order_number expected value",
+    "payment.order_number expected evidence",
+    "payment.order_number removed from expected missing fields"
+  ],
+  "samples": [
+    {
+      "sample_id": "PAY-001",
+      "file": "assets/m1-synthetic-v1/pay-001.png",
+      "sha256": "b0927538c40adfbbd04f5d8cc12821722ce37a9f3056d57ec3f69370e61aa7d9",
+      "original_name": "pay-001.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10137,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 01",
+        "order_number": "SYN-PAY-0001",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-01T09:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 101.37"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 01"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0001"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-01T09:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 01",
+          "SYNTHETIC MERCHANT 01",
+          "  Synthetic Merchant 01  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-002",
+      "file": "assets/m1-synthetic-v1/pay-002.png",
+      "sha256": "400fcb399dfe3c8ee628908a857f4ac9558e3547e80c1a1780b3c23088209540",
+      "original_name": "pay-002.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10274,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 02",
+        "order_number": "SYN-PAY-0002",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-02T10:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 102.74"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 02"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0002"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-02T10:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 02",
+          "SYNTHETIC MERCHANT 02",
+          "  Synthetic Merchant 02  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-003",
+      "file": "assets/m1-synthetic-v1/pay-003.png",
+      "sha256": "423b14946d6c68cec099f3bd3cdc1ef5dff98ab5da0ee65f4770b659699420c7",
+      "original_name": "pay-003.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10411,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 03",
+        "order_number": "SYN-PAY-0003",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-03T11:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 104.11"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 03"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0003"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-03T11:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 03",
+          "SYNTHETIC MERCHANT 03",
+          "  Synthetic Merchant 03  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-004",
+      "file": "assets/m1-synthetic-v1/pay-004.png",
+      "sha256": "ce5f9cb8f52d38b2266efa6815831c6e63a58a9b7311d3f9bda5527a763e31d3",
+      "original_name": "pay-004.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10548,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 04",
+        "order_number": "SYN-PAY-0004",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-04T12:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 10548"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 04"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0004"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-04T12:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 04",
+          "SYNTHETIC MERCHANT 04",
+          "  Synthetic Merchant 04  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-005",
+      "file": "assets/m1-synthetic-v1/pay-005.png",
+      "sha256": "191ab8a130378712040fce784907b381e28e8d0c72d50242c9aed9510b328d4a",
+      "original_name": "pay-005.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10685,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 05",
+        "order_number": "SYN-PAY-0005",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-05T13:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 106.85"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 05"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0005"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-05T13:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 05",
+          "SYNTHETIC MERCHANT 05",
+          "  Synthetic Merchant 05  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-006",
+      "file": "assets/m1-synthetic-v1/pay-006.png",
+      "sha256": "6509349704d3dc41498d17acf2ca8d67cabca0565e27ea06d373b3d007dd743f",
+      "original_name": "pay-006.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10822,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 06",
+        "order_number": "SYN-PAY-0006",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-06T14:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 108.22"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 06"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0006"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-06T14:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 06",
+          "SYNTHETIC MERCHANT 06",
+          "  Synthetic Merchant 06  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-007",
+      "file": "assets/m1-synthetic-v1/pay-007.png",
+      "sha256": "7a1c99dbe2be1b5cfacde8aa4830d3d4bc5c25ac1b3afd7d65327191a8d0d47d",
+      "original_name": "pay-007.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 10959,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 07",
+        "order_number": "SYN-PAY-0007",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-07T15:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 109.59"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 07"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0007"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-07T15:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 07",
+          "SYNTHETIC MERCHANT 07",
+          "  Synthetic Merchant 07  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-008",
+      "file": "assets/m1-synthetic-v1/pay-008.png",
+      "sha256": "9a9a1714cebd1d19446fb295425efb418946b3fece56399fff08722d8989e0b7",
+      "original_name": "pay-008.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11096,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 08",
+        "order_number": "SYN-PAY-0008",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-08T16:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 11096"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 08"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0008"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-08T16:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 08",
+          "SYNTHETIC MERCHANT 08",
+          "  Synthetic Merchant 08  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-009",
+      "file": "assets/m1-synthetic-v1/pay-009.png",
+      "sha256": "3a332e7f647f145ca92fd8e93105137adc08a8ed69f917fc8edcd571ba910746",
+      "original_name": "pay-009.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11233,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 09",
+        "order_number": "SYN-PAY-0009",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-09T17:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 112.33"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 09"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0009"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-09T17:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 09",
+          "SYNTHETIC MERCHANT 09",
+          "  Synthetic Merchant 09  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-010",
+      "file": "assets/m1-synthetic-v1/pay-010.png",
+      "sha256": "46086b713ee584af42fd8905417ebb3fd544f13bb1998c0c4dcce9bbecc474ba",
+      "original_name": "pay-010.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11370,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 10",
+        "order_number": "SYN-PAY-0010",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-10T08:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 113.70"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 10"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0010"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-10T08:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 10",
+          "SYNTHETIC MERCHANT 10",
+          "  Synthetic Merchant 10  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-011",
+      "file": "assets/m1-synthetic-v1/pay-011.png",
+      "sha256": "78ba101b18ea773038102ddb7201e3616cc2e52d54fcc021987584fa2062b862",
+      "original_name": "pay-011.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11507,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 11",
+        "order_number": "SYN-PAY-0011",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-11T09:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 115.07"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 11"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0011"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-11T09:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 11",
+          "SYNTHETIC MERCHANT 11",
+          "  Synthetic Merchant 11  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-012",
+      "file": "assets/m1-synthetic-v1/pay-012.png",
+      "sha256": "31beb6576732ff176aaa40457a2eaa7e8fd2bca162d3f00420e1a6b5137deb6f",
+      "original_name": "pay-012.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11644,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 12",
+        "order_number": "SYN-PAY-0012",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-12T10:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 11644"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 12"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0012"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-12T10:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 12",
+          "SYNTHETIC MERCHANT 12",
+          "  Synthetic Merchant 12  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-013",
+      "file": "assets/m1-synthetic-v1/pay-013.png",
+      "sha256": "8c887fb8e39b6a3dd31a33f13676d33ba40ef96811fdbc1eacf9597dfcb2cc63",
+      "original_name": "pay-013.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11781,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 13",
+        "order_number": "SYN-PAY-0013",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-13T11:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 117.81"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 13"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0013"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-13T11:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 13",
+          "SYNTHETIC MERCHANT 13",
+          "  Synthetic Merchant 13  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-014",
+      "file": "assets/m1-synthetic-v1/pay-014.png",
+      "sha256": "e0330b2c1330de860cef75e700ebd17caee95cc870d4288b3551ebf1743b6adc",
+      "original_name": "pay-014.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 11918,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 14",
+        "order_number": "SYN-PAY-0014",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-14T12:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 119.18"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 14"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0014"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-14T12:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 14",
+          "SYNTHETIC MERCHANT 14",
+          "  Synthetic Merchant 14  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-015",
+      "file": "assets/m1-synthetic-v1/pay-015.png",
+      "sha256": "b72d0ce70d53633bceed04d25b6060e5b6cb99908ade499bd524ad789d34a113",
+      "original_name": "pay-015.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12055,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 15",
+        "order_number": "SYN-PAY-0015",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-15T13:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 120.55"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 15"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0015"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-15T13:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 15",
+          "SYNTHETIC MERCHANT 15",
+          "  Synthetic Merchant 15  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-016",
+      "file": "assets/m1-synthetic-v1/pay-016.png",
+      "sha256": "49f1d29cd73974d515c3132911f81a3514fd030d3f8916cdd2edbc3984e800c1",
+      "original_name": "pay-016.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12192,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 16",
+        "order_number": "SYN-PAY-0016",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-16T14:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 12192"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 16"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0016"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-16T14:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 16",
+          "SYNTHETIC MERCHANT 16",
+          "  Synthetic Merchant 16  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-017",
+      "file": "assets/m1-synthetic-v1/pay-017.png",
+      "sha256": "1e212ef935db69b9a2c5882a18884b54c89e96aadf5669120c764900b1d444a6",
+      "original_name": "pay-017.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12329,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 17",
+        "order_number": "SYN-PAY-0017",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-17T15:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 123.29"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 17"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0017"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-17T15:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 17",
+          "SYNTHETIC MERCHANT 17",
+          "  Synthetic Merchant 17  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-018",
+      "file": "assets/m1-synthetic-v1/pay-018.png",
+      "sha256": "f99f3bc303a18d0ad2cd8f826d27dff2df0e16d1f7fe011bb9034355b9d840b1",
+      "original_name": "pay-018.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12466,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 18",
+        "order_number": "SYN-PAY-0018",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-18T16:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 124.66"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 18"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0018"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-18T16:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 18",
+          "SYNTHETIC MERCHANT 18",
+          "  Synthetic Merchant 18  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-019",
+      "file": "assets/m1-synthetic-v1/pay-019.png",
+      "sha256": "c51e6e7786b71a2d7015c9b84cd044d4b1e3c6f7f34aa7db813046e0682c0d66",
+      "original_name": "pay-019.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12603,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 19",
+        "order_number": "SYN-PAY-0019",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-19T17:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 126.03"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 19"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0019"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-19T17:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 19",
+          "SYNTHETIC MERCHANT 19",
+          "  Synthetic Merchant 19  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-020",
+      "file": "assets/m1-synthetic-v1/pay-020.png",
+      "sha256": "99241c56abf08dc0614b0299a8b3da506e52d872c3670031c26f2d071520062b",
+      "original_name": "pay-020.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12740,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 20",
+        "order_number": "SYN-PAY-0020",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-20T08:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 12740"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 20"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0020"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-20T08:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 20",
+          "SYNTHETIC MERCHANT 20",
+          "  Synthetic Merchant 20  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-021",
+      "file": "assets/m1-synthetic-v1/pay-021.png",
+      "sha256": "8f4c7564dfdc9ee8ac33a8ebf9e42796356e065bfed780e4c531c68ef733166a",
+      "original_name": "pay-021.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 12877,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 21",
+        "order_number": "SYN-PAY-0021",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-21T09:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 128.77"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 21"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0021"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-21T09:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 21",
+          "SYNTHETIC MERCHANT 21",
+          "  Synthetic Merchant 21  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-022",
+      "file": "assets/m1-synthetic-v1/pay-022.png",
+      "sha256": "f584997520490bd8bd015adf077536562cc2227148e290e45dc46120e09c69f8",
+      "original_name": "pay-022.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13014,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 22",
+        "order_number": "SYN-PAY-0022",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-22T10:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 130.14"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 22"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0022"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-22T10:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 22",
+          "SYNTHETIC MERCHANT 22",
+          "  Synthetic Merchant 22  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-023",
+      "file": "assets/m1-synthetic-v1/pay-023.png",
+      "sha256": "ae6814e8ab11cd0b01660a213f265fdaac8f33bd897533d0f8084635d0988fb9",
+      "original_name": "pay-023.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13151,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 23",
+        "order_number": "SYN-PAY-0023",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-23T11:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 131.51"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 23"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0023"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-23T11:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 23",
+          "SYNTHETIC MERCHANT 23",
+          "  Synthetic Merchant 23  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-024",
+      "file": "assets/m1-synthetic-v1/pay-024.png",
+      "sha256": "c6534d5f5b78ff73fbfd3ad1b4d7895ac9e82f0eb94f13d23d6c09c45dac57b9",
+      "original_name": "pay-024.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13288,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 24",
+        "order_number": "SYN-PAY-0024",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-24T12:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 13288"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 24"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0024"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-24T12:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 24",
+          "SYNTHETIC MERCHANT 24",
+          "  Synthetic Merchant 24  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-025",
+      "file": "assets/m1-synthetic-v1/pay-025.png",
+      "sha256": "ddc51cbb948f537bcbc21e06de8d692d6050d50930293f3dfa46f4b16ae70d37",
+      "original_name": "pay-025.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13425,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 25",
+        "order_number": "SYN-PAY-0025",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-25T13:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 134.25"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 25"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0025"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-25T13:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 25",
+          "SYNTHETIC MERCHANT 25",
+          "  Synthetic Merchant 25  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-026",
+      "file": "assets/m1-synthetic-v1/pay-026.png",
+      "sha256": "ac41ebfd1c0e98898cc881bfd109c54203d466d58488eefcbcd136a9b2a64ce0",
+      "original_name": "pay-026.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13562,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 26",
+        "order_number": "SYN-PAY-0026",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-26T14:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 135.62"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 26"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0026"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-26T14:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 26",
+          "SYNTHETIC MERCHANT 26",
+          "  Synthetic Merchant 26  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-027",
+      "file": "assets/m1-synthetic-v1/pay-027.png",
+      "sha256": "94da4c64863dd1a1f89169890e305d4bf48173db3c2954ae34cd00c9823f81b8",
+      "original_name": "pay-027.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13699,
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 27",
+        "order_number": "SYN-PAY-0027",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-27T15:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 136.99"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 27"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0027"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-27T15:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 27",
+          "SYNTHETIC MERCHANT 27",
+          "  Synthetic Merchant 27  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-028",
+      "file": "assets/m1-synthetic-v1/pay-028.png",
+      "sha256": "ee9c1e43a63b793cee18b8cc16985a8e1f1b8b80f5c6a0d1bef86f8c50ee15c1",
+      "original_name": "pay-028.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13836,
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 28",
+        "order_number": "SYN-PAY-0028",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-28T16:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 13836"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 28"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0028"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-28T16:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 28",
+          "SYNTHETIC MERCHANT 28",
+          "  Synthetic Merchant 28  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-029",
+      "file": "assets/m1-synthetic-v1/pay-029.png",
+      "sha256": "84ef742c5284489ee2c52eaa27078d96b5ac79fed1357270190b28cdba8ede8c",
+      "original_name": "pay-029.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 13973,
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 29",
+        "order_number": "SYN-PAY-0029",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-01T17:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 139.73"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 29"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0029"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-01T17:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 29",
+          "SYNTHETIC MERCHANT 29",
+          "  Synthetic Merchant 29  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-030",
+      "file": "assets/m1-synthetic-v1/pay-030.png",
+      "sha256": "8d6d261ab09e7218ffe90cc3698b277bcf4afef48003097e3c9bd650b6edf01c",
+      "original_name": "pay-030.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "expected_fields": {
+        "amount_minor": 14110,
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 30",
+        "order_number": "SYN-PAY-0030",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-02T08:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 141.10"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 30"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0030"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-02T08:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 30",
+          "SYNTHETIC MERCHANT 30",
+          "  Synthetic Merchant 30  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review"
+    },
+    {
+      "sample_id": "PAY-031",
+      "file": "assets/m1-synthetic-v1/pay-031.png",
+      "sha256": "7205f3ad592551fd5e1f71956a657839bb8c7f2efc6aa05c64236240fdf774c0",
+      "original_name": "pay-031.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 31",
+        "order_number": "SYN-PAY-0031",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-03T09:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 31"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0031"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-03T09:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 31",
+          "SYNTHETIC MERCHANT 31",
+          "  Synthetic Merchant 31  "
+        ]
+      },
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-032",
+      "file": "assets/m1-synthetic-v1/pay-032.png",
+      "sha256": "eb058f7b2fbaf68bd10d5041ba5a3a327ed2ab464d61936e823d946ba38bf4c4",
+      "original_name": "pay-032.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 32",
+        "order_number": "SYN-PAY-0032",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-04T10:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 32"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0032"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-04T10:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 32",
+          "SYNTHETIC MERCHANT 32",
+          "  Synthetic Merchant 32  "
+        ]
+      },
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-033",
+      "file": "assets/m1-synthetic-v1/pay-033.png",
+      "sha256": "8d87f586ec7f3b58bde8989652abc5e744e652cd6c627aa329ddd3f26fb91fdd",
+      "original_name": "pay-033.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 33",
+        "order_number": "SYN-PAY-0033",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-05T11:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 33"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0033"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-05T11:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 33",
+          "SYNTHETIC MERCHANT 33",
+          "  Synthetic Merchant 33  "
+        ]
+      },
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-034",
+      "file": "assets/m1-synthetic-v1/pay-034.png",
+      "sha256": "563230470f07a08a7458f8033eca801da6b9987eeb9b3345c7174b53aaca59b9",
+      "original_name": "pay-034.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 34",
+        "order_number": "SYN-PAY-0034",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-06T12:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 34"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0034"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-06T12:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 34",
+          "SYNTHETIC MERCHANT 34",
+          "  Synthetic Merchant 34  "
+        ]
+      },
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-035",
+      "file": "assets/m1-synthetic-v1/pay-035.png",
+      "sha256": "50ea9b479c2375ba86762cb6cee7f2d39516a2bc35fa3999ea2597553d661918",
+      "original_name": "pay-035.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 35",
+        "order_number": "SYN-PAY-0035",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-07T13:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 35"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0035"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-07T13:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 35",
+          "SYNTHETIC MERCHANT 35",
+          "  Synthetic Merchant 35  "
+        ]
+      },
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-036",
+      "file": "assets/m1-synthetic-v1/pay-036.png",
+      "sha256": "33c651abc1f46fae69d5e7c03bc8d339bd9f06ffb38efcacd841e234186a6707",
+      "original_name": "pay-036.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 36",
+        "order_number": "SYN-PAY-0036",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-08T14:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 36"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0036"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-08T14:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 36",
+          "SYNTHETIC MERCHANT 36",
+          "  Synthetic Merchant 36  "
+        ]
+      },
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-037",
+      "file": "assets/m1-synthetic-v1/pay-037.png",
+      "sha256": "aac5e517b818a0560b38dd4b52e71483e784da0b0e4b969afe4a59a27c0a4f95",
+      "original_name": "pay-037.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "CNY",
+        "merchant": "Synthetic Merchant 37",
+        "order_number": "SYN-PAY-0037",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-09T15:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 37"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0037"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-09T15:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 37",
+          "SYNTHETIC MERCHANT 37",
+          "  Synthetic Merchant 37  "
+        ]
+      },
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-038",
+      "file": "assets/m1-synthetic-v1/pay-038.png",
+      "sha256": "9fe1651135658d26db2fbac8bace45c1966c1cb7c27a2a01e3c674b747db0eab",
+      "original_name": "pay-038.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "USD",
+        "merchant": "Synthetic Merchant 38",
+        "order_number": "SYN-PAY-0038",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-10T16:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 38"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0038"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-10T16:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 38",
+          "SYNTHETIC MERCHANT 38",
+          "  Synthetic Merchant 38  "
+        ]
+      },
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-039",
+      "file": "assets/m1-synthetic-v1/pay-039.png",
+      "sha256": "cd0b5d686c87a5a28c122ce111c88bd227d7854e31dbf0b877ebb3a80aade5c6",
+      "original_name": "pay-039.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "EUR",
+        "merchant": "Synthetic Merchant 39",
+        "order_number": "SYN-PAY-0039",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-11T17:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 39"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0039"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-11T17:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 39",
+          "SYNTHETIC MERCHANT 39",
+          "  Synthetic Merchant 39  "
+        ]
+      },
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "PAY-040",
+      "file": "assets/m1-synthetic-v1/pay-040.png",
+      "sha256": "2ef61a3aad45d33a1fecf67a5b2fba111f2f952e0d04fc63f473fc8f98845764",
+      "original_name": "pay-040.png",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "payment_screenshot",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "currency": "JPY",
+        "merchant": "Synthetic Merchant 40",
+        "order_number": "SYN-PAY-0040",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-07-12T08:15:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "category"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Synthetic Merchant 40"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "SYN-PAY-0040"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-07-12T08:15:00+08:00"
+        }
+      },
+      "allowed_normalizations": {
+        "merchant": [
+          "Synthetic Merchant 40",
+          "SYNTHETIC MERCHANT 40",
+          "  Synthetic Merchant 40  "
+        ]
+      },
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "INV-041",
+      "file": "assets/m1-synthetic-v1/inv-041.png",
+      "sha256": "2b029c37d2666cb7e9e6d6e3dbb3d473d1e2ff49031b39c5ab45c2127331e586",
+      "original_name": "inv-041.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 01",
+        "currency": "CNY",
+        "invoice_date": "2026-06-01",
+        "invoice_number": "SYN-INV-2026-0001",
+        "seller_name": "Synthetic Seller 01",
+        "tax_minor": 1554,
+        "total_minor": 20211
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 01"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-01"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0001"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 01"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 15.54"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 202.11"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 01",
+          "SYNTHETIC BUYER 01",
+          "  Synthetic Buyer 01  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 01",
+          "SYNTHETIC SELLER 01",
+          "  Synthetic Seller 01  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 20211,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-042",
+      "file": "assets/m1-synthetic-v1/inv-042.png",
+      "sha256": "976fe6aacd4455a681df57d240dfb643266859fdde3fe1f74bbfbc25a193e4c6",
+      "original_name": "inv-042.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 02",
+        "currency": "USD",
+        "invoice_date": "2026-06-02",
+        "invoice_number": "SYN-INV-2026-0002",
+        "seller_name": "Synthetic Seller 02",
+        "tax_minor": 1570,
+        "total_minor": 20422
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 02"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-02"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0002"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 02"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 15.70"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 204.22"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 02",
+          "SYNTHETIC BUYER 02",
+          "  Synthetic Buyer 02  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 02",
+          "SYNTHETIC SELLER 02",
+          "  Synthetic Seller 02  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 20422,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-043",
+      "file": "assets/m1-synthetic-v1/inv-043.png",
+      "sha256": "bf130a45f6499d9ca66659ce31bb4e153d87c933f7209e3a9840cf94f05e4ea4",
+      "original_name": "inv-043.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 03",
+        "currency": "EUR",
+        "invoice_date": "2026-06-03",
+        "invoice_number": "SYN-INV-2026-0003",
+        "seller_name": "Synthetic Seller 03",
+        "tax_minor": 1587,
+        "total_minor": 20633
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 03"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-03"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0003"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 03"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 15.87"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 206.33"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 03",
+          "SYNTHETIC BUYER 03",
+          "  Synthetic Buyer 03  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 03",
+          "SYNTHETIC SELLER 03",
+          "  Synthetic Seller 03  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 20633,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-044",
+      "file": "assets/m1-synthetic-v1/inv-044.png",
+      "sha256": "88f0587a0b0654737956054536981ba85eb041e24c84293175d3524856523154",
+      "original_name": "inv-044.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 04",
+        "currency": "JPY",
+        "invoice_date": "2026-06-04",
+        "invoice_number": "SYN-INV-2026-0004",
+        "seller_name": "Synthetic Seller 04",
+        "total_minor": 20844
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 04"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-04"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0004"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 04"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 20844"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 04",
+          "SYNTHETIC BUYER 04",
+          "  Synthetic Buyer 04  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 04",
+          "SYNTHETIC SELLER 04",
+          "  Synthetic Seller 04  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 20844,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-045",
+      "file": "assets/m1-synthetic-v1/inv-045.png",
+      "sha256": "97238eca9fd16a1ce5563472d65d25ff9db351840be31cece33b380db773a81f",
+      "original_name": "inv-045.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 05",
+        "currency": "CNY",
+        "invoice_date": "2026-06-05",
+        "invoice_number": "SYN-INV-2026-0005",
+        "seller_name": "Synthetic Seller 05",
+        "tax_minor": 1619,
+        "total_minor": 21055
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 05"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-05"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0005"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 05"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 16.19"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 210.55"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 05",
+          "SYNTHETIC BUYER 05",
+          "  Synthetic Buyer 05  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 05",
+          "SYNTHETIC SELLER 05",
+          "  Synthetic Seller 05  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 21055,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-046",
+      "file": "assets/m1-synthetic-v1/inv-046.png",
+      "sha256": "0dfdb6309501eb518b4aa8b6b9445ea0a1f798c93d52c9d71bc72bf5e50424bb",
+      "original_name": "inv-046.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 06",
+        "currency": "USD",
+        "invoice_date": "2026-06-06",
+        "invoice_number": "SYN-INV-2026-0006",
+        "seller_name": "Synthetic Seller 06",
+        "tax_minor": 1635,
+        "total_minor": 21266
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 06"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-06"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0006"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 06"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 16.35"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 212.66"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 06",
+          "SYNTHETIC BUYER 06",
+          "  Synthetic Buyer 06  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 06",
+          "SYNTHETIC SELLER 06",
+          "  Synthetic Seller 06  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 21266,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-047",
+      "file": "assets/m1-synthetic-v1/inv-047.png",
+      "sha256": "a9e7b8f9a8e1fdb4ddca0e27ccd8679da3295c555cb783f4cedcea369d50bdac",
+      "original_name": "inv-047.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 07",
+        "currency": "EUR",
+        "invoice_date": "2026-06-07",
+        "invoice_number": "SYN-INV-2026-0007",
+        "seller_name": "Synthetic Seller 07",
+        "tax_minor": 1652,
+        "total_minor": 21477
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 07"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-07"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0007"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 07"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 16.52"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 214.77"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 07",
+          "SYNTHETIC BUYER 07",
+          "  Synthetic Buyer 07  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 07",
+          "SYNTHETIC SELLER 07",
+          "  Synthetic Seller 07  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 21477,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-048",
+      "file": "assets/m1-synthetic-v1/inv-048.png",
+      "sha256": "40ba81bc39886c92aa26b6737f962ff01dc9cdacdbe89c6e6c4557f90a39c194",
+      "original_name": "inv-048.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 08",
+        "currency": "JPY",
+        "invoice_date": "2026-06-08",
+        "invoice_number": "SYN-INV-2026-0008",
+        "seller_name": "Synthetic Seller 08",
+        "total_minor": 21688
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 08"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-08"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0008"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 08"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 21688"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 08",
+          "SYNTHETIC BUYER 08",
+          "  Synthetic Buyer 08  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 08",
+          "SYNTHETIC SELLER 08",
+          "  Synthetic Seller 08  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 21688,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-049",
+      "file": "assets/m1-synthetic-v1/inv-049.png",
+      "sha256": "ad11baee2c94d8fa4d42fb48de3dceb4734d77891690370fa297a29ee2708089",
+      "original_name": "inv-049.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 09",
+        "currency": "CNY",
+        "invoice_date": "2026-06-09",
+        "invoice_number": "SYN-INV-2026-0009",
+        "seller_name": "Synthetic Seller 09",
+        "tax_minor": 1684,
+        "total_minor": 21899
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 09"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-09"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0009"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 09"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 16.84"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 218.99"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 09",
+          "SYNTHETIC BUYER 09",
+          "  Synthetic Buyer 09  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 09",
+          "SYNTHETIC SELLER 09",
+          "  Synthetic Seller 09  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 21899,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-050",
+      "file": "assets/m1-synthetic-v1/inv-050.png",
+      "sha256": "7d5e6004ad6bfbb33f6385febc0eedec0ec02171a1bf97d413335384e4c581c7",
+      "original_name": "inv-050.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 10",
+        "currency": "USD",
+        "invoice_date": "2026-06-10",
+        "invoice_number": "SYN-INV-2026-0010",
+        "seller_name": "Synthetic Seller 10",
+        "tax_minor": 1700,
+        "total_minor": 22110
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 10"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-10"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0010"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 10"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 17.00"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 221.10"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 10",
+          "SYNTHETIC BUYER 10",
+          "  Synthetic Buyer 10  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 10",
+          "SYNTHETIC SELLER 10",
+          "  Synthetic Seller 10  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 22110,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-051",
+      "file": "assets/m1-synthetic-v1/inv-051.png",
+      "sha256": "d7d5d0d3f09a30db29f52d04b3506ff4ab10a686ce566f06ea0b2eeff89d5ee6",
+      "original_name": "inv-051.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 11",
+        "currency": "EUR",
+        "invoice_date": "2026-06-11",
+        "invoice_number": "SYN-INV-2026-0011",
+        "seller_name": "Synthetic Seller 11",
+        "tax_minor": 1717,
+        "total_minor": 22321
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 11"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-11"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0011"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 11"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 17.17"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 223.21"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 11",
+          "SYNTHETIC BUYER 11",
+          "  Synthetic Buyer 11  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 11",
+          "SYNTHETIC SELLER 11",
+          "  Synthetic Seller 11  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 22321,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-052",
+      "file": "assets/m1-synthetic-v1/inv-052.png",
+      "sha256": "78dd7490900b9026f665663874208c5c953a812d4bd35d209ce4722a1c684d98",
+      "original_name": "inv-052.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 12",
+        "currency": "JPY",
+        "invoice_date": "2026-06-12",
+        "invoice_number": "SYN-INV-2026-0012",
+        "seller_name": "Synthetic Seller 12",
+        "total_minor": 22532
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 12"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-12"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0012"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 12"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 22532"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 12",
+          "SYNTHETIC BUYER 12",
+          "  Synthetic Buyer 12  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 12",
+          "SYNTHETIC SELLER 12",
+          "  Synthetic Seller 12  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 22532,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-053",
+      "file": "assets/m1-synthetic-v1/inv-053.png",
+      "sha256": "35c434f510826045ac1f05a1eaac2fb942beae816e583420257fd9bcc41ae97b",
+      "original_name": "inv-053.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 13",
+        "currency": "CNY",
+        "invoice_date": "2026-06-13",
+        "invoice_number": "SYN-INV-2026-0013",
+        "seller_name": "Synthetic Seller 13",
+        "tax_minor": 1749,
+        "total_minor": 22743
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 13"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-13"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0013"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 13"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 17.49"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 227.43"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 13",
+          "SYNTHETIC BUYER 13",
+          "  Synthetic Buyer 13  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 13",
+          "SYNTHETIC SELLER 13",
+          "  Synthetic Seller 13  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 22743,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-054",
+      "file": "assets/m1-synthetic-v1/inv-054.png",
+      "sha256": "b93aec351b521ba5f9a188324e92e2b7a0c6f5d2370399c24cb1f58726041990",
+      "original_name": "inv-054.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 14",
+        "currency": "USD",
+        "invoice_date": "2026-06-14",
+        "invoice_number": "SYN-INV-2026-0014",
+        "seller_name": "Synthetic Seller 14",
+        "tax_minor": 1765,
+        "total_minor": 22954
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 14"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-14"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0014"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 14"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 17.65"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 229.54"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 14",
+          "SYNTHETIC BUYER 14",
+          "  Synthetic Buyer 14  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 14",
+          "SYNTHETIC SELLER 14",
+          "  Synthetic Seller 14  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 22954,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-055",
+      "file": "assets/m1-synthetic-v1/inv-055.png",
+      "sha256": "633d7cffb80479467dddab6f073cfe3685bc0373c6bd9f4c99bebea70346bc77",
+      "original_name": "inv-055.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 15",
+        "currency": "EUR",
+        "invoice_date": "2026-06-15",
+        "invoice_number": "SYN-INV-2026-0015",
+        "seller_name": "Synthetic Seller 15",
+        "tax_minor": 1781,
+        "total_minor": 23165
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 15"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-15"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0015"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 15"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 17.81"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 231.65"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 15",
+          "SYNTHETIC BUYER 15",
+          "  Synthetic Buyer 15  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 15",
+          "SYNTHETIC SELLER 15",
+          "  Synthetic Seller 15  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 23165,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-056",
+      "file": "assets/m1-synthetic-v1/inv-056.png",
+      "sha256": "fffd1d751d0494f6317849a3c6ad5b83c025f3555ddfc772f351e34f1100ad00",
+      "original_name": "inv-056.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 16",
+        "currency": "JPY",
+        "invoice_date": "2026-06-16",
+        "invoice_number": "SYN-INV-2026-0016",
+        "seller_name": "Synthetic Seller 16",
+        "total_minor": 23376
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 16"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-16"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0016"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 16"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 23376"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 16",
+          "SYNTHETIC BUYER 16",
+          "  Synthetic Buyer 16  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 16",
+          "SYNTHETIC SELLER 16",
+          "  Synthetic Seller 16  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 23376,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-057",
+      "file": "assets/m1-synthetic-v1/inv-057.png",
+      "sha256": "2ef505ac57fb4e53625c7c36a88c471496ea7c75dc8a56dcc46e741e63e5fdf3",
+      "original_name": "inv-057.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 17",
+        "currency": "CNY",
+        "invoice_date": "2026-06-17",
+        "invoice_number": "SYN-INV-2026-0017",
+        "seller_name": "Synthetic Seller 17",
+        "tax_minor": 1814,
+        "total_minor": 23587
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 17"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-17"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0017"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 17"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 18.14"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 235.87"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 17",
+          "SYNTHETIC BUYER 17",
+          "  Synthetic Buyer 17  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 17",
+          "SYNTHETIC SELLER 17",
+          "  Synthetic Seller 17  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 23587,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-058",
+      "file": "assets/m1-synthetic-v1/inv-058.png",
+      "sha256": "f5d8c36bc4dcff88f45c1999fa382d62a670d2eb709e4f6738000ffd34e6181d",
+      "original_name": "inv-058.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 18",
+        "currency": "USD",
+        "invoice_date": "2026-06-18",
+        "invoice_number": "SYN-INV-2026-0018",
+        "seller_name": "Synthetic Seller 18",
+        "tax_minor": 1830,
+        "total_minor": 23798
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 18"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-18"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0018"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 18"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 18.30"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 237.98"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 18",
+          "SYNTHETIC BUYER 18",
+          "  Synthetic Buyer 18  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 18",
+          "SYNTHETIC SELLER 18",
+          "  Synthetic Seller 18  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 23798,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-059",
+      "file": "assets/m1-synthetic-v1/inv-059.png",
+      "sha256": "bc5cbb96ff3e82bb579fa1b1dac01df283047cc897c0ec53d6f6ca8883cf097c",
+      "original_name": "inv-059.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 19",
+        "currency": "EUR",
+        "invoice_date": "2026-06-19",
+        "invoice_number": "SYN-INV-2026-0019",
+        "seller_name": "Synthetic Seller 19",
+        "tax_minor": 1846,
+        "total_minor": 24009
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 19"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-19"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0019"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 19"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 18.46"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 240.09"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 19",
+          "SYNTHETIC BUYER 19",
+          "  Synthetic Buyer 19  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 19",
+          "SYNTHETIC SELLER 19",
+          "  Synthetic Seller 19  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 24009,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-060",
+      "file": "assets/m1-synthetic-v1/inv-060.png",
+      "sha256": "ca584798527b60e17b1286b26c02e430b93208b522927fb34710ca18194ff318",
+      "original_name": "inv-060.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 20",
+        "currency": "JPY",
+        "invoice_date": "2026-06-20",
+        "invoice_number": "SYN-INV-2026-0020",
+        "seller_name": "Synthetic Seller 20",
+        "total_minor": 24220
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 20"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-20"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0020"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 20"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 24220"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 20",
+          "SYNTHETIC BUYER 20",
+          "  Synthetic Buyer 20  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 20",
+          "SYNTHETIC SELLER 20",
+          "  Synthetic Seller 20  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 24220,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-061",
+      "file": "assets/m1-synthetic-v1/inv-061.png",
+      "sha256": "62ddc76d493f226675cece9d993d06017633cdbc4e4cc7e5a41dea23a237e2fe",
+      "original_name": "inv-061.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 21",
+        "currency": "CNY",
+        "invoice_date": "2026-06-21",
+        "invoice_number": "SYN-INV-2026-0021",
+        "seller_name": "Synthetic Seller 21",
+        "tax_minor": 1879,
+        "total_minor": 24431
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 21"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-21"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0021"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 21"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 18.79"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 244.31"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 21",
+          "SYNTHETIC BUYER 21",
+          "  Synthetic Buyer 21  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 21",
+          "SYNTHETIC SELLER 21",
+          "  Synthetic Seller 21  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8143,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8144,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8144,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-062",
+      "file": "assets/m1-synthetic-v1/inv-062.png",
+      "sha256": "c29c3d18a46fa66e22678fcf92abf3468f87145c60ac30585d450ac3a58e0c86",
+      "original_name": "inv-062.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 22",
+        "currency": "USD",
+        "invoice_date": "2026-06-22",
+        "invoice_number": "SYN-INV-2026-0022",
+        "seller_name": "Synthetic Seller 22",
+        "tax_minor": 1895,
+        "total_minor": 24642
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 22"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-22"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0022"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 22"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 18.95"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 246.42"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 22",
+          "SYNTHETIC BUYER 22",
+          "  Synthetic Buyer 22  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 22",
+          "SYNTHETIC SELLER 22",
+          "  Synthetic Seller 22  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8214,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8214,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8214,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-063",
+      "file": "assets/m1-synthetic-v1/inv-063.png",
+      "sha256": "69af0d3e52c9dad9ba86fc62661355f563924a1af1230ca74652f51a9ab2083e",
+      "original_name": "inv-063.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 23",
+        "currency": "EUR",
+        "invoice_date": "2026-06-23",
+        "invoice_number": "SYN-INV-2026-0023",
+        "seller_name": "Synthetic Seller 23",
+        "tax_minor": 1911,
+        "total_minor": 24853
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 23"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-23"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0023"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 23"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 19.11"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 248.53"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 23",
+          "SYNTHETIC BUYER 23",
+          "  Synthetic Buyer 23  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 23",
+          "SYNTHETIC SELLER 23",
+          "  Synthetic Seller 23  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8284,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8284,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8285,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-064",
+      "file": "assets/m1-synthetic-v1/inv-064.png",
+      "sha256": "bab029e5b1490416d9e958f85df785065d15e944d4f8fea6bdbd2cbddc7b113d",
+      "original_name": "inv-064.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 24",
+        "currency": "JPY",
+        "invoice_date": "2026-06-24",
+        "invoice_number": "SYN-INV-2026-0024",
+        "seller_name": "Synthetic Seller 24",
+        "total_minor": 25064
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 24"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-24"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0024"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 24"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 25064"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 24",
+          "SYNTHETIC BUYER 24",
+          "  Synthetic Buyer 24  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 24",
+          "SYNTHETIC SELLER 24",
+          "  Synthetic Seller 24  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8354,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8355,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8355,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-065",
+      "file": "assets/m1-synthetic-v1/inv-065.png",
+      "sha256": "9337319b2134798e02bff9aca1c48d436c308cbbd12e51c4024cd9e3a16f8f02",
+      "original_name": "inv-065.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 25",
+        "currency": "CNY",
+        "invoice_date": "2026-06-25",
+        "invoice_number": "SYN-INV-2026-0025",
+        "seller_name": "Synthetic Seller 25",
+        "tax_minor": 1944,
+        "total_minor": 25275
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 25"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-25"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0025"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 25"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 19.44"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 252.75"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 25",
+          "SYNTHETIC BUYER 25",
+          "  Synthetic Buyer 25  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 25",
+          "SYNTHETIC SELLER 25",
+          "  Synthetic Seller 25  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8425,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8425,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8425,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-066",
+      "file": "assets/m1-synthetic-v1/inv-066.png",
+      "sha256": "e3a545febf12c0c2716138c28a5164f5ac13f41fcf1a3581c054c2273c43a21d",
+      "original_name": "inv-066.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 26",
+        "currency": "USD",
+        "invoice_date": "2026-06-26",
+        "invoice_number": "SYN-INV-2026-0026",
+        "seller_name": "Synthetic Seller 26",
+        "tax_minor": 1960,
+        "total_minor": 25486
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 26"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-26"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0026"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 26"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 19.60"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 254.86"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 26",
+          "SYNTHETIC BUYER 26",
+          "  Synthetic Buyer 26  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 26",
+          "SYNTHETIC SELLER 26",
+          "  Synthetic Seller 26  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8495,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8495,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8496,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-067",
+      "file": "assets/m1-synthetic-v1/inv-067.png",
+      "sha256": "fd82f389091433f747cc1284c0c78df65709f91e76ed55ebd4d450a57eb5a7c3",
+      "original_name": "inv-067.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 27",
+        "currency": "EUR",
+        "invoice_date": "2026-06-27",
+        "invoice_number": "SYN-INV-2026-0027",
+        "seller_name": "Synthetic Seller 27",
+        "tax_minor": 1976,
+        "total_minor": 25697
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 27"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-27"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0027"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 27"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 19.76"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 256.97"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 27",
+          "SYNTHETIC BUYER 27",
+          "  Synthetic Buyer 27  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 27",
+          "SYNTHETIC SELLER 27",
+          "  Synthetic Seller 27  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8565,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8566,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8566,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-068",
+      "file": "assets/m1-synthetic-v1/inv-068.png",
+      "sha256": "d713d1dee0c2275e932bb9114ca0623327383f1da127ccaf24db7546fc55ac8c",
+      "original_name": "inv-068.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 28",
+        "currency": "JPY",
+        "invoice_date": "2026-06-28",
+        "invoice_number": "SYN-INV-2026-0028",
+        "seller_name": "Synthetic Seller 28",
+        "total_minor": 25908
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 28"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-28"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0028"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 28"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 25908"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 28",
+          "SYNTHETIC BUYER 28",
+          "  Synthetic Buyer 28  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 28",
+          "SYNTHETIC SELLER 28",
+          "  Synthetic Seller 28  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8636,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8636,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8636,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-069",
+      "file": "assets/m1-synthetic-v1/inv-069.png",
+      "sha256": "04eecfad2647e2464e7f56a852596f2fd6caad6b1ebe8b60983cfe86068c4707",
+      "original_name": "inv-069.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 29",
+        "currency": "CNY",
+        "invoice_date": "2026-06-01",
+        "invoice_number": "SYN-INV-2026-0029",
+        "seller_name": "Synthetic Seller 29",
+        "tax_minor": 2009,
+        "total_minor": 26119
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 29"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-01"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0029"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 29"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 20.09"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 261.19"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 29",
+          "SYNTHETIC BUYER 29",
+          "  Synthetic Buyer 29  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 29",
+          "SYNTHETIC SELLER 29",
+          "  Synthetic Seller 29  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8706,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8706,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8707,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-070",
+      "file": "assets/m1-synthetic-v1/inv-070.png",
+      "sha256": "bf20329897f0e27fd248d313f41f7b4f558298f89789f66a3b6ec2a48521687c",
+      "original_name": "inv-070.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 30",
+        "currency": "USD",
+        "invoice_date": "2026-06-02",
+        "invoice_number": "SYN-INV-2026-0030",
+        "seller_name": "Synthetic Seller 30",
+        "tax_minor": 2025,
+        "total_minor": 26330
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 30"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-02"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0030"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 30"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 20.25"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 263.30"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 30",
+          "SYNTHETIC BUYER 30",
+          "  Synthetic Buyer 30  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 30",
+          "SYNTHETIC SELLER 30",
+          "  Synthetic Seller 30  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 8776,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8777,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8777,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-071",
+      "file": "assets/m1-synthetic-v1/inv-071.png",
+      "sha256": "08bda49927ef2845ea357a0eaf13504dc40f041dbdf59b2e98786b11278d6c7d",
+      "original_name": "inv-071.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 31",
+        "currency": "EUR",
+        "invoice_date": "2026-06-03",
+        "invoice_number": "SYN-INV-2026-0031",
+        "seller_name": "Synthetic Seller 31",
+        "tax_minor": 2041
+      },
+      "expected_missing_fields": [
+        "total_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 31"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-03"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0031"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 31"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 20.41"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 31",
+          "SYNTHETIC BUYER 31",
+          "  Synthetic Buyer 31  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 31",
+          "SYNTHETIC SELLER 31",
+          "  Synthetic Seller 31  "
+        ]
+      },
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_items": [
+        {
+          "amount_minor": 8847,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8847,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8847,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-072",
+      "file": "assets/m1-synthetic-v1/inv-072.png",
+      "sha256": "5d2e7f6829814e146bbd4e2d49ffa945d8c6ef9b8873e88835fc02a69a7456dd",
+      "original_name": "inv-072.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 32",
+        "currency": "JPY",
+        "invoice_date": "2026-06-04",
+        "invoice_number": "SYN-INV-2026-0032",
+        "seller_name": "Synthetic Seller 32"
+      },
+      "expected_missing_fields": [
+        "total_minor",
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 32"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-04"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0032"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 32"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 32",
+          "SYNTHETIC BUYER 32",
+          "  Synthetic Buyer 32  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 32",
+          "SYNTHETIC SELLER 32",
+          "  Synthetic Seller 32  "
+        ]
+      },
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_items": [
+        {
+          "amount_minor": 8917,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8917,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8918,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-073",
+      "file": "assets/m1-synthetic-v1/inv-073.png",
+      "sha256": "b5eec7f9100dc30978930d32323352212d2060cbb858e531bcd753b797b6391e",
+      "original_name": "inv-073.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 33",
+        "currency": "CNY",
+        "invoice_date": "2026-06-05",
+        "invoice_number": "SYN-INV-2026-0033",
+        "seller_name": "Synthetic Seller 33",
+        "tax_minor": 2074
+      },
+      "expected_missing_fields": [
+        "total_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 33"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-05"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0033"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 33"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 20.74"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 33",
+          "SYNTHETIC BUYER 33",
+          "  Synthetic Buyer 33  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 33",
+          "SYNTHETIC SELLER 33",
+          "  Synthetic Seller 33  "
+        ]
+      },
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_items": [
+        {
+          "amount_minor": 8987,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 8988,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 8988,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-074",
+      "file": "assets/m1-synthetic-v1/inv-074.png",
+      "sha256": "a97500bc52c68c49a3a156baf1db547b959f8c26aa99692584e351471888ef92",
+      "original_name": "inv-074.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 34",
+        "currency": "USD",
+        "invoice_date": "2026-06-06",
+        "invoice_number": "SYN-INV-2026-0034",
+        "seller_name": "Synthetic Seller 34",
+        "tax_minor": 2090
+      },
+      "expected_missing_fields": [
+        "total_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 34"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-06"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0034"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 34"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 20.90"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 34",
+          "SYNTHETIC BUYER 34",
+          "  Synthetic Buyer 34  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 34",
+          "SYNTHETIC SELLER 34",
+          "  Synthetic Seller 34  "
+        ]
+      },
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_items": [
+        {
+          "amount_minor": 9058,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9058,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9058,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-075",
+      "file": "assets/m1-synthetic-v1/inv-075.png",
+      "sha256": "7be38f60db71f1579d7daecf1d52536d6c7d68c507f57bd5ce5c510017c5e51e",
+      "original_name": "inv-075.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice",
+        "low_quality_conflict"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 35",
+        "currency": "EUR",
+        "invoice_date": "2026-06-07",
+        "invoice_number": "SYN-INV-2026-0035",
+        "seller_name": "Synthetic Seller 35",
+        "tax_minor": 2106
+      },
+      "expected_missing_fields": [
+        "total_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 35"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-07"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0035"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 35"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 21.06"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 35",
+          "SYNTHETIC BUYER 35",
+          "  Synthetic Buyer 35  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 35",
+          "SYNTHETIC SELLER 35",
+          "  Synthetic Seller 35  "
+        ]
+      },
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_items": [
+        {
+          "amount_minor": 9128,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9128,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9129,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-076",
+      "file": "assets/m1-synthetic-v1/inv-076.png",
+      "sha256": "8eabd0772115a43779cc41d83f5a0f8f4596663f42a91a18621521fa4649f690",
+      "original_name": "inv-076.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 36",
+        "currency": "JPY",
+        "invoice_date": "2026-06-08",
+        "invoice_number": "SYN-INV-2026-0036",
+        "seller_name": "Synthetic Seller 36",
+        "total_minor": 27596
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 36"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-08"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0036"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 36"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 27596"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 36",
+          "SYNTHETIC BUYER 36",
+          "  Synthetic Buyer 36  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 36",
+          "SYNTHETIC SELLER 36",
+          "  Synthetic Seller 36  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 9198,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9199,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9199,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-077",
+      "file": "assets/m1-synthetic-v1/inv-077.png",
+      "sha256": "7a9ccd227d6fce3889f1af934b4d7bc3fc57f3f4402a68d72a9a4eb8390ca4aa",
+      "original_name": "inv-077.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 37",
+        "currency": "CNY",
+        "invoice_date": "2026-06-09",
+        "invoice_number": "SYN-INV-2026-0037",
+        "seller_name": "Synthetic Seller 37",
+        "tax_minor": 2139,
+        "total_minor": 27807
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 37"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-09"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0037"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 37"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 21.39"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 278.07"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 37",
+          "SYNTHETIC BUYER 37",
+          "  Synthetic Buyer 37  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 37",
+          "SYNTHETIC SELLER 37",
+          "  Synthetic Seller 37  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 9269,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9269,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9269,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-078",
+      "file": "assets/m1-synthetic-v1/inv-078.png",
+      "sha256": "a81588784a0ad4f2cb7c2fac118b931c01c4f191aa44cdd7561543087012a418",
+      "original_name": "inv-078.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 38",
+        "currency": "USD",
+        "invoice_date": "2026-06-10",
+        "invoice_number": "SYN-INV-2026-0038",
+        "seller_name": "Synthetic Seller 38",
+        "tax_minor": 2155,
+        "total_minor": 28018
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 38"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-10"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0038"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 38"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "USD 21.55"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 280.18"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 38",
+          "SYNTHETIC BUYER 38",
+          "  Synthetic Buyer 38  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 38",
+          "SYNTHETIC SELLER 38",
+          "  Synthetic Seller 38  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 9339,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9339,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9340,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-079",
+      "file": "assets/m1-synthetic-v1/inv-079.png",
+      "sha256": "80221c81a7503c21d3ce663fc124e9f187e1dc72066efbd7854e3c922e4c4a0c",
+      "original_name": "inv-079.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 39",
+        "currency": "EUR",
+        "invoice_date": "2026-06-11",
+        "invoice_number": "SYN-INV-2026-0039",
+        "seller_name": "Synthetic Seller 39",
+        "tax_minor": 2171,
+        "total_minor": 28229
+      },
+      "expected_missing_fields": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 39"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-11"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0039"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 39"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 21.71"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 282.29"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 39",
+          "SYNTHETIC BUYER 39",
+          "  Synthetic Buyer 39  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 39",
+          "SYNTHETIC SELLER 39",
+          "  Synthetic Seller 39  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 9409,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9410,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9410,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "INV-080",
+      "file": "assets/m1-synthetic-v1/inv-080.png",
+      "sha256": "6b72355c2239452bfd1c11553e154040c19396a3c4659da91712302dfb06ef80",
+      "original_name": "inv-080.png",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer 40",
+        "currency": "JPY",
+        "invoice_date": "2026-06-12",
+        "invoice_number": "SYN-INV-2026-0040",
+        "seller_name": "Synthetic Seller 40",
+        "total_minor": 28440
+      },
+      "expected_missing_fields": [
+        "tax_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer 40"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-06-12"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "SYN-INV-2026-0040"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Synthetic Seller 40"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 28440"
+        }
+      },
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer 40",
+          "SYNTHETIC BUYER 40",
+          "  Synthetic Buyer 40  "
+        ],
+        "seller_name": [
+          "Synthetic Seller 40",
+          "SYNTHETIC SELLER 40",
+          "  Synthetic Seller 40  "
+        ]
+      },
+      "expected_events": [],
+      "expected_review_state": "needs_review",
+      "expected_items": [
+        {
+          "amount_minor": 9480,
+          "name": "Synthetic Item 1",
+          "sort_order": 0
+        },
+        {
+          "amount_minor": 9480,
+          "name": "Synthetic Item 2",
+          "sort_order": 1
+        },
+        {
+          "amount_minor": 9480,
+          "name": "Synthetic Item 3",
+          "sort_order": 2
+        }
+      ]
+    },
+    {
+      "sample_id": "EDGE-081",
+      "file": "assets/m1-synthetic-v1/edge-081.txt",
+      "sha256": "2f9428fc34b69e66589cbca906295370afeb0f3490d3fe9cb1a6a35af1930876",
+      "original_name": "edge-081.txt",
+      "declared_mime": "text/plain",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "unsupported_document",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-082",
+      "file": "assets/m1-synthetic-v1/edge-082.txt",
+      "sha256": "c2f5c387ffa42aea2248c9dc23adbbb1607afcc5e322de61ab214e7bd2716f8b",
+      "original_name": "edge-082.txt",
+      "declared_mime": "text/plain",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "unsupported_document",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-083",
+      "file": "assets/m1-synthetic-v1/edge-083.txt",
+      "sha256": "8df9ee75e252fa9afe2fc44d717dfe97af0479ecf0da0a45d89977ddc91e6860",
+      "original_name": "edge-083.txt",
+      "declared_mime": "text/plain",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "unsupported_document",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-084",
+      "file": "assets/m1-synthetic-v1/edge-084.txt",
+      "sha256": "bdc99a0881e980d2b5405bac7943b0ba48b7b410918eb593a3e5ffb14f0804ad",
+      "original_name": "edge-084.txt",
+      "declared_mime": "text/plain",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "unsupported_document",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-085",
+      "file": "assets/m1-synthetic-v1/edge-085.txt",
+      "sha256": "d2971cd0af9493bac3689d702d112c8aaf240d23a87d3efac64fef6ebb041a74",
+      "original_name": "edge-085.txt",
+      "declared_mime": "text/plain",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "unsupported_document",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-086",
+      "file": "assets/m1-synthetic-v1/edge-086.jpg",
+      "sha256": "62c605917f49ea4ae5251d60beab7181b0d0822f4cdaec73362b2eb6538ffc1d",
+      "original_name": "edge-086.jpg",
+      "declared_mime": "image/jpeg",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "document_signature_mismatch",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-087",
+      "file": "assets/m1-synthetic-v1/edge-087.jpg",
+      "sha256": "a0b5eb0c75a2a89350c5e2f26e2e6f32282b1c527c23eb8fa3f434370bc46146",
+      "original_name": "edge-087.jpg",
+      "declared_mime": "image/jpeg",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "document_signature_mismatch",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-088",
+      "file": "assets/m1-synthetic-v1/edge-088.jpg",
+      "sha256": "e501c68178288c5a1c44c58e640bf3481c329738f317b620c32fd82c7d6fbe08",
+      "original_name": "edge-088.jpg",
+      "declared_mime": "image/jpeg",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "document_signature_mismatch",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-089",
+      "file": "assets/m1-synthetic-v1/edge-089.jpg",
+      "sha256": "a4773d4cf06da0545983da61eefdf7f5c1b8d62a4d3d25f5a5eee0c25b536a09",
+      "original_name": "edge-089.jpg",
+      "declared_mime": "image/jpeg",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "document_signature_mismatch",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-090",
+      "file": "assets/m1-synthetic-v1/edge-090.jpg",
+      "sha256": "3cfb2969075ecf0513a76ac52e6dc6ba58796b7af94d5d8d26664a4be7276fc8",
+      "original_name": "edge-090.jpg",
+      "declared_mime": "image/jpeg",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "document_signature_mismatch",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-091",
+      "file": "assets/m1-synthetic-v1/edge-091.pdf",
+      "sha256": "e220d3a485922114f8d4ca6371ca505e9d5c6038fa44241c782e268aede56bf9",
+      "original_name": "edge-091.pdf",
+      "declared_mime": "application/pdf",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "corrupt_pdf",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-092",
+      "file": "assets/m1-synthetic-v1/edge-092.pdf",
+      "sha256": "ebf9689a594a32967ba7598eb583963d2641f1939c93bbe8c6b504572ae9f786",
+      "original_name": "edge-092.pdf",
+      "declared_mime": "application/pdf",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "corrupt_pdf",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-093",
+      "file": "assets/m1-synthetic-v1/edge-093.pdf",
+      "sha256": "79b2fc9be5d293e14f30acd9c653475529766efbf8fb0572c1c143c56747f1c2",
+      "original_name": "edge-093.pdf",
+      "declared_mime": "application/pdf",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "corrupt_pdf",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-094",
+      "file": "assets/m1-synthetic-v1/edge-094.pdf",
+      "sha256": "c112dffbb8a75d14f6888a496c31b5b1542cddeaccbd7b996036aa887e347ad6",
+      "original_name": "edge-094.pdf",
+      "declared_mime": "application/pdf",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "corrupt_pdf",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-095",
+      "file": "assets/m1-synthetic-v1/edge-095.pdf",
+      "sha256": "707c8eeb94d4fdac5b5483dabf79efcee72247ff0876cfe093b9067b50ddf9ce",
+      "original_name": "edge-095.pdf",
+      "declared_mime": "application/pdf",
+      "document_type": "unknown",
+      "model_stage_eligible": false,
+      "scenario_tags": [
+        "invalid_unsupported"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [],
+      "expected_failure_category": "corrupt_pdf",
+      "expected_review_state": "rejected_before_model"
+    },
+    {
+      "sample_id": "EDGE-096",
+      "file": "assets/m1-synthetic-v1/edge-096.png",
+      "sha256": "76f3055a061b41265d668e98587f16f08155dbee511dd88dcf4f6082b0665aa4",
+      "original_name": "edge-096.png",
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "low_quality_conflict"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "EDGE-097",
+      "file": "assets/m1-synthetic-v1/edge-097.png",
+      "sha256": "71bb48e234b8038cb9e188490515531eaca70a6403af43435043a70c14de8515",
+      "original_name": "edge-097.png",
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "low_quality_conflict"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "EDGE-098",
+      "file": "assets/m1-synthetic-v1/edge-098.png",
+      "sha256": "6af1e8e44da9829b9d184f48d80ac7f314671856d94d6377b5a986db25b08846",
+      "original_name": "edge-098.png",
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "low_quality_conflict"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "EDGE-099",
+      "file": "assets/m1-synthetic-v1/edge-099.png",
+      "sha256": "a07f2748c055c0679878ead463b3360e2d87d441bf0e202945888cd5105668fd",
+      "original_name": "edge-099.png",
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "low_quality_conflict"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_review_state": "blocked"
+    },
+    {
+      "sample_id": "EDGE-100",
+      "file": "assets/m1-synthetic-v1/edge-100.png",
+      "sha256": "89f97b4c6d0456293d38d3b8ad59d6b78b6d108cdd1e52e35e0d9a1b5744f9c4",
+      "original_name": "edge-100.png",
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "model_stage_eligible": true,
+      "scenario_tags": [
+        "low_quality_conflict"
+      ],
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_evidence": {},
+      "allowed_normalizations": {},
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_review_state": "blocked"
+    }
+  ]
+}

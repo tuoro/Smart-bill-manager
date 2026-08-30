@@ -1,0 +1,2202 @@
+{
+  "report_kind": "historical-m1-prompt-v10-gate-summary",
+  "evidence_version": "M1-EVIDENCE-2026-08-29",
+  "recorded_at": "2026-08-29T19:51:39+08:00",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2",
+    "build_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v10-output-bounded-local-contract",
+    "committed_or_pushed": false
+  },
+  "quality": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "web_check": "passed",
+    "web_unit_tests": 9,
+    "domain_application_statement_coverage_percent": 85.21,
+    "domain_application_statements": { "covered": 1187, "total": 1393 },
+    "infrastructure_transport_statement_coverage_percent": 72.92,
+    "infrastructure_transport_statements": { "covered": 1890, "total": 2592 },
+    "critical_invariant_branches": { "passed": 33, "total": 33 },
+    "openapi_generated_client_matches": true,
+    "git_diff_check": "passed"
+  },
+  "compose_e2e": {
+    "compose_project": "sbm-glm53-e2e-829",
+    "compose_project_destroyed_after_run": true,
+    "production_image_id": "sha256:d24785e70bdb748b46f01c011345ae452222b351f7d37d2194c91da065143ba8",
+    "production_image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-output-mode",
+    "image_size_bytes": 22900644,
+    "docker_client_version": "29.7.2",
+    "docker_server_version": "29.7.2",
+    "compose_version": "5.5.0",
+    "app_config_hash": "4316deea2acc157b59ffb984a86b0bb5ba5648e81bf19d380ef9ff5146485e90",
+    "provider_config_hash": "6b816b6c7d6e045e3ca98cf41e863a276addea1983c7e66629de072c59529b44",
+    "fresh_database": true,
+    "tests_passed": 13,
+    "tests_failed": 0,
+    "duration_ms": 11993.642,
+    "provider_counters": { "requests": 2, "probes": 1, "extractions": 1 },
+    "health": "ok",
+    "readiness": "ready",
+    "current_prompt_provider_worktree_revalidated": true
+  },
+  "ui": {
+    "state_matrix_tests_passed": 9,
+    "formal_page_width_checks_passed": 16,
+    "equivalent_200_percent_reflow_checks_passed": 16,
+    "keyboard_check": "passed",
+    "dark_theme_check": "passed",
+    "lighthouse_runs_passed": 12,
+    "lighthouse_worst_performance": 100,
+    "lighthouse_worst_accessibility": 100
+  },
+  "performance": {
+    "passed": true,
+    "reference_cpu_limit": 2,
+    "reference_memory_bytes": 4294967296,
+    "facts": 10000,
+    "p95_ms": {
+      "inbox_list": 147.47,
+      "document_detail": 48.34,
+      "claim_set_detail": 145.1,
+      "payment_list": 139.44,
+      "invoice_list": 148.84,
+      "document_create_server_timing": 62.37,
+      "review_confirm_server_timing": 65.42
+    }
+  },
+  "memory": {
+    "passed": true,
+    "warmup_jobs": 10,
+    "measured_jobs": 50,
+    "first_10_median_rss_bytes": 154566656,
+    "last_10_median_rss_bytes": 24084480,
+    "last_to_first_median_ratio": 0.1558,
+    "linear_regression_slope_mib_per_job": -3.3587,
+    "orphan_jobs": 0
+  },
+  "backup_restore": {
+    "passed": true,
+    "confirmed_documents": 1,
+    "processing_documents_at_backup": 1,
+    "downloads_verified_after_restore": 2,
+    "jobs_after_restore": 2,
+    "payments_after_restore": 2,
+    "lease_recovery_elapsed_ms": 78975,
+    "processing_attempt_count_before_backup": 1,
+    "processing_attempt_count_after_recovery": 2
+  },
+  "security_and_clean_slate": {
+    "legacy_path_references_in_active_implementation": 0,
+    "production_app_files": 16,
+    "production_test_or_evaluation_assets": 0,
+    "read_only_rootfs": true,
+    "cap_drop_all": true,
+    "no_new_privileges": true,
+    "server_uid": 10001,
+    "plaintext_secret_matches_in_database_objects_image_or_logs": 0
+  },
+  "model_evaluation": {
+    "quality_dataset_boundary": "chinese_real_world_wechat_alipay_single_detail_and_complete_invoice_only",
+    "active_quality_dataset_version": "m1-real-dev-v2",
+    "active_quality_dataset_gate": "prompt_v9_three_sample_canary_failed_zero_claims_prompt_v10_output_bounded_canary_pending_authorization",
+    "real_world_intake": {
+      "status": "development_v1_scope_invalid_v2_frozen_and_preflight_completed",
+      "download_targets": 28,
+      "downloaded_images": 25,
+      "selected_development_candidates": 16,
+      "frozen_payment_or_receipt": 11,
+      "frozen_invoice": 5,
+      "v1_quality_eligible_candidates_after_scope_review": 6,
+      "v1_excluded_after_scope_review": 10,
+      "v2_proposed_wechat_pay_detail": 5,
+      "v2_proposed_alipay_detail": 5,
+      "v2_proposed_invoice": 6,
+      "v2_proposed_physical_receipt": 0,
+      "v2_additional_candidates_required": 0,
+      "v2_candidate_assets": 16,
+      "v2_new_candidate_assets": 10,
+      "v2_candidate_static_integrity": "passed",
+      "v2_candidate_manifest_sha256": "b0fc7117c7a6b1564669532277ad7adccb9f1aef414749eaa989a86c64bac2a3",
+      "v2_private_labels_sha256": "1f0acdadf17387485ca123a8b82beda3b37b25369ad1b00c2f23d003c1719afa",
+      "v2_frozen_manifest_sha256": "2fe2badb59ac10e11d1573c3ddc5182835afc2463e7e3a5e3d07dd006b03ed15",
+      "v2_product_approved_samples": 16,
+      "v2_frozen_samples": 16,
+      "v2_source_intake_sha256": "847443c7db3d89e75cb0def23c9a19545798913dc7b5c2f092f09911a35ae761",
+      "v2_candidate_gallery_sha256": "27597db729208811877c29e9ccec7851b482cbfe98fb524767cdef3d0cabc3aa",
+      "v2_provider_calls": 20,
+      "official_samples_and_product_demos_release_eligible": false,
+      "selected_payment_or_receipt_with_visible_iana_timezone": 0,
+      "selected_payment_or_receipt_with_visible_utc_offset": 0,
+      "intake_manifest_sha256": "67c813c7a07d20e19085d4008038d2e950300e116072cf6e3402d358159a8b48",
+      "development_manifest_sha256": "4132cdeb6cfe829d23d0ecba9b802a2336db70816f125879c682890f7b89a603",
+      "source_traceability": "16_of_16",
+      "historical_synthetic_asset_hash_overlap": 0,
+      "timezone_policy": "m1-payment-timezone/1",
+      "default_timezone": "Asia/Shanghai",
+      "default_utc_offset": "+08:00",
+      "raw_assets_and_sources_local_git_ignored": true,
+      "raw_assets_and_manifests_owner_only": true,
+      "provider_upload_authorized": false,
+      "authorized_real_documents_processed": 16,
+      "real_image_model_requests_including_schema_retry": 85,
+      "provider_calls": 85
+    },
+    "synthetic_results_count_toward_current_quality_gate": false,
+    "dataset_version": "m1-synthetic-v2",
+    "manifest_sha256": "08ce3ea739eaa482ba8410ccf71b9f3f1806bbf613d0c960549ae9110566c91d",
+    "synthetic_samples": 100,
+    "dataset_gate": "historical_technical_only_not_quality_release_eligible",
+    "historical_dataset_v1": {
+      "manifest_sha256": "1ca338b15f5c060819323f5dd584758bba6a7e7d65460514a47857cac1a550ed",
+      "byte_identity_preserved": true,
+      "release_eligible": false,
+      "reason": "payment_order_number_manifest_contradiction"
+    },
+    "release_dataset_v2": {
+      "manifest_sha256": "08ce3ea739eaa482ba8410ccf71b9f3f1806bbf613d0c960549ae9110566c91d",
+      "samples": 100,
+      "payment": 40,
+      "invoice": 40,
+      "unknown": 20,
+      "model_stage_eligible": 85,
+      "rejected_before_model": 15,
+      "approved_correction": "add_expected_payment_order_number_value_and_evidence_and_remove_expected_missing_marker",
+      "corrected_samples": 40,
+      "asset_paths_and_hashes_identical_to_v1": true,
+      "deterministic_regeneration": "byte_identical",
+      "tuning_asset_hash_overlap": 0,
+      "v1_overwrite_rejected": true,
+      "v1_release_run_rejected": true,
+      "v1_release_score_rejected": true
+    },
+    "scorer_self_test": "passed",
+    "required_external_runs": 3,
+    "completed_external_runs": 0,
+    "historical_synthetic_external_runs": 1,
+    "completed_external_diagnostics": 5,
+    "diagnostic_analysis": {
+      "artifact": "tests/evidence/evaluation/diagnostic-analysis-v1.json",
+      "analysis_version": "m1-model-diagnostic-analysis/1",
+      "core_money_expected": 106,
+      "core_money_value_exact": 30,
+      "core_money_normalized_exact": 80,
+      "core_money_normalized_rescues": 50,
+      "disallowed_field_emissions": 166,
+      "field_type_mismatches": 112,
+      "incomplete_claim_snapshots": 111,
+      "invalid_typed_values": 223
+    },
+    "current_quality_remediation": {
+      "status": "prompt_v9_three_sample_canary_failed_prompt_v10_local_gates_passed_pending_authorization",
+      "prompt_version": "document-extract/10",
+      "authoritative_schema_version": "document-claim/1",
+      "provider_schema_version": "document-claim-provider/2",
+      "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+      "normalized_value_provider_contract": "required_null_only",
+      "tuning_dataset": {
+        "version": "m1-real-dev-v2",
+        "manifest_sha256": "2fe2badb59ac10e11d1573c3ddc5182835afc2463e7e3a5e3d07dd006b03ed15",
+        "candidate_manifest_artifact": "tests/evaluation/real-local/development-v2/candidate-manifest.json",
+        "candidate_manifest_sha256": "b0fc7117c7a6b1564669532277ad7adccb9f1aef414749eaa989a86c64bac2a3",
+        "private_labels_sha256": "1f0acdadf17387485ca123a8b82beda3b37b25369ad1b00c2f23d003c1719afa",
+        "real_world": true,
+        "local_git_ignored": true,
+        "eligible_candidates": 16,
+        "wechat_pay_detail": 5,
+        "alipay_detail": 5,
+        "invoice": 6,
+        "physical_receipt": 0,
+        "target_samples": 16,
+        "target_wechat_pay_detail": 5,
+        "target_alipay_detail": 5,
+        "target_invoice": 6,
+        "additional_candidates_required": 0,
+        "eligible_for_release_evidence": false,
+        "provider_upload_authorized": false,
+        "static_gate": "product_approved_labels_complete_frozen_integrity_passed",
+        "preflight_gate": "prompt_v7_failed_not_near_threshold",
+        "prompt_v8_canary_gate": "failed_zero_of_six_claims_fields_array_contract_regression",
+        "prompt_v9_canary_gate": "failed_zero_of_three_claims_two_timeouts_two_invalid_json_one_canonical_schema_failure",
+        "prompt_v10_canary_gate": "three_sample_output_bounded_canary_frozen_pending_per_run_provider_authorization"
+      },
+      "superseded_tuning_dataset": {
+        "version": "m1-real-dev-v1",
+        "manifest_sha256": "4132cdeb6cfe829d23d0ecba9b802a2336db70816f125879c682890f7b89a603",
+        "manifest_identity_preserved": true,
+        "samples": 16,
+        "eligible_candidates_after_scope_review": 6,
+        "excluded_after_scope_review": 10,
+        "quality_conclusion_eligible": false,
+        "reason": "payment_receipt_bucket_contains_lists_collages_overlays_redaction_and_physical_receipts",
+        "scope_audit_artifact": "tests/evaluation/real-local/development-v1/scope-audit-v2-candidate.json",
+        "scope_audit_sha256": "8826c829c178beac352b0f59fc251de8395f60d40ae6f48bf15e3f2332a9f457"
+      },
+      "historical_synthetic_tuning_dataset": {
+        "version": "m1-prompt-dev-v2",
+        "manifest_sha256": "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
+        "samples": 16,
+        "eligible_for_current_quality_gate": false
+      },
+      "local_checks": {
+        "go_test_all": "passed",
+        "go_vet_all": "passed",
+        "diagnostic_analysis_verification": "passed",
+        "tuning_dataset_gate": "historical_v1_static_gate_passed_but_business_scope_invalid",
+        "real_development_dataset_gate": "active_v2_frozen_integrity_passed",
+        "real_development_v2_freezer_repeat": "byte_identical_owner_only_snapshot_verified",
+        "historical_v1_integrity_check": "passed_only_with_explicit_historical_mode",
+        "retired_v1_provider_guard": "passed_before_secret_read_or_network",
+        "candidate_v2_provider_guard": "passed_before_secret_read_or_network",
+        "jpeg_to_eight_bit_png_regression": "passed",
+        "corrected_actual_input_pages_eight_bit": "16_of_16",
+        "release_scorer_self_test": "passed",
+        "preflight_scorer_self_test": "passed",
+        "real_preflight_scorer_self_test": "passed",
+        "prompt_v7_targeted_go_tests": "passed",
+        "prompt_v8_targeted_go_tests": "passed",
+        "prompt_v8_canary_scorer_self_test": "passed",
+        "prompt_v8_canary_guard": "passed_before_secret_read_or_network",
+        "prompt_v8_instruction_budget": "7530_bytes_within_8000_byte_limit",
+        "prompt_v8_go_format": "passed",
+        "prompt_v8_node_syntax_and_format": "passed",
+        "prompt_v8_privacy_scan": "zero_exact_secret_matches_and_safe_failure_analysis_only",
+        "prompt_v9_targeted_go_tests": "passed",
+        "prompt_v9_canary_scorer_self_test": "passed",
+        "prompt_v9_canary_guard": "passed_before_secret_read_or_network",
+        "prompt_v9_instruction_budget": "7752_bytes_within_8000_byte_limit",
+        "prompt_v9_historical_v8_score_reproduction": "passed",
+        "prompt_v10_targeted_go_tests": "passed",
+        "prompt_v10_go_test_all": "passed",
+        "prompt_v10_go_vet_all": "passed",
+        "prompt_v10_canary_scorer_self_test": "passed",
+        "prompt_v10_canary_guard": "passed_before_secret_read_or_network",
+        "prompt_v10_stale_v9_guard": "passed_before_secret_read_or_network",
+        "prompt_v10_instruction_budget": "7812_bytes_within_7900_byte_limit",
+        "prompt_v10_freezer_repeat": "byte_identical_owner_only_snapshot_verified",
+        "prompt_v10_historical_v9_score_reproduction": "byte_identical",
+        "prompt_v10_production_image_content": "16_production_files_zero_forbidden_assets",
+        "prompt_v10_production_binary_prompt_identity": "document-extract/10_verified",
+        "prompt_v10_production_image_privacy_scan": "zero_exact_secret_matches",
+        "synthetic_provider_v2_contract_smoke": "passed",
+        "schema_diagnostic_privacy_tests": "passed",
+        "historical_v3_preflight_score_reproduction": "byte_identical",
+        "historical_v4_preflight_score_reproduction": "byte_identical",
+        "historical_v4_retry1_preflight_score_reproduction": "byte_identical",
+        "schema_retry_boundary_tests": "passed",
+        "explicit_output_mode_contract_tests": "passed",
+        "domain_application_coverage": {
+          "percentage": 85.21,
+          "covered": 1187,
+          "total": 1393,
+          "required": 85
+        },
+        "infrastructure_transport_coverage": {
+          "percentage": 72.92,
+          "covered": 1890,
+          "total": 2592,
+          "required": 70
+        },
+        "web_check_and_build": "passed",
+        "production_image_synthetic_e2e": "13_of_13_passed"
+      },
+      "current_prompt_iteration": {
+        "prompt_version": "document-extract/10",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "production_image_status": "prompt_v10_built_and_content_verified_provider_not_called",
+        "production_image_id": "sha256:0ba80038ae2de96d8ffde6ff88e06cfbcff4dcc349b1b0ddfd86999000d1d0f9",
+        "production_image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v10-output-bounded-canary-v1",
+        "production_image_size_bytes": 22901995,
+        "production_image_file_count": 16,
+        "production_image_is_current": true,
+        "production_image_prompt_version": "document-extract/10",
+        "production_image_quality_status": "pending_three_sample_per_run_provider_authorization",
+        "production_image_exact_secret_matches": 0,
+        "input_processing_version": "document-normalize/2",
+        "instruction_bytes": 7812,
+        "previous_instruction_bytes": 7752,
+        "instruction_byte_change": 60,
+        "instruction_byte_change_percent": 0.77,
+        "instruction_byte_reduction_from_prompt_v7": 700,
+        "instruction_byte_reduction_from_prompt_v7_percent": 8.22,
+        "explicit_output_modes": ["json_schema", "json_object"],
+        "automatic_output_mode_fallback": false,
+        "default_timezone": "Asia/Shanghai",
+        "default_utc_offset": "+08:00",
+        "timezone_provenance": "product_default_reusing_literal_local_datetime_evidence",
+        "sort_order_provenance": "visible_row_order_reusing_item_name_evidence",
+        "required_optional_field_contract": "explicit",
+        "field_issues_contract": "empty_array",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "retryable_schema_stages": [
+          "content_json",
+          "provider_schema",
+          "canonical_schema"
+        ],
+        "safe_schema_diagnostics": {
+          "maximum_reported_violations": 3,
+          "instance_paths": "allowlisted_and_redacted",
+          "keywords": "allowlisted",
+          "model_values_retained": false,
+          "evidence_text_retained": false,
+          "full_model_response_retained": false
+        },
+        "active_real_development_preflight_runs": 5,
+        "prompt_v7_real_development_preflight_runs": 2,
+        "prompt_v8_real_development_preflight_runs": 1,
+        "prompt_v9_real_development_preflight_runs": 1,
+        "prompt_v10_real_development_preflight_runs": 0,
+        "status": "prompt_v10_local_gates_passed_three_sample_output_bounded_canary_pending_provider_authorization"
+      },
+      "prompt_v8_local_remediation": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "prompt_version": "document-extract/8",
+        "provider_schema_version": "document-claim-provider/2",
+        "authoritative_schema_version": "document-claim/1",
+        "input_processing_version": "document-normalize/2",
+        "output_mode": "json_object",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "failure_analysis_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-normalize-v2-real-dev-v2-failure-analysis.json",
+        "failure_analysis_sha256": "305d5595ab76482bb23f7398b2a747f0e9da991d5d45afb686ac55dd0fbb2ca0",
+        "failure_analysis_contains_expected_or_observed_values": false,
+        "failure_analysis_contains_evidence_quotes": false,
+        "failure_analysis_category_counts": {
+          "completion": 3,
+          "classification": 1,
+          "evidence": 10,
+          "field_structure": 1,
+          "presence": 11,
+          "review_state": 6,
+          "validation_event": 8,
+          "value": 6
+        },
+        "terminal_failure_counts": {
+          "schema_validation_failed": 1,
+          "provider_timeout": 1,
+          "provider_invalid_response": 1
+        },
+        "dominant_path_counts": {
+          "currency": 7,
+          "currency_expected_absent_observed_present_on_bare_symbol": 6,
+          "merchant": 4,
+          "invoice_item_name": 3,
+          "invoice_item_unit_false_present": 3,
+          "tax_minor_evidence_incomplete": 5,
+          "invoice_number_single_character_error": 1
+        },
+        "canary_dataset_version": "m1-real-dev-v2-prompt-v8-canary",
+        "canary_manifest_sha256": "328f1d4bad535f4d2f0268f8d130ca54cad6d9b22aba961b2a17919e8e8cb13f",
+        "canary_samples": 6,
+        "canary_payment": 4,
+        "canary_invoice": 2,
+        "canary_failure_driven": true,
+        "canary_unbiased_quality_estimate": false,
+        "canary_eligible_for_release_evidence": false,
+        "canary_eligible_for_quality_gate": false,
+        "full_v2_rerun_required_after_canary": true,
+        "canary_run_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v8-canary-run.json",
+        "canary_run_artifact_sha256": "bb9a4e237d152c1b207183b82c22577e35ec81a6134a5ce3b5fd724d9f615800",
+        "canary_score_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v8-canary-score.json",
+        "canary_score_artifact_sha256": "671c0dcfa05bd8ba7cb90bb85ccb8e84ed93edce8b233e921dc7b21901234816",
+        "canary_failure_analysis_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v8-canary-failure-analysis.json",
+        "canary_failure_analysis_sha256": "cb60db0f9c0b4be656af2446b5fac6e3da0e891b70fa1aed7f97589d24300529",
+        "canary_result": {
+          "local_claim_accepted": 0,
+          "job_terminal_without_claim": 6,
+          "model_completion_rate_percent": 0,
+          "claim_contract_rate_percent": 0,
+          "provider_schema_fields_type_failures": 5,
+          "provider_invalid_response": 1,
+          "two_attempt_samples": 5,
+          "one_attempt_samples": 1,
+          "extraction_model_requests": 11,
+          "capability_probe_requests": 1,
+          "ai_direct_fact_count": 0
+        },
+        "root_cause_classification": "prompt_contract_regression_missing_explicit_fields_and_document_issues_array_types",
+        "production_image_id": "sha256:86d688a7992a2f0e2dabd46ebd60d745db1f54a44001adc13c2519e4b18d8125",
+        "production_image_size_bytes": 22901797,
+        "production_image_file_count": 16,
+        "provider_requests_total": 12,
+        "provider_upload_authorized": false,
+        "per_run_provider_upload_was_authorized": true,
+        "authorization_scope": "per_run_provider_host_and_exact_sample_count",
+        "temporary_runtime_destroyed": true,
+        "exact_secret_matches": 0,
+        "status": "failed_zero_completion_prompt_contract_regression"
+      },
+      "prompt_v9_local_remediation": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "prompt_version": "document-extract/9",
+        "provider_schema_version": "document-claim-provider/2",
+        "authoritative_schema_version": "document-claim/1",
+        "input_processing_version": "document-normalize/2",
+        "output_mode": "json_object",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "change_scope": "explicit_fields_and_document_issues_array_container_types_only",
+        "instruction_bytes": 7752,
+        "source_failure_analysis_sha256": "cb60db0f9c0b4be656af2446b5fac6e3da0e891b70fa1aed7f97589d24300529",
+        "canary_dataset_version": "m1-real-dev-v2-prompt-v9-canary",
+        "canary_manifest_sha256": "bec9dcaec7c9530623ced4467d2c0647055ae4c4d15add28e211600158b55b0f",
+        "canary_samples": 3,
+        "canary_payment": 2,
+        "canary_invoice": 1,
+        "canary_unbiased_quality_estimate": false,
+        "canary_eligible_for_release_evidence": false,
+        "canary_eligible_for_quality_gate": false,
+        "full_prompt_v8_canary_rerun_required_after_structural_pass": true,
+        "full_v2_rerun_required_after_canary": true,
+        "run_artifact_sha256": "e8b95c71ce3e780997538972e17913cdf2bdc48bf86d216e1bdb757e8a459599",
+        "score_artifact_sha256": "f799c6c509dff631ae1ac9ccedb7f0926a5c5672f73dd46f4f779c867882eb3d",
+        "safe_analysis_sha256": "e0ae0bc14b0830b9588e34a3aaa3feb3f253cc36b992297573fa7f3671743183",
+        "production_image_id": "sha256:2000eaec9fd85a39c59e896a2b15e9f639d5d36aa263b3cb39fc49b5051b5522",
+        "production_image_size_bytes": 22901992,
+        "production_image_file_count": 16,
+        "accepted_claims": 0,
+        "provider_extraction_requests": 5,
+        "capability_probe_requests": 1,
+        "provider_requests_total": 6,
+        "provider_timeout_requests": 2,
+        "content_json_invalid_requests": 2,
+        "canonical_schema_invalid_requests": 1,
+        "provider_schema_fields_type_violations": 0,
+        "provider_upload_authorized": false,
+        "per_run_provider_upload_was_authorized": true,
+        "authorization_scope": "per_run_provider_host_and_exact_sample_count",
+        "temporary_runtime_destroyed": true,
+        "exact_secret_matches": 0,
+        "status": "failed_zero_completion_output_and_latency_blockers"
+      },
+      "prompt_v10_local_remediation": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "prompt_version": "document-extract/10",
+        "provider_schema_version": "document-claim-provider/2",
+        "authoritative_schema_version": "document-claim/1",
+        "input_processing_version": "document-normalize/2",
+        "output_mode": "json_object",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "change_scope": "exact_present_absent_templates_fixed_payment_field_count_and_one_evidence_item_per_present_field",
+        "schema_contract_changed": false,
+        "retry_policy_changed": false,
+        "timeout_changed": false,
+        "acceptance_thresholds_changed": false,
+        "instruction_bytes": 7812,
+        "source_failure_analysis_sha256": "e0ae0bc14b0830b9588e34a3aaa3feb3f253cc36b992297573fa7f3671743183",
+        "canary_dataset_version": "m1-real-dev-v2-prompt-v10-canary",
+        "canary_manifest_sha256": "03a794d5ddd0c53ade849d87185242057745bcbc305b090ed4b4bade1f4d2bf3",
+        "canary_samples": 3,
+        "canary_payment": 2,
+        "canary_invoice": 1,
+        "canary_unbiased_quality_estimate": false,
+        "canary_eligible_for_release_evidence": false,
+        "canary_eligible_for_quality_gate": false,
+        "full_six_sample_canary_required_after_output_pass": true,
+        "full_v2_rerun_required_after_canary": true,
+        "production_image_id": "sha256:0ba80038ae2de96d8ffde6ff88e06cfbcff4dcc349b1b0ddfd86999000d1d0f9",
+        "production_image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v10-output-bounded-canary-v1",
+        "production_image_size_bytes": 22901995,
+        "production_image_file_count": 16,
+        "production_image_exact_secret_matches": 0,
+        "provider_calls": 0,
+        "provider_upload_authorized": false,
+        "authorization_scope": "per_run_provider_host_and_exact_sample_count",
+        "status": "local_gates_passed_pending_per_run_provider_authorization"
+      },
+      "prompt_v7_contract_preflight": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "provider_base_url_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+        "real_images_uploaded": 0,
+        "two_sample_candidate_repetitions": {
+          "runs": 2,
+          "samples_per_run": 2,
+          "provider_schema_valid": "4_of_4",
+          "canonical_schema_valid": "4_of_4",
+          "payment_latency_ms_range": [6305, 6487],
+          "invoice_latency_ms_range": [8584, 9257]
+        },
+        "capability_probe": {
+          "shape": "unknown_empty_fields_probe_blue_issue",
+          "provider_schema_in_message": true,
+          "consecutive_passes": "3_of_3"
+        },
+        "synthetic_dataset_version": "m1-prompt-dev-v2",
+        "synthetic_dataset_manifest_sha256": "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
+        "output_mode": "json_object",
+        "prompt_version": "document-extract/7",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "input_processing_version": "document-normalize/2",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "image_id": "sha256:e0579107d93797f7d47c12fc4a7992588505d67601388743f840c13731e5ce51",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v7-normalize-v2-contract-v1",
+        "image_size_bytes": 22901846,
+        "image_file_count": 16,
+        "evaluated_samples": 16,
+        "total_model_requests": 18,
+        "outcomes": {
+          "local_claim_accepted": 15,
+          "job_terminal_without_claim": 1,
+          "provider_timeout": 0
+        },
+        "errors": {
+          "schema_validation_failed": 1,
+          "provider_schema_additional_properties": 1
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 93.75,
+            "numerator": 15,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 37.5,
+            "numerator": 6,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 15,
+            "denominator": 15,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 93.75,
+            "numerator": 15,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 90.91,
+            "numerator": 10,
+            "denominator": 11,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 100,
+            "numerator": 7,
+            "denominator": 7,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 78.57,
+            "numerator": 11,
+            "denominator": 14,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 95.45,
+            "numerator": 21,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 90.91,
+            "numerator": 60,
+            "denominator": 66,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 75,
+            "numerator": 3,
+            "denominator": 4,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 92.41,
+            "numerator": 73,
+            "denominator": 79,
+            "required": 100
+          }
+        },
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-synthetic-contract-run.json",
+        "run_artifact_sha256": "7a25955fd82855c710f0fe92e5049c8c480c0478f2c4773e2e4ec7382e1daf76",
+        "score_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-synthetic-contract-score.json",
+        "score_artifact_sha256": "46eb014edd0d93289b1338088adadcf668ef4dc3e399c612be1ea59375128969",
+        "isolated_runtime_destroyed": true,
+        "secret_matches": 0
+      },
+      "prompt_v7_real_development_preflight": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "provider_base_url_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+        "provider_config_safe_fingerprint": "ad121b63a2e548ae506cfee0f5259aed565e4ce9f9a2d3c81b9f2d132961b35b",
+        "dataset_version": "m1-real-dev-v1",
+        "dataset_manifest_sha256": "4132cdeb6cfe829d23d0ecba9b802a2336db70816f125879c682890f7b89a603",
+        "output_mode": "json_object",
+        "prompt_version": "document-extract/7",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "input_processing_version": "document-normalize/2",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "temperature": 0,
+        "connection_timeout_seconds": 10,
+        "model_timeout_seconds": 60,
+        "job_timeout_seconds": 150,
+        "image_id": "sha256:e0579107d93797f7d47c12fc4a7992588505d67601388743f840c13731e5ce51",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v7-normalize-v2-contract-v1",
+        "authorized_real_documents": 16,
+        "evaluated_samples": 16,
+        "total_model_requests": 18,
+        "outcomes": {
+          "local_claim_accepted": 15,
+          "job_terminal_without_claim": 1
+        },
+        "attempts": {
+          "one_attempt_samples": 14,
+          "two_attempt_samples": 2,
+          "schema_retry_recovered": 2,
+          "schema_retry_exhausted": 0,
+          "recovered_sample_ids": ["REAL-DEV-PAY-001", "REAL-DEV-PAY-006"]
+        },
+        "errors": {
+          "provider_timeout": 1,
+          "schema_validation_failed_terminal": 0,
+          "provider_timeout_sample_ids": ["REAL-DEV-REC-002"]
+        },
+        "classification_confusion": {
+          "expected_invoice": {
+            "invoice": 5
+          },
+          "expected_payment_or_receipt": {
+            "payment": 5,
+            "invoice": 3,
+            "unknown": 2,
+            "no_claim": 1
+          }
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 93.75,
+            "numerator": 15,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 0,
+            "numerator": 0,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 15,
+            "denominator": 15,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 62.5,
+            "numerator": 10,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 71.43,
+            "numerator": 10,
+            "denominator": 14,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 80,
+            "numerator": 4,
+            "denominator": 5,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 75,
+            "numerator": 9,
+            "denominator": 12,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 68.75,
+            "numerator": 11,
+            "denominator": 16,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 64.91,
+            "numerator": 37,
+            "denominator": 57,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 73.91,
+            "numerator": 17,
+            "denominator": 23,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 83.33,
+            "numerator": 70,
+            "denominator": 84,
+            "required": 100
+          }
+        },
+        "claim_contract_definition": "per_sample_review_state_classification_complete_fields_values_evidence_and_validation_events_all_match",
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "dataset_scope_status": "invalid_for_current_business_quality_boundary",
+        "quality_conclusion_eligible": false,
+        "diagnostic_uses": [
+          "transport",
+          "schema",
+          "timeout",
+          "scoring_pipeline"
+        ],
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-normalize-v2-real-dev-v1-run.json",
+        "run_artifact_sha256": "797a3faa0a420777fe7428e9d20299686dbb7c94a76823581333328f4a0bc692",
+        "score_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-normalize-v2-real-dev-v1-score.json",
+        "score_artifact_sha256": "904768bbce94d985a03aa8a965c321b2a2087616dc98a99edca7e47591828d69",
+        "artifact_file_mode": "0600",
+        "isolated_runtime_destroyed": true,
+        "secret_matches": 0
+      },
+      "prompt_v7_real_development_v2_preflight": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "provider_base_url_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+        "provider_config_safe_fingerprint": "5dd22cab65f7dd9470ffab12759baf8e869cd589f3c3f3948351e9d91ede0202",
+        "dataset_version": "m1-real-dev-v2",
+        "dataset_manifest_sha256": "2fe2badb59ac10e11d1573c3ddc5182835afc2463e7e3a5e3d07dd006b03ed15",
+        "output_mode": "json_object",
+        "prompt_version": "document-extract/7",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "input_processing_version": "document-normalize/2",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "temperature": 0,
+        "connection_timeout_seconds": 10,
+        "model_timeout_seconds": 60,
+        "job_timeout_seconds": 150,
+        "authorized_real_documents": 16,
+        "evaluated_samples": 16,
+        "total_model_requests": 20,
+        "outcomes": {
+          "local_claim_accepted": 13,
+          "job_terminal_without_claim": 3
+        },
+        "attempts": {
+          "one_attempt_samples": 12,
+          "two_attempt_samples": 4
+        },
+        "errors": {
+          "schema_validation_failed": 1,
+          "provider_timeout": 1,
+          "provider_invalid_response": 1,
+          "failed_sample_ids": ["V2-WECHAT-003", "V2-ALIPAY-002", "V2-INV-006"]
+        },
+        "latency_ms": {
+          "min": 3028,
+          "p50_observation": 12083,
+          "max": 92078
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 81.25,
+            "numerator": 13,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 0,
+            "numerator": 0,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 13,
+            "denominator": 13,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 75,
+            "numerator": 12,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 75,
+            "numerator": 12,
+            "denominator": 16,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 66.67,
+            "numerator": 4,
+            "denominator": 6,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 75,
+            "numerator": 12,
+            "denominator": 16,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 59.09,
+            "numerator": 13,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 82.14,
+            "numerator": 46,
+            "denominator": 56,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 40,
+            "numerator": 4,
+            "denominator": 10,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 76.19,
+            "numerator": 48,
+            "denominator": 63,
+            "required": 100
+          }
+        },
+        "claim_contract_definition": "per_sample_review_state_classification_complete_fields_values_evidence_and_validation_events_all_match",
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "dataset_scope_status": "valid_for_current_business_quality_boundary",
+        "quality_conclusion_eligible": true,
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-normalize-v2-real-dev-v2-run.json",
+        "run_artifact_sha256": "6ecc86e7348892195532a6296364a5fb0d816b22351870f6c608d9280e146a4a",
+        "score_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v7-normalize-v2-real-dev-v2-score.json",
+        "score_artifact_sha256": "50a88b204a880a26ee4e24d0b258312f39dfd6ebfe68aefb798b9cec8e34b899",
+        "artifact_file_mode": "0600",
+        "isolated_runtime_destroyed": true,
+        "secret_matches": 0
+      },
+      "real_development_preflight": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "provider_base_url_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+        "output_mode": "json_object",
+        "prompt_version": "document-extract/6",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "input_processing_version": "document-normalize/2",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "image_id": "sha256:02fd1309f4f7d29d88a86abfe82f268972054f1e80da4eb7921c10f4f9ed5567",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v6-normalize-v2-real-dev-v1",
+        "authorized_real_documents": 16,
+        "evaluated_samples": 16,
+        "actual_input_png_bit_depth": {
+          "eight_bit": 16,
+          "sixteen_bit": 0
+        },
+        "outcomes": {
+          "local_claim_accepted": 2,
+          "job_terminal_without_claim": 14
+        },
+        "attempts": {
+          "one_attempt_samples": 2,
+          "two_attempt_samples": 14,
+          "total_model_requests": 30
+        },
+        "errors": {
+          "schema_validation_failed": 11,
+          "provider_timeout": 3,
+          "provider_schema_missing_required_members": 9,
+          "content_json_syntax": 2
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 12.5,
+            "numerator": 2,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 0,
+            "numerator": 0,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 2,
+            "denominator": 2,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 6.25,
+            "numerator": 1,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 7.14,
+            "numerator": 1,
+            "denominator": 14,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 0,
+            "numerator": 0,
+            "denominator": 5,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 8.33,
+            "numerator": 1,
+            "denominator": 12,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 6.25,
+            "numerator": 1,
+            "denominator": 16,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 28.57,
+            "numerator": 2,
+            "denominator": 7,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 95.65,
+            "numerator": 22,
+            "denominator": 23,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 79.76,
+            "numerator": 67,
+            "denominator": 84,
+            "required": 100
+          }
+        },
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v6-normalize-v2-run.json",
+        "run_artifact_sha256": "7ab3dbb0a2ad6f7251ab54c2931f2df14905765725e003beb43bc685768bc865",
+        "score_artifact": "tests/evidence/evaluation/real-local/preflight-qwen3-vl-prompt-v6-normalize-v2-score.json",
+        "score_artifact_sha256": "7c0fcc1123ad7abdb9987d38717d7c7a60eb2e8eca39934ce71577c660d24f9d",
+        "isolated_runtime_destroyed": true,
+        "secret_matches": 0
+      },
+      "historical_synthetic_preflight_runs": 5,
+      "previous_real_preflight": {
+        "model": "qwen3.8-flash",
+        "prompt_version": "document-extract/3",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "image_id": "sha256:1381d835fdf064e09d79bd514c134019e30ee49cb9249e9303127cba7e97c584",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v3",
+        "evaluated_samples": 16,
+        "outcomes": {
+          "local_claim_accepted": 8,
+          "job_terminal_without_claim": 8
+        },
+        "job_statuses": {
+          "failed": 8,
+          "blocked": 5,
+          "needs_review": 3
+        },
+        "errors": {
+          "schema_validation_failed": 6,
+          "provider_timeout": 2
+        },
+        "provider_latency_ms": {
+          "min": 5621,
+          "p50": 22922,
+          "p95": 60664,
+          "max": 60664
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 50,
+            "numerator": 8,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 43.75,
+            "numerator": 7,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 8,
+            "denominator": 8,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 50,
+            "numerator": 8,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 36.36,
+            "numerator": 4,
+            "denominator": 11,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 28.57,
+            "numerator": 2,
+            "denominator": 7,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 42.86,
+            "numerator": 6,
+            "denominator": 14,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 36.36,
+            "numerator": 8,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 100,
+            "numerator": 26,
+            "denominator": 26,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 100,
+            "numerator": 4,
+            "denominator": 4,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 89.02,
+            "numerator": 73,
+            "denominator": 82,
+            "required": 100
+          }
+        },
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3.8-flash-run.json",
+        "run_artifact_sha256": "8ffdff75ecf90134d68659ed0dcfbc07f9dcce9619576ecedf690c3f3f951f73",
+        "score_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3.8-flash-score.json",
+        "score_artifact_sha256": "87f6d86c1573cfbb74607e8ded741085cd61b3d0c08cc22d098e9803a01fb2e7"
+      },
+      "prompt_v4_no_retry_real_preflight": {
+        "model": "qwen3.8-flash",
+        "prompt_version": "document-extract/4",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "image_id": "sha256:2a44aedbc27936581115091a7fb3c86300067907a0d318e6071e8618287704fc",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v4",
+        "provider_output_retry_policy": "none",
+        "evaluated_samples": 16,
+        "outcomes": {
+          "local_claim_accepted": 13,
+          "job_terminal_without_claim": 3
+        },
+        "job_statuses": {
+          "failed": 3,
+          "blocked": 5,
+          "needs_review": 8
+        },
+        "errors": {
+          "schema_validation_failed": 3,
+          "provider_timeout": 0
+        },
+        "schema_failure_stages": {
+          "provider_schema_root_type": 2,
+          "canonical_schema_first_field": 1
+        },
+        "provider_latency_ms": {
+          "min": 4071,
+          "p50": 16327,
+          "p95": 42241,
+          "max": 42241
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 81.25,
+            "numerator": 13,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 81.25,
+            "numerator": 13,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 13,
+            "denominator": 13,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 81.25,
+            "numerator": 13,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 72.73,
+            "numerator": 8,
+            "denominator": 11,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 85.71,
+            "numerator": 6,
+            "denominator": 7,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 78.57,
+            "numerator": 11,
+            "denominator": 14,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 77.27,
+            "numerator": 17,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 100,
+            "numerator": 53,
+            "denominator": 53,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 100,
+            "numerator": 4,
+            "denominator": 4,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 96.34,
+            "numerator": 79,
+            "denominator": 82,
+            "required": 100
+          }
+        },
+        "accepted_claim_target_accuracy": 100,
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3.8-flash-v4-run.json",
+        "run_artifact_sha256": "9f3c5321c5b7f501bdd97b7e45dee61895b572db6dec1d5b465c2e95d4c83687",
+        "score_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3.8-flash-v4-score.json",
+        "score_artifact_sha256": "b5356d9c1dc2364ab36527e54eafc428c6418539ddac805faf228efd8a8b6bcf"
+      },
+      "qwen_retry1_real_preflight": {
+        "model": "qwen3.8-flash",
+        "prompt_version": "document-extract/4",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "provider_base_url_host": "api.shuaiapi.com",
+        "provider_config_safe_fingerprint": "2e1ea9b33743ad9eac65d2ff25d3f4c3e9b688345e44aebb941d25cad5609ea5",
+        "image_id": "sha256:66b3c2a5f121453600480bcc86dfca5f282daffadd2cf4f80fc0f101bc9b483e",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v4-schema-retry1",
+        "evaluated_samples": 16,
+        "outcomes": {
+          "local_claim_accepted": 15,
+          "job_terminal_without_claim": 1
+        },
+        "job_statuses": {
+          "failed": 1,
+          "blocked": 5,
+          "needs_review": 10
+        },
+        "attempts": {
+          "one_attempt_samples": 14,
+          "two_attempt_samples": 2,
+          "total_model_requests": 18,
+          "schema_retry_recovered": 2,
+          "schema_retry_exhausted": 0,
+          "recovered_sample_ids": ["TUNE-INV-005", "TUNE-UNK-001"]
+        },
+        "errors": {
+          "schema_validation_failed": 0,
+          "provider_timeout": 1
+        },
+        "failed_sample_ids": ["TUNE-INV-006"],
+        "sample_elapsed_ms": {
+          "min": 5109,
+          "p50": 15818,
+          "p95": 60800,
+          "max": 60800
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 93.75,
+            "numerator": 15,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 93.75,
+            "numerator": 15,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 15,
+            "denominator": 15,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 93.75,
+            "numerator": 15,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 100,
+            "numerator": 11,
+            "denominator": 11,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 85.71,
+            "numerator": 6,
+            "denominator": 7,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 92.86,
+            "numerator": 13,
+            "denominator": 14,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 90.91,
+            "numerator": 20,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 100,
+            "numerator": 63,
+            "denominator": 63,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 100,
+            "numerator": 4,
+            "denominator": 4,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 98.78,
+            "numerator": 81,
+            "denominator": 82,
+            "required": 100
+          }
+        },
+        "accepted_claim_target_accuracy": 100,
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": true,
+        "eligible_for_release_evidence": false,
+        "run_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3.8-flash-v4-retry1-run.json",
+        "run_artifact_sha256": "4c85ca7658a152f28168e450d2e93da2447be8f9bd0f7a912698ce73dd6d4cf5",
+        "score_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3.8-flash-v4-retry1-score.json",
+        "score_artifact_sha256": "a411b2f9245cd9a0ad696ea75fd511cd3945209c9b469e8733d87488a41c5b4c"
+      },
+      "glm_5_3_flash_real_preflight": {
+        "model": "glm-5.3-flash",
+        "prompt_version": "document-extract/5",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "output_mode": "json_object",
+        "provider_base_url_host": "open.bigmodel.cn",
+        "provider_config_safe_fingerprint": "af7ada89a49e7b60cdc63c4998d9f02563a2b34154345dc4c2f9197de6c1ad90",
+        "image_id": "sha256:d24785e70bdb748b46f01c011345ae452222b351f7d37d2194c91da065143ba8",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-output-mode",
+        "evaluated_samples": 16,
+        "outcomes": {
+          "local_claim_accepted": 14,
+          "job_terminal_without_claim": 2
+        },
+        "job_statuses": {
+          "failed": 2,
+          "blocked": 5,
+          "needs_review": 9
+        },
+        "attempts": {
+          "one_attempt_samples": 16,
+          "two_attempt_samples": 0,
+          "total_model_requests": 16,
+          "schema_retry_recovered": 0,
+          "schema_retry_exhausted": 0
+        },
+        "errors": {
+          "schema_validation_failed": 0,
+          "provider_timeout": 2
+        },
+        "failed_sample_ids": ["TUNE2-INV-006", "TUNE2-INV-008"],
+        "claim_contract_failed_sample_ids": [
+          "TUNE2-INV-002",
+          "TUNE2-INV-003",
+          "TUNE2-INV-006",
+          "TUNE2-INV-008"
+        ],
+        "model_value_or_evidence_failed_sample_ids": [
+          "TUNE2-INV-002",
+          "TUNE2-INV-003"
+        ],
+        "sample_elapsed_ms": {
+          "min": 4656,
+          "p50": 31130,
+          "p95": 60674,
+          "max": 60674,
+          "successful_max": 58250
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 87.5,
+            "numerator": 14,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 75,
+            "numerator": 12,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 14,
+            "denominator": 14,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 87.5,
+            "numerator": 14,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 90.91,
+            "numerator": 10,
+            "denominator": 11,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 71.43,
+            "numerator": 5,
+            "denominator": 7,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 85.71,
+            "numerator": 12,
+            "denominator": 14,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 77.27,
+            "numerator": 17,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 98.25,
+            "numerator": 56,
+            "denominator": 57,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 100,
+            "numerator": 4,
+            "denominator": 4,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 97.47,
+            "numerator": 77,
+            "denominator": 79,
+            "required": 100
+          }
+        },
+        "accepted_claim_exact_targets": {
+          "amount": { "numerator": 10, "denominator": 10 },
+          "invoice_number": { "numerator": 5, "denominator": 5 },
+          "date_or_time": { "numerator": 12, "denominator": 12 },
+          "name": { "numerator": 17, "denominator": 18 },
+          "critical_evidence": { "numerator": 56, "denominator": 57 }
+        },
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "eligible_for_release_evidence": false,
+        "next_100_sample_run_authorized": false,
+        "run_artifact": "tests/evidence/evaluation/tuning-preflight-glm-5.3-flash-run.json",
+        "run_artifact_sha256": "5549b07840cc037eaa02a6ab6910e253bd2239f86f24e0165958199429a0b16c",
+        "score_artifact": "tests/evidence/evaluation/tuning-preflight-glm-5.3-flash-score.json",
+        "score_artifact_sha256": "c7f5937e3ce5008e0f59f576fba28ecda29668295881ea3bf137a24a7080ed94",
+        "exact_secret_matches": 0,
+        "generic_key_pattern_matches": 0
+      },
+      "latest_real_preflight": {
+        "model": "qwen3-vl-30b-a3b-instruct",
+        "prompt_version": "document-extract/5",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "output_mode": "json_object",
+        "provider_base_url_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+        "provider_config_safe_fingerprint": "bb7dcf68230cc8cbaada160e6393879d43b792e68b4f93f97cbb418556e0dba1",
+        "image_id": "sha256:d24785e70bdb748b46f01c011345ae452222b351f7d37d2194c91da065143ba8",
+        "image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-output-mode",
+        "evaluated_samples": 16,
+        "outcomes": {
+          "local_claim_accepted": 12,
+          "job_terminal_without_claim": 4
+        },
+        "job_statuses": {
+          "failed": 4,
+          "blocked": 6,
+          "needs_review": 6
+        },
+        "attempts": {
+          "one_attempt_samples": 15,
+          "two_attempt_samples": 1,
+          "total_model_requests": 17,
+          "schema_retry_started": 1,
+          "schema_retry_recovered": 0,
+          "schema_retry_followed_by_timeout": 1
+        },
+        "errors": {
+          "schema_validation_failed": 0,
+          "provider_timeout": 4
+        },
+        "failed_sample_ids": [
+          "TUNE2-PAY-004",
+          "TUNE2-INV-002",
+          "TUNE2-INV-004",
+          "TUNE2-INV-007"
+        ],
+        "claim_contract_failed_sample_ids": [
+          "TUNE2-INV-001",
+          "TUNE2-INV-002",
+          "TUNE2-INV-004",
+          "TUNE2-INV-005",
+          "TUNE2-INV-006",
+          "TUNE2-INV-007",
+          "TUNE2-INV-008",
+          "TUNE2-PAY-002",
+          "TUNE2-PAY-003",
+          "TUNE2-PAY-004",
+          "TUNE2-PAY-006"
+        ],
+        "accepted_claim_contract_failed_sample_ids": [
+          "TUNE2-PAY-002",
+          "TUNE2-PAY-003",
+          "TUNE2-PAY-006",
+          "TUNE2-INV-001",
+          "TUNE2-INV-005",
+          "TUNE2-INV-006",
+          "TUNE2-INV-008"
+        ],
+        "sample_elapsed_ms": {
+          "min": 1540,
+          "p50": 13246,
+          "p95": 87677,
+          "max": 87677
+        },
+        "metrics": {
+          "model_completion_rate": {
+            "percentage": 75,
+            "numerator": 12,
+            "denominator": 16,
+            "required": 100
+          },
+          "claim_contract_rate": {
+            "percentage": 31.25,
+            "numerator": 5,
+            "denominator": 16,
+            "required": 100
+          },
+          "schema_valid_rate": {
+            "percentage": 100,
+            "numerator": 12,
+            "denominator": 12,
+            "required": 100
+          },
+          "classification_accuracy": {
+            "percentage": 75,
+            "numerator": 12,
+            "denominator": 16,
+            "required": 97
+          },
+          "amount_exact_rate": {
+            "percentage": 63.64,
+            "numerator": 7,
+            "denominator": 11,
+            "required": 98
+          },
+          "invoice_number_exact_rate": {
+            "percentage": 57.14,
+            "numerator": 4,
+            "denominator": 7,
+            "required": 95
+          },
+          "date_normalization_exact_rate": {
+            "percentage": 71.43,
+            "numerator": 10,
+            "denominator": 14,
+            "required": 95
+          },
+          "name_normalization_exact_rate": {
+            "percentage": 63.64,
+            "numerator": 14,
+            "denominator": 22,
+            "required": 90
+          },
+          "critical_evidence_coverage": {
+            "percentage": 89.58,
+            "numerator": 43,
+            "denominator": 48,
+            "required": 100
+          },
+          "missing_conflict_recall": {
+            "percentage": 75,
+            "numerator": 3,
+            "denominator": 4,
+            "required": 100
+          },
+          "manifest_assertion_rate": {
+            "percentage": 89.87,
+            "numerator": 71,
+            "denominator": 79,
+            "required": 100
+          }
+        },
+        "accepted_claim_exact_targets": {
+          "amount": { "numerator": 7, "denominator": 7 },
+          "invoice_number": { "numerator": 4, "denominator": 4 },
+          "date_or_time": { "numerator": 10, "denominator": 10 },
+          "name": { "numerator": 14, "denominator": 15 },
+          "critical_evidence": { "numerator": 43, "denominator": 48 }
+        },
+        "ai_direct_fact_count": 0,
+        "passed": false,
+        "near_threshold": false,
+        "eligible_for_release_evidence": false,
+        "next_100_sample_run_authorized": false,
+        "run_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3-vl-30b-a3b-instruct-run.json",
+        "run_artifact_sha256": "d0b2e021020bf178a2e03a31c8ff0277335fe928f500a8546d55e8b890389087",
+        "score_artifact": "tests/evidence/evaluation/tuning-preflight-qwen3-vl-30b-a3b-instruct-score.json",
+        "score_artifact_sha256": "c1f234184a3ae36b086fce56fc585bcf92dad97ea069c7a8c7e14d28dd4f1ac3",
+        "exact_secret_matches": 0,
+        "generic_credential_pattern_matches": 0
+      },
+      "next_100_sample_run_authorized": false,
+      "qwen_next_100_sample_run_authorized": true,
+      "qwen_authorized_100_sample_run_completed": true,
+      "previously_pasted_credentials_reusable": false,
+      "temporary_credentials_retained": false,
+      "temporary_runtime_retained": false,
+      "owner_only_provider_key_files_retained": 2,
+      "provider_key_present_in_evidence_or_build_context": false
+    },
+    "formal_release_run_1": {
+      "run_id": "run-1",
+      "counts_toward_release_runs": false,
+      "historically_counted_toward_previous_synthetic_boundary": true,
+      "release_gate_complete": false,
+      "completed_release_runs": 1,
+      "required_release_runs": 3,
+      "passed": false,
+      "dataset_version": "m1-synthetic-v2",
+      "dataset_manifest_sha256": "08ce3ea739eaa482ba8410ccf71b9f3f1806bbf613d0c960549ae9110566c91d",
+      "frozen_configuration": {
+        "model": "qwen3.8-flash",
+        "provider_base_url_host": "api.shuaiapi.com",
+        "provider_config_safe_fingerprint": "46fd3ac187528ce3b5a512ff4dedb1eff42e8e80a5bd11255b45e24f1e4436ce",
+        "prompt_version": "document-extract/4",
+        "authoritative_schema_version": "document-claim/1",
+        "provider_schema_version": "document-claim-provider/2",
+        "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+        "input_processing_version": "document-normalize/1",
+        "provider_output_retry_policy": "schema_validation_single_retry/1",
+        "connection_timeout_seconds": 10,
+        "model_timeout_seconds": 60,
+        "job_timeout_seconds": 150,
+        "production_image_id": "sha256:66b3c2a5f121453600480bcc86dfca5f282daffadd2cf4f80fc0f101bc9b483e",
+        "production_image_revision": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2-working-tree-prompt-v4-schema-retry1"
+      },
+      "completed_samples": 100,
+      "outcomes": {
+        "rejected_before_model": 15,
+        "local_claim_accepted": 77,
+        "job_terminal_without_claim": 8
+      },
+      "job_statuses": {
+        "needs_review": 59,
+        "blocked": 18,
+        "failed": 8,
+        "not_created": 15
+      },
+      "attempts": {
+        "one_attempt_samples": 71,
+        "two_attempt_samples": 14,
+        "total_model_extraction_requests": 99,
+        "schema_retry_recovered": 10,
+        "schema_retry_exhausted": 4,
+        "recovered_sample_ids": [
+          "PAY-009",
+          "PAY-010",
+          "PAY-020",
+          "PAY-022",
+          "PAY-031",
+          "PAY-032",
+          "INV-050",
+          "INV-058",
+          "INV-068",
+          "INV-076"
+        ],
+        "exhausted_sample_ids": ["PAY-017", "INV-043", "INV-060", "INV-079"]
+      },
+      "terminal_errors": {
+        "provider_timeout": {
+          "count": 4,
+          "sample_ids": ["INV-071", "INV-072", "INV-073", "INV-075"]
+        },
+        "schema_validation_failed": {
+          "count": 4,
+          "sample_ids": ["PAY-017", "INV-043", "INV-060", "INV-079"]
+        }
+      },
+      "quality_metrics": {
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 77,
+          "denominator": 77,
+          "required": 100,
+          "passed": true
+        },
+        "classification_accuracy": {
+          "percentage": 90.59,
+          "numerator": 77,
+          "denominator": 85,
+          "required": 97,
+          "passed": false
+        },
+        "amount_exact_rate": {
+          "percentage": 93.85,
+          "numerator": 61,
+          "denominator": 65,
+          "required": 98,
+          "passed": false
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 82.5,
+          "numerator": 33,
+          "denominator": 40,
+          "required": 95,
+          "passed": false
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 85,
+          "numerator": 68,
+          "denominator": 80,
+          "required": 95,
+          "passed": false
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 85.83,
+          "numerator": 103,
+          "denominator": 120,
+          "required": 90,
+          "passed": false
+        },
+        "critical_evidence_coverage": {
+          "percentage": 85.21,
+          "numerator": 288,
+          "denominator": 338,
+          "required": 100,
+          "passed": false
+        },
+        "missing_conflict_recall": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "required": 100,
+          "passed": true
+        },
+        "manifest_assertion_rate": {
+          "percentage": 96.55,
+          "numerator": 280,
+          "denominator": 290,
+          "required": 100,
+          "passed": false
+        }
+      },
+      "ai_direct_fact_count": 0,
+      "accepted_claim_semantic_failures": {
+        "transaction_time": ["PAY-033", "PAY-034", "PAY-035", "PAY-036"],
+        "merchant": ["PAY-034", "PAY-035"],
+        "duplicate_document_type_field_correctly_blocked": [
+          "INV-068",
+          "INV-076"
+        ]
+      },
+      "critical_evidence_failures": {
+        "total": 50,
+        "money_quote_decimal_point_changed_to_comma": 42,
+        "invoice_number_quote": 2,
+        "merchant_quote": 2,
+        "transaction_time_quote": 4,
+        "by_path": {
+          "amount_minor": { "passed": 9, "failed": 20 },
+          "total_minor": { "passed": 10, "failed": 22 },
+          "invoice_number": { "passed": 31, "failed": 2 },
+          "invoice_date": { "passed": 33, "failed": 0 },
+          "currency": { "passed": 67, "failed": 0 },
+          "merchant": { "passed": 37, "failed": 2 },
+          "transaction_time": { "passed": 35, "failed": 4 },
+          "seller_name": { "passed": 33, "failed": 0 },
+          "buyer_name": { "passed": 33, "failed": 0 }
+        }
+      },
+      "v2_order_number_correction": {
+        "expected_samples": 40,
+        "value_exact": 39,
+        "evidence_exact": 39,
+        "only_failure": "PAY-017_no_claim_schema_retry_exhausted"
+      },
+      "provider_telemetry": {
+        "ai_runs": 99,
+        "succeeded": 77,
+        "failed": 22,
+        "schema_validation_failed_ai_runs": 18,
+        "provider_timeout_ai_runs": 4,
+        "latency_ms": { "min": 3246, "p50": 18400, "p95": 50771, "max": 60004 },
+        "input_tokens_total": 151767,
+        "output_tokens_total": 164895
+      },
+      "sample_elapsed_ms": {
+        "min": 6,
+        "p50": 20920,
+        "p95": 52464,
+        "max": 60629
+      },
+      "artifacts": {
+        "run": "tests/evidence/evaluation/run-1.json",
+        "run_sha256": "fe739dd0ac35205219dc6a17257b47c5d4a77169b4c23acfee8f6ab5bb6417be",
+        "score": "tests/evidence/evaluation/run-1-score.json",
+        "score_sha256": "8f1784ddc6dcfb7922c299ab3a096391116a3433e4b80a0bf6647fef4e86a7a5",
+        "provider": "tests/evidence/evaluation/run-1-provider.json",
+        "provider_sha256": "9fe788d2acbf4dfb68d86d1952f4717e2d0cd2deec75fa5e0c64315e3c459a9d",
+        "file_mode": "0600"
+      },
+      "additional_same_configuration_runs_skipped": true,
+      "skip_reason": "worst_of_three_release_gate_cannot_recover_after_failed_run_1"
+    },
+    "capability_probe": {
+      "latest_model": "qwen3-vl-30b-a3b-instruct",
+      "models_passing_capability": [
+        "qwen3.7-flash",
+        "qwen3.7-plus",
+        "qwen3.8-flash",
+        "glm-5.3-flash",
+        "qwen3-vl-30b-a3b-instruct"
+      ],
+      "authentication": "passed",
+      "image_input": "passed",
+      "provider_structured_output": "json_object_passed",
+      "output_mode": "json_object",
+      "local_authoritative_schema_revalidation": "passed",
+      "probe_image_width_pixels": 32,
+      "probe_image_height_pixels": 32,
+      "prompt_version": "document-extract/5",
+      "authoritative_schema_version": "document-claim/1",
+      "provider_schema_version": "document-claim-provider/2",
+      "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+      "status": "passed",
+      "temporary_credentials_retained": false,
+      "owner_only_provider_key_files_retained": 2
+    },
+    "historical_preflight": {
+      "initial_model": "blocked_http_402_provider_balance_insufficient",
+      "Qwen/Qwen2.5-7B-Instruct": "blocked_http_400_model_not_vlm",
+      "qwen3.7-flash_before_provider_projection": "blocked_http_400_unique_items_unsupported"
+    },
+    "historical_diagnostic_run": {
+      "model": "qwen3.7-flash",
+      "diagnostic_index": 1,
+      "counted_as_release_run": false,
+      "reason_not_release_evidence": "duplicate_field_path_persistence_was_fixed_after_the_run",
+      "completed_samples": 100,
+      "outcomes": {
+        "rejected_before_model": 15,
+        "local_claim_accepted": 59,
+        "job_terminal_without_claim": 26
+      },
+      "job_statuses": {
+        "blocked": 54,
+        "needs_review": 5,
+        "failed": 26,
+        "not_created": 15
+      },
+      "ai_runs": { "total": 85, "succeeded": 61, "failed": 24 },
+      "errors": {
+        "schema_validation_failed": 22,
+        "provider_timeout": 2,
+        "internal_error": 2,
+        "rejected_before_model_expected": 15
+      },
+      "provider_latency_ms": {
+        "min": 9425,
+        "p50": 20592,
+        "p95": 47303,
+        "max": 60001
+      },
+      "failed_quality_metrics": {
+        "classification_accuracy": {
+          "percentage": 69.41,
+          "numerator": 59,
+          "denominator": 85,
+          "required": 97
+        },
+        "amount_exact_rate": {
+          "percentage": 29.23,
+          "numerator": 19,
+          "denominator": 65,
+          "required": 98
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 60,
+          "numerator": 24,
+          "denominator": 40,
+          "required": 95
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 65,
+          "numerator": 52,
+          "denominator": 80,
+          "required": 95
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 65.83,
+          "numerator": 79,
+          "denominator": 120,
+          "required": 90
+        },
+        "critical_evidence_coverage": {
+          "percentage": 88.76,
+          "numerator": 229,
+          "denominator": 258,
+          "required": 100
+        }
+      },
+      "run_artifact": "tests/evidence/evaluation/diagnostic-pre-duplicate-path-fix-run.json",
+      "run_artifact_sha256": "c8ae930265f9ce02cf60cf43b358b55b1168fc209d83c3c4553e82a62ef5c9a7",
+      "provider_artifact": "tests/evidence/evaluation/diagnostic-pre-duplicate-path-fix-provider.json",
+      "provider_artifact_sha256": "61c5cdd471f90ec46e412319ad5357f4054668b919746e8098e5da4ba1b15d28",
+      "additional_runs_skipped": true,
+      "skip_reason": "worst_of_three_gate_cannot_recover_and_final_code_state_changed"
+    },
+    "qwen3_7_plus_diagnostic_run": {
+      "model": "qwen3.7-plus",
+      "diagnostic_index": 2,
+      "completed_after_duplicate_path_fix_before_quality_remediation": true,
+      "counted_as_release_run": false,
+      "reason_not_release_evidence": "candidate_selection_diagnostic_failed_hard_quality_gates",
+      "completed_samples": 100,
+      "outcomes": {
+        "rejected_before_model": 15,
+        "local_claim_accepted": 28,
+        "job_terminal_without_claim": 57
+      },
+      "job_statuses": {
+        "blocked": 26,
+        "needs_review": 2,
+        "failed": 57,
+        "not_created": 15
+      },
+      "ai_runs": {
+        "total": 85,
+        "succeeded": 28,
+        "failed": 57
+      },
+      "errors": {
+        "schema_validation_failed": 35,
+        "provider_timeout": 22,
+        "rejected_before_model_expected": 15
+      },
+      "provider_latency_ms": {
+        "min": 12092,
+        "p50": 46645,
+        "p95": 60001,
+        "max": 60001
+      },
+      "quality_metrics": {
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 28,
+          "denominator": 28,
+          "required": 100,
+          "passed": true
+        },
+        "classification_accuracy": {
+          "percentage": 32.94,
+          "numerator": 28,
+          "denominator": 85,
+          "required": 97,
+          "passed": false
+        },
+        "amount_exact_rate": {
+          "percentage": 7.69,
+          "numerator": 5,
+          "denominator": 65,
+          "required": 98,
+          "passed": false
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 17.5,
+          "numerator": 7,
+          "denominator": 40,
+          "required": 95,
+          "passed": false
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 31.25,
+          "numerator": 25,
+          "denominator": 80,
+          "required": 95,
+          "passed": false
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 26.67,
+          "numerator": 32,
+          "denominator": 120,
+          "required": 90,
+          "passed": false
+        },
+        "critical_evidence_coverage": {
+          "percentage": 88.89,
+          "numerator": 96,
+          "denominator": 108,
+          "required": 100,
+          "passed": false
+        },
+        "missing_conflict_recall": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "required": 100,
+          "passed": true
+        },
+        "manifest_assertion_rate": {
+          "percentage": 71.21,
+          "numerator": 235,
+          "denominator": 330,
+          "required": 100,
+          "passed": false
+        }
+      },
+      "run_artifact": "tests/evidence/evaluation/diagnostic-qwen3.7-plus-run.json",
+      "run_artifact_sha256": "b84f1dacf59a4234eedc1c5ae6dd17c720c059e7b1ad16908d8aae27969aff5d",
+      "provider_artifact": "tests/evidence/evaluation/diagnostic-qwen3.7-plus-provider.json",
+      "provider_artifact_sha256": "b01b9ab9a1dae0a57487328d9f316d0c4ee3c964c1c1c9dd27326b11048f13fd",
+      "additional_runs_skipped": true,
+      "skip_reason": "worst_of_three_gate_cannot_recover_and_candidate_is_worse_than_qwen3.7-flash"
+    },
+    "latest_diagnostic_run": {
+      "model": "qwen3.8-flash",
+      "diagnostic_index": 3,
+      "completed_after_duplicate_path_fix_before_quality_remediation": true,
+      "counted_as_release_run": false,
+      "reason_not_release_evidence": "candidate_selection_diagnostic_failed_hard_quality_gates",
+      "completed_samples": 100,
+      "outcomes": {
+        "rejected_before_model": 15,
+        "local_claim_accepted": 42,
+        "job_terminal_without_claim": 43
+      },
+      "job_statuses": {
+        "blocked": 41,
+        "needs_review": 1,
+        "failed": 43,
+        "not_created": 15
+      },
+      "ai_runs": {
+        "total": 85,
+        "succeeded": 42,
+        "failed": 43
+      },
+      "errors": {
+        "schema_validation_failed": 25,
+        "provider_timeout": 18,
+        "rejected_before_model_expected": 15
+      },
+      "provider_latency_ms": {
+        "min": 10240,
+        "p50": 37430,
+        "p95": 60001,
+        "max": 60001
+      },
+      "quality_metrics": {
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 42,
+          "denominator": 42,
+          "required": 100,
+          "passed": true
+        },
+        "classification_accuracy": {
+          "percentage": 49.41,
+          "numerator": 42,
+          "denominator": 85,
+          "required": 97,
+          "passed": false
+        },
+        "amount_exact_rate": {
+          "percentage": 9.23,
+          "numerator": 6,
+          "denominator": 65,
+          "required": 98,
+          "passed": false
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 40,
+          "numerator": 16,
+          "denominator": 40,
+          "required": 95,
+          "passed": false
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 46.25,
+          "numerator": 37,
+          "denominator": 80,
+          "required": 95,
+          "passed": false
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 45,
+          "numerator": 54,
+          "denominator": 120,
+          "required": 90,
+          "passed": false
+        },
+        "critical_evidence_coverage": {
+          "percentage": 87.85,
+          "numerator": 159,
+          "denominator": 181,
+          "required": 100,
+          "passed": false
+        },
+        "missing_conflict_recall": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "required": 100,
+          "passed": true
+        },
+        "manifest_assertion_rate": {
+          "percentage": 69.39,
+          "numerator": 229,
+          "denominator": 330,
+          "required": 100,
+          "passed": false
+        }
+      },
+      "run_artifact": "tests/evidence/evaluation/diagnostic-qwen3.8-flash-run.json",
+      "run_artifact_sha256": "8de4db7f51d73f1a8d5034586924ebd0dda5d5e65f6664d5e74eb5625c445241",
+      "provider_artifact": "tests/evidence/evaluation/diagnostic-qwen3.8-flash-provider.json",
+      "provider_artifact_sha256": "66c2094018ed2c028d8fc6123b856b8cfedeb9753c648cb675d10799111de432",
+      "additional_runs_skipped": true,
+      "skip_reason": "worst_of_three_gate_cannot_recover_and_candidate_is_worse_than_qwen3.7-flash"
+    },
+    "status": "blocked_prompt_v9_three_sample_zero_claims_prompt_v10_output_bounded_canary_pending_per_run_provider_authorization"
+  },
+  "raw_artifact_sha256": {
+    "e2e": "e5518cc0aa8d7c5a59cf146ecec54cf52bb70fc405bee836eb9e49503f7744a8",
+    "lighthouse_summary": "0685feeff0081853f256ff25efc4b9aa8cd91d4144540bc5c8c685925394552e",
+    "responsive_accessibility": "88ffd1afd8c1d35829a7d612f41dc46b26162d2fb04acf50c06772e3fe403031",
+    "performance": "bfaa1a55a8b78620754ced86e1435450bdfba0bc5227aff21053ed0a19325df2",
+    "performance_seed": "8f7ff761539d6cebba90f7c5b6fdb81e34bddc7209acaf83d0361b49076c7eb8",
+    "memory": "627752c19038fa9f3af98c2e4494daf3df2fec51632b8c43f3167bae7f9d7849",
+    "backup_restore": "ad42057d2b5c716413482f78ab9595c9e08f62bf02963f5c733af798543d23af",
+    "backup_manifest": "7e9a2031e76b77c870ca20eaae4c247e109a7d4e41f7a167cafdc338f4adfb6f",
+    "diagnostic_analysis": "b51e614c4ace9687f91097bc89def22d68e1bf6c71021f4ad853b9a1241a418e",
+    "qwen3_7_plus_diagnostic_run": "b84f1dacf59a4234eedc1c5ae6dd17c720c059e7b1ad16908d8aae27969aff5d",
+    "qwen3_7_plus_diagnostic_provider": "b01b9ab9a1dae0a57487328d9f316d0c4ee3c964c1c1c9dd27326b11048f13fd",
+    "qwen3_8_flash_diagnostic_run": "8de4db7f51d73f1a8d5034586924ebd0dda5d5e65f6664d5e74eb5625c445241",
+    "qwen3_8_flash_diagnostic_provider": "66c2094018ed2c028d8fc6123b856b8cfedeb9753c648cb675d10799111de432",
+    "qwen3_8_flash_tuning_preflight_run": "8ffdff75ecf90134d68659ed0dcfbc07f9dcce9619576ecedf690c3f3f951f73",
+    "qwen3_8_flash_tuning_preflight_score": "87f6d86c1573cfbb74607e8ded741085cd61b3d0c08cc22d098e9803a01fb2e7",
+    "qwen3_8_flash_v4_tuning_preflight_run": "9f3c5321c5b7f501bdd97b7e45dee61895b572db6dec1d5b465c2e95d4c83687",
+    "qwen3_8_flash_v4_tuning_preflight_score": "b5356d9c1dc2364ab36527e54eafc428c6418539ddac805faf228efd8a8b6bcf",
+    "qwen3_8_flash_v4_retry1_tuning_preflight_run": "4c85ca7658a152f28168e450d2e93da2447be8f9bd0f7a912698ce73dd6d4cf5",
+    "qwen3_8_flash_v4_retry1_tuning_preflight_score": "a411b2f9245cd9a0ad696ea75fd511cd3945209c9b469e8733d87488a41c5b4c",
+    "glm_5_3_flash_tuning_preflight_run": "5549b07840cc037eaa02a6ab6910e253bd2239f86f24e0165958199429a0b16c",
+    "glm_5_3_flash_tuning_preflight_score": "c7f5937e3ce5008e0f59f576fba28ecda29668295881ea3bf137a24a7080ed94",
+    "qwen3_vl_30b_a3b_instruct_tuning_preflight_run": "d0b2e021020bf178a2e03a31c8ff0277335fe928f500a8546d55e8b890389087",
+    "qwen3_vl_30b_a3b_instruct_tuning_preflight_score": "c1f234184a3ae36b086fce56fc585bcf92dad97ea069c7a8c7e14d28dd4f1ac3",
+    "real_prompt_v6_invalid_16_bit_input_run": "58b8ff773e81efbb62e498fe0d0d7b9d44882d28b2cdbd0457d31d969a4784fa",
+    "real_prompt_v6_invalid_16_bit_input_score": "07f5ebcd5f06fcbadea38d715ef866cc4ac8771beaba4a5c85cd53b3411c9ab0",
+    "real_prompt_v6_normalize_v2_run": "7ab3dbb0a2ad6f7251ab54c2931f2df14905765725e003beb43bc685768bc865",
+    "real_prompt_v6_normalize_v2_score": "7c0fcc1123ad7abdb9987d38717d7c7a60eb2e8eca39934ce71577c660d24f9d",
+    "synthetic_prompt_v7_contract_run": "7a25955fd82855c710f0fe92e5049c8c480c0478f2c4773e2e4ec7382e1daf76",
+    "synthetic_prompt_v7_contract_score": "46eb014edd0d93289b1338088adadcf668ef4dc3e399c612be1ea59375128969",
+    "real_prompt_v7_normalize_v2_run": "797a3faa0a420777fe7428e9d20299686dbb7c94a76823581333328f4a0bc692",
+    "real_prompt_v7_normalize_v2_score": "904768bbce94d985a03aa8a965c321b2a2087616dc98a99edca7e47591828d69",
+    "real_development_v1_scope_audit": "8826c829c178beac352b0f59fc251de8395f60d40ae6f48bf15e3f2332a9f457",
+    "real_development_v2_candidate_manifest": "b0fc7117c7a6b1564669532277ad7adccb9f1aef414749eaa989a86c64bac2a3",
+    "real_development_v2_private_labels": "1f0acdadf17387485ca123a8b82beda3b37b25369ad1b00c2f23d003c1719afa",
+    "real_development_v2_manifest": "2fe2badb59ac10e11d1573c3ddc5182835afc2463e7e3a5e3d07dd006b03ed15",
+    "real_development_v2_prompt_v7_run": "6ecc86e7348892195532a6296364a5fb0d816b22351870f6c608d9280e146a4a",
+    "real_development_v2_prompt_v7_score": "50a88b204a880a26ee4e24d0b258312f39dfd6ebfe68aefb798b9cec8e34b899",
+    "real_development_v2_prompt_v7_failure_analysis": "305d5595ab76482bb23f7398b2a747f0e9da991d5d45afb686ac55dd0fbb2ca0",
+    "real_development_v2_prompt_v8_canary_manifest": "328f1d4bad535f4d2f0268f8d130ca54cad6d9b22aba961b2a17919e8e8cb13f",
+    "real_development_v2_prompt_v8_canary_run": "bb9a4e237d152c1b207183b82c22577e35ec81a6134a5ce3b5fd724d9f615800",
+    "real_development_v2_prompt_v8_canary_score": "671c0dcfa05bd8ba7cb90bb85ccb8e84ed93edce8b233e921dc7b21901234816",
+    "real_development_v2_prompt_v8_canary_failure_analysis": "cb60db0f9c0b4be656af2446b5fac6e3da0e891b70fa1aed7f97589d24300529",
+    "real_development_v2_prompt_v9_canary_manifest": "bec9dcaec7c9530623ced4467d2c0647055ae4c4d15add28e211600158b55b0f",
+    "real_development_v2_prompt_v9_canary_run": "e8b95c71ce3e780997538972e17913cdf2bdc48bf86d216e1bdb757e8a459599",
+    "real_development_v2_prompt_v9_canary_score": "f799c6c509dff631ae1ac9ccedb7f0926a5c5672f73dd46f4f779c867882eb3d",
+    "real_development_v2_prompt_v9_canary_safe_analysis": "e0ae0bc14b0830b9588e34a3aaa3feb3f253cc36b992297573fa7f3671743183",
+    "real_development_v2_prompt_v10_canary_manifest": "03a794d5ddd0c53ade849d87185242057745bcbc305b090ed4b4bade1f4d2bf3",
+    "release_dataset_v2_manifest": "08ce3ea739eaa482ba8410ccf71b9f3f1806bbf613d0c960549ae9110566c91d",
+    "formal_release_run_1": "fe739dd0ac35205219dc6a17257b47c5d4a77169b4c23acfee8f6ab5bb6417be",
+    "formal_release_run_1_score": "8f1784ddc6dcfb7922c299ab3a096391116a3433e4b80a0bf6647fef4e86a7a5",
+    "formal_release_run_1_provider": "9fe788d2acbf4dfb68d86d1952f4717e2d0cd2deec75fa5e0c64315e3c459a9d",
+    "real_development_v1_manifest": "4132cdeb6cfe829d23d0ecba9b802a2336db70816f125879c682890f7b89a603"
+  },
+  "overall_status": "blocked",
+  "m1_marked_complete": false,
+  "remaining_hard_gate": "Prompt v9 的 3 份真实结构 canary 已按逐次授权完成，但 0 / 3 形成 Claim：两次 Provider 超时、两次长输出后 JSON 无效、一次 Canonical Field 失败，因此不能扩大到 6、16 或 100 份。Prompt v10 已用精确 present/absent 模板、固定 Payment 8 字段和每个 present Field 恰好一个 evidence 做本地输出约束修复；同 3 份 canary 已冻结但尚未取得新的逐次 Provider 授权。只有 3 / 3 形成 Schema 有效 Claim 后才申请完整 6 份诊断重跑，再决定完整 16 份 v2。完整预检接近现有门槛前不申请或执行至少 100 份真实发布集运行"
+}

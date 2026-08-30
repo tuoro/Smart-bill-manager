@@ -1,0 +1,5 @@
+dist
+coverage
+test-results
+src/data/generated
+package-lock.json

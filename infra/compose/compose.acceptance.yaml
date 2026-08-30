@@ -1,0 +1,41 @@
+services:
+  app:
+    secrets:
+      - sbm_owner_password
+
+  provider:
+    image: node:24.19.0-alpine3.23
+    network_mode: service:app
+    depends_on:
+      app:
+        condition: service_healthy
+    command:
+      - node
+      - /opt/sbm/synthetic-provider.mjs
+      - --listen
+      - 127.0.0.1:19086
+      - --api-key-file
+      - /run/secrets/sbm_provider_key
+      - --model
+      - synthetic-m1
+    volumes:
+      - ../../tools/synthetic-provider.mjs:/opt/sbm/synthetic-provider.mjs:ro
+    secrets:
+      - source: sbm_owner_password
+        target: sbm_provider_key
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16777216
+    user: node
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    cpus: 0.5
+    mem_limit: 256m
+    restart: "no"
+
+secrets:
+  sbm_owner_password:
+    file: ${SBM_ACCEPTANCE_SECRET_SOURCE:?set SBM_ACCEPTANCE_SECRET_SOURCE to a protected synthetic password file}

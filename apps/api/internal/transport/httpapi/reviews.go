@@ -1,0 +1,258 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+)
+
+func (s *Server) getReviewHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	item, err := s.reviews.Get(request.Context(), tenantContext(principal), request.PathValue("job_id"))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, reviewResponse(item))
+}
+
+func (s *Server) getClaimSetHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	item, err := s.reviews.GetClaimSet(
+		request.Context(),
+		tenantContext(principal),
+		request.PathValue("claim_set_id"),
+	)
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, reviewResponse(item))
+}
+
+func (s *Server) reviseReviewHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	var body struct {
+		ExpectedRevision          int                 `json:"expected_revision"`
+		ExpectedOptimisticVersion int                 `json:"expected_optimistic_version"`
+		DocumentType              domain.DocumentType `json:"document_type"`
+		Fields                    []struct {
+			Path        string          `json:"path"`
+			ValueType   string          `json:"value_type"`
+			Presence    string          `json:"presence"`
+			Value       json.RawMessage `json:"value"`
+			EvidenceIDs []string        `json:"evidence_ids"`
+		} `json:"fields"`
+	}
+	if err := decodeJSON(response, request, &body); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	input := reviews.RevisionInput{
+		ExpectedRevision:          body.ExpectedRevision,
+		ExpectedOptimisticVersion: body.ExpectedOptimisticVersion,
+		DocumentType:              body.DocumentType,
+		Fields:                    make([]reviews.RevisionFieldInput, 0, len(body.Fields)),
+	}
+	for _, field := range body.Fields {
+		input.Fields = append(input.Fields, reviews.RevisionFieldInput{
+			Path:        field.Path,
+			ValueType:   field.ValueType,
+			Presence:    field.Presence,
+			Value:       field.Value,
+			EvidenceIDs: field.EvidenceIDs,
+		})
+	}
+	item, err := s.reviews.Revise(request.Context(), tenantContext(principal), request.PathValue("job_id"), input)
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	writeJSON(response, http.StatusCreated, reviewResponse(item))
+}
+
+func (s *Server) confirmReviewHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	var body struct {
+		ExpectedRevision int    `json:"expected_revision"`
+		AssociationMode  string `json:"association_mode"`
+		Allocations      *[]struct {
+			CandidateID    string `json:"candidate_id"`
+			AllocatedMinor int64  `json:"allocated_minor"`
+		} `json:"allocations"`
+	}
+	if err := decodeJSON(response, request, &body); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	if body.Allocations == nil {
+		writeError(response, request, domain.NewRuleError("invalid_association", "allocations 必须是数组", domain.ErrInvalidInput))
+		return
+	}
+	started := time.Now()
+	input := reviews.ConfirmInput{
+		ExpectedRevision: body.ExpectedRevision,
+		AssociationMode:  body.AssociationMode,
+		Allocations:      make([]domain.AllocationRequest, 0, len(*body.Allocations)),
+		IdempotencyKey:   request.Header.Get("Idempotency-Key"),
+		RequestID:        requestIDFromRequest(request),
+	}
+	for _, allocation := range *body.Allocations {
+		input.Allocations = append(input.Allocations, domain.AllocationRequest{
+			CandidateID:    allocation.CandidateID,
+			AllocatedMinor: allocation.AllocatedMinor,
+		})
+	}
+	result, err := s.reviews.Confirm(request.Context(), tenantContext(principal), request.PathValue("job_id"), input)
+	response.Header().Set("Server-Timing", "review-confirm;dur="+strconv.FormatFloat(float64(time.Since(started))/float64(time.Millisecond), 'f', 3, 64))
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	payload := map[string]any{
+		"review_decision_id": result.ReviewDecisionID,
+		"fact_type":          result.FactType,
+		"fact_id":            result.FactID,
+		"link_ids":           result.LinkIDs,
+		"replayed":           result.Replayed,
+	}
+	writeJSON(response, http.StatusOK, payload)
+}
+
+func (s *Server) rejectReviewHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	var body struct {
+		ExpectedRevision int    `json:"expected_revision"`
+		Reason           string `json:"reason"`
+	}
+	if err := decodeJSON(response, request, &body); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	if err := s.reviews.Reject(request.Context(), tenantContext(principal), request.PathValue("job_id"), reviews.RejectInput{
+		ExpectedRevision: body.ExpectedRevision,
+		Reason:           body.Reason,
+		IdempotencyKey:   request.Header.Get("Idempotency-Key"),
+		RequestID:        requestIDFromRequest(request),
+	}); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	response.WriteHeader(http.StatusNoContent)
+}
+
+func reviewResponse(item ports.ReviewSnapshot) map[string]any {
+	return map[string]any{
+		"job":                jobResponse(item.Job),
+		"claim_set_id":       item.ClaimSetID,
+		"document_type":      item.DocumentType,
+		"revision":           item.Revision,
+		"optimistic_version": item.OptimisticVersion,
+		"claim_status":       item.Status,
+		"fields":             reviewFieldResponses(item.Fields),
+		"validations":        validationResponses(item.Validations),
+		"candidates":         candidateResponses(item.Candidates),
+	}
+}
+
+func reviewFieldResponses(fields []ports.ReviewField) []map[string]any {
+	result := make([]map[string]any, 0, len(fields))
+	for _, field := range fields {
+		entry := map[string]any{
+			"id":         field.ID,
+			"path":       field.Path,
+			"value_type": field.ValueType,
+			"presence":   field.Presence,
+			"source":     field.Source,
+			"evidence":   evidenceResponses(field.Evidence),
+		}
+		if len(field.Value) != 0 {
+			entry["value"] = field.Value
+		}
+		if len(field.NormalizedValue) != 0 {
+			entry["normalized_value"] = field.NormalizedValue
+		}
+		result = append(result, entry)
+	}
+	return result
+}
+
+func evidenceResponses(items []ports.ReviewEvidence) []map[string]any {
+	result := make([]map[string]any, 0, len(items))
+	for _, evidence := range items {
+		entry := map[string]any{"id": evidence.ID, "page": evidence.Page}
+		if evidence.Quote != "" {
+			entry["quote"] = evidence.Quote
+		}
+		if len(evidence.Region) != 0 {
+			entry["region"] = evidence.Region
+		}
+		result = append(result, entry)
+	}
+	return result
+}
+
+func validationResponses(items []ports.ReviewValidation) []map[string]any {
+	result := make([]map[string]any, 0, len(items))
+	for _, validation := range items {
+		entry := map[string]any{
+			"id":           validation.ID,
+			"rule_code":    validation.RuleCode,
+			"severity":     validation.Severity,
+			"status":       validation.Status,
+			"safe_message": validation.SafeMessage,
+		}
+		if validation.FieldClaimID != "" {
+			entry["field_claim_id"] = validation.FieldClaimID
+		}
+		result = append(result, entry)
+	}
+	return result
+}
+
+func candidateResponses(items []ports.LinkCandidate) []map[string]any {
+	result := make([]map[string]any, 0, len(items))
+	for _, candidate := range items {
+		result = append(result, map[string]any{
+			"id":                 candidate.ID,
+			"target_type":        candidate.TargetType,
+			"target_id":          candidate.TargetID,
+			"amount_minor":       candidate.AmountMinor,
+			"allocated_minor":    candidate.AllocatedMinor,
+			"remaining_minor":    candidate.RemainingMinor,
+			"currency":           candidate.Currency,
+			"business_date":      candidate.BusinessDate,
+			"display_name":       candidate.DisplayName,
+			"available":          candidate.Available,
+			"name_exact":         candidate.NameExact,
+			"date_distance_days": candidate.DateDistanceDays,
+			"reason_codes":       candidate.ReasonCodes,
+		})
+	}
+	return result
+}

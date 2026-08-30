@@ -1,0 +1,56 @@
+name: smart-bill-manager-m1
+
+services:
+  app:
+    image: smart-bill-manager:m1
+    build:
+      context: ../..
+      dockerfile: infra/docker/m1.Dockerfile
+      args:
+        VCS_REF: ${SBM_BUILD_SHA:-working-tree}
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${SBM_BIND_ADDRESS:-127.0.0.1}:${SBM_HTTP_PORT:-8080}:8080"
+    environment:
+      SBM_DEPLOYMENT_MODE: ${SBM_DEPLOYMENT_MODE:?set SBM_DEPLOYMENT_MODE to local or production}
+      SBM_COOKIE_SECURE: ${SBM_COOKIE_SECURE:?set SBM_COOKIE_SECURE to true or false}
+      SBM_SESSION_TTL: ${SBM_SESSION_TTL:-168h}
+      SBM_AI_CONCURRENCY: ${SBM_AI_CONCURRENCY:-2}
+    volumes:
+      - sbm_database:/var/lib/sbm/database
+      - sbm_objects:/var/lib/sbm/objects
+    secrets:
+      - sbm_master_key
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=268435456
+      - /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    cpus: 2.0
+    mem_limit: 4g
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+
+volumes:
+  sbm_database:
+  sbm_objects:
+
+secrets:
+  sbm_master_key:
+    file: ${SBM_MASTER_KEY_SOURCE:?set SBM_MASTER_KEY_SOURCE to a protected 32-byte key file}

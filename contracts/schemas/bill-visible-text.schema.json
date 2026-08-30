@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smart-bill-manager.local/schemas/bill-visible-text/1",
+  "title": "AI Bill Visible Text Envelope",
+  "description": "只校验模型输出的最小根身份。票面字段由 Claim Mapper 逐字段解码，以保留同一单据中的其他正确结果。",
+  "type": "object",
+  "required": ["schema_version", "document_type", "payment", "invoice"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "bill-visible-text/1"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": ["payment", "invoice", "unknown"]
+    },
+    "payment": {},
+    "invoice": {}
+  },
+  "additionalProperties": false
+}

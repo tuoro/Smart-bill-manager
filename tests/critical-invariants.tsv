@@ -1,0 +1,44 @@
+# invariant_id	branch_case	package	test
+tenant-isolation	同租户成功；跨租户读取、详情、下载、取消、确认与删除统一拒绝	./internal/transport/httpapi	TestHTTPWorkflowAndTenantIsolation
+revision-snapshot-actor	AI 初版单作者；用户修订单作者；四种状态切换；完整快照、证据与 supersedes 连续	./internal/application/reviews	TestRevisionTransitionsPreserveCompleteSnapshotsAndEvidence
+revision-stable-items	明细新增、删除墓碑、修改、重排使用稳定 item_key；Fact 只读当前快照	./internal/application/reviews	TestInvoiceItemRevisionUsesStableKeysAndFactReadsOnlyCurrentSnapshot
+revision-document-type	用户把 Payment 修正为 Invoice 后只创建 Invoice Fact，revision 与字段作者可追溯	./internal/application/reviews	TestUserCanCorrectPaymentClaimIntoInvoiceAndCreateOnlyInvoiceFact
+validation-block	缺字段、证据缺失、文档问题、类型与值非法均产生阻断	./internal/domain	TestValidateClaimBlocksIncompleteSnapshotAndBadEvidence
+validation-block	确认参数不能绕过 Validation、revision 或候选决定	./internal/application/reviews	TestDecisionInputAndAssociationBoundaries
+review-only-fact	Fact 前后故障均全事务回滚；无审核旁路	./internal/application/reviews	TestFactConfirmationFaultInjectionRollsBackBeforeAndAfterFactInsert
+confirm-idempotency	首次确认原子创建；同键重放返回同一 Fact 且不重复写	./internal/application/reviews	TestConfirmPaymentIsAtomicAndIdempotent
+document-deduplication	同租户相同 SHA-256 返回 duplicate_document 且不创建第二 Job	./internal/application/documents	TestUploadCreatesOneImmutableDocumentAndJob
+invoice-number-deduplication	发票号码 NFKC、trim、空白折叠和拉丁大小写规范化后精确判重并 blocked	./internal/application/processing	TestWorkerBlocksNormalizedDuplicateInvoiceNumber
+association-explicit-decision	有候选必须 allocate_candidates 或 reject_all；无候选必须 no_candidate；伪造候选与错误模式拒绝	./internal/application/reviews	TestDecisionInputAndAssociationBoundaries
+association-plan-shape	空 ID、零、负数、超出安全整数和重复候选的分配计划拒绝	./internal/domain	TestCanonicalAllocationPlanRejectsInvalidItems
+association-plan-balance	候选不可用、跨币种、目标余额和新 Fact 总额超分配拒绝	./internal/domain	TestValidateAllocationPlan
+association-one-to-many	一笔 Payment 可按正整数金额分配给多张 Invoice；规范计划幂等且同键改金额冲突	./internal/application/reviews	TestPaymentAllocatesAcrossInvoicesAndReplaysCanonicalPlan
+association-many-to-one	一张 Invoice 可接收多笔 Payment；双方余额动态聚合，删除后恢复且历史 Link 保留	./internal/application/reviews	TestInvoiceReceivesMultiplePaymentsAndDeletionRestoresBalance
+association-pair-history	同一 Payment/Invoice 活动对唯一；失败事务无部分写入；Link 字段不可变且结束后不能复活或删除	./internal/application/reviews	TestPaymentInvoiceLinkRejectsDuplicateActivePairAndMutation
+association-balance-concurrency	两个事务争用同一 Fact 最后余额时最多一个成功，失败请求无部分 Fact 或 Link	./internal/application/reviews	TestConcurrentAllocationsRespectLastBalanceWithoutPartialWrites
+association-stale-candidate	候选确认前删除后必须拒绝且不产生部分 Fact	./internal/application/reviews	TestDeletedCandidateAbortsConfirmationWithoutPartialFact
+association-cross-tenant	提交其他租户真实候选 ID 时拒绝，Fact、决定、审计和 Job 均无部分变化	./internal/application/reviews	TestCrossTenantCandidateInjectionIsRejectedWithoutPartialWrites
+money-integer-exponent	CNY、USD、EUR exponent 2 与 JPY exponent 0；超精度、溢出和 float 输入拒绝	./internal/domain	TestParseMoney
+money-integer-exponent	税额、价税合计与明细合计仅以整数校验，冲突进入 blocked	./internal/domain	TestInvoiceTaxAndItemPathFailures
+file-signature-mime	扩展名、声明 MIME 与 JPEG/PNG/WebP/PDF 签名字节不一致全部拒绝	./internal/adapters/localstorage	TestInspectorRejectsSignatureMismatch
+file-signature-mime	四种批准格式的签名与扩展名边界固定	./internal/adapters/localstorage	TestSupportedSignaturesAndExtensionsAreExact
+job-lease-recovery	过期 processing 租约恢复，并关闭悬空 running AiRun	./internal/adapters/sqlite	TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed
+job-persistence-exactly-once	50 个持久化 Job 不丢失且每个只租用一次	./internal/adapters/sqlite	TestPersistentQueueLeasesFiftyJobsExactlyOnce
+retry-boundary	仅无 ClaimSet 的 failed Job 可重试；其他状态和已有 ClaimSet 拒绝	./internal/domain	TestJobCancellationAndRetryBoundaries
+cancellation-no-write	取消在 Claim 持久化前生效，之后不能写 Claim 或 Fact	./internal/application/processing	TestWorkerCancellationStopsBeforeClaimPersistence
+document-delete-rollback	对象先入可恢复区；数据库事务失败后元数据和对象均恢复	./internal/application/documents	TestDocumentDeletionRestoresObjectsWhenDatabaseTransactionFails
+document-delete-reconcile	重启时无墓碑批次恢复、有墓碑批次清理	./internal/application/documents	TestDocumentDeletionReconcileRestoresUncommittedAndPurgesCommittedBatches
+last-owner-session	最后 active owner 不可停用、降级或删除；suspended membership 不产生 TenantContext	./internal/adapters/sqlite	TestMembershipLastOwnerAndSuspensionInvariants
+provider-schema-authority	Visible Text Provider Schema 从最小根 Envelope 确定性投影为 strict 封闭根，不含 Evidence、旧包装或内部金额字段	./internal/adapters/openaicompatible	TestProviderSchemaProjectionIsDeterministicStrictRoot
+provider-schema-authority	strict 模式缺少声明根成员时明确失败且不修复	./internal/adapters/openaicompatible	TestBillExtractionStrictModeRejectsMissingRootMemberWithoutRepair
+provider-schema-authority	json_object 模式保留嵌套票面字段错误并交给字段级 Claim 校验	./internal/adapters/openaicompatible	TestBillExtractionJSONObjectModePreservesMalformedVisibleFieldsForClaimValidation
+provider-output-mode	能力检测的显式 json_object 只发送 JSON mode，并把同一 Provider Schema 放入探针消息后执行本地校验	./internal/adapters/openaicompatible	TestDetectorUsesExplicitJSONObjectMode
+provider-output-mode	自动或未知输出模式在创建 ProviderConfig 时明确拒绝	./internal/application/providers	TestProviderInputAndPermissionBoundaries
+provider-capability-freshness	能力检测的 Schema 身份过期后不能激活配置	./internal/application/providers	TestActivationRejectsStaleProviderSchemaCapability
+provider-capability-freshness	活动配置的 Schema 身份过期时在模型调用前明确失败	./internal/application/processing	TestWorkerRejectsStaleProviderSchemaBeforeModelCall
+visible-text-claim-mapping	Payment 只接收票面原文与页码；Evidence、本地时区默认和最终 Claim 均由 Mapper 确定性组装	./internal/application/claimmapping	TestMapPaymentBuildsEvidenceAndAppliesChineseTimezoneDefault
+visible-text-claim-mapping	Invoice 只把价税合计映射为 total，保留不含税金额供审核，且不计算空白单价	./internal/application/claimmapping	TestMapInvoiceUsesGrossTotalAndDoesNotCalculateBlankValues
+visible-text-money-boundary	票面金额支持批准币种的常见小数与千分位写法，并无浮点地转成内部整数	./internal/application/claimmapping	TestMapMoneyHandlesVisibleLocaleWithoutFloatingPoint
+visible-text-contract-boundary	旧裸标量、无币种金额和非法页码保留为 blocked 字段，不进入兼容分支	./internal/application/claimmapping	TestMapPreservesContractAndNormalizationFailuresAsBlockedFields
+supplementary-review-only	模型额外字段可审核但永不成为 Fact 字段来源	./internal/application/reviews	TestSupplementaryFieldsNeverBecomeFactOrigins
+visible-text-worker-boundary	本地发现文档类型与业务区段冲突时只持久化一个完整 blocked Claim，不产生 Fact	./internal/application/processing	TestWorkerPersistsLocalDocumentConflictAsOneBlockedClaim

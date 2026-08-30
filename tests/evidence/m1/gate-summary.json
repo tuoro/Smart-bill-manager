@@ -1,0 +1,84 @@
+{
+  "report_kind": "m1-gate-summary",
+  "evidence_version": "M1-CLOSURE-2026-08-30",
+  "recorded_date": "2026-08-30",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "318d379b18e4a0bb3f7dfa3a76d8268925acc3a2",
+    "committed_or_pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "not_started_not_authorized",
+    "model_accuracy_gate": "deferred_to_m4_after_functional_development"
+  },
+  "active_chain": {
+    "prompt": "bill-visible-text-cn/1",
+    "extraction_schema": "bill-visible-text/1",
+    "provider_schema": "bill-visible-text-provider/1",
+    "claim_mapper": "claim-mapper/3",
+    "claim_schema": "document-claim/2",
+    "input_processing": "document-normalize/2"
+  },
+  "closure_revalidation": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "passed": 10,
+      "failed": 0
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 86.57,
+      "covered": 1579,
+      "total": 1824,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 71.6,
+      "covered": 1843,
+      "total": 2574,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "critical_invariant_branches": {
+      "passed": 38,
+      "total": 38,
+      "percentage": 100
+    }
+  },
+  "carried_forward_evidence": {
+    "source": "docs/m1-evidence.md",
+    "compose_e2e": "passed_13_of_13",
+    "responsive_and_reflow": "passed_16_of_16_each",
+    "lighthouse": "passed_12_of_12",
+    "performance": "passed",
+    "memory_stability": "passed",
+    "backup_restore": "passed",
+    "production_image_security": "passed",
+    "ai_direct_fact_count": 0
+  },
+  "excluded_invalid_runs": [
+    {
+      "run": "go_test_with_apps_api_only_mount",
+      "reason": "repository-level contracts and migrations were not mounted"
+    },
+    {
+      "run": "go_build_with_container_vcs_stamp",
+      "reason": "container Git metadata trust prevented VCS stamping; build passed with -buildvcs=false"
+    }
+  ],
+  "prohibited_actions": {
+    "entered_m2": false,
+    "installed_local_ocr": false,
+    "called_real_provider": false,
+    "committed": false,
+    "pushed": false
+  },
+  "overall_status": "passed",
+  "m1_marked_complete": true,
+  "next_stage_authorized": false
+}

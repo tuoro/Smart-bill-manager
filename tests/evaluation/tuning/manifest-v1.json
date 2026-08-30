@@ -1,0 +1,1441 @@
+{
+  "created_at": "2026-08-28T00:00:00Z",
+  "dataset_version": "m1-prompt-dev-v1",
+  "excluded_from_release_evidence": true,
+  "generator": "tests/evaluation/tuning/generator/generate.py",
+  "generator_runtime": {
+    "font": "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+    "font_sha256": "a54dca07c76d6289e717e75e0a58c0128f6d7269ef3faf76417c9d7d3bba37ab",
+    "pillow": "12.3.0",
+    "python": "3.12.13"
+  },
+  "intended_use": "prompt_provider_contract_tuning_only",
+  "samples": [
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Prompt Lab Cafe",
+          "PROMPT LAB CAFE",
+          "  Prompt Lab Cafe  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "CNY 88.70"
+        },
+        "category": {
+          "page": 1,
+          "quote": "Meals"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Prompt Lab Cafe"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "DEV-PAY-0001"
+        },
+        "payment_method": {
+          "page": 1,
+          "quote": "Synthetic Wallet"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-08-01T09:15:00+08:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 8870,
+        "category": "Meals",
+        "currency": "CNY",
+        "merchant": "Prompt Lab Cafe",
+        "order_number": "DEV-PAY-0001",
+        "payment_method": "Synthetic Wallet",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-08-01T09:15:00+08:00"
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-pay-001.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-pay-001.png",
+      "sample_id": "TUNE-PAY-001",
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "sha256": "fdcbf22abac8f338c6fd7b03cc693d7882162f239b17bff2a99998a723199ef0"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Northwind Dev Store",
+          "NORTHWIND DEV STORE",
+          "  Northwind Dev Store  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "USD 1,234.56"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Northwind Dev Store"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "America/New_York"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-08-02T14:20:00-04:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 123456,
+        "currency": "USD",
+        "merchant": "Northwind Dev Store",
+        "source_timezone": "America/New_York",
+        "transaction_time": "2026-08-02T14:20:00-04:00"
+      },
+      "expected_missing_fields": [
+        "payment_method",
+        "order_number",
+        "category"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-pay-002.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-pay-002.png",
+      "sample_id": "TUNE-PAY-002",
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "sha256": "872b8c1b6cac1bb59b1114ffcf4afc1f614be9bf9da08d8c993f9796842d056c"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Euro Prompt Services",
+          "EURO PROMPT SERVICES",
+          "  Euro Prompt Services  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "EUR 1.234,56"
+        },
+        "category": {
+          "page": 1,
+          "quote": "Software"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Euro Prompt Services"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "DEV-EU-0003"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Europe/Berlin"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-08-03T18:05:00+02:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 123456,
+        "category": "Software",
+        "currency": "EUR",
+        "merchant": "Euro Prompt Services",
+        "order_number": "DEV-EU-0003",
+        "source_timezone": "Europe/Berlin",
+        "transaction_time": "2026-08-03T18:05:00+02:00"
+      },
+      "expected_missing_fields": [
+        "payment_method"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-pay-003.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-pay-003.png",
+      "sample_id": "TUNE-PAY-003",
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "sha256": "e51589066393a2ce94846e8d4dc40fe9d66a5e7754604dfc48b3df0faa9e3755"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Tokyo Synthetic Kiosk",
+          "TOKYO SYNTHETIC KIOSK",
+          "  Tokyo Synthetic Kiosk  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [],
+      "expected_evidence": {
+        "amount_minor": {
+          "page": 1,
+          "quote": "JPY 1200"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Tokyo Synthetic Kiosk"
+        },
+        "order_number": {
+          "page": 1,
+          "quote": "DEV-JP-0004"
+        },
+        "payment_method": {
+          "page": 1,
+          "quote": "Test Card"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Tokyo"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-08-04T11:00:00+09:00"
+        }
+      },
+      "expected_fields": {
+        "amount_minor": 1200,
+        "currency": "JPY",
+        "merchant": "Tokyo Synthetic Kiosk",
+        "order_number": "DEV-JP-0004",
+        "payment_method": "Test Card",
+        "source_timezone": "Asia/Tokyo",
+        "transaction_time": "2026-08-04T11:00:00+09:00"
+      },
+      "expected_missing_fields": [
+        "category"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-pay-004.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-pay-004.png",
+      "sample_id": "TUNE-PAY-004",
+      "scenario_tags": [
+        "payment_screenshot"
+      ],
+      "sha256": "d1191d770eed9934aa3ffc2f0b804b112f13a5b0f3ec2c5e2fd3c2baa7e809e8"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Missing Amount Sandbox",
+          "MISSING AMOUNT SANDBOX",
+          "  Missing Amount Sandbox  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [
+        "missing:amount_minor"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Missing Amount Sandbox"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "Asia/Shanghai"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-08-05T08:30:00+08:00"
+        }
+      },
+      "expected_fields": {
+        "currency": "CNY",
+        "merchant": "Missing Amount Sandbox",
+        "source_timezone": "Asia/Shanghai",
+        "transaction_time": "2026-08-05T08:30:00+08:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "order_number",
+        "category"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-pay-005.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-pay-005.png",
+      "sample_id": "TUNE-PAY-005",
+      "scenario_tags": [
+        "payment_screenshot",
+        "missing_conflict"
+      ],
+      "sha256": "c619e138ef43c67ede6f3d53eb6d2ea69d32743f1665388fd986deada74427c3"
+    },
+    {
+      "allowed_normalizations": {
+        "merchant": [
+          "Conflict Amount Sandbox",
+          "CONFLICT AMOUNT SANDBOX",
+          "  Conflict Amount Sandbox  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "expected_events": [
+        "conflict:amount_minor"
+      ],
+      "expected_evidence": {
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "merchant": {
+          "page": 1,
+          "quote": "Conflict Amount Sandbox"
+        },
+        "source_timezone": {
+          "page": 1,
+          "quote": "UTC"
+        },
+        "transaction_time": {
+          "page": 1,
+          "quote": "2026-08-06T16:45:00+00:00"
+        }
+      },
+      "expected_fields": {
+        "currency": "USD",
+        "merchant": "Conflict Amount Sandbox",
+        "source_timezone": "UTC",
+        "transaction_time": "2026-08-06T16:45:00+00:00"
+      },
+      "expected_missing_fields": [
+        "amount_minor",
+        "payment_method",
+        "order_number",
+        "category"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "amount_minor": "money_minor",
+        "category": "string",
+        "currency": "string",
+        "merchant": "string",
+        "order_number": "string",
+        "payment_method": "string",
+        "source_timezone": "string",
+        "transaction_time": "instant"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-pay-006.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-pay-006.png",
+      "sample_id": "TUNE-PAY-006",
+      "scenario_tags": [
+        "payment_screenshot",
+        "missing_conflict"
+      ],
+      "sha256": "7fc3242a3335a3d23bd1920526d9d851592de0e5d5673ec72f03f9c368556610"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Prompt Buyer One",
+          "PROMPT BUYER ONE",
+          "  Prompt Buyer One  "
+        ],
+        "seller_name": [
+          "Prompt Seller One",
+          "PROMPT SELLER ONE",
+          "  Prompt Seller One  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Prompt Buyer One"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-11"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-CNY-0001"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: CNY 100.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Consulting"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 2"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].tax_minor": {
+          "page": 1,
+          "quote": "TAX: CNY 12.00"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: hour"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: CNY 50.00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Prompt Seller One"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 12.00"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 112.00"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Prompt Buyer One",
+        "currency": "CNY",
+        "invoice_date": "2026-07-11",
+        "invoice_number": "DEV-INV-CNY-0001",
+        "items[0].amount_minor": 10000,
+        "items[0].name": "Synthetic Consulting",
+        "items[0].quantity": "2",
+        "items[0].sort_order": 0,
+        "items[0].tax_minor": 1200,
+        "items[0].unit": "hour",
+        "items[0].unit_price_minor": 5000,
+        "seller_name": "Prompt Seller One",
+        "tax_minor": 1200,
+        "total_minor": 11200
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-001.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-001.png",
+      "sample_id": "TUNE-INV-001",
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "sha256": "908846e19e7964555ca3f8eb9139582257e52d11c2aef3e81983cc0a0270dc25"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Contoso Dev Lab",
+          "CONTOSO DEV LAB",
+          "  Contoso Dev Lab  "
+        ],
+        "seller_name": [
+          "Northwind Prompt LLC",
+          "NORTHWIND PROMPT LLC",
+          "  Northwind Prompt LLC  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Contoso Dev Lab"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-12"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-USD-0002"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 12.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Cable"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 2"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: piece"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: USD 6.00"
+        },
+        "items[1].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 23.00"
+        },
+        "items[1].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Adapter"
+        },
+        "items[1].quantity": {
+          "page": 1,
+          "quote": "QTY: 1"
+        },
+        "items[1].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 1"
+        },
+        "items[1].unit": {
+          "page": 1,
+          "quote": "UNIT: piece"
+        },
+        "items[1].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: USD 23.00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Northwind Prompt LLC"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 35.00"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Contoso Dev Lab",
+        "currency": "USD",
+        "invoice_date": "2026-07-12",
+        "invoice_number": "DEV-INV-USD-0002",
+        "items[0].amount_minor": 1200,
+        "items[0].name": "Synthetic Cable",
+        "items[0].quantity": "2",
+        "items[0].sort_order": 0,
+        "items[0].unit": "piece",
+        "items[0].unit_price_minor": 600,
+        "items[1].amount_minor": 2300,
+        "items[1].name": "Synthetic Adapter",
+        "items[1].quantity": "1",
+        "items[1].sort_order": 1,
+        "items[1].unit": "piece",
+        "items[1].unit_price_minor": 2300,
+        "seller_name": "Northwind Prompt LLC",
+        "total_minor": 3500
+      },
+      "expected_missing_fields": [
+        "tax_minor",
+        "items[0].tax_minor",
+        "items[1].tax_minor"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "items[1].amount_minor": "money_minor",
+        "items[1].name": "string",
+        "items[1].quantity": "decimal",
+        "items[1].sort_order": "integer",
+        "items[1].tax_minor": "money_minor",
+        "items[1].unit": "string",
+        "items[1].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-002.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-002.png",
+      "sample_id": "TUNE-INV-002",
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "sha256": "8a1e90c95dac4261d23f15d0624e9fdd784bda1fb4167a66a140791468f776a0"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Buyer GmbH",
+          "SYNTHETIC BUYER GMBH",
+          "  Synthetic Buyer GmbH  "
+        ],
+        "seller_name": [
+          "Euro Prompt GmbH",
+          "EURO PROMPT GMBH",
+          "  Euro Prompt GmbH  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Buyer GmbH"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "EUR"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-13"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-EUR-0003"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: EUR 1.000,00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Design Work"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 2.5"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].tax_minor": {
+          "page": 1,
+          "quote": "TAX: EUR 234,56"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: hour"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: EUR 400,00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Euro Prompt GmbH"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "EUR 234,56"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "EUR 1.234,56"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Synthetic Buyer GmbH",
+        "currency": "EUR",
+        "invoice_date": "2026-07-13",
+        "invoice_number": "DEV-INV-EUR-0003",
+        "items[0].amount_minor": 100000,
+        "items[0].name": "Synthetic Design Work",
+        "items[0].quantity": "2.5",
+        "items[0].sort_order": 0,
+        "items[0].tax_minor": 23456,
+        "items[0].unit": "hour",
+        "items[0].unit_price_minor": 40000,
+        "seller_name": "Euro Prompt GmbH",
+        "tax_minor": 23456,
+        "total_minor": 123456
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-003.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-003.png",
+      "sample_id": "TUNE-INV-003",
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "sha256": "99a34d9220f37e3a3e7717a1ac76d133f6168639eab25e4d9108d1540211d617"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Synthetic Japan Lab",
+          "SYNTHETIC JAPAN LAB",
+          "  Synthetic Japan Lab  "
+        ],
+        "seller_name": [
+          "Tokyo Prompt Works",
+          "TOKYO PROMPT WORKS",
+          "  Tokyo Prompt Works  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Synthetic Japan Lab"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "JPY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-14"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-JPY-0004"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: JPY 2000"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Part A"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[1].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: JPY 3000"
+        },
+        "items[1].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Part B"
+        },
+        "items[1].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 1"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Tokyo Prompt Works"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "JPY 5000"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Synthetic Japan Lab",
+        "currency": "JPY",
+        "invoice_date": "2026-07-14",
+        "invoice_number": "DEV-INV-JPY-0004",
+        "items[0].amount_minor": 2000,
+        "items[0].name": "Synthetic Part A",
+        "items[0].sort_order": 0,
+        "items[1].amount_minor": 3000,
+        "items[1].name": "Synthetic Part B",
+        "items[1].sort_order": 1,
+        "seller_name": "Tokyo Prompt Works",
+        "total_minor": 5000
+      },
+      "expected_missing_fields": [
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor",
+        "items[1].quantity",
+        "items[1].unit",
+        "items[1].unit_price_minor",
+        "items[1].tax_minor"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "items[1].amount_minor": "money_minor",
+        "items[1].name": "string",
+        "items[1].quantity": "decimal",
+        "items[1].sort_order": "integer",
+        "items[1].tax_minor": "money_minor",
+        "items[1].unit": "string",
+        "items[1].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-004.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-004.png",
+      "sample_id": "TUNE-INV-004",
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "sha256": "1e27b59b8d0b4821310545bc9b7d23a10a53bf563178e8e4991e2e10d3c508b1"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Missing Number Buyer",
+          "MISSING NUMBER BUYER",
+          "  Missing Number Buyer  "
+        ],
+        "seller_name": [
+          "Missing Number Seller",
+          "MISSING NUMBER SELLER",
+          "  Missing Number Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [
+        "missing:invoice_number"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Missing Number Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-15"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: CNY 10.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Item"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Missing Number Seller"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 10.00"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Missing Number Buyer",
+        "currency": "CNY",
+        "invoice_date": "2026-07-15",
+        "items[0].amount_minor": 1000,
+        "items[0].name": "Synthetic Item",
+        "items[0].sort_order": 0,
+        "seller_name": "Missing Number Seller",
+        "total_minor": 1000
+      },
+      "expected_missing_fields": [
+        "invoice_number",
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-005.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-005.png",
+      "sample_id": "TUNE-INV-005",
+      "scenario_tags": [
+        "single_item_invoice",
+        "missing_conflict"
+      ],
+      "sha256": "21966c5988ef2fb736df3251a3ddfca940a990868d890b73dc23cc09a45e6562"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Conflict Total Buyer",
+          "CONFLICT TOTAL BUYER",
+          "  Conflict Total Buyer  "
+        ],
+        "seller_name": [
+          "Conflict Total Seller",
+          "CONFLICT TOTAL SELLER",
+          "  Conflict Total Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [
+        "conflict:total_minor"
+      ],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Conflict Total Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-16"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-CONFLICT-0006"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 11.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Service"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Conflict Total Seller"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Conflict Total Buyer",
+        "currency": "USD",
+        "invoice_date": "2026-07-16",
+        "invoice_number": "DEV-INV-CONFLICT-0006",
+        "items[0].amount_minor": 1100,
+        "items[0].name": "Synthetic Service",
+        "items[0].sort_order": 0,
+        "seller_name": "Conflict Total Seller"
+      },
+      "expected_missing_fields": [
+        "total_minor",
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor"
+      ],
+      "expected_review_state": "blocked",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-006.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-006.png",
+      "sample_id": "TUNE-INV-006",
+      "scenario_tags": [
+        "single_item_invoice",
+        "missing_conflict"
+      ],
+      "sha256": "b2cc4f46154b0422f4150be09f42d1e9837dca76a94f0d2daec047d3672a6462"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Type Contract Buyer",
+          "TYPE CONTRACT BUYER",
+          "  Type Contract Buyer  "
+        ],
+        "seller_name": [
+          "Type Contract Seller",
+          "TYPE CONTRACT SELLER",
+          "  Type Contract Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Type Contract Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "CNY"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-17"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-TYPE-0007"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: CNY 12.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Material"
+        },
+        "items[0].quantity": {
+          "page": 1,
+          "quote": "QTY: 1.5"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[0].tax_minor": {
+          "page": 1,
+          "quote": "TAX: CNY 0.60"
+        },
+        "items[0].unit": {
+          "page": 1,
+          "quote": "UNIT: kg"
+        },
+        "items[0].unit_price_minor": {
+          "page": 1,
+          "quote": "UNIT_PRICE: CNY 8.00"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Type Contract Seller"
+        },
+        "tax_minor": {
+          "page": 1,
+          "quote": "CNY 0.60"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "CNY 12.60"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Type Contract Buyer",
+        "currency": "CNY",
+        "invoice_date": "2026-07-17",
+        "invoice_number": "DEV-INV-TYPE-0007",
+        "items[0].amount_minor": 1200,
+        "items[0].name": "Synthetic Material",
+        "items[0].quantity": "1.5",
+        "items[0].sort_order": 0,
+        "items[0].tax_minor": 60,
+        "items[0].unit": "kg",
+        "items[0].unit_price_minor": 800,
+        "seller_name": "Type Contract Seller",
+        "tax_minor": 60,
+        "total_minor": 1260
+      },
+      "expected_missing_fields": [],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-007.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-007.png",
+      "sample_id": "TUNE-INV-007",
+      "scenario_tags": [
+        "single_item_invoice"
+      ],
+      "sha256": "675afc14b1c6901d38c82c5944f16ebe0b5a46d4abb283a94eeae8cd2f728698"
+    },
+    {
+      "allowed_normalizations": {
+        "buyer_name": [
+          "Sort Order Buyer",
+          "SORT ORDER BUYER",
+          "  Sort Order Buyer  "
+        ],
+        "seller_name": [
+          "Sort Order Seller",
+          "SORT ORDER SELLER",
+          "  Sort Order Seller  "
+        ]
+      },
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "expected_events": [],
+      "expected_evidence": {
+        "buyer_name": {
+          "page": 1,
+          "quote": "Sort Order Buyer"
+        },
+        "currency": {
+          "page": 1,
+          "quote": "USD"
+        },
+        "invoice_date": {
+          "page": 1,
+          "quote": "2026-07-18"
+        },
+        "invoice_number": {
+          "page": 1,
+          "quote": "DEV-INV-ORDER-0008"
+        },
+        "items[0].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 10.00"
+        },
+        "items[0].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Row A"
+        },
+        "items[0].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 0"
+        },
+        "items[1].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 20.00"
+        },
+        "items[1].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Row B"
+        },
+        "items[1].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 1"
+        },
+        "items[2].amount_minor": {
+          "page": 1,
+          "quote": "AMOUNT: USD 30.00"
+        },
+        "items[2].name": {
+          "page": 1,
+          "quote": "NAME: Synthetic Row C"
+        },
+        "items[2].sort_order": {
+          "page": 1,
+          "quote": "SORT_ORDER: 2"
+        },
+        "seller_name": {
+          "page": 1,
+          "quote": "Sort Order Seller"
+        },
+        "total_minor": {
+          "page": 1,
+          "quote": "USD 60.00"
+        }
+      },
+      "expected_fields": {
+        "buyer_name": "Sort Order Buyer",
+        "currency": "USD",
+        "invoice_date": "2026-07-18",
+        "invoice_number": "DEV-INV-ORDER-0008",
+        "items[0].amount_minor": 1000,
+        "items[0].name": "Synthetic Row A",
+        "items[0].sort_order": 0,
+        "items[1].amount_minor": 2000,
+        "items[1].name": "Synthetic Row B",
+        "items[1].sort_order": 1,
+        "items[2].amount_minor": 3000,
+        "items[2].name": "Synthetic Row C",
+        "items[2].sort_order": 2,
+        "seller_name": "Sort Order Seller",
+        "total_minor": 6000
+      },
+      "expected_missing_fields": [
+        "tax_minor",
+        "items[0].quantity",
+        "items[0].unit",
+        "items[0].unit_price_minor",
+        "items[0].tax_minor",
+        "items[1].quantity",
+        "items[1].unit",
+        "items[1].unit_price_minor",
+        "items[1].tax_minor",
+        "items[2].quantity",
+        "items[2].unit",
+        "items[2].unit_price_minor",
+        "items[2].tax_minor"
+      ],
+      "expected_review_state": "needs_review",
+      "expected_value_types": {
+        "buyer_name": "string",
+        "currency": "string",
+        "invoice_date": "date",
+        "invoice_number": "string",
+        "items[0].amount_minor": "money_minor",
+        "items[0].name": "string",
+        "items[0].quantity": "decimal",
+        "items[0].sort_order": "integer",
+        "items[0].tax_minor": "money_minor",
+        "items[0].unit": "string",
+        "items[0].unit_price_minor": "money_minor",
+        "items[1].amount_minor": "money_minor",
+        "items[1].name": "string",
+        "items[1].quantity": "decimal",
+        "items[1].sort_order": "integer",
+        "items[1].tax_minor": "money_minor",
+        "items[1].unit": "string",
+        "items[1].unit_price_minor": "money_minor",
+        "items[2].amount_minor": "money_minor",
+        "items[2].name": "string",
+        "items[2].quantity": "decimal",
+        "items[2].sort_order": "integer",
+        "items[2].tax_minor": "money_minor",
+        "items[2].unit": "string",
+        "items[2].unit_price_minor": "money_minor",
+        "seller_name": "string",
+        "tax_minor": "money_minor",
+        "total_minor": "money_minor"
+      },
+      "file": "assets/m1-prompt-dev-v1/tune-inv-008.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-inv-008.png",
+      "sample_id": "TUNE-INV-008",
+      "scenario_tags": [
+        "multi_item_invoice"
+      ],
+      "sha256": "397e2564e19a7deb80afb6c6b82667e7b240530bb9dc63e9cc38d85af0f99e77"
+    },
+    {
+      "allowed_normalizations": {},
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_evidence": {},
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_review_state": "blocked",
+      "expected_value_types": {},
+      "file": "assets/m1-prompt-dev-v1/tune-unk-001.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-unk-001.png",
+      "sample_id": "TUNE-UNK-001",
+      "scenario_tags": [
+        "supported_unknown"
+      ],
+      "sha256": "d7970e86225d1cad2e5babbde5982eb71e5955c534fd8d0d2ef3a11f11104b03"
+    },
+    {
+      "allowed_normalizations": {},
+      "declared_mime": "image/png",
+      "document_type": "unknown",
+      "expected_events": [
+        "unknown_document_type"
+      ],
+      "expected_evidence": {},
+      "expected_fields": {},
+      "expected_missing_fields": [],
+      "expected_review_state": "blocked",
+      "expected_value_types": {},
+      "file": "assets/m1-prompt-dev-v1/tune-unk-002.png",
+      "model_stage_eligible": true,
+      "original_name": "tune-unk-002.png",
+      "sample_id": "TUNE-UNK-002",
+      "scenario_tags": [
+        "supported_unknown"
+      ],
+      "sha256": "58e278605a39a06c9a405298701233663cfeef7bb4773f274ff1d701af569480"
+    }
+  ],
+  "source_dataset_versions": [],
+  "synthetic_only": true
+}

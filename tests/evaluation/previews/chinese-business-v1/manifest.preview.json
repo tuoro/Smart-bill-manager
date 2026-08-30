@@ -1,0 +1,137 @@
+{
+  "preview_version": "chinese-business-v1",
+  "status": "preview_only_not_frozen",
+  "synthetic_only": true,
+  "eligible_for_tuning": false,
+  "eligible_for_release_evidence": false,
+  "generation_method": "deterministic_html_css_playwright",
+  "samples": [
+    {
+      "sample_id": "CN-PREVIEW-PAY-001",
+      "file": "cn-pay-mobile-clean.png",
+      "sha256": "dfd59a8dccfbdd849e07ec4eb6615b942d51b80a98d77896c853a1b4798c7a4a",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "scenario_tags": [
+        "中文支付截图",
+        "清晰",
+        "单一主金额"
+      ],
+      "expected_fields": {
+        "amount_minor": 4860,
+        "currency": "CNY",
+        "merchant": "春山面馆（合成）",
+        "transaction_time": "2026-08-18T12:36:42+08:00",
+        "source_timezone": "Asia/Shanghai",
+        "payment_method": "招商银行储蓄卡（2048）",
+        "order_number": "202608182104009731"
+      },
+      "expected_items": [],
+      "expected_evidence": {
+        "amount_minor": "¥48.60",
+        "merchant": "春山面馆（合成）",
+        "transaction_time": "2026年8月18日 12:36:42",
+        "payment_method": "招商银行储蓄卡（2048）",
+        "order_number": "202608182104009731"
+      }
+    },
+    {
+      "sample_id": "CN-PREVIEW-PAY-002",
+      "file": "cn-pay-order-multiple-amounts.png",
+      "sha256": "138f047f607a6b189f96f25889bfb369b0f50b9cdc64cdb3dc0d89f6c1fee18d",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "scenario_tags": [
+        "中文订单截图",
+        "多金额",
+        "优惠抵扣"
+      ],
+      "expected_fields": {
+        "amount_minor": 26900,
+        "currency": "CNY",
+        "merchant": "北岸生活馆（合成）",
+        "transaction_time": "2026-08-20T20:18:09+08:00",
+        "source_timezone": "Asia/Shanghai",
+        "payment_method": "账户余额",
+        "order_number": "CN202608202018090027"
+      },
+      "expected_items": [],
+      "expected_evidence": {
+        "amount_minor": "实付款 ¥269.00",
+        "merchant": "北岸生活馆（合成）",
+        "transaction_time": "2026-08-20 20:18:09",
+        "payment_method": "账户余额",
+        "order_number": "CN202608202018090027"
+      }
+    },
+    {
+      "sample_id": "CN-PREVIEW-INV-001",
+      "file": "cn-digital-invoice-clean.png",
+      "sha256": "12012737f93239557973447ccc417ed5b91cf24813bd393e68d5924088358576",
+      "declared_mime": "image/png",
+      "document_type": "invoice",
+      "scenario_tags": [
+        "中文数电发票",
+        "清晰",
+        "单项目"
+      ],
+      "expected_fields": {
+        "invoice_number": "25312000000084273115",
+        "invoice_date": "2026-08-16",
+        "total_minor": 12800,
+        "tax_minor": 725,
+        "currency": "CNY",
+        "seller_name": "上海澄明软件技术有限公司（合成）",
+        "buyer_name": "杭州远舟信息服务有限公司（合成）"
+      },
+      "expected_items": [
+        {
+          "name": "软件技术服务",
+          "quantity": "1",
+          "unit": "项",
+          "unit_price_minor": 12075,
+          "amount_minor": 12075,
+          "tax_minor": 725,
+          "sort_order": 0
+        }
+      ],
+      "expected_evidence": {
+        "invoice_number": "发票号码：25312000000084273115",
+        "invoice_date": "开票日期：2026年08月16日",
+        "total_minor": "¥128.00",
+        "tax_minor": "¥7.25",
+        "seller_name": "上海澄明软件技术有限公司（合成）",
+        "buyer_name": "杭州远舟信息服务有限公司（合成）"
+      }
+    },
+    {
+      "sample_id": "CN-PREVIEW-PAY-003",
+      "file": "cn-thermal-receipt-photo.png",
+      "sha256": "da36b6a803c67aff17b2b386cfffadeee989ee699c6c4cfa80ac53c54a74d924",
+      "declared_mime": "image/png",
+      "document_type": "payment",
+      "scenario_tags": [
+        "中文热敏小票",
+        "拍照",
+        "多金额"
+      ],
+      "expected_fields": {
+        "amount_minor": 3240,
+        "currency": "CNY",
+        "merchant": "南巷便利店（合成）",
+        "transaction_time": "2026-08-22T19:08:16+08:00",
+        "source_timezone": "Asia/Shanghai",
+        "payment_method": "移动支付",
+        "order_number": "TX20260822190816083"
+      },
+      "expected_items": [],
+      "expected_evidence": {
+        "amount_minor": "实收：¥32.40",
+        "merchant": "南巷便利店（合成）",
+        "transaction_time": "2026-08-22 19:08:16",
+        "payment_method": "支付方式：移动支付",
+        "order_number": "流水号：TX20260822190816083"
+      }
+    }
+  ]
+}

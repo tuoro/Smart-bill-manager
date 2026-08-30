@@ -1,0 +1,2075 @@
+{
+  "result_kind": "m1-model-tuning-preflight-run",
+  "run_id": "preflight",
+  "dataset_version": "m1-prompt-dev-v2",
+  "dataset_manifest_sha256": "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
+  "eligible_for_release_evidence": false,
+  "started_at": "2026-08-29T02:32:10.460Z",
+  "finished_at": "2026-08-29T02:35:34.367Z",
+  "frozen_configuration": {
+    "provider_config_safe_fingerprint": "bb7dcf68230cc8cbaada160e6393879d43b792e68b4f93f97cbb418556e0dba1",
+    "provider_base_url_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+    "model": "qwen3-vl-30b-a3b-instruct",
+    "output_mode": "json_object",
+    "prompt_version": "document-extract/5",
+    "schema_version": "document-claim/1",
+    "provider_schema_version": "document-claim-provider/2",
+    "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+    "input_processing_version": "document-normalize/1",
+    "provider_output_retry_policy": "schema_validation_single_retry/1",
+    "connection_timeout_seconds": 10,
+    "model_timeout_seconds": 60,
+    "job_timeout_seconds": 150,
+    "temperature": 0,
+    "seed": "provider_not_supported"
+  },
+  "ai_direct_fact_count": 0,
+  "samples": [
+    {
+      "sample_id": "TUNE2-PAY-001",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "0ed016d6-368c-417f-9505-8be272b16920",
+      "job_id": "dc63c981-91e0-4a78-a04a-5f05fbda5111",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 14317,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "334b3aa9-ad96-4115-a9fc-d11badc2eede",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 907,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TOTAL: USD 9.07",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "USD",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: USD",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Literal Dot Market",
+            "normalized_value": "literal dot market",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Literal Dot Market",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "LIT-PAY-09-001",
+            "normalized_value": "lit-pay-09-001",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ORDER_NUMBER: LIT-PAY-09-001",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Test Card 2048",
+            "normalized_value": "test card 2048",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "PAYMENT_METHOD: Test Card 2048",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "America/Chicago",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZONE: America/Chicago",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-09-11T07:08:09-05:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-09-11T07:08:09-05:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-PAY-002",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "0aa1791c-cb92-476a-86df-828e3ad0949d",
+      "job_id": "e81fecdf-1448-4aa9-949e-df85f1923ea9",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 7177,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "9f71c49a-ef68-412e-a174-392679bd479a",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 876543,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "8.765,43",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Design-Lab",
+            "normalized_value": "design-lab",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Design-Lab",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "EUR",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "EUR",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Comma Proof Studio",
+            "normalized_value": "comma proof studio",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Comma Proof Studio",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Europe/Paris",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Europe/Paris",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-09-12T18:03:04+02:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2026-09-12T18:03:04+02:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-PAY-003",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "fc82defe-6814-4576-96f5-555a626d73df",
+      "job_id": "3a36d47a-90da-4b6c-a750-3a59f031dd2e",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 7141,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "6d383a23-c127-46fc-af50-7132f5f253c9",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1234,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CNY 12.34",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "CNY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: CNY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Low-Contras Corner",
+            "normalized_value": "low-contras corner",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Low-Contras Corner",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "LC-03-A7",
+            "normalized_value": "lc-03-a7",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ORDER_NUMBER: LC-03-A7",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Asia/Shanghai",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZCNE: Asia/Shanghai",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-09-13T06:05:04+08:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-09-13T06:05:04+08:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-PAY-004",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "be0f1df0-743e-403f-8168-66d995f94f02",
+      "job_id": "443069cf-f99d-44a6-8bd4-10bf875fc9f8",
+      "job_status": "failed",
+      "attempt_count": 2,
+      "error_code": "provider_timeout",
+      "safe_error_message": "Provider 请求超时",
+      "elapsed_ms": 87677,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE2-PAY-005",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "b5fea139-3d7c-4db1-b651-484b9f14cbb7",
+      "job_id": "25b98acd-6bdd-4e58-9faf-47e31c75bba5",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 6164,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "aca45aca-247b-4e30-ba13-0d736fc22f74",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "CNY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: CNY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Absent Total Workshop",
+            "normalized_value": "absent total workshop",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "MERCHANT: Absent Total Workshop",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Asia/Shanghai",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SOURCE_TIMEZCNE: Asia/Shanghai",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-09-15T12:13:14+08:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TRANSACTION_TIME: 2026-09-15T12:13:14+08:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "missing_required_field",
+            "severity": "blocked",
+            "status": "blocked"
+          },
+          {
+            "field_claim_id": "1c468c72-67af-40c1-88b0-b883132def9a",
+            "rule_code": "required_field_absent",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-PAY-006",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "0179257c-bb60-4932-978e-350fae3fa43a",
+      "job_id": "8a0811b4-7ca6-43f7-b312-79bc816acbbf",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 6633,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "af1a1abc-8978-44c9-9a43-9297f632bfa1",
+        "document_type": "payment",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 3109,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "31.09",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "category",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "USD",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "USD",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "payment",
+            "normalized_value": "payment",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "merchant",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Dual Total Workshop",
+            "normalized_value": "dual total workshop",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Dual Total Workshop",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "order_number",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "payment_method",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "source_timezone",
+            "value_type": "string",
+            "presence": "present",
+            "value": "UTC",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UTC",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "transaction_time",
+            "value_type": "instant",
+            "presence": "present",
+            "value": "2026-09-16T21:22:23+00:00",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2026-09-16T21:22:23+00:00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-INV-001",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "199b85b3-8d58-427b-b1a1-3937caf2913d",
+      "job_id": "90b6ca74-4ab0-469d-86a7-5f68a55d5913",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 12223,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "c64c6e18-9a34-444f-9242-794d334f01c5",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Colon Test Labs",
+            "normalized_value": "colon test labs",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Colon Test Labs",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "USD",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "USD",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-09-17",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2026-09-17",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "LIT-INV-2026-0917-A",
+            "normalized_value": "lit-inv-2026-0917-a",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "LIT-INV-2026-0917-A",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 3900,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "AMOUNT: USD 39.00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Line-One Service",
+            "normalized_value": "line-one service",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Line-One Service",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].quantity",
+            "value_type": "decimal",
+            "presence": "present",
+            "value": "1",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "QTY: 1",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].tax_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 42,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TAX: USD 3.42",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].unit",
+            "value_type": "string",
+            "presence": "present",
+            "value": "job",
+            "normalized_value": "job",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UNIT: job",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[e8edd73e-8f3c-4bcc-964b-000e267d4060].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 3900,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UNIT_PRICE: USD 39.00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Exact Name Supply",
+            "normalized_value": "exact name supply",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Exact Name Supply",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 42,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TAX: USD 3.42",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 4242,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "USD 42.42",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "4883d25a-5a43-4f62-af27-164b600497fa",
+            "rule_code": "invoice_item_total_conflict",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-INV-002",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "2cebd38c-e99b-414b-acf6-64f176ca09c0",
+      "job_id": "0427369a-3558-43c3-b96b-f4c98525a583",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "provider_timeout",
+      "safe_error_message": "Provider 请求超时",
+      "elapsed_ms": 60620,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE2-INV-003",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "187fb566-f6d6-457d-906d-4bc16801aff2",
+      "job_id": "d6eb516a-4f5e-4fc9-87e8-c02fb19ab71e",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 16338,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "276a9508-082f-4820-bd4f-c480c13bcc74",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Literal Buyer SARL",
+            "normalized_value": "literal buyer sarl",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "BUYER: Literal Buyer SARL",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "EUR",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CURRENCY: EUR",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-09-19",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "INVOICE_DATE: 2026-09-19",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "EU-LITERAL-19-C",
+            "normalized_value": "eu-literal-19-c",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "INVOICE_NUMBER: EU-LITERAL-19-C",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 100000,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "AMOUNT: EUR 1.000,00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Format-Pruefung",
+            "normalized_value": "format-pruefung",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 0 | NAME: Format-Pruefung",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].quantity",
+            "value_type": "decimal",
+            "presence": "present",
+            "value": "2.5",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "QTY: 2.5",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ITEM 0 | NAME: Format-Pruefung | SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].tax_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 20050,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TAX: EUR 200,50",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].unit",
+            "value_type": "string",
+            "presence": "present",
+            "value": "hour",
+            "normalized_value": "hour",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UNIT: hour",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3d00820b-6d4e-477b-97d9-34e10b21faa4].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 40000,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "UNIT_PRICE: EUR 400,00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Punkt und Komma GmbH",
+            "normalized_value": "punkt und komma gmbh",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SELLER: Punkt und Komma GmbH",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 20050,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TAX: EUR 200,50",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 120050,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "TOTAL: EUR 1.200,50",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-INV-004",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "85bb3da5-3f69-4e6f-8e84-718713ab30e1",
+      "job_id": "d8090020-f1e8-4369-bf09-1ce0e613e6cf",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "provider_timeout",
+      "safe_error_message": "Provider 请求超时",
+      "elapsed_ms": 60654,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE2-INV-005",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "1648f466-7642-4d31-b479-d978432b4429",
+      "job_id": "53b8a29b-49b5-4378-b781-d74712547e26",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 13246,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "58349a27-9aae-4903-a207-e144e537ac30",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Review Queue Buyer",
+            "normalized_value": "review queue buyer",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Review Queue Buyer",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "USD",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "USD",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-09-21",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2026-09-21",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1500,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "USD 15.00",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Review Item",
+            "normalized_value": "review item",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Review Item",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "SORT_ORDER: 0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[5f251042-ee14-4f0e-b89f-2405b483eac6].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "No Number Seller",
+            "normalized_value": "no number seller",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "No Number Seller",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1500,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "USD 15.00",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "d8f4b4fa-4d85-4058-94d5-527e7d604364",
+            "rule_code": "required_field_absent",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-INV-006",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "bc39f9a8-8ece-43ec-a5b9-65a3aa317eb1",
+      "job_id": "662ca89a-97b0-453e-8865-6e04f1b51044",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 14260,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "e7d75f34-7d34-4df9-9191-43edd67538ba",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Conflict Buyer",
+            "normalized_value": "conflict buyer",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Conflict Buyer",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "CNY",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "CNY",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-09-22",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2026-09-22",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "DUAL-INV-22-F",
+            "normalized_value": "dual-inv-22-f",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "DUAL-INV-22-F",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1710,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "17.10",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Visible Item",
+            "normalized_value": "visible item",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Visible Item",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[3f194eae-89be-42d5-9b9e-9268266495a3].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Conflict Seller",
+            "normalized_value": "conflict seller",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Conflict Seller",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 7110,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "71.10",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "d8b21069-433d-4478-b624-104d5c9d2e1c",
+            "rule_code": "invoice_item_total_conflict",
+            "severity": "blocked",
+            "status": "blocked"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-INV-007",
+      "outcome": "job_terminal_without_claim",
+      "accepted_upload": true,
+      "document_id": "b804fe4d-4a75-465e-9932-eee0e5d08b72",
+      "job_id": "3624a630-a7cc-4f59-9f50-9677e0af448c",
+      "job_status": "failed",
+      "attempt_count": 1,
+      "error_code": "provider_timeout",
+      "safe_error_message": "Provider 请求超时",
+      "elapsed_ms": 60077,
+      "schema_valid": false,
+      "claim": null
+    },
+    {
+      "sample_id": "TUNE2-INV-008",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "ea6f39a5-e8b9-4db2-9763-7b8d28ef989a",
+      "job_id": "b251b42d-6527-4634-b653-abdf2ea0ed28",
+      "job_status": "needs_review",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 31584,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "a1ac4107-c92e-4140-903a-5c0a1c221346",
+        "document_type": "invoice",
+        "revision": 1,
+        "claim_status": "ready_for_review",
+        "fields": [
+          {
+            "path": "buyer_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Ordered Rows Buyer",
+            "normalized_value": "ordered rows buyer",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Ordered Rows Buyer",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "currency",
+            "value_type": "string",
+            "presence": "present",
+            "value": "EUR",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "EUR",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "invoice",
+            "normalized_value": "invoice",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "invoice_date",
+            "value_type": "date",
+            "presence": "present",
+            "value": "2026-09-24",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2026-09-24",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "invoice_number",
+            "value_type": "string",
+            "presence": "present",
+            "value": "ORDER-INV-24-H",
+            "normalized_value": "order-inv-24-h",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "ORDER-INV-24-H",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 3333,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "33,33",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Row-C",
+            "normalized_value": "row-c",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Row-C",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 2,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "2",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[2900a962-9e1a-4ef7-826c-24853f4ab77b].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 2222,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "22,22",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Row-B",
+            "normalized_value": "row-b",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Row-B",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 1,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "1",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[bce4dc6a-e850-4984-a09d-56dfd9c420ff].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].amount_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 1111,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "11,11",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Row-A",
+            "normalized_value": "row-a",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Row-A",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].quantity",
+            "value_type": "decimal",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].sort_order",
+            "value_type": "integer",
+            "presence": "present",
+            "value": 0,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "0",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].unit",
+            "value_type": "string",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "items[f55782b6-7740-431e-82a7-8ae98da6b327].unit_price_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "seller_name",
+            "value_type": "string",
+            "presence": "present",
+            "value": "Ordered Rows Seller",
+            "normalized_value": "ordered rows seller",
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "Ordered Rows Seller",
+                "region": null
+              }
+            ]
+          },
+          {
+            "path": "tax_minor",
+            "value_type": "money_minor",
+            "presence": "absent",
+            "source": "ai",
+            "evidence": []
+          },
+          {
+            "path": "total_minor",
+            "value_type": "money_minor",
+            "presence": "present",
+            "value": 6666,
+            "source": "ai",
+            "evidence": [
+              {
+                "page": 1,
+                "quote": "66,66",
+                "region": null
+              }
+            ]
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "",
+            "rule_code": "claim_snapshot_complete",
+            "severity": "info",
+            "status": "passed"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-UNK-001",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "d87f1fe3-5035-4ca6-aac8-751a86560931",
+      "job_id": "5affd860-3fc6-4274-a2b7-2f3e4b1ef292",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 1540,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "7a59498a-b8c9-4e5b-8b2e-b80b5a2376d1",
+        "document_type": "unknown",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "unknown",
+            "normalized_value": "unknown",
+            "source": "ai",
+            "evidence": []
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "0ff59f4a-81d4-4213-abab-65f9ac6ea150",
+            "rule_code": "unknown_document_type",
+            "severity": "blocked",
+            "status": "blocked"
+          },
+          {
+            "field_claim_id": "",
+            "rule_code": "model_issue_non_financial_document",
+            "severity": "warning",
+            "status": "warning"
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "TUNE2-UNK-002",
+      "outcome": "local_claim_accepted",
+      "accepted_upload": true,
+      "document_id": "cfc5219f-1748-472f-bc0d-030bb88090ee",
+      "job_id": "5dac7f80-9fe1-4c94-b153-2f3ed5cf164e",
+      "job_status": "blocked",
+      "attempt_count": 1,
+      "error_code": "",
+      "safe_error_message": "",
+      "elapsed_ms": 1541,
+      "schema_valid": true,
+      "claim": {
+        "claim_set_id": "68b22ab1-a6f0-43e4-bbba-8d9578b488e4",
+        "document_type": "unknown",
+        "revision": 1,
+        "claim_status": "blocked",
+        "fields": [
+          {
+            "path": "document_type",
+            "value_type": "document_type",
+            "presence": "present",
+            "value": "unknown",
+            "normalized_value": "unknown",
+            "source": "ai",
+            "evidence": []
+          }
+        ],
+        "validations": [
+          {
+            "field_claim_id": "a6396c37-a2af-44b4-806b-0aa5ae3d6ddf",
+            "rule_code": "unknown_document_type",
+            "severity": "blocked",
+            "status": "blocked"
+          },
+          {
+            "field_claim_id": "",
+            "rule_code": "model_issue_non_financial_document",
+            "severity": "warning",
+            "status": "warning"
+          }
+        ]
+      }
+    }
+  ]
+}

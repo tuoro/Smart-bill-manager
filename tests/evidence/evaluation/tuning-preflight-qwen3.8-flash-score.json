@@ -1,0 +1,298 @@
+{
+  "report_kind": "m1-model-tuning-preflight-score",
+  "dataset_version": "m1-prompt-dev-v1",
+  "dataset_manifest_sha256": "1bea5129832ea2e536792f7b023c1df61f4f9113ed180de66b67b7a7724d89f3",
+  "scoring_protocol": "m1-tuning-preflight-score/1",
+  "eligible_for_release_evidence": false,
+  "thresholds": {
+    "model_completion_rate": 100,
+    "claim_contract_rate": 100,
+    "schema_valid_rate": 100,
+    "classification_accuracy": 97,
+    "amount_exact_rate": 98,
+    "invoice_number_exact_rate": 95,
+    "date_normalization_exact_rate": 95,
+    "name_normalization_exact_rate": 90,
+    "critical_evidence_coverage": 100,
+    "missing_conflict_recall": 100,
+    "manifest_assertion_rate": 100
+  },
+  "passed": false,
+  "failed_gates": [
+    {
+      "metric": "model_completion_rate",
+      "actual_percentage": 50,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-005",
+        "TUNE-INV-006",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    },
+    {
+      "metric": "claim_contract_rate",
+      "actual_percentage": 43.75,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-004",
+        "TUNE-INV-005",
+        "TUNE-INV-006",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    },
+    {
+      "metric": "classification_accuracy",
+      "actual_percentage": 50,
+      "required_percentage": 97,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-005",
+        "TUNE-INV-006",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    },
+    {
+      "metric": "amount_exact_rate",
+      "actual_percentage": 36.36,
+      "required_percentage": 98,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-005",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    },
+    {
+      "metric": "invoice_number_exact_rate",
+      "actual_percentage": 28.57,
+      "required_percentage": 95,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-006",
+        "TUNE-INV-008"
+      ]
+    },
+    {
+      "metric": "date_normalization_exact_rate",
+      "actual_percentage": 42.86,
+      "required_percentage": 95,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-005",
+        "TUNE-INV-006",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    },
+    {
+      "metric": "name_normalization_exact_rate",
+      "actual_percentage": 36.36,
+      "required_percentage": 90,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-005",
+        "TUNE-INV-006",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    },
+    {
+      "metric": "manifest_assertion_rate",
+      "actual_percentage": 89.02,
+      "required_percentage": 100,
+      "failed_sample_ids": [
+        "TUNE-INV-001",
+        "TUNE-INV-002",
+        "TUNE-INV-003",
+        "TUNE-INV-004",
+        "TUNE-INV-005",
+        "TUNE-INV-006",
+        "TUNE-INV-008",
+        "TUNE-PAY-002",
+        "TUNE-PAY-003"
+      ]
+    }
+  ],
+  "run": {
+    "run_id": "preflight",
+    "frozen_configuration": {
+      "provider_config_safe_fingerprint": "42e9508432f82124021364c699dfc5f973a9b0bea9027f209c148cfaeae86907",
+      "provider_base_url_host": "api.shuaiapi.com",
+      "model": "qwen3.8-flash",
+      "prompt_version": "document-extract/3",
+      "schema_version": "document-claim/1",
+      "provider_schema_version": "document-claim-provider/2",
+      "provider_schema_sha256": "21565c61b3b25510f0a48df20da9f1ab25272b00d7befa4a25ed2762df28682e",
+      "input_processing_version": "document-normalize/1",
+      "connection_timeout_seconds": 10,
+      "model_timeout_seconds": 60,
+      "job_timeout_seconds": 150,
+      "temperature": "provider_default_not_configurable",
+      "seed": "provider_not_supported"
+    },
+    "ai_direct_fact_count": 0,
+    "metrics": {
+      "model_completion_rate": {
+        "numerator": 8,
+        "denominator": 16,
+        "percentage": 50,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-005",
+          "TUNE-INV-006",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      },
+      "claim_contract_rate": {
+        "numerator": 7,
+        "denominator": 16,
+        "percentage": 43.75,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-004",
+          "TUNE-INV-005",
+          "TUNE-INV-006",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      },
+      "schema_valid_rate": {
+        "numerator": 8,
+        "denominator": 8,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "classification_accuracy": {
+        "numerator": 8,
+        "denominator": 16,
+        "percentage": 50,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-005",
+          "TUNE-INV-006",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      },
+      "amount_exact_rate": {
+        "numerator": 4,
+        "denominator": 11,
+        "percentage": 36.36,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-005",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      },
+      "invoice_number_exact_rate": {
+        "numerator": 2,
+        "denominator": 7,
+        "percentage": 28.57,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-006",
+          "TUNE-INV-008"
+        ]
+      },
+      "date_normalization_exact_rate": {
+        "numerator": 6,
+        "denominator": 14,
+        "percentage": 42.86,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-005",
+          "TUNE-INV-006",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      },
+      "name_normalization_exact_rate": {
+        "numerator": 8,
+        "denominator": 22,
+        "percentage": 36.36,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-005",
+          "TUNE-INV-006",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      },
+      "critical_evidence_coverage": {
+        "numerator": 26,
+        "denominator": 26,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "missing_conflict_recall": {
+        "numerator": 4,
+        "denominator": 4,
+        "percentage": 100,
+        "failed_sample_ids": []
+      },
+      "manifest_assertion_rate": {
+        "numerator": 73,
+        "denominator": 82,
+        "percentage": 89.02,
+        "failed_sample_ids": [
+          "TUNE-INV-001",
+          "TUNE-INV-002",
+          "TUNE-INV-003",
+          "TUNE-INV-004",
+          "TUNE-INV-005",
+          "TUNE-INV-006",
+          "TUNE-INV-008",
+          "TUNE-PAY-002",
+          "TUNE-PAY-003"
+        ]
+      }
+    }
+  }
+}

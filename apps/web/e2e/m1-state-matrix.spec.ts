@@ -122,6 +122,112 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
+  test('AI 收件箱：批量上传保持顺序、逐项反馈并隔离失败', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    await mockJobs(page, () => [])
+    const requestNames: string[] = []
+    let releaseFirst = () => {}
+    const firstResponse = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    await page.route(
+      (url) => url.pathname === '/api/v1/documents',
+      async (route) => {
+        const body = route.request().postDataBuffer()?.toString('utf8') ?? ''
+        const filename = /filename="([^"]+)"/.exec(body)?.[1] ?? 'missing-filename'
+        requestNames.push(filename)
+        if (requestNames.length === 1) {
+          await firstResponse
+          await fulfillJSON(
+            route,
+            {
+              document_id: '20000000-0000-4000-8000-000000000001',
+              job_id: '30000000-0000-4000-8000-000000000001',
+              status: 'queued',
+              sha256: 'a'.repeat(64),
+            },
+            201,
+          )
+          return
+        }
+        if (requestNames.length === 2) {
+          await fulfillJSON(
+            route,
+            {
+              error: {
+                code: 'duplicate_document',
+                message: '该文件已上传',
+                resource_id: '20000000-0000-4000-8000-000000000001',
+              },
+              request_id: 'synthetic-request-id',
+            },
+            409,
+          )
+          return
+        }
+        await fulfillError(
+          route,
+          400,
+          'document_signature_mismatch',
+          '文件扩展名、声明类型和文件签名不一致',
+        )
+      },
+    )
+
+    await page.goto('/inbox')
+    const input = page.locator('input[type="file"]')
+    await input.setInputFiles([
+      { name: 'first.png', mimeType: 'image/png', buffer: transparentPNG },
+      { name: 'same.png', mimeType: 'image/png', buffer: transparentPNG },
+      { name: 'invalid.png', mimeType: 'image/png', buffer: Buffer.from('invalid') },
+    ])
+
+    const batch = page.locator('section.batch-panel')
+    await expect(batch).toBeVisible()
+    await expect(batch.locator('.batch-item')).toHaveCount(3)
+    await expect(batch.locator('.batch-item').filter({ hasText: 'first.png' })).toContainText(
+      '正在上传',
+    )
+    await expect(batch.locator('.batch-item').filter({ hasText: 'same.png' })).toContainText(
+      '等待上传',
+    )
+    await expect(input).toBeDisabled()
+
+    releaseFirst()
+    await expect(
+      batch.getByText('3 个文件处理完成：已入队 1 个，已存在 1 个，已拒绝 1 个'),
+    ).toBeVisible()
+    await expect(batch.locator('.batch-item').filter({ hasText: 'first.png' })).toContainText(
+      '已入队',
+    )
+    await expect(batch.locator('.batch-item').filter({ hasText: 'same.png' })).toContainText(
+      '已存在',
+    )
+    await expect(batch.locator('.batch-item').filter({ hasText: 'invalid.png' })).toContainText(
+      '文件扩展名、声明类型和文件签名不一致',
+    )
+    await expect(input).toBeEnabled()
+    expect(requestNames).toEqual(['first.png', 'same.png', 'invalid.png'])
+
+    for (const viewport of [
+      { width: 768, height: 900 },
+      { width: 384, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true)
+      await expect(batch.locator('.batch-item')).toHaveCount(3)
+    }
+    await input.focus()
+    expect(await input.evaluate((element) => document.activeElement === element)).toBe(true)
+    expect(pageErrors).toEqual([])
+  })
+
   test('审核工作台：加载、待审核并完成', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)

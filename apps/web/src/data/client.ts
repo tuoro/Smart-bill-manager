@@ -9,6 +9,7 @@ export type ConfirmResult = components['schemas']['ConfirmResult']
 export type Payment = components['schemas']['Payment']
 export type Invoice = components['schemas']['Invoice']
 export type ProviderConfig = components['schemas']['ProviderConfig']
+export type UploadResult = components['schemas']['UploadResult']
 
 type ErrorEnvelope = {
   error?: { code?: string; message?: string; resource_id?: string }
@@ -85,7 +86,7 @@ export const api = {
   getJob(jobId: string): Promise<JobSummary> {
     return request(`/jobs/${encodeURIComponent(jobId)}`)
   },
-  upload(file: File): Promise<components['schemas']['UploadResult']> {
+  upload(file: File): Promise<UploadResult> {
     const form = new FormData()
     form.append('file', file)
     return request('/documents', { method: 'POST', body: form })

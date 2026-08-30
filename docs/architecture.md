@@ -163,6 +163,12 @@ M1 使用单个 API 进程：
 
 M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 item 的不同字段可以引用相邻页面，本地从稳定 `item_key`、`sort_order` 与 Evidence 页码校验连续跨度和不倒退阅读顺序。分页计划只在读取时从 FieldClaim/Evidence/DocumentPage 派生；规范化单页通过显式 tenant 查询与原件相同的 reviewer 状态边界读取，不新增持久化页结论或第二模型调用。
 
+### M2 批量上传编排
+
+多 Document 批量上传不是新的服务端领域命令。Web 对一次选择的 1–20 个文件建立临时有序列表，并逐项调用唯一 `POST /api/v1/documents`；前一项终止后才发送后一项。每个请求继续独立执行既有暂存、边界校验、同租户 SHA-256 判重、Document/ProcessingJob 事务和对象提交补偿，中间失败不形成批次回滚，也不阻止后续项。
+
+客户端只保存本批次内的 `waiting`、`uploading`、`queued`、`duplicate` 或 `rejected` 反馈，完成后刷新服务端队列。第 21 项及以后与浏览器可确定的单文件超限都必须成为显式拒绝行；签名、MIME 和最终大小仍由服务端权威校验。架构不新增 Batch 实体、数据库迁移、服务端批量 multipart、批次级幂等或并行调度；详细边界见 `docs/decisions/0012-client-orchestrated-batch-upload.md`。
+
 ### 审核与 Fact
 
 1. 用户读取 ClaimSet 和验证结果。

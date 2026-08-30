@@ -39,6 +39,7 @@ money-integer-exponent	CNY、USD、EUR exponent 2 与 JPY exponent 0；超精度
 money-integer-exponent	税额、价税合计与明细合计仅以整数校验，冲突进入 blocked	./internal/domain	TestInvoiceTaxAndItemPathFailures
 file-signature-mime	扩展名、声明 MIME 与 JPEG/PNG/WebP/PDF 签名字节不一致全部拒绝	./internal/adapters/localstorage	TestInspectorRejectsSignatureMismatch
 file-signature-mime	四种批准格式的签名与扩展名边界固定	./internal/adapters/localstorage	TestSupportedSignaturesAndExtensionsAreExact
+batch-upload-isolation	按选择顺序执行的独立上传在中间项失败后继续；成功项各自只有一份 Document/Job 且失败项无残留	./internal/application/documents	TestIndependentUploadCommandsContinueAfterRejectedItem
 job-lease-recovery	过期 processing 租约恢复，并关闭悬空 running AiRun	./internal/adapters/sqlite	TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed
 job-persistence-exactly-once	50 个持久化 Job 不丢失且每个只租用一次	./internal/adapters/sqlite	TestPersistentQueueLeasesFiftyJobsExactlyOnce
 retry-boundary	仅无 ClaimSet 的 failed Job 可重试；其他状态和已有 ClaimSet 拒绝	./internal/domain	TestJobCancellationAndRetryBoundaries

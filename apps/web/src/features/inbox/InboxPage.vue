@@ -2,17 +2,35 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, api, type JobSummary } from '../../data/client'
+import {
+  batchUploadStateMeta,
+  createUploadBatch,
+  runUploadBatch,
+  summarizeUploadBatch,
+  type BatchUploadItem,
+} from './batch'
 import { canCancel, canRetry, canReview, jobStatusMeta } from './status'
 
 const jobs = ref<JobSummary[]>([])
 const loading = ref(true)
 const refreshing = ref(false)
-const uploading = ref(false)
+const batchRunning = ref(false)
+const uploadItems = ref<BatchUploadItem[]>([])
 const actionJobId = ref('')
 const error = ref('')
 const offline = ref(!navigator.onLine)
 const filter = ref<'all' | 'attention' | 'active' | 'done'>('all')
 let pollTimer: number | undefined
+
+const uploadSummary = computed(() => summarizeUploadBatch(uploadItems.value))
+const uploadSummaryText = computed(() => {
+  const summary = uploadSummary.value
+  const completed = summary.queued + summary.duplicate + summary.rejected
+  if (batchRunning.value && completed < summary.total) {
+    return `${summary.total} 个文件，已处理 ${completed} 个，正在上传 ${summary.uploading} 个，等待 ${summary.waiting} 个`
+  }
+  return `${summary.total} 个文件处理完成：已入队 ${summary.queued} 个，已存在 ${summary.duplicate} 个，已拒绝 ${summary.rejected} 个`
+})
 
 const filteredJobs = computed(() => {
   if (filter.value === 'attention')
@@ -43,21 +61,18 @@ async function load(silent = false) {
 
 async function upload(event: Event) {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
+  const files = Array.from(input.files ?? [])
+  if (files.length === 0) return
   error.value = ''
-  uploading.value = true
+  batchRunning.value = true
+  uploadItems.value = createUploadBatch(files)
   try {
-    await api.upload(file)
+    uploadItems.value = await runUploadBatch(uploadItems.value, api.upload, (items) => {
+      uploadItems.value = [...items]
+    })
     await load(true)
-  } catch (caught) {
-    if (caught instanceof ApiError && caught.code === 'duplicate_document' && caught.resourceId) {
-      error.value = `该文件已上传（Document ${caught.resourceId}），未创建重复任务。`
-    } else {
-      error.value = caught instanceof ApiError ? caught.message : '文件上传失败，请检查网络后重试'
-    }
   } finally {
-    uploading.value = false
+    batchRunning.value = false
     input.value = ''
   }
 }
@@ -102,10 +117,17 @@ function formatDate(value: string) {
   )
 }
 
+function formatBytes(value: number) {
+  if (value >= 1024 * 1024)
+    return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MiB`
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KiB`
+  return `${value} B`
+}
+
 onMounted(() => {
   void load()
   pollTimer = window.setInterval(() => {
-    if (document.visibilityState === 'visible') void load(true)
+    if (document.visibilityState === 'visible' && !batchRunning.value) void load(true)
   }, 2500)
   window.addEventListener('online', setOnlineState)
   window.addEventListener('offline', setOnlineState)
@@ -128,16 +150,17 @@ onUnmounted(() => {
         <h1>AI 收件箱</h1>
         <p>上传单据、跟踪提取状态，并处理需要人工判断的结果。</p>
       </div>
-      <label class="button button-primary upload-button" :aria-disabled="uploading">
+      <label class="button button-primary upload-button" :aria-disabled="batchRunning || offline">
         <input
           class="visually-hidden"
           type="file"
           accept="image/jpeg,image/png,image/webp,application/pdf"
-          :disabled="uploading"
+          multiple
+          :disabled="batchRunning || offline"
           @change="upload"
         />
         <span aria-hidden="true">＋</span>
-        {{ uploading ? '正在上传…' : '上传单据' }}
+        {{ batchRunning ? '正在逐项上传…' : '上传单据' }}
       </label>
     </header>
 
@@ -149,6 +172,36 @@ onUnmounted(() => {
       <span aria-hidden="true">!</span><span>{{ error }}</span>
       <button class="text-button" type="button" @click="load()">重试</button>
     </div>
+
+    <section
+      v-if="uploadItems.length > 0"
+      class="panel batch-panel"
+      aria-labelledby="batch-title"
+      :aria-busy="batchRunning"
+    >
+      <div class="panel-heading batch-heading">
+        <div>
+          <h2 id="batch-title">本次上传</h2>
+          <p aria-live="polite" aria-atomic="true">{{ uploadSummaryText }}</p>
+        </div>
+        <span class="quiet">按选择顺序逐项处理</span>
+      </div>
+      <ol class="batch-list">
+        <li v-for="item in uploadItems" :key="item.key" class="batch-item">
+          <span class="batch-index numeric">{{ item.index + 1 }}</span>
+          <span class="batch-file">
+            <strong>{{ item.file.name }}</strong>
+            <small>{{ formatBytes(item.file.size) }}</small>
+          </span>
+          <span class="status batch-status" :data-tone="batchUploadStateMeta[item.state].tone">
+            <span aria-hidden="true">●</span>{{ batchUploadStateMeta[item.state].label }}
+          </span>
+          <span class="batch-message" :class="{ 'danger-text': item.state === 'rejected' }">
+            {{ item.message }}
+          </span>
+        </li>
+      </ol>
+    </section>
 
     <section
       class="panel queue-panel"

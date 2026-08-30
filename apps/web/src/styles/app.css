@@ -864,6 +864,61 @@ small {
   outline-offset: 2px;
 }
 
+.batch-heading {
+  flex-wrap: wrap;
+}
+
+.batch-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.batch-item {
+  display: grid;
+  grid-template-columns: 32px minmax(180px, 0.8fr) auto minmax(220px, 1.2fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.batch-item:last-child {
+  border-bottom: 0;
+}
+
+.batch-index {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.batch-file,
+.batch-file strong,
+.batch-file small {
+  display: block;
+  min-width: 0;
+}
+
+.batch-file strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-file small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.batch-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .queue-heading {
   flex-wrap: wrap;
 }
@@ -1635,6 +1690,14 @@ small {
     top: 20px;
     left: -6px;
   }
+
+  .batch-item {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+  }
+
+  .batch-message {
+    grid-column: 2 / -1;
+  }
 }
 
 @media (max-width: 767px) {
@@ -1712,6 +1775,21 @@ small {
   .review-header {
     flex-direction: column;
     gap: 12px;
+  }
+
+  .upload-button {
+    width: 100%;
+  }
+
+  .batch-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 8px 10px;
+    padding: 12px;
+  }
+
+  .batch-status,
+  .batch-message {
+    grid-column: 2;
   }
 
   .review-steps {

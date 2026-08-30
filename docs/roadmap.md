@@ -111,7 +111,9 @@ Prompt v10 据此增加精确 present/absent Field 模板、固定 Payment 恰�
 
 第三个切片“复杂多页 PDF 的跨页明细重建与分页审阅”已于 2026-08-30 完成：保持当前最小中文多模态契约不变，以模型已有逻辑 item 分组和逐字段页码为输入，本地只从当前 Claim Evidence 派生完整页序、连续页跨度和顺序校验；租户隔离的规范化页 API、分页审核 UI、60 / 60 关键不变量、两层覆盖率及 13 / 13 浏览器组件场景均通过。不增加 OCR、文字猜接、第二数据源或真实 Provider 调用，证据见 `docs/m2-evidence.md` 和 `tests/evidence/m2/cross-page-review-gate-summary.json`。
 
-下一开发断点：先冻结第四个切片“多 Document 批量上传与逐项反馈”的范围、验收和必要 ADR，文档冻结前不写入实现。
+第四个切片“多 Document 批量上传与逐项反馈”已于 2026-08-31 完成：Web 严格按选择顺序编排现有单 Document 上传端点，每项独立入队、判重或失败；中间失败继续、超限显式反馈、键盘与响应式回流、61 / 61 关键不变量、两层覆盖率和 14 / 14 浏览器组件场景均通过。不新增 Batch 实体、服务端批量端点、数据库迁移、批次回滚或第二数据源；证据见 `docs/m2-evidence.md` 和 `tests/evidence/m2/batch-upload-gate-summary.json`。
+
+下一开发断点：先冻结第五个切片“已确认 Fact 之间的独立补充分配、撤销或替换工作流”的范围、验收、状态机和必要 ADR，文档冻结前不写入实现。
 
 关键交付：
 

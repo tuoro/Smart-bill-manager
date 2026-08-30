@@ -86,6 +86,95 @@ func TestUploadCreatesOneImmutableDocumentAndJob(t *testing.T) {
 	}
 }
 
+func TestIndependentUploadCommandsContinueAfterRejectedItem(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
+		DatabasePath:  ":memory:",
+		MigrationsDir: testMigrationsDir(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	owner := ports.BootstrapOwner{
+		UserID:          "00000000-0000-4000-8000-000000000151",
+		TenantID:        "00000000-0000-4000-8000-000000000152",
+		Email:           "batch-owner@example.test",
+		PasswordHash:    "test-only",
+		DisplayName:     "Batch Owner",
+		TenantName:      "Batch Tenant",
+		DefaultCurrency: domain.CurrencyCNY,
+		Timezone:        "UTC",
+		CreatedAt:       time.Date(2026, 8, 30, 0, 0, 0, 0, time.UTC),
+	}
+	if err := store.BootstrapOwner(ctx, owner); err != nil {
+		t.Fatal(err)
+	}
+	objectRoot := t.TempDir()
+	objects, err := localstorage.New(objectRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspector, err := localstorage.NewInspector(objects, "/bin/false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewUploadService(objects, inspector, store, system.IDGenerator{}, fixedClock{
+		now: time.Date(2026, 8, 30, 1, 0, 0, 0, time.UTC),
+	})
+	content, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondContent := append(append([]byte{}, content...), []byte("synthetic-second-document")...)
+	tenant := domain.TenantContext{TenantID: owner.TenantID, UserID: owner.UserID, Role: domain.RoleOwner}
+
+	first, err := service.Execute(ctx, UploadInput{
+		Tenant: tenant, Name: "first.png", MIME: "image/png", Source: bytes.NewReader(content),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rejectedErr := service.Execute(ctx, UploadInput{
+		Tenant: tenant, Name: "empty.png", MIME: "image/png", Source: bytes.NewReader(nil),
+	})
+	var ruleError *domain.RuleError
+	if !errors.As(rejectedErr, &ruleError) || ruleError.Code != "empty_document" {
+		t.Fatalf("middle upload error = %v", rejectedErr)
+	}
+	last, err := service.Execute(ctx, UploadInput{
+		Tenant: tenant, Name: "last.png", MIME: "image/png", Source: bytes.NewReader(secondContent),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.DocumentID == last.DocumentID || first.JobID == last.JobID {
+		t.Fatalf("successful uploads reused identity: first=%#v last=%#v", first, last)
+	}
+
+	var documents, jobs int
+	if err := store.DB().QueryRowContext(ctx, `
+		SELECT (SELECT count(*) FROM documents WHERE tenant_id = ?),
+		       (SELECT count(*) FROM processing_jobs WHERE tenant_id = ?)
+	`, owner.TenantID, owner.TenantID).Scan(&documents, &jobs); err != nil {
+		t.Fatal(err)
+	}
+	if documents != 2 || jobs != 2 {
+		t.Fatalf("independent uploads left unexpected metadata: documents=%d jobs=%d", documents, jobs)
+	}
+	staged, err := filepath.Glob(filepath.Join(objectRoot, "staging", "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	committed, err := filepath.Glob(filepath.Join(objectRoot, "objects", "tenants", owner.TenantID, "documents", "*", "original"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(staged) != 0 || len(committed) != 2 {
+		t.Fatalf("independent uploads left unexpected objects: staged=%d committed=%d", len(staged), len(committed))
+	}
+}
+
 func TestUploadCommitFailureCompensatesMetadata(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{

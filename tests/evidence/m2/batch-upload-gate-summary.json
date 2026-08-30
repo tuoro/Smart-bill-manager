@@ -1,0 +1,115 @@
+{
+  "report_kind": "m2-batch-upload-gate-summary",
+  "evidence_version": "M2-BATCH-UPLOAD-SLICE-2026-08-31",
+  "recorded_date": "2026-08-31",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "00d3632030251d4217b86efa6f9a654c74cd2646",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "in_progress",
+    "payment_invoice_allocation_first_slice": "complete",
+    "deterministic_duplicate_detection_second_slice": "complete",
+    "cross_page_invoice_review_third_slice": "complete",
+    "multi_document_batch_upload_fourth_slice": "complete",
+    "next_slice": "confirmed_fact_allocation_adjustment",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "design": {
+    "orchestration_owner": "web_ephemeral_state",
+    "canonical_write_command": "POST /api/v1/documents",
+    "request_order": "sequential_original_selection_order",
+    "maximum_selected_files_processed": 20,
+    "maximum_document_bytes": 20971520,
+    "server_batch_endpoint_added": false,
+    "database_migration_added": false,
+    "persistent_batch_entity_added": false
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 4,
+      "passed": 17,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 14,
+      "failed": 0,
+      "includes_width_768": true,
+      "includes_equivalent_200_percent_reflow": true,
+      "includes_keyboard_focus": true
+    },
+    "critical_invariant_branches": {
+      "passed": 61,
+      "total": 61,
+      "percentage": 100,
+      "new_batch_upload_mappings": 1
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.63,
+      "covered": 2050,
+      "total": 2394,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 73.25,
+      "covered": 2174,
+      "total": 2968,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "repository_checkpoint": {
+      "working_tree_diff_check": "passed",
+      "staged_diff_check": "passed",
+      "staged_file_count": 19,
+      "largest_staged_file_bytes": 54729,
+      "known_credential_prefix_scan": "passed",
+      "private_asset_path_check": "passed",
+      "generated_and_temporary_artifact_check": "passed",
+      "project_process_residue_check": "passed"
+    }
+  },
+  "functional_scenarios": [
+    "three_valid_files_queued_in_original_order",
+    "middle_server_rejection_does_not_stop_later_item",
+    "same_batch_exact_duplicate_returns_existing_document",
+    "network_failure_does_not_stop_later_item",
+    "oversized_document_rejected_locally_without_request",
+    "items_after_twenty_remain_as_explicit_rejections",
+    "single_document_server_validation_remains_authoritative",
+    "running_batch_disables_new_selection",
+    "per_item_safe_feedback_and_summary",
+    "width_768_and_equivalent_200_percent_reflow",
+    "keyboard_focus_reaches_upload_input"
+  ],
+  "excluded": {
+    "model_accuracy": "deferred_until_all_local_functional_development_is_complete",
+    "real_provider_calls": "not_run",
+    "real_external_account_integration": "not_run",
+    "local_ocr": "not_installed_or_used",
+    "new_dependencies": "not_downloaded",
+    "server_batch_api": "not_added_by_design",
+    "persistent_batch_state": "not_added_by_design"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

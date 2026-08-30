@@ -210,6 +210,8 @@ AiRun 追加写。重试创建新 AiRun，不覆盖失败 attempt。版本字段
 
 M2 的分页审核计划不是新实体或可写列。它在读取当前 Claim revision 时由 `FieldClaim.field_path -> Evidence.document_page_id -> DocumentPage.page_number` 唯一派生，包含完整页面序列、每页字段/明细及 InvoiceItem 页跨度。保存 revision 后只读取新 revision 的 Evidence 重算；不得沿 supersedes 链补页，也不得把客户端页状态写回 Claim 或 Fact。规范化单页读取同样只通过 `(tenant_id, document_id, page_number)` 查询既有 DocumentPage，不向 API 暴露 storage key。
 
+M2 的多 Document 批量选择不增加 Batch、BatchItem 或批次状态表。每个成功项仍只产生既有不可变 Document 与一个 queued ProcessingJob；精确重复返回同租户既有 Document，失败项不产生记录。选择顺序、逐项进度和错误只属于当前 Web 页面内存，刷新后以 Document/ProcessingJob 为唯一权威状态，不得把临时批次反馈写回领域模型。
+
 ### ValidationResult
 
 - tenant_id；

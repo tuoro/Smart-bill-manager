@@ -100,6 +100,7 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("POST /api/v1/documents", s.requireSession(s.requireCSRF(http.HandlerFunc(s.uploadDocumentHandler))))
 	router.Handle("DELETE /api/v1/documents/{document_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteDocumentHandler))))
 	router.Handle("GET /api/v1/documents/{document_id}/content", s.requireSession(http.HandlerFunc(s.downloadDocumentHandler)))
+	router.Handle("GET /api/v1/documents/{document_id}/pages/{page_number}/content", s.requireSession(http.HandlerFunc(s.downloadDocumentPageHandler)))
 	router.Handle("GET /api/v1/documents/{document_id}", s.requireSession(http.HandlerFunc(s.getDocumentHandler)))
 	router.Handle("GET /api/v1/jobs", s.requireSession(http.HandlerFunc(s.listJobsHandler)))
 	router.Handle("GET /api/v1/jobs/{job_id}", s.requireSession(http.HandlerFunc(s.getJobHandler)))

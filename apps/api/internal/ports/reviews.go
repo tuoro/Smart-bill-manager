@@ -84,6 +84,8 @@ type ReviewSnapshot struct {
 	Validations         []ReviewValidation
 	Candidates          []LinkCandidate
 	DuplicateCandidates []DuplicateCandidate
+	Pages               []domain.ClaimReviewPage
+	InvoiceItemSpans    []domain.InvoiceItemPageSpan
 }
 
 type ReviewRepository interface {

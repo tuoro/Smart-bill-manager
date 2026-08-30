@@ -1414,6 +1414,79 @@ func TestInvoiceItemRevisionUsesStableKeysAndFactReadsOnlyCurrentSnapshot(t *tes
 	}
 }
 
+func TestInvoiceRevisionRebindsEvidenceIntoOneAdjacentCrossPageItem(t *testing.T) {
+	fixture := newReviewFixture(t)
+	service := NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(3 * time.Hour)})
+	ctx := context.Background()
+	itemKey := "00000000-0000-4000-8000-000000000231"
+	envelope := invoiceEnvelope("INV-CROSS-PAGE-001")
+	prefix := "items[" + itemKey + "]."
+	evidence := func(quote string) []domain.CandidateEvidence {
+		return []domain.CandidateEvidence{{Page: 1, Quote: quote}}
+	}
+	envelope.Fields = append(envelope.Fields,
+		domain.FieldCandidate{Path: prefix + "name", ValueType: "string", Presence: "present", Value: json.RawMessage(`"跨页服务"`), Evidence: evidence("跨页服务"), Issues: []string{}},
+		domain.FieldCandidate{Path: prefix + "quantity", ValueType: "decimal", Presence: "absent", Issues: []string{}},
+		domain.FieldCandidate{Path: prefix + "unit", ValueType: "string", Presence: "absent", Issues: []string{}},
+		domain.FieldCandidate{Path: prefix + "unit_price_minor", ValueType: "money_minor", Presence: "absent", Issues: []string{}},
+		domain.FieldCandidate{Path: prefix + "amount_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence("123.45"), Issues: []string{}},
+		domain.FieldCandidate{Path: prefix + "tax_minor", ValueType: "money_minor", Presence: "absent", Issues: []string{}},
+		domain.FieldCandidate{Path: prefix + "sort_order", ValueType: "integer", Presence: "present", Value: json.RawMessage(`0`), Issues: []string{}},
+	)
+	review := seedAdditionalReview(t, fixture, envelope, "invoice-cross-page")
+	pageID := mustID(t, system.IDGenerator{})
+	pageEvidenceID := mustID(t, system.IDGenerator{})
+	if _, err := fixture.store.DB().ExecContext(ctx, "UPDATE documents SET page_count = 2 WHERE tenant_id = ? AND id = ?", fixture.tenant.TenantID, review.DocumentID); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.store.WithinTransaction(ctx, func(transaction ports.Transaction) error {
+		return transaction.InsertDocumentPages(ctx, []ports.DocumentPageRecord{{
+			ID: pageID, TenantID: fixture.tenant.TenantID, DocumentID: review.DocumentID, PageNumber: 2,
+			StorageKey: "tenants/" + fixture.tenant.TenantID + "/documents/invoice-cross-page/page-2.png",
+			Width:      100, Height: 100, SHA256: claimsupport.HashBytes([]byte("invoice-cross-page-2")),
+			VisualFingerprint: testVisualFingerprint("invoice-cross-page-2"),
+			ProcessingVersion: "document-normalize/2", CreatedAt: fixture.now,
+		}})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	amountField := review.Fields[fieldIndex(review.Fields, prefix+"amount_minor")]
+	if _, err := fixture.store.DB().ExecContext(ctx, `
+		INSERT INTO evidence (
+			id, tenant_id, field_claim_id, document_page_id, quote,
+			evidence_hash, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, pageEvidenceID, fixture.tenant.TenantID, amountField.ID, pageID, "123.45",
+		claimsupport.EvidenceHash(pageID, "123.45", ""), fixture.now.UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	review, err := service.Get(ctx, fixture.tenant, review.Job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := revisionInputFrom(review)
+	for index := range input.Fields {
+		if input.Fields[index].Path == prefix+"amount_minor" {
+			input.Fields[index].EvidenceIDs = []string{pageEvidenceID}
+		}
+	}
+	revised, err := service.Revise(ctx, fixture.tenant, review.Job.ID, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revised.Status != domain.ClaimReadyForReview || len(revised.Pages) != 2 || len(revised.InvoiceItemSpans) != 1 {
+		t.Fatalf("cross-page revision = %#v", revised)
+	}
+	span := revised.InvoiceItemSpans[0]
+	if span.ItemKey != itemKey || !span.CrossPage || span.StartPage != 1 || span.EndPage != 2 {
+		t.Fatalf("cross-page revision span = %#v", span)
+	}
+	revisedAmount := revised.Fields[fieldIndex(revised.Fields, prefix+"amount_minor")]
+	if len(revisedAmount.Evidence) != 1 || revisedAmount.Evidence[0].Page != 2 || revisedAmount.Evidence[0].DocumentPageID != pageID {
+		t.Fatalf("revised amount evidence = %#v", revisedAmount.Evidence)
+	}
+}
+
 func TestDeletedCandidateAbortsConfirmationWithoutPartialFact(t *testing.T) {
 	fixture := newReviewFixture(t)
 	service := NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(4 * time.Hour)})

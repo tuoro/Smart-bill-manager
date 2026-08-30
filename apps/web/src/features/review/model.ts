@@ -85,6 +85,7 @@ export function editableFields(review: Review, documentType: DocumentType): Edit
   const result = specs.map((spec) => toEditable(current.get(spec.path), spec))
   if (documentType === 'invoice') {
     const itemKeys = new Set<string>()
+    for (const span of review.invoice_item_spans) itemKeys.add(span.item_key)
     for (const field of review.fields) {
       const parsed = parseItemPath(field.path)
       if (parsed && field.presence === 'present') itemKeys.add(parsed.itemKey)
@@ -104,6 +105,39 @@ export function editableFields(review: Review, documentType: DocumentType): Edit
     }
   }
   return result
+}
+
+export function fieldPageNumbers(review: Review, path: string): number[] {
+  const field = review.fields.find((item) => item.path === path)
+  const evidencePages = [...new Set(field?.evidence.map((evidence) => evidence.page) ?? [])].sort(
+    (left, right) => left - right,
+  )
+  if (evidencePages.length) return evidencePages
+  const item = parseItemPath(path)
+  if (!item) return []
+  return (
+    review.invoice_item_spans.find((span) => span.item_key === item.itemKey)?.page_numbers ?? []
+  )
+}
+
+export function fieldVisibleOnPage(review: Review, path: string, pageNumber: number): boolean {
+  const item = parseItemPath(path)
+  if (!item) return true
+  const span = review.invoice_item_spans.find((entry) => entry.item_key === item.itemKey)
+  return !span || span.page_numbers.length === 0 || span.page_numbers.includes(pageNumber)
+}
+
+export function firstFieldPage(review: Review, path: string): number | undefined {
+  return fieldPageNumbers(review, path)[0]
+}
+
+export function itemPageLabel(review: Review, path: string): string {
+  const item = parseItemPath(path)
+  if (!item) return ''
+  const span = review.invoice_item_spans.find((entry) => entry.item_key === item.itemKey)
+  if (!span || span.page_numbers.length === 0) return '未定位页面'
+  if (span.cross_page) return `跨页 ${span.start_page}–${span.end_page}`
+  return `第 ${span.start_page} 页`
 }
 
 export function newInvoiceItem(itemKey: string, sortOrder: number): EditableField[] {

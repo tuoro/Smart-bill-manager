@@ -208,6 +208,8 @@ AiRun 追加写。重试创建新 AiRun，不覆盖失败 attempt。版本字段
 
 关键字段至少具有 quote 或 region 之一。存在 Evidence 的未修改字段把 Evidence 复制到新 FieldClaim，并用 `copied_from_evidence_id` 指向前一条；用户新增或修改的关键字段必须显式选择同一 Document 中支持新值的证据。`absent` 墓碑不复制 Evidence。若当前类型的关键字段没有有效证据，或任何 ValidationResult 为 `error`/`blocked`，新 revision 与 Job 均进入 `blocked`；只有全部结果为 `passed`/`warning` 且证据齐全时才进入 `ready_for_review`/`needs_review`。Evidence 不作为授权边界，读取仍需 tenant 约束。
 
+M2 的分页审核计划不是新实体或可写列。它在读取当前 Claim revision 时由 `FieldClaim.field_path -> Evidence.document_page_id -> DocumentPage.page_number` 唯一派生，包含完整页面序列、每页字段/明细及 InvoiceItem 页跨度。保存 revision 后只读取新 revision 的 Evidence 重算；不得沿 supersedes 链补页，也不得把客户端页状态写回 Claim 或 Fact。规范化单页读取同样只通过 `(tenant_id, document_id, page_number)` 查询既有 DocumentPage，不向 API 暴露 storage key。
+
 ### ValidationResult
 
 - tenant_id；
@@ -277,6 +279,8 @@ Payment 与 Invoice 的 `allocated_minor`、`remaining_minor` 和 `allocation_st
 - sort_order。
 
 `item_key` 继承被确认 Claim revision 的稳定键，`tenant_id + invoice_id + item_key` 唯一；重排只改变 `sort_order`，不改变字段来源路径。
+
+在 Claim 阶段，所有 present InvoiceItem 的 `sort_order` 必须唯一且构成 `0..n-1`。同一 item 的非排序字段 Evidence 可以位于相邻多页；其有序去重页码必须连续，且按 `sort_order` 读取时 item 页跨度不能倒退。Fact 不复制 `start_page`、`end_page` 或页面列表；这些信息始终通过 FactFieldOrigin 回到被确认 FieldClaim 的 Evidence，避免第二份来源。
 
 ### DuplicateCandidate
 

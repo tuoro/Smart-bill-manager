@@ -1,0 +1,113 @@
+{
+  "report_kind": "m2-cross-page-invoice-review-gate-summary",
+  "evidence_version": "M2-CROSS-PAGE-REVIEW-SLICE-2026-08-30",
+  "recorded_date": "2026-08-30",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "4d79351755837e099942d70a9c10b9d7829819e1",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "in_progress",
+    "payment_invoice_allocation_first_slice": "complete",
+    "deterministic_duplicate_detection_second_slice": "complete",
+    "cross_page_invoice_review_third_slice": "complete",
+    "next_slice": "multi_document_batch_upload_and_per_item_feedback",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "contracts": {
+    "prompt": "bill-visible-text-cn/1",
+    "provider_schema": "bill-visible-text/1",
+    "claim_mapper": "claim-mapper/3",
+    "claim_schema": "document-claim/2",
+    "page_plan_source": "current_field_claim_evidence_document_page",
+    "page_number_range": [1, 20],
+    "page_plan_persisted": false,
+    "normalized_page_mime": "image/png"
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "web_unit_tests": {
+      "files": 3,
+      "passed": 13,
+      "failed": 0
+    },
+    "playwright_component_matrix": {
+      "passed": 13,
+      "failed": 0,
+      "includes_width_768": true,
+      "includes_equivalent_200_percent_reflow": true
+    },
+    "critical_invariant_branches": {
+      "passed": 60,
+      "total": 60,
+      "percentage": 100,
+      "new_cross_page_mappings": 5
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.59,
+      "covered": 2049,
+      "total": 2394,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 73.25,
+      "covered": 2174,
+      "total": 2968,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "repository_checkpoint": {
+      "working_tree_diff_check": "passed",
+      "staged_diff_check": "passed",
+      "staged_file_count": 36,
+      "largest_staged_file_bytes": 90921,
+      "known_credential_prefix_scan": "passed",
+      "private_asset_path_check": "passed",
+      "generated_and_temporary_artifact_check": "passed"
+    }
+  },
+  "functional_scenarios": [
+    "single_page_invoice",
+    "adjacent_cross_page_stable_item",
+    "three_page_contiguous_item_evidence",
+    "independent_items_across_pages",
+    "empty_intermediate_and_full_twenty_page_projection",
+    "page_gap_blocked",
+    "page_order_rollback_blocked",
+    "duplicate_and_gapped_sort_order_blocked",
+    "current_revision_evidence_rebinding",
+    "normalized_page_range_and_reviewer_state_boundary",
+    "cross_tenant_page_read_hidden",
+    "paged_web_review_context",
+    "keyboard_focus_width_768_and_equivalent_200_percent_reflow"
+  ],
+  "excluded": {
+    "model_accuracy": "deferred_until_all_local_functional_development_is_complete",
+    "real_provider_calls": "not_run",
+    "real_external_account_integration": "not_run",
+    "multi_document_batch_upload": "next_slice_not_started",
+    "local_ocr": "not_installed_or_used",
+    "new_dependencies": "not_downloaded"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

@@ -160,8 +160,15 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/jobs/"+firstUpload["job_id"], nil, ownerSession, false, ""), http.StatusOK)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"], nil, ownerSession, false, ""), http.StatusOK)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"]+"/content", nil, ownerSession, false, ""), http.StatusOK)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"]+"/pages/1/content", nil, ownerSession, false, ""), http.StatusNotFound)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"]+"/pages/not-a-page/content", nil, ownerSession, false, ""), http.StatusBadRequest)
 
 	fixture.processNext(t)
+	pageContent := fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"]+"/pages/1/content", nil, ownerSession, false, "")
+	assertStatus(t, pageContent, http.StatusOK)
+	if pageContent.Header().Get("Content-Type") != "image/png" || pageContent.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("unsafe document page headers: %#v", pageContent.Header())
+	}
 	var runPromptVersion, runExtractionSchemaVersion, runProviderSchemaVersion, runProviderSchemaSHA256, runClaimMapperVersion string
 	if err := fixture.store.DB().QueryRow(`
 		SELECT prompt_version, extraction_schema_version, provider_schema_version, provider_schema_sha256, claim_mapper_version
@@ -182,6 +189,9 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	}
 	if _, ok := review["duplicate_candidates"].([]any); !ok {
 		t.Fatalf("review duplicate_candidates is not an array: %+v", review["duplicate_candidates"])
+	}
+	if asInt(t, review["page_count"]) != 1 || len(review["pages"].([]any)) != 1 || len(review["invoice_item_spans"].([]any)) != 0 {
+		t.Fatalf("review page plan is incomplete: %+v", review)
 	}
 	claimSetID := asString(t, review["claim_set_id"])
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/claim-sets/"+claimSetID, nil, ownerSession, false, ""), http.StatusOK)
@@ -286,6 +296,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/jobs/"+firstUpload["job_id"], nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"], nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"]+"/content", nil, secondTenantSession, false, ""), http.StatusNotFound)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/documents/"+firstUpload["document_id"]+"/pages/1/content", nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/claim-sets/"+asString(t, review["claim_set_id"]), nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reviews/"+secondUpload["job_id"], nil, secondTenantSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodPost, "/api/v1/jobs/"+retryUpload["job_id"]+"/cancel", nil, secondTenantSession, true, ""), http.StatusNotFound)

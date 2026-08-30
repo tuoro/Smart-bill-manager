@@ -250,6 +250,24 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 最小纯合成场景固定包含：JPEG/PNG 重新编码、等比缩放、明显不同页面、宽高比和双哈希阈值边界、同文档重复页、跨文档部分页、完整多页近似去重、跨租户零可见、Payment 与 Invoice 字段组合、精确发票号优先、50 项上限、revision 重算、完整/缺失/伪造 resolution、Reject 无 Fact、幂等重放、同键改 resolution、确认时集合陈旧及两个疑似重复 Claim 并发确认。每个事务场景同时断言 Claim/Job 状态、候选与决定数、Fact/Link/AuditEvent 数和无跨租户可见性。
 
+### M2 第三切片：复杂多页 PDF 跨页明细重建与分页审阅
+
+本切片以 `docs/decisions/0011-cross-page-invoice-review.md` 为冻结决策，不修改当前模型契约，不调用真实 Provider，也不通过本地 OCR 或版面规则重新理解发票。
+
+- 模型一次接收按原始顺序排列的全部规范化页面，并继续按阅读顺序返回每个逻辑 InvoiceItem 一次；同一 item 的字段可以分别携带相邻页面的 `{text,page}`，本地必须保留该分组和每个字段的原始 Evidence，不能拆分、合并、纠字或计算空白值。
+- 每个 InvoiceItem 的稳定 `item_key` 不因分页或 revision 改变；`sort_order` 必须唯一且严格连续为 `0..n-1`。重复、缺口或非法顺序必须产生 blocked Validation，不能等到 Fact 插入时静默排序。
+- 当前 item 的有效 Evidence 页码必须形成连续集合；跳页产生 `invoice_item_page_gap`。按 `sort_order` 读取时，后一个 item 的起始页不得早于前一个 item 的结束页，否则产生 `invoice_item_page_order_conflict`。
+- 当前 Claim revision 的页面计划必须只从 `FieldClaim -> Evidence -> DocumentPage` 派生：包含完整 `1..page_count`、每页字段路径与 item key，以及每个 item 的页码、起止页和跨页标志；保存新 revision 后必须重算，不得写入第二份可变业务表。
+- 独立明细分布在多页、同一明细跨相邻页、页内多明细和没有明细的封面/尾页均可审核。页码越界、明细自身缺少 Evidence、跨页字段无法形成完整票面值、重复表头被当作缺字段行或全部明细与发票合计冲突时必须保持 blocked，系统不猜测删除或连接。
+- 新增 `GET /documents/{document_id}/pages/{page_number}/content`，只读取现有规范化 PNG。`page_number` 必须是合法一基整数；数据库查询显式包含 tenant；reviewer 只能读取待审核或阻断 Job，跨租户、已结束 reviewer 访问和不存在页面都不得泄露资源存在性。
+- Review API 必须返回 `page_count`、完整页面摘要和 `invoice_item_spans`。所有页码稳定升序，字段路径去重排序，item key 按 `sort_order` 后稳定键排序；API 不返回内部 storage key。
+- Web 必须提供上一页、下一页和直接页码导航，显示“当前页 / 总页数”；选择字段时定位到首条 Evidence 页。当前页展示相关明细和始终可见的文档级字段，无 Evidence 的阻断明细仍可达；同一跨页 item 在相关页显示同一稳定身份和明确跨页范围，不复制编辑状态。
+- 分页控件、当前页状态、页面图片替代文本和跨页标记必须可由键盘及辅助技术使用；200% 缩放和 768px 容错布局不得造成横向不可达或丢失确认动作。
+
+最小纯合成场景固定包含：一页发票、多页独立明细、一个 item 的字段横跨相邻两页、跨三页连续 Evidence、页码跳跃、item 阅读顺序倒退、重复/缺口 `sort_order`、重复表头形状缺少必填金额、跨页明细合计冲突、用户 revision 重绑跨页 Evidence、空白中间页、最大 20 页、非法/越界页请求、跨租户页面读取、reviewer 终态隐藏、API 排序和 Web 分页/字段定位/编辑状态保持。每个阻断场景同时断言没有 Fact、Link、ReviewDecision 或部分终态写入。
+
+验收结果：2026-08-30 通过。后端全量测试、静态检查与构建、Web 完整检查、13 / 13 浏览器组件场景、60 / 60 关键不变量及两层覆盖率门禁均通过；可机读摘要见 `tests/evidence/m2/cross-page-review-gate-summary.json`，完整说明见 `docs/m2-evidence.md`。
+
 ## 八、租户与安全验收
 
 ### 租户
@@ -340,6 +358,8 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 覆盖率包边界固定如下：领域层为 `apps/api/internal/domain/...`，应用层为 `apps/api/internal/application/...`，基础设施层为 `apps/api/internal/adapters/...` 与 `apps/api/internal/transport/...`；生成代码、迁移文件、装配入口和纯数据声明不计入分母，排除清单必须由覆盖工具配置显式列出。关键不变量分支固定为：租户隔离、Claim 完整 revision 快照与 actor 检查、Validation 阻断、Review 才能创建 Fact、重复确认幂等、Document SHA-256 与规范化发票号精确判重、关联候选显式分配决定、同币种正数分配、双方余额不超额、同一活动对唯一、并发争用无部分写入、币种 exponent 与金额整数运算、文件签名/MIME 一致、Job 租约恢复、只允许无 ClaimSet 的失败 Job 重试、取消后禁止写入、重复模型字段路径以单一候选和 blocked Validation 持久化、Provider Schema 投影不削弱本地权威校验、Provider 原始响应先满足当前传输契约，以及能力检测 Schema 身份过期时禁止激活或调用模型。上述分支逐项 100%，不能被包级平均值掩盖。
 
 M2 第二切片新增关键分支为：视觉指纹确定性及批准的重新编码/等比缩放、宽高比与双哈希边界、同租户 band 检索、整份近似优先、同文档页对、Payment/Invoice 字段组合、精确发票号优先、50 项上限、完整且规范的 `keep_distinct` 计划、目标删除陈旧回滚、并发确认串行化、同一确认决定数据库约束、重复决定不可变和 Reject 无 Fact。它们同样逐项 100%，并进入 `tests/critical-invariants.tsv` 唯一映射。
+
+M2 第三切片新增关键分支为：同一稳定明细的相邻跨页 Evidence、完整 20 页和空白页投影、页码跳跃、阅读顺序倒退、重复或缺口 `sort_order`、revision 后从当前 Evidence 重算，以及规范化页的权限、非法页与 reviewer 终态隐藏边界。它们同样逐项 100%，并进入 `tests/critical-invariants.tsv` 唯一映射；跨租户页面读取继续由既有 HTTP 租户隔离分支覆盖。
 
 ## 十三、M1 最小场景矩阵
 

@@ -166,6 +166,8 @@ func ValidateClaim(envelope ClaimEnvelope, pageCount int) ValidatedClaim {
 	validateDocumentIssues(&validated, envelope.DocumentIssues)
 	if validated.DocumentType == DocumentInvoice {
 		validateInvoiceTotals(&validated, uniqueFields)
+		_, pageValidations := analyzeClaimPagePlan(validated.DocumentType, uniqueFields, pageCount)
+		validated.Validations = append(validated.Validations, pageValidations...)
 	}
 	if validated.DocumentType == DocumentUnknown {
 		validated.add("document_type", "unknown_document_type", "blocked", "blocked", "文档无法归类，不能创建 Fact")

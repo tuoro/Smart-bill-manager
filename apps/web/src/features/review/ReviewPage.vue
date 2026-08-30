@@ -9,6 +9,9 @@ import {
   buildRevisionRequest,
   editableFields,
   fieldLabel,
+  fieldVisibleOnPage,
+  firstFieldPage,
+  itemPageLabel,
   newInvoiceItem,
   parseItemPath,
   type AllocationEditor,
@@ -32,6 +35,7 @@ const documentType = ref<DocumentType>('unknown')
 const editors = ref<EditableField[]>([])
 const fieldErrors = ref<Record<string, string>>({})
 const selectedPath = ref('')
+const activePage = ref(1)
 const associationMode = ref<AssociationMode>('')
 const allocationItems = ref<AllocationEditor[]>([])
 const duplicateResolutionIds = ref<string[]>([])
@@ -47,6 +51,20 @@ const selectedEditor = computed(() =>
 const readFields = computed(
   () => review.value?.fields.filter((field) => field.path !== 'document_type') ?? [],
 )
+const visibleReadFields = computed(() =>
+  review.value
+    ? readFields.value.filter((field) =>
+        fieldVisibleOnPage(review.value!, field.path, activePage.value),
+      )
+    : [],
+)
+const visibleEditors = computed(() =>
+  review.value
+    ? editors.value.filter((field) =>
+        fieldVisibleOnPage(review.value!, field.path, activePage.value),
+      )
+    : editors.value,
+)
 const allEvidence = computed(() => {
   const seen = new Set<string>()
   return (review.value?.fields ?? []).flatMap((field) =>
@@ -57,13 +75,35 @@ const allEvidence = computed(() => {
     }),
   )
 })
+const activeEvidence = computed(() =>
+  allEvidence.value.filter((evidence) => evidence.page === activePage.value),
+)
+const activePageInfo = computed(() =>
+  review.value?.pages.find((page) => page.page_number === activePage.value),
+)
+const activePageSpans = computed(() =>
+  (review.value?.invoice_item_spans ?? []).filter((span) =>
+    span.page_numbers.includes(activePage.value),
+  ),
+)
 const itemKeys = computed(() => {
   const keys = new Set<string>()
   for (const field of editors.value) {
     const item = parseItemPath(field.path)
     if (item) keys.add(item.itemKey)
   }
-  return [...keys]
+  const orders = new Map<string, number>()
+  for (const field of editors.value) {
+    const item = parseItemPath(field.path)
+    if (item?.property !== 'sort_order') continue
+    const order = Number(field.textValue)
+    if (Number.isSafeInteger(order)) orders.set(item.itemKey, order)
+  }
+  return [...keys].sort((left, right) => {
+    const difference =
+      (orders.get(left) ?? Number.MAX_SAFE_INTEGER) - (orders.get(right) ?? Number.MAX_SAFE_INTEGER)
+    return difference || left.localeCompare(right)
+  })
 })
 const associationDecision = computed(() =>
   review.value
@@ -88,6 +128,11 @@ const documentURL = computed(() =>
     ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/content`
     : '',
 )
+const pageURL = computed(() =>
+  review.value
+    ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/pages/${activePage.value}/content`
+    : '',
+)
 
 async function load() {
   loading.value = true
@@ -110,7 +155,8 @@ function resetEditor() {
   if (!review.value) return
   documentType.value = review.value.document_type
   editors.value = editableFields(review.value, documentType.value)
-  selectedPath.value = editors.value[0]?.path ?? 'document_type'
+  activePage.value = 1
+  selectPath(editors.value[0]?.path ?? 'document_type')
   associationMode.value = ''
   allocationItems.value = allocationEditors(review.value)
   duplicateResolutionIds.value = []
@@ -127,19 +173,36 @@ function startEditing() {
 function changeDocumentType() {
   if (!review.value) return
   editors.value = editableFields(review.value, documentType.value)
-  selectedPath.value = editors.value[0]?.path ?? ''
+  activePage.value = 1
+  selectPath(editors.value[0]?.path ?? '')
   fieldErrors.value = {}
 }
 
 function addItem() {
   const key = crypto.randomUUID()
   editors.value.push(...newInvoiceItem(key, itemKeys.value.length))
-  selectedPath.value = `items[${key}].name`
+  selectPath(`items[${key}].name`)
 }
 
 function removeItem(itemKey: string) {
   editors.value = editors.value.filter((field) => parseItemPath(field.path)?.itemKey !== itemKey)
-  selectedPath.value = editors.value[0]?.path ?? ''
+  for (const [index, key] of itemKeys.value.entries()) {
+    const order = editors.value.find((field) => field.path === `items[${key}].sort_order`)
+    if (order) order.textValue = String(index)
+  }
+  selectPath(editors.value[0]?.path ?? '')
+}
+
+function selectPath(path: string) {
+  selectedPath.value = path
+  if (!review.value) return
+  const page = firstFieldPage(review.value, path)
+  if (page) activePage.value = page
+}
+
+function selectPage(pageNumber: number) {
+  if (!review.value || pageNumber < 1 || pageNumber > review.value.page_count) return
+  activePage.value = pageNumber
 }
 
 function toggleEvidence(evidenceId: string) {
@@ -302,7 +365,7 @@ onMounted(() => void load())
       <header class="page-header review-header">
         <div>
           <h1>审核 {{ review.job.original_name }}</h1>
-          <p>Revision {{ review.revision }} · {{ review.job.id }}</p>
+          <p>Revision {{ review.revision }} · {{ review.page_count }} 页 · {{ review.job.id }}</p>
         </div>
         <div class="page-actions">
           <span class="status" :data-tone="review.claim_status === 'blocked' ? 'danger' : 'warning'"
@@ -330,25 +393,63 @@ onMounted(() => void load())
           <div class="panel-heading">
             <div>
               <h2 id="source-title">原始单据</h2>
-              <p>不可变 Source</p>
+              <p>不可变 Source · 当前显示规范化审核页</p>
             </div>
             <a class="text-button" :href="documentURL" target="_blank" rel="noreferrer"
               >新窗口查看</a
             >
           </div>
+          <nav class="page-review-toolbar" aria-label="单据分页">
+            <button
+              class="button button-small"
+              type="button"
+              :disabled="activePage === 1"
+              @click="selectPage(activePage - 1)"
+            >
+              上一页
+            </button>
+            <div class="page-number-list" aria-label="直接选择页码">
+              <button
+                v-for="page in review.pages"
+                :key="page.page_number"
+                class="page-number-button"
+                type="button"
+                :aria-current="page.page_number === activePage ? 'page' : undefined"
+                :aria-label="`查看第 ${page.page_number} 页`"
+                @click="selectPage(page.page_number)"
+              >
+                {{ page.page_number }}
+              </button>
+            </div>
+            <button
+              class="button button-small"
+              type="button"
+              :disabled="activePage === review.page_count"
+              @click="selectPage(activePage + 1)"
+            >
+              下一页
+            </button>
+            <strong class="page-position" aria-live="polite">
+              第 {{ activePage }} / {{ review.page_count }} 页
+            </strong>
+          </nav>
           <div class="document-stage">
-            <iframe
-              v-if="review.job.detected_mime === 'application/pdf'"
-              :src="documentURL"
-              title="原始 PDF 单据"
-            ></iframe>
-            <img v-else :src="documentURL" :alt="`${review.job.original_name} 原始单据`" />
+            <img
+              :src="pageURL"
+              :alt="`${review.job.original_name} 的第 ${activePage} 页规范化审核图`"
+            />
+          </div>
+          <div class="page-review-summary">
+            <span>本页 {{ activePageInfo?.field_paths.length ?? 0 }} 个证据字段</span>
+            <span>本页 {{ activePageInfo?.item_keys.length ?? 0 }} 个明细</span>
+            <span v-if="activePageSpans.some((span) => span.cross_page)">含跨页明细</span>
           </div>
           <div class="evidence-focus" aria-live="polite">
             <strong>{{ fieldLabel(selectedPath) }} 的证据</strong>
             <ul v-if="selectedReviewField?.evidence.length">
               <li v-for="evidence in selectedReviewField.evidence" :key="evidence.id">
-                <span>第 {{ evidence.page }} 页</span
+                <button class="text-button" type="button" @click="selectPage(evidence.page)">
+                  第 {{ evidence.page }} 页</button
                 ><q v-if="evidence.quote">{{ evidence.quote }}</q
                 ><span v-else>已标注区域</span>
               </li>
@@ -363,7 +464,9 @@ onMounted(() => void load())
               <h2 id="fields-title">结构化字段</h2>
               <p>
                 {{
-                  editing ? '完整用户 revision' : `AI / 用户来源 · ${review.fields.length} 个路径`
+                  editing
+                    ? `完整用户 revision · 当前第 ${activePage} 页`
+                    : `AI / 用户来源 · 第 ${activePage} 页相关路径`
                 }}
               </p>
             </div>
@@ -389,21 +492,24 @@ onMounted(() => void load())
           <div class="claim-fields">
             <template v-if="editing">
               <article
-                v-for="field in editors"
+                v-for="field in visibleEditors"
                 :key="field.path"
                 class="claim-field"
                 :class="{ selected: selectedPath === field.path }"
-                @click="selectedPath = field.path"
+                @click="selectPath(field.path)"
               >
                 <div class="field-editor">
                   <div class="field-editor-heading">
                     <button
                       class="field-label-button"
                       type="button"
-                      @click="selectedPath = field.path"
+                      @click="selectPath(field.path)"
                     >
                       <strong>{{ fieldLabel(field.path) }}</strong
-                      ><small>{{ field.path }}</small></button
+                      ><small>{{ field.path }}</small
+                      ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
+                        itemPageLabel(review, field.path)
+                      }}</small></button
                     ><select
                       v-model="field.presence"
                       class="select select-small"
@@ -450,16 +556,19 @@ onMounted(() => void load())
             </template>
             <template v-else>
               <article
-                v-for="field in readFields"
+                v-for="field in visibleReadFields"
                 :key="field.path"
                 class="claim-field"
                 :class="{ selected: selectedPath === field.path }"
-                @click="selectedPath = field.path"
+                @click="selectPath(field.path)"
               >
-                <button class="claim-field-button" type="button" @click="selectedPath = field.path">
+                <button class="claim-field-button" type="button" @click="selectPath(field.path)">
                   <span
                     ><strong>{{ fieldLabel(field.path) }}</strong
-                    ><small>{{ field.path }}</small></span
+                    ><small>{{ field.path }}</small
+                    ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
+                      itemPageLabel(review, field.path)
+                    }}</small></span
                   ><span class="claim-value">{{ displayValue(field.value) }}</span>
                 </button>
                 <ul v-if="validationForField(field.id).length" class="inline-validations">
@@ -506,11 +615,11 @@ onMounted(() => void load())
             <div class="panel-heading">
               <div>
                 <h2 id="evidence-select-title">选择字段证据</h2>
-                <p>显式绑定同一 Source 的页级证据</p>
+                <p>第 {{ activePage }} 页 · 可切页继续选择</p>
               </div>
             </div>
-            <div v-if="allEvidence.length" class="evidence-options">
-              <label v-for="evidence in allEvidence" :key="evidence.id"
+            <div v-if="activeEvidence.length" class="evidence-options">
+              <label v-for="evidence in activeEvidence" :key="evidence.id"
                 ><input
                   type="checkbox"
                   :checked="selectedEditor.evidenceIds.includes(evidence.id)"
@@ -521,7 +630,7 @@ onMounted(() => void load())
                 ></label
               >
             </div>
-            <p v-else class="quiet-block">当前文档没有可选择的证据，修订将保持阻断。</p>
+            <p v-else class="quiet-block">当前页没有可选择的证据，请切换页面或保持阻断。</p>
           </section>
 
           <section class="panel decision-panel" aria-labelledby="validation-title">

@@ -239,6 +239,69 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
+  test('审核工作台：多页单据可直接分页且保留审核上下文', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    const review = readyReview('job-paged-review')
+    review.page_count = 3
+    review.pages = [
+      { page_number: 1, field_paths: review.fields.map((field) => field.path), item_keys: [] },
+      { page_number: 2, field_paths: [], item_keys: [] },
+      { page_number: 3, field_paths: [], item_keys: [] },
+    ]
+    await mockReview(page, review)
+
+    await page.goto(`/reviews/${review.job.id}`)
+    await expect(page.getByText('第 1 / 3 页')).toBeVisible()
+    await expect(page.getByAltText(/第 1 页规范化审核图/)).toBeVisible()
+    await page.getByRole('button', { name: '查看第 3 页' }).click()
+    await expect(page.getByText('第 3 / 3 页')).toBeVisible()
+    await expect(page.getByAltText(/第 3 页规范化审核图/)).toBeVisible()
+    await expect(page.getByRole('button', { name: '下一页' })).toBeDisabled()
+    await expect(
+      page.getByRole('button', { name: /支付金额（最小单位） amount_minor/ }),
+    ).toBeVisible()
+    expect(pageErrors).toEqual([])
+  })
+
+  test('审核工作台：分页在 768px 与等效 200% 回流保持可达', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page)
+    const review = readyReview('job-paged-reflow')
+    review.page_count = 3
+    review.pages = [
+      { page_number: 1, field_paths: review.fields.map((field) => field.path), item_keys: [] },
+      { page_number: 2, field_paths: [], item_keys: [] },
+      { page_number: 3, field_paths: [], item_keys: [] },
+    ]
+    await mockReview(page, review)
+
+    await page.setViewportSize({ width: 768, height: 1000 })
+    await page.goto(`/reviews/${review.job.id}`)
+    for (const width of [768, 384]) {
+      await page.setViewportSize({ width, height: 1000 })
+      const nextPage = page.getByRole('button', { name: '下一页' })
+      await expect(nextPage).toBeVisible()
+      await nextPage.focus()
+      await expect(nextPage).toBeFocused()
+      const layout = await page.evaluate(() => {
+        const root = document.documentElement
+        const controls = [...document.querySelectorAll<HTMLElement>('.page-toolbar button')]
+        return {
+          horizontalOverflow: root.scrollWidth > root.clientWidth + 1,
+          clippedControls: controls.filter((control) => {
+            const bounds = control.getBoundingClientRect()
+            return bounds.left < -0.5 || bounds.right > root.clientWidth + 0.5
+          }).length,
+        }
+      })
+      expect(layout).toEqual({ horizontalOverflow: false, clippedControls: 0 })
+      await nextPage.click()
+    }
+    await expect(page.getByText('第 3 / 3 页')).toBeVisible()
+    expect(pageErrors).toEqual([])
+  })
+
   test('审核工作台：疑似重复必须逐项明确保留独立记录', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
@@ -418,7 +481,9 @@ async function mockReview(page: Page, review: Review) {
 
 async function mockDocumentContent(page: Page, documentID: string) {
   await page.route(
-    (url) => url.pathname === `/api/v1/documents/${documentID}/content`,
+    (url) =>
+      url.pathname === `/api/v1/documents/${documentID}/content` ||
+      url.pathname.startsWith(`/api/v1/documents/${documentID}/pages/`),
     (route) => route.fulfill({ status: 200, contentType: 'image/png', body: transparentPNG }),
   )
 }
@@ -550,6 +615,9 @@ function baseReview(label: string): Review {
     revision: 1,
     optimistic_version: 1,
     claim_status: 'ready_for_review',
+    page_count: 1,
+    pages: [{ page_number: 1, field_paths: values.map(([path]) => path), item_keys: [] }],
+    invoice_item_spans: [],
     fields: values.map(([path, valueType, value], index) => ({
       id: `00000000-0000-4000-8000-${String(800 + Number(idSuffix) + index).padStart(12, '0')}`,
       path,

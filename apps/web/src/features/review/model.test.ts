@@ -6,6 +6,10 @@ import {
   buildDuplicateResolutionDecision,
   buildRevisionRequest,
   editableFields,
+  fieldPageNumbers,
+  fieldVisibleOnPage,
+  firstFieldPage,
+  itemPageLabel,
   newInvoiceItem,
   parseItemPath,
 } from './model'
@@ -29,6 +33,9 @@ function reviewFixture(overrides: Partial<Review> = {}): Review {
     revision: 2,
     optimistic_version: 4,
     claim_status: 'ready_for_review',
+    page_count: 1,
+    pages: [{ page_number: 1, field_paths: ['amount_minor'], item_keys: [] }],
+    invoice_item_spans: [],
     fields: [
       {
         id: '00000000-0000-4000-8000-000000000004',
@@ -100,6 +107,79 @@ describe('review model', () => {
     })
     expect(parseItemPath(fields[0].path)).toEqual({ itemKey: key, property: 'name' })
     expect(parseItemPath('items[0].name')).toBeNull()
+  })
+
+  it('keeps one stable cross-page item visible on every evidence page', () => {
+    const key = '00000000-0000-4000-8000-000000000020'
+    const namePath = `items[${key}].name`
+    const amountPath = `items[${key}].amount_minor`
+    const review = reviewFixture({
+      document_type: 'invoice',
+      page_count: 3,
+      pages: [
+        { page_number: 1, field_paths: [namePath], item_keys: [key] },
+        { page_number: 2, field_paths: [amountPath], item_keys: [key] },
+        { page_number: 3, field_paths: [], item_keys: [] },
+      ],
+      invoice_item_spans: [
+        {
+          item_key: key,
+          sort_order: 0,
+          page_numbers: [1, 2],
+          start_page: 1,
+          end_page: 2,
+          cross_page: true,
+        },
+      ],
+      fields: [
+        {
+          id: '00000000-0000-4000-8000-000000000021',
+          path: namePath,
+          value_type: 'string',
+          presence: 'present',
+          value: '跨页服务',
+          source: 'ai',
+          evidence: [{ id: '00000000-0000-4000-8000-000000000022', page: 1, quote: '跨页服务' }],
+        },
+        {
+          id: '00000000-0000-4000-8000-000000000023',
+          path: amountPath,
+          value_type: 'money_minor',
+          presence: 'present',
+          value: 100,
+          source: 'ai',
+          evidence: [{ id: '00000000-0000-4000-8000-000000000024', page: 2, quote: '1.00' }],
+        },
+      ],
+    })
+
+    expect(fieldPageNumbers(review, amountPath)).toEqual([2])
+    expect(firstFieldPage(review, amountPath)).toBe(2)
+    expect(fieldVisibleOnPage(review, namePath, 1)).toBe(true)
+    expect(fieldVisibleOnPage(review, namePath, 2)).toBe(true)
+    expect(fieldVisibleOnPage(review, namePath, 3)).toBe(false)
+    expect(itemPageLabel(review, namePath)).toBe('跨页 1–2')
+    expect(
+      editableFields(review, 'invoice').filter((field) => field.path.includes(key)),
+    ).toHaveLength(7)
+  })
+
+  it('keeps an unresolved blocked item reachable on every review page', () => {
+    const key = '00000000-0000-4000-8000-000000000025'
+    const path = `items[${key}].name`
+    const review = reviewFixture({
+      document_type: 'invoice',
+      page_count: 2,
+      pages: [
+        { page_number: 1, field_paths: [], item_keys: [] },
+        { page_number: 2, field_paths: [], item_keys: [] },
+      ],
+      invoice_item_spans: [{ item_key: key, sort_order: 0, page_numbers: [], cross_page: false }],
+    })
+
+    expect(fieldVisibleOnPage(review, path, 1)).toBe(true)
+    expect(fieldVisibleOnPage(review, path, 2)).toBe(true)
+    expect(itemPageLabel(review, path)).toBe('未定位页面')
   })
 
   it('round-trips supplementary review data as JSON without requiring invented evidence', () => {

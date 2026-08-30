@@ -2,6 +2,11 @@
 tenant-isolation	同租户成功；跨租户读取、详情、下载、取消、确认与删除统一拒绝	./internal/transport/httpapi	TestHTTPWorkflowAndTenantIsolation
 revision-snapshot-actor	AI 初版单作者；用户修订单作者；四种状态切换；完整快照、证据与 supersedes 连续	./internal/application/reviews	TestRevisionTransitionsPreserveCompleteSnapshotsAndEvidence
 revision-stable-items	明细新增、删除墓碑、修改、重排使用稳定 item_key；Fact 只读当前快照	./internal/application/reviews	TestInvoiceItemRevisionUsesStableKeysAndFactReadsOnlyCurrentSnapshot
+invoice-page-plan	跨页相邻 Evidence 保留为一个稳定明细，空白页仍进入完整分页投影	./internal/domain	TestClaimPagePlanReconstructsAdjacentCrossPageItem
+invoice-page-plan	最大 20 页按一基原始顺序完整派生，不因空白中间页丢页	./internal/domain	TestClaimPagePlanPreservesFullTwentyPageSequence
+invoice-page-topology	页码跳跃、阅读顺序倒退以及重复或缺口 sort_order 均明确阻断	./internal/domain	TestValidateInvoicePageTopologyBlocksGapRollbackAndSortViolations
+invoice-page-revision	用户 revision 重绑相邻页 Evidence 后从当前快照重算同一 item 跨页计划	./internal/application/reviews	TestInvoiceRevisionRebindsEvidenceIntoOneAdjacentCrossPageItem
+invoice-page-source-boundary	规范化页仅按审核读取权限开放，非法页拒绝且 reviewer 终态统一隐藏	./internal/application/documents	TestQueryServiceAuthorizationAndReviewSourceBoundary
 revision-document-type	用户把 Payment 修正为 Invoice 后只创建 Invoice Fact，revision 与字段作者可追溯	./internal/application/reviews	TestUserCanCorrectPaymentClaimIntoInvoiceAndCreateOnlyInvoiceFact
 validation-block	缺字段、证据缺失、文档问题、类型与值非法均产生阻断	./internal/domain	TestValidateClaimBlocksIncompleteSnapshotAndBadEvidence
 validation-block	确认参数不能绕过 Validation、revision 或候选决定	./internal/application/reviews	TestDecisionInputAndAssociationBoundaries

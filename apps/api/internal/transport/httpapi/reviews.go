@@ -189,11 +189,44 @@ func reviewResponse(item ports.ReviewSnapshot) map[string]any {
 		"revision":             item.Revision,
 		"optimistic_version":   item.OptimisticVersion,
 		"claim_status":         item.Status,
+		"page_count":           item.PageCount,
+		"pages":                reviewPageResponses(item.Pages),
+		"invoice_item_spans":   invoiceItemSpanResponses(item.InvoiceItemSpans),
 		"fields":               reviewFieldResponses(item.Fields),
 		"validations":          validationResponses(item.Validations),
 		"candidates":           candidateResponses(item.Candidates),
 		"duplicate_candidates": duplicateCandidateResponses(item.DuplicateCandidates),
 	}
+}
+
+func reviewPageResponses(items []domain.ClaimReviewPage) []map[string]any {
+	result := make([]map[string]any, 0, len(items))
+	for _, page := range items {
+		result = append(result, map[string]any{
+			"page_number": page.PageNumber,
+			"field_paths": page.FieldPaths,
+			"item_keys":   page.ItemKeys,
+		})
+	}
+	return result
+}
+
+func invoiceItemSpanResponses(items []domain.InvoiceItemPageSpan) []map[string]any {
+	result := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		entry := map[string]any{
+			"item_key":     item.ItemKey,
+			"sort_order":   item.SortOrder,
+			"page_numbers": item.PageNumbers,
+			"cross_page":   item.CrossPage,
+		}
+		if item.StartPage > 0 {
+			entry["start_page"] = item.StartPage
+			entry["end_page"] = item.EndPage
+		}
+		result = append(result, entry)
+	}
+	return result
 }
 
 func reviewFieldResponses(fields []ports.ReviewField) []map[string]any {

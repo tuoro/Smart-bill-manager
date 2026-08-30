@@ -27,6 +27,7 @@ func (r queryJobRepository) GetJob(context.Context, string, string) (ports.JobSu
 type queryDocumentRepository struct {
 	document ports.Document
 	object   ports.DocumentObject
+	page     ports.DocumentPageObject
 	err      error
 }
 
@@ -35,6 +36,9 @@ func (r queryDocumentRepository) GetDocument(context.Context, string, string) (p
 }
 func (r queryDocumentRepository) GetDocumentObject(context.Context, string, string) (ports.DocumentObject, error) {
 	return r.object, r.err
+}
+func (r queryDocumentRepository) GetDocumentPageObject(context.Context, string, string, int) (ports.DocumentPageObject, error) {
+	return r.page, r.err
 }
 
 type queryObjectStore struct{ err error }
@@ -64,7 +68,7 @@ func TestQueryServiceAuthorizationAndReviewSourceBoundary(t *testing.T) {
 	}
 	documents := queryDocumentRepository{object: ports.DocumentObject{
 		StorageKey: "tenants/tenant/document", Name: "receipt.png", MIME: "image/png", ReviewState: domain.JobNeedsReview,
-	}}
+	}, page: ports.DocumentPageObject{StorageKey: "tenants/tenant/page-2", PageNumber: 2, ReviewState: domain.JobNeedsReview}}
 	service := NewQueryService(jobs, documents, queryObjectStore{})
 	if _, err := service.ListJobs(context.Background(), viewer, nil); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer inbox error = %v", err)
@@ -87,14 +91,32 @@ func TestQueryServiceAuthorizationAndReviewSourceBoundary(t *testing.T) {
 	if content.Name != "receipt.png" || content.MIME != "image/png" {
 		t.Fatalf("document content = %#v", content)
 	}
+	page, err := service.OpenDocumentPage(context.Background(), reviewer, "document", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer page.Body.Close()
+	if page.Name != "page-2.png" || page.MIME != "image/png" {
+		t.Fatalf("page content = %#v", page)
+	}
+	if _, err := service.OpenDocumentPage(context.Background(), reviewer, "document", 0); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("invalid page number error = %v", err)
+	}
 
 	documents.object.ReviewState = domain.JobCompleted
+	documents.page.ReviewState = domain.JobCompleted
 	service = NewQueryService(jobs, documents, queryObjectStore{})
 	if _, err := service.OpenDocument(context.Background(), reviewer, "document"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("reviewer completed source error = %v", err)
 	}
 	if _, err := service.OpenDocument(context.Background(), viewer, "document"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer source error = %v", err)
+	}
+	if _, err := service.OpenDocumentPage(context.Background(), reviewer, "document", 2); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("reviewer completed page error = %v", err)
+	}
+	if _, err := service.OpenDocumentPage(context.Background(), viewer, "document", 2); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("viewer page error = %v", err)
 	}
 	if content, err := service.OpenDocument(context.Background(), owner, "document"); err != nil {
 		t.Fatal(err)
@@ -120,6 +142,9 @@ func TestQueryServiceDoesNotHideRepositoryOrStorageFailures(t *testing.T) {
 	if _, err := service.OpenDocument(context.Background(), owner, "document"); !errors.Is(err, repositoryErr) {
 		t.Fatalf("document repository error = %v", err)
 	}
+	if _, err := service.OpenDocumentPage(context.Background(), owner, "document", 1); !errors.Is(err, repositoryErr) {
+		t.Fatalf("document page repository error = %v", err)
+	}
 	service = NewQueryService(
 		queryJobRepository{},
 		queryDocumentRepository{object: ports.DocumentObject{StorageKey: "key"}},
@@ -127,5 +152,13 @@ func TestQueryServiceDoesNotHideRepositoryOrStorageFailures(t *testing.T) {
 	)
 	if _, err := service.OpenDocument(context.Background(), owner, "document"); !errors.Is(err, repositoryErr) {
 		t.Fatalf("object storage error = %v", err)
+	}
+	service = NewQueryService(
+		queryJobRepository{},
+		queryDocumentRepository{page: ports.DocumentPageObject{StorageKey: "key", PageNumber: 1}},
+		queryObjectStore{err: repositoryErr},
+	)
+	if _, err := service.OpenDocumentPage(context.Background(), owner, "document", 1); !errors.Is(err, repositoryErr) {
+		t.Fatalf("page object storage error = %v", err)
 	}
 }

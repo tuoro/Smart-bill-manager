@@ -1,6 +1,6 @@
 # M2 分切片验收证据
 
-状态：通过；支付—发票金额分配与确定性重复检测两个切片已完成，M2 整体仍在进行中
+状态：通过；支付—发票金额分配、确定性重复检测与跨页明细分页审核三个切片已完成，M2 整体仍在进行中
 
 更新日期：2026-08-30
 
@@ -63,9 +63,37 @@
 - 最终 `git diff --check` 与精确暂存后的 `git diff --cached --check` 通过；46 个暂存文件中最大文件为 86,817 字节，已知凭据前缀与私有/生成资产路径扫描无命中。本轮生成的 Web 构建和 Playwright 结果目录已清理，未留下 Vite、浏览器、Go 测试进程或本项目容器。
 - 机读摘要见 `tests/evidence/m2/duplicate-detection-gate-summary.json`；只包含合成测试身份、聚合门禁和安全元数据。
 
+## 第三切片：复杂多页 PDF 跨页明细与分页审核
+
+本切片以 `docs/decisions/0011-cross-page-invoice-review.md` 为冻结决策，保持 `bill-visible-text-cn/1 -> bill-visible-text/1 -> claim-mapper/3 -> document-claim/2` 活动链路不变：
+
+- 模型仍在一次请求中查看全部有序规范化页面，并把同一逻辑明细的字段放在一个稳定 item 中；本地不拼接文字、不重新识别表格、不重组 item，也不执行第二次模型调用。
+- 当前 Claim revision 的完整页面序列、逐页字段/明细与 InvoiceItem 页跨度，只从 `FieldClaim -> Evidence -> DocumentPage` 实时派生，不新增持久化页计划或第二数据源。
+- InvoiceItem 的 `sort_order` 必须唯一且严格连续；同一明细的 Evidence 页集合必须连续，后续明细起始页不能早于前一明细结束页。缺口、重复、跳页或倒退均形成 blocked Validation。
+- 规范化单页读取显式使用 `(tenant_id, document_id, page_number)`，不公开 storage key；reviewer 只在待审核或阻断状态可读，越权、不存在和 reviewer 终态均保持不泄露边界。
+- Web 提供上一页、下一页和直接页码导航；文档级字段始终可见，明细按当前页筛选，无 Evidence 的阻断明细保持可达，同一跨页 item 复用稳定编辑身份并显示页范围。
+
+### 第三切片实现证据
+
+- `apps/api/internal/domain/pageplan.go` 是页计划与页序校验的唯一领域实现；保存 revision 后服务从当前 FieldClaim Evidence 重算读取投影。
+- SQLite 只增加既有 `document_pages` 的 tenant 约束读取，不新增表或迁移；Document 查询服务与 HTTP 入口共同执行页码、能力和 reviewer 状态边界。
+- OpenAPI、生成客户端和 Review 响应公开 `page_count`、完整 `pages` 及 `invoice_item_spans`，不公开对象存储路径。
+- 审核工作台使用规范化单页 PNG，字段选择定位首条 Evidence 页，分页切换不复制或丢失同一 item 的编辑状态。
+- 纯合成测试覆盖相邻跨页、三页连续、空白页、完整 20 页、页跳跃、顺序倒退、重复/缺口顺序、revision 证据重绑、非法页、reviewer 终态和跨租户读取。
+
+### 第三切片已执行验收
+
+- 固定 Go 1.26.7 离线容器：后端全量 `go test -p=1 -count=1 -timeout 60s ./...`、`go vet ./...` 与 `go build -buildvcs=false ./...` 通过；只读复用宿主现有模块缓存，未下载依赖。
+- Web：`npm run check` 通过 OpenAPI 客户端生成、类型检查、ESLint、Prettier、3 个 Vitest 文件共 13 项测试和生产构建。
+- 浏览器组件矩阵：`playwright test e2e/m1-state-matrix.spec.ts` 13 / 13 通过；新增场景覆盖直接分页、页面图片、审核上下文，以及 768px 与等效 200% 回流下的无横向溢出、键盘聚焦与分页操作。
+- 关键不变量：60 / 60（100%）通过，其中 5 个新增映射覆盖稳定跨页 item、空白页与完整 20 页、页序与 `sort_order` 阻断、revision 后重算及规范化页读取边界；跨租户页面读取继续由既有 HTTP 租户隔离分支覆盖。
+- 领域/应用层语句覆盖率 85.59%（2,049 / 2,394，门槛 85%）；基础设施/传输层 73.25%（2,174 / 2,968，门槛 70%）。
+- 最终工作区与暂存区 diff、安全和残留检查通过；本轮生成的 Web 构建与 Playwright 结果目录以及误建的空 Go 缓存卷已清理，未留下 Vite、浏览器或 Go 验收进程。
+- 机读摘要见 `tests/evidence/m2/cross-page-review-gate-summary.json`；只包含纯合成测试身份、聚合门禁和安全元数据。
+
 ## 边界与下一断点
 
 - 本轮未调用真实 Provider，未处理模型正确率，未安装或恢复本地 OCR、RapidOCR、PaddleOCR 或模型缓存。
-- 本轮未实施复杂跨页明细重建、多 Document 批量上传或已确认 Fact 的独立 Link 调整工作流。
-- 第二切片门禁记录时尚未部署、提交或推送；本文件随获授权的独立本地切片提交固化后，以包含本文件的本地 Git commit 为事实来源，仍不得推送或部署。
-- 下一断点是先冻结复杂多页 PDF 跨页明细重建与分页审阅的范围、验收和必要 ADR。模型正确率继续保留到全部功能完成后的 M4 正式门禁。
+- 本轮未实施多 Document 批量上传或已确认 Fact 的独立 Link 调整工作流。
+- 第三切片门禁记录时尚未部署、提交或推送；本文件随获授权的独立本地切片提交固化后，以包含本文件的本地 Git commit 为事实来源，仍不得推送或部署。
+- 下一断点是先冻结多 Document 批量上传与逐项反馈的范围、验收和必要 ADR。模型正确率继续保留到全部功能完成后的 M4 正式门禁。

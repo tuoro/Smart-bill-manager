@@ -144,6 +144,49 @@ func TestMapInvoiceUsesGrossTotalAndDoesNotCalculateBlankValues(t *testing.T) {
 	}
 }
 
+func TestMapInvoicePreservesOneLogicalItemAcrossAdjacentPages(t *testing.T) {
+	t.Parallel()
+	claim, err := Map(domain.BillVisibleTextEnvelope{
+		SchemaVersion: ExtractionSchemaVersion,
+		DocumentType:  "invoice",
+		Payment:       raw(`null`),
+		Invoice: raw(`{
+			"invoice_number":{"text":"MP-001","page":1},
+			"invoice_date":{"text":"2026-08-30","page":1},
+			"amount_without_tax":{"text":"100.00","page":2},
+			"tax_amount":{"text":"6.00","page":2},
+			"amount_with_tax":{"text":"106.00","page":2},
+			"currency":{"text":"CNY","page":1},
+			"seller_name":{"text":"销售方","page":1},
+			"buyer_name":{"text":"购买方","page":1},
+			"items":[{
+				"name":{"text":"跨页服务","page":1},
+				"quantity":null,"unit":null,"unit_price":null,
+				"amount":{"text":"100.00","page":2},
+				"tax":{"text":"6.00","page":2}
+			}]
+		}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stabilized, err := domain.StabilizeItemPaths(claim, func() (string, error) {
+		return "00000000-0000-4000-8000-000000000211", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	validated := domain.ValidateClaim(stabilized, 2)
+	if validated.Status != domain.ClaimReadyForReview {
+		t.Fatalf("cross-page item was blocked: %#v", validated.Validations)
+	}
+	plan := domain.BuildClaimPagePlan(domain.DocumentInvoice, validated.Fields, 2)
+	if len(plan.InvoiceItemSpans) != 1 || !plan.InvoiceItemSpans[0].CrossPage ||
+		plan.InvoiceItemSpans[0].StartPage != 1 || plan.InvoiceItemSpans[0].EndPage != 2 {
+		t.Fatalf("cross-page item plan = %#v", plan.InvoiceItemSpans)
+	}
+}
+
 func TestMapMoneyHandlesVisibleLocaleWithoutFloatingPoint(t *testing.T) {
 	t.Parallel()
 	for name, input := range map[string]struct {

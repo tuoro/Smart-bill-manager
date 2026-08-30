@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -84,4 +85,30 @@ func (s QueryService) OpenDocument(
 		return DocumentContent{}, err
 	}
 	return DocumentContent{Name: object.Name, MIME: object.MIME, Body: body}, nil
+}
+
+func (s QueryService) OpenDocumentPage(
+	ctx context.Context,
+	tenant domain.TenantContext,
+	documentID string,
+	pageNumber int,
+) (DocumentContent, error) {
+	if err := tenant.Require(domain.CapabilityReviewSourceRead); err != nil {
+		return DocumentContent{}, err
+	}
+	if pageNumber < 1 || pageNumber > 20 {
+		return DocumentContent{}, domain.NewRuleError("invalid_page_number", "页码必须是 1 到 20 的整数", domain.ErrInvalidInput)
+	}
+	object, err := s.documents.GetDocumentPageObject(ctx, tenant.TenantID, documentID, pageNumber)
+	if err != nil {
+		return DocumentContent{}, err
+	}
+	if tenant.Role == domain.RoleReviewer && object.ReviewState != domain.JobNeedsReview && object.ReviewState != domain.JobBlocked {
+		return DocumentContent{}, domain.ErrNotFound
+	}
+	body, err := s.objects.Open(ctx, object.StorageKey)
+	if err != nil {
+		return DocumentContent{}, err
+	}
+	return DocumentContent{Name: fmt.Sprintf("page-%d.png", object.PageNumber), MIME: "image/png", Body: body}, nil
 }

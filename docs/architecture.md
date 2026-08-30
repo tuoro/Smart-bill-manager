@@ -161,6 +161,8 @@ M1 使用单个 API 进程：
 6. 唯一 `claim-mapper/3` 把票面原文绑定为 Evidence，并确定性处理批准的币种/金额、日期、时间、时区、数量、null/缺失、数组顺序和审核专用补充字段；发票只有 `amount_with_tax` 能映射为 `total_minor`，空白业务值不得计算。随后按 `document-claim/2` 执行字段与业务校验并保存 ClaimSet、FieldClaim、Evidence 和 ValidationResult。
 7. 将 Job 转为 `needs_review`、`blocked` 或明确失败。只要根身份有效，单字段形状、页码、金额、日期、时区、Evidence、区段或补充字段问题必须保存为一个 blocked Claim 并保留其他正确字段；只有根级失败不创建 Claim。
 
+M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 item 的不同字段可以引用相邻页面，本地从稳定 `item_key`、`sort_order` 与 Evidence 页码校验连续跨度和不倒退阅读顺序。分页计划只在读取时从 FieldClaim/Evidence/DocumentPage 派生；规范化单页通过显式 tenant 查询与原件相同的 reviewer 状态边界读取，不新增持久化页结论或第二模型调用。
+
 ### 审核与 Fact
 
 1. 用户读取 ClaimSet 和验证结果。

@@ -159,6 +159,12 @@ type DocumentObject struct {
 	ReviewState domain.JobStatus
 }
 
+type DocumentPageObject struct {
+	StorageKey  string
+	PageNumber  int
+	ReviewState domain.JobStatus
+}
+
 type DocumentDeletionPlan struct {
 	DocumentID     string
 	StorageKeys    []string
@@ -181,6 +187,7 @@ type DocumentDeleteCommand struct {
 type DocumentRepository interface {
 	GetDocument(ctx context.Context, tenantID, documentID string) (Document, error)
 	GetDocumentObject(ctx context.Context, tenantID, documentID string) (DocumentObject, error)
+	GetDocumentPageObject(ctx context.Context, tenantID, documentID string, pageNumber int) (DocumentPageObject, error)
 }
 
 type DocumentDeletionRepository interface {

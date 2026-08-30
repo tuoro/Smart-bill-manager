@@ -196,6 +196,32 @@ func (s *Store) GetDocumentObject(ctx context.Context, tenantID, documentID stri
 	return object, nil
 }
 
+func (s *Store) GetDocumentPageObject(
+	ctx context.Context,
+	tenantID, documentID string,
+	pageNumber int,
+) (ports.DocumentPageObject, error) {
+	var object ports.DocumentPageObject
+	err := s.db.QueryRowContext(ctx, `
+		SELECT p.derived_image_storage_key, p.page_number, j.status
+		FROM document_pages p
+		JOIN processing_jobs j
+		  ON j.tenant_id = p.tenant_id AND j.document_id = p.document_id
+		WHERE p.tenant_id = ? AND p.document_id = ? AND p.page_number = ?
+	`, tenantID, documentID, pageNumber).Scan(
+		&object.StorageKey,
+		&object.PageNumber,
+		&object.ReviewState,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ports.DocumentPageObject{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return ports.DocumentPageObject{}, fmt.Errorf("get document page object: %w", err)
+	}
+	return object, nil
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }

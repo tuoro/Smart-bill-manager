@@ -130,6 +130,25 @@ paths:
             application/pdf: {}
         "404":
           $ref: "#/components/responses/NotFound"
+  /documents/{document_id}/pages/{page_number}/content:
+    get:
+      operationId: downloadDocumentPage
+      tags: [documents]
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+        - name: page_number
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 20 }
+      responses:
+        "200":
+          description: 鉴权后的规范化单页 PNG，仅供证据分页审核
+          content:
+            image/png: {}
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /documents/{document_id}:
     get:
       operationId: getDocument
@@ -893,6 +912,32 @@ components:
           type: array
           minItems: 1
           items: { type: string }
+    ReviewPage:
+      type: object
+      additionalProperties: false
+      required: [page_number, field_paths, item_keys]
+      properties:
+        page_number: { type: integer, minimum: 1, maximum: 20 }
+        field_paths:
+          type: array
+          items: { type: string }
+        item_keys:
+          type: array
+          items: { type: string, format: uuid }
+    InvoiceItemPageSpan:
+      type: object
+      additionalProperties: false
+      required: [item_key, sort_order, page_numbers, cross_page]
+      properties:
+        item_key: { type: string, format: uuid }
+        sort_order: { type: integer, minimum: 0 }
+        page_numbers:
+          type: array
+          maxItems: 20
+          items: { type: integer, minimum: 1, maximum: 20 }
+        start_page: { type: integer, minimum: 1, maximum: 20 }
+        end_page: { type: integer, minimum: 1, maximum: 20 }
+        cross_page: { type: boolean }
     Review:
       type: object
       additionalProperties: false
@@ -904,6 +949,9 @@ components:
           revision,
           optimistic_version,
           claim_status,
+          page_count,
+          pages,
+          invoice_item_spans,
           fields,
           validations,
           candidates,
@@ -929,6 +977,15 @@ components:
                 cancelled,
               ],
           }
+        page_count: { type: integer, minimum: 1, maximum: 20 }
+        pages:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: "#/components/schemas/ReviewPage" }
+        invoice_item_spans:
+          type: array
+          items: { $ref: "#/components/schemas/InvoiceItemPageSpan" }
         fields:
           type: array
           items: { $ref: "#/components/schemas/ClaimField" }

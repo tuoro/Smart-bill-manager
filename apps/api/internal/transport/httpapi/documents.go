@@ -98,6 +98,37 @@ func (s *Server) downloadDocumentHandler(response http.ResponseWriter, request *
 	}
 }
 
+func (s *Server) downloadDocumentPageHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	pageNumber, err := strconv.Atoi(request.PathValue("page_number"))
+	if err != nil {
+		writeError(response, request, domain.NewRuleError("invalid_page_number", "页码必须是 1 到 20 的整数", domain.ErrInvalidInput))
+		return
+	}
+	content, err := s.documents.OpenDocumentPage(
+		request.Context(),
+		tenantContext(principal),
+		request.PathValue("document_id"),
+		pageNumber,
+	)
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	defer content.Body.Close()
+	response.Header().Set("Content-Type", content.MIME)
+	response.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": content.Name}))
+	response.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'self'; sandbox")
+	response.Header().Set("Cache-Control", "private, no-store")
+	if _, err := io.Copy(response, content.Body); err != nil {
+		s.logger.Warn("document page stream interrupted", "request_id", requestIDFromRequest(request))
+	}
+}
+
 func (s *Server) listJobsHandler(response http.ResponseWriter, request *http.Request) {
 	principal, ok := principalFromRequest(request)
 	if !ok {

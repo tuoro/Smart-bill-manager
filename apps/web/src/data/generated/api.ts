@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/pages/{page_number}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadDocumentPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -556,6 +572,20 @@ export interface components {
             available: boolean;
             reason_codes: string[];
         };
+        ReviewPage: {
+            page_number: number;
+            field_paths: string[];
+            item_keys: string[];
+        };
+        InvoiceItemPageSpan: {
+            /** Format: uuid */
+            item_key: string;
+            sort_order: number;
+            page_numbers: number[];
+            start_page?: number;
+            end_page?: number;
+            cross_page: boolean;
+        };
         Review: {
             job: components["schemas"]["JobSummary"];
             /** Format: uuid */
@@ -566,6 +596,9 @@ export interface components {
             optimistic_version: number;
             /** @enum {string} */
             claim_status: "draft" | "ready_for_review" | "blocked" | "superseded" | "confirmed" | "rejected" | "cancelled";
+            page_count: number;
+            pages: components["schemas"]["ReviewPage"][];
+            invoice_item_spans: components["schemas"]["InvoiceItemPageSpan"][];
             fields: components["schemas"]["ClaimField"][];
             validations: components["schemas"]["ValidationResult"][];
             candidates: components["schemas"]["LinkCandidate"][];
@@ -944,6 +977,31 @@ export interface operations {
                     "application/pdf": unknown;
                 };
             };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadDocumentPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: components["parameters"]["DocumentId"];
+                page_number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 鉴权后的规范化单页 PNG，仅供证据分页审核 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
     };

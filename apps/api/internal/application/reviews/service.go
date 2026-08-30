@@ -54,7 +54,11 @@ func (s Service) Get(
 	if err := tenant.Require(domain.CapabilityClaimsReview); err != nil {
 		return ports.ReviewSnapshot{}, err
 	}
-	return s.reviews.GetReview(ctx, tenant.TenantID, jobID)
+	result, err := s.reviews.GetReview(ctx, tenant.TenantID, jobID)
+	if err != nil {
+		return ports.ReviewSnapshot{}, err
+	}
+	return withPagePlan(result), nil
 }
 
 func (s Service) GetClaimSet(
@@ -72,7 +76,7 @@ func (s Service) GetClaimSet(
 	if tenant.Role == domain.RoleReviewer && result.Status != domain.ClaimReadyForReview && result.Status != domain.ClaimBlocked {
 		return ports.ReviewSnapshot{}, domain.ErrNotFound
 	}
-	return result, nil
+	return withPagePlan(result), nil
 }
 
 func (s Service) Revise(
@@ -172,7 +176,33 @@ func (s Service) Revise(
 	}); err != nil {
 		return ports.ReviewSnapshot{}, err
 	}
-	return s.reviews.GetReview(ctx, tenant.TenantID, jobID)
+	result, err := s.reviews.GetReview(ctx, tenant.TenantID, jobID)
+	if err != nil {
+		return ports.ReviewSnapshot{}, err
+	}
+	return withPagePlan(result), nil
+}
+
+func withPagePlan(snapshot ports.ReviewSnapshot) ports.ReviewSnapshot {
+	fields := make([]domain.FieldCandidate, 0, len(snapshot.Fields))
+	for _, field := range snapshot.Fields {
+		candidate := domain.FieldCandidate{
+			Path:      field.Path,
+			ValueType: field.ValueType,
+			Presence:  field.Presence,
+			Value:     field.Value,
+		}
+		for _, evidence := range field.Evidence {
+			candidate.Evidence = append(candidate.Evidence, domain.CandidateEvidence{
+				Page: evidence.Page, Quote: evidence.Quote, Region: evidence.Region,
+			})
+		}
+		fields = append(fields, candidate)
+	}
+	plan := domain.BuildClaimPagePlan(snapshot.DocumentType, fields, snapshot.PageCount)
+	snapshot.Pages = plan.Pages
+	snapshot.InvoiceItemSpans = plan.InvoiceItemSpans
+	return snapshot
 }
 
 func revisionCandidates(

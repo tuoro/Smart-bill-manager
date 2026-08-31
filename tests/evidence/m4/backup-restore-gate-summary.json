@@ -1,0 +1,156 @@
+{
+  "report_kind": "m4-backup-restore-gate-summary",
+  "evidence_version": "M4-BACKUP-RESTORE-SLICE-2026-08-31",
+  "recorded_date": "2026-08-31",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "56a9c9f526644cb9fa21cfc1b1b135b31481f3bf",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "m0": "complete",
+    "m1": "complete",
+    "m2": "complete",
+    "m3": "complete",
+    "m4": "in_progress",
+    "authenticated_backup_restore_slice": "complete",
+    "next_slice": "m4_runtime_quality_performance_security_accessibility",
+    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+  },
+  "protocol": {
+    "manifest_kind": "smart-bill-manager-backup",
+    "manifest_version": 2,
+    "authenticated_manifest": "hmac_sha256_domain_separated_from_master_key",
+    "data_package_contains_master_key": false,
+    "old_manifest_compatibility": false,
+    "exact_committed_object_inventory": true,
+    "sqlite_integrity_and_foreign_key_checks": true,
+    "migration_and_schema_identity_checks": true,
+    "crash_safe_restore_state": true,
+    "existing_targets_overwritten": false,
+    "restored_sessions_invalidated_before_activation": true,
+    "same_authenticated_backup_set_across_operations": true,
+    "stable_preexisting_database_state_digest": true
+  },
+  "synthetic_dataset": {
+    "document_count": 1000,
+    "failed_provider_boundary_job_count": 998,
+    "fact_count_before_backup": 1,
+    "email_message_count": 1,
+    "email_attachment_count": 1,
+    "document_page_count": 2,
+    "object_reference_count": 1004,
+    "unique_object_count": 1003,
+    "physical_objects_required": true,
+    "source_staging_empty": true,
+    "source_trash_empty": true
+  },
+  "offline_operations": {
+    "backup": {
+      "passed": true,
+      "elapsed_ms": 738
+    },
+    "independent_verify": {
+      "passed": true,
+      "elapsed_ms": 317
+    },
+    "restore": {
+      "passed": true,
+      "elapsed_ms": 1356,
+      "invalidated_session_count": 3
+    },
+    "authenticated_manifest_equal_across_operations": true,
+    "operation_sequence_bound_to_recovery_clock": true,
+    "preactivation_database_and_object_equality": true,
+    "post_session_invalidation_allowed_difference_only": true
+  },
+  "recovered_runtime": {
+    "ready_verified": true,
+    "old_session_rejected": true,
+    "new_login_succeeded": true,
+    "restored_snapshot_verified_before_continuation": true,
+    "new_session_count": 1,
+    "historical_session_count": 0,
+    "api_job_window_count": 200,
+    "document_queries_verified": 3,
+    "authenticated_downloads_verified": 5,
+    "payment_count": 2,
+    "fact_count_after_recovery": 2,
+    "email_message_count": 1,
+    "processing_attempt_delta": 1,
+    "original_running_ai_run_closed_as_lease_expired": true,
+    "lease_expired_ai_run_count": 1,
+    "running_ai_run_count": 0,
+    "unleased_processing_job_count": 0,
+    "confirmed_fact_preserved": true,
+    "exactly_one_recovered_fact": true,
+    "all_jobs_terminal": true,
+    "stable_state_preserved": true,
+    "append_only_changes_scoped": true,
+    "rto_elapsed_ms": 115291,
+    "rto_limit_ms": 1800000,
+    "rto_passed": true
+  },
+  "gates": {
+    "go_test_all": "passed",
+    "go_vet_all": "passed",
+    "go_build_all_without_vcs_stamp": "passed",
+    "web_check": "passed",
+    "recovery_controller_tests": {
+      "passed": 14,
+      "failed": 0,
+      "total": 14
+    },
+    "critical_invariant_branches": {
+      "passed": 136,
+      "total": 136,
+      "percentage": 100
+    },
+    "domain_application_statement_coverage": {
+      "percentage": 85.71,
+      "covered": 3101,
+      "total": 3618,
+      "required_percentage": 85,
+      "passed": true
+    },
+    "infrastructure_transport_statement_coverage": {
+      "percentage": 75.18,
+      "covered": 3625,
+      "total": 4822,
+      "required_percentage": 70,
+      "passed": true
+    },
+    "git_diff_check": "passed",
+    "credential_and_private_asset_scan": "passed",
+    "binary_and_large_file_check": "passed",
+    "temporary_artifact_check": "passed",
+    "current_slice_process_residue_check": "passed",
+    "browser_acceptance": "not_applicable_no_web_behavior_change"
+  },
+  "excluded": {
+    "formal_real_model_accuracy_evaluation": "not_run",
+    "real_provider_calls": "not_run",
+    "real_images": "not_sent",
+    "real_mailbox_or_external_account_integration": "not_run",
+    "persistent_or_production_credentials": "not_created_or_changed",
+    "local_ocr": "not_installed_or_used",
+    "new_dependencies": "not_downloaded",
+    "legacy_compatibility": "not_added",
+    "deployment_release_or_remote_resources": "not_run",
+    "nonzero_rpo_deletion_and_revocation_replay": "deferred_to_production_release_gate"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "push_forbidden": true
+    }
+  },
+  "overall_status": "passed"
+}

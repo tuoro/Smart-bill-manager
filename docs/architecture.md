@@ -1,6 +1,6 @@
 # Clean Slate 架构基线
 
-状态：M0、M1、M2、M3 已完成；M4 首切片“确定性 Fact 洞察与筛选查询”已完成，下一断点为完整备份恢复演练
+状态：M0、M1、M2、M3 已完成；M4 首、第二切片已完成，当前进入运行质量与本地发布准备
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
 
@@ -236,6 +236,18 @@ flowchart LR
 
 完整筛选、游标、权限和失败边界见 `docs/decisions/0017-deterministic-fact-insights-and-query.md`。
 
+### M4 认证停机备份与恢复激活
+
+1. 应用、`bootstrap-owner` 与备份命令通过数据库旁的运行锁互斥。备份只有在应用锁未占用、操作者确认停机、WAL checkpoint 完成且 SQLite 排他事务建立后才读取数据。
+2. 备份适配器从四个权威引用来源生成唯一对象集合：Document、DocumentPage、EmailMessage 原文与非空 EmailAttachment。共享对象按 key 去重并要求哈希/已知大小一致；该集合必须与 `objects/` 的普通文件精确相等，`staging/` 和 `trash/` 必须为空。
+3. 数据包只持有 SQLite、已提交对象和 `smart-bill-manager-backup/2` 清单；主密钥仍在独立数据源，由操作者单独提供。清单使用主密钥域分离派生的 HMAC 认证并携带随机 `backup_set_id`，数据包本身没有伪造清单或集合身份的能力。
+4. 数据库检查同时覆盖 `integrity_check`、`foreign_key_check`、迁移文件集合、`schema_migrations`、SQLite Schema、全部表数量和审计链；旧清单或旧数据库没有兼容读取路径。
+5. 恢复先在数据库、对象和密钥各自目标文件系统内 staging 并完成离线精确对账，再持久化 `restore-state=incomplete` 并发布。应用在运行锁前后拒绝 incomplete、未知、损坏、孤立状态；跨卷发布不是伪装的单文件原子 rename。
+6. 离线快照复核完成后，恢复命令删除全部 Session，再验证除 Session 归零之外的持久化状态未变。只有发布、同步和后检查都通过，才用已单独 `fsync` 的 complete 文件原子替换状态并同步父目录；complete 状态永久保留且必须与数据库成对。
+7. M4 演练以恰好 1,000 个实际纯合成 Document 原件、2 个派生页、1,004 条对象引用、1,003 个唯一物理对象和 RPO 0 验证 30 分钟 RTO。备份边界必须从绑定 exercise/model/mode/instance 的挂起回环 Provider 精确观察 0→1 次提取；数据包创建后、首次独立 verify 前启动唯一时钟。恢复副本先证明原快照可查询下载，再继续租约和审核。既有行稳定摘要、旧 Session 清零、新 Session、目标租约接管、AiRun 终止与唯一闭合 Fact 链分别对账，不冒充原始清单逐字相等。
+
+完整恢复集合、CLI 安全输出、失败边界和演练数据见 `docs/decisions/0018-authenticated-offline-backup-and-recovery.md` 与 `docs/backup-restore.md`。
+
 ### M2 批量上传编排
 
 多 Document 批量上传不是新的服务端领域命令。Web 对一次选择的 1–20 个文件建立临时有序列表，并逐项调用唯一 `POST /api/v1/documents`；前一项终止后才发送后一项。每个请求继续独立执行既有暂存、边界校验、同租户 SHA-256 判重、Document/ProcessingJob 事务和对象提交补偿，中间失败不形成批次回滚，也不阻止后续项。
@@ -384,7 +396,7 @@ M1 交付一个 Compose 流程：
 - SQLite、对象文件和主密钥材料使用独立持久卷/挂载。
 - 健康检查只证明进程可服务；就绪检查必须覆盖数据库和 Job 调度器。
 - 生产配置缺少主密钥、允许通配 CORS 或使用开发模式时拒绝启动。
-- SQLite、对象文件与主密钥使用 `docs/backup-restore.md` 的停机一致快照；恢复只写入全新目标，在线 Provider 密文删除后的备份残留最长保留 30 天。
+- SQLite 与精确对象集合使用 `docs/backup-restore.md` 的认证停机数据包；既有主密钥通过独立托管副本提供，不能与密文进入同一数据包。恢复只写入全新目标，在线 Provider 密文删除后的备份残留最长保留 30 天。
 
 ## 禁止项
 

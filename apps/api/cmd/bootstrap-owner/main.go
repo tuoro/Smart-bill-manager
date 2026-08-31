@@ -13,6 +13,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
@@ -42,6 +43,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	runtimeLock, err := runtimeguard.AcquireExclusive(config.databasePath)
+	if err != nil {
+		return err
+	}
+	defer runtimeLock.Close()
 	password, err := readPassword(config.passwordFile)
 	if err != nil {
 		return err

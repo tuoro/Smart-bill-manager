@@ -11,10 +11,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 )
@@ -63,8 +65,37 @@ func run() error {
 	if flag.NArg() != 0 || databasePath == "" || migrationsDir == "" || outputPath == "" {
 		return errors.New("-database, -migrations, and -output are required; positional arguments are not allowed")
 	}
+	databaseAbsolute, err := filepath.Abs(databasePath)
+	if err != nil {
+		return err
+	}
+	outputAbsolute, err := filepath.Abs(outputPath)
+	if err != nil {
+		return err
+	}
+	if err := requireRealSeedOutputParent(outputAbsolute); err != nil {
+		return err
+	}
+	insideMigrations, err := pathContains(migrationsDir, outputAbsolute)
+	if err != nil {
+		return err
+	}
+	if outputAbsolute == databaseAbsolute || outputAbsolute == runtimeguard.LockPath(databaseAbsolute) ||
+		outputAbsolute == runtimeguard.ActivationPath(databaseAbsolute) || insideMigrations {
+		return errors.New("performance seed output must be disjoint from database guards and migrations")
+	}
+	resultFile, err := reserveSeedOutput(outputPath)
+	if err != nil {
+		return err
+	}
+	defer resultFile.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	runtimeLock, err := runtimeguard.AcquireExclusive(databasePath)
+	if err != nil {
+		return err
+	}
+	defer runtimeLock.Close()
 	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{DatabasePath: databasePath, MigrationsDir: migrationsDir})
 	if err != nil {
 		return err
@@ -151,15 +182,103 @@ func run() error {
 		return err
 	}
 	encoded = append(encoded, '\n')
-	file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return fmt.Errorf("create performance seed manifest: %w", err)
+	if err := resultFile.file.Truncate(0); err != nil {
+		return fmt.Errorf("reset performance seed manifest: %w", err)
 	}
-	if _, err := file.Write(encoded); err != nil {
-		_ = file.Close()
+	if err := writeSeedOutput(resultFile.file, encoded); err != nil {
 		return fmt.Errorf("write performance seed manifest: %w", err)
 	}
+	if err := resultFile.file.Truncate(int64(len(encoded))); err != nil {
+		return fmt.Errorf("truncate performance seed manifest: %w", err)
+	}
+	if err := resultFile.file.Sync(); err != nil {
+		return fmt.Errorf("sync performance seed manifest: %w", err)
+	}
+	return resultFile.Close()
+}
+
+func pathContains(parent, candidate string) (bool, error) {
+	parentAbsolute, err := filepath.Abs(parent)
+	if err != nil {
+		return false, err
+	}
+	candidateAbsolute, err := filepath.Abs(candidate)
+	if err != nil {
+		return false, err
+	}
+	relative, err := filepath.Rel(parentAbsolute, candidateAbsolute)
+	if err != nil {
+		return false, err
+	}
+	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))), nil
+}
+
+func requireRealSeedOutputParent(location string) error {
+	parent := filepath.Dir(location)
+	resolved, err := filepath.EvalSymlinks(parent)
+	if err != nil {
+		return fmt.Errorf("resolve performance seed output parent: %w", err)
+	}
+	resolvedAbsolute, err := filepath.Abs(resolved)
+	if err != nil {
+		return err
+	}
+	if resolvedAbsolute != parent {
+		return errors.New("performance seed output parent must not contain symlinks")
+	}
+	information, err := os.Lstat(parent)
+	if err != nil {
+		return err
+	}
+	if !information.IsDir() || information.Mode()&os.ModeSymlink != 0 {
+		return errors.New("performance seed output parent must be a real directory")
+	}
+	return nil
+}
+
+type seedOutput struct {
+	file *os.File
+}
+
+func reserveSeedOutput(location string) (*seedOutput, error) {
+	file, err := os.OpenFile(location, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("reserve performance seed manifest: %w", err)
+	}
+	result := &seedOutput{file: file}
+	marker := []byte("{\"seed_kind\":\"m1-performance-seed-in-progress\"}\n")
+	if err := writeSeedOutput(file, marker); err != nil {
+		_ = result.Close()
+		return nil, fmt.Errorf("reserve performance seed manifest: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		_ = result.Close()
+		return nil, fmt.Errorf("sync reserved performance seed manifest: %w", err)
+	}
+	return result, nil
+}
+
+func (s *seedOutput) Close() error {
+	if s == nil || s.file == nil {
+		return nil
+	}
+	file := s.file
+	s.file = nil
 	return file.Close()
+}
+
+func writeSeedOutput(file *os.File, content []byte) error {
+	for offset := 0; offset < len(content); {
+		written, err := file.WriteAt(content[offset:], int64(offset))
+		if err != nil {
+			return err
+		}
+		if written == 0 {
+			return errors.New("performance seed manifest write made no progress")
+		}
+		offset += written
+	}
+	return nil
 }
 
 func performanceOwner(ctx context.Context, database *sql.DB) (string, string, error) {

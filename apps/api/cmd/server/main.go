@@ -16,6 +16,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
@@ -77,6 +78,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	runtimeLock, err := runtimeguard.AcquireExclusive(config.databasePath)
+	if err != nil {
+		return err
+	}
+	defer runtimeLock.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{

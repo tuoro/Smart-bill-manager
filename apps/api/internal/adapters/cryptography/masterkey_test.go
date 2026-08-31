@@ -58,6 +58,16 @@ func TestLoadMasterKeyFileRejectsUnsafeOrInvalidFiles(t *testing.T) {
 	if _, err := LoadMasterKeyFile(link); err == nil {
 		t.Fatal("symlink accepted as master key")
 	}
+	hardlinkSource := filepath.Join(root, "hardlink-source.key")
+	if err := os.WriteFile(hardlinkSource, bytes.Repeat([]byte("b"), 32), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(hardlinkSource, filepath.Join(root, "hardlink-alias.key")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadMasterKeyFile(hardlinkSource); err == nil {
+		t.Fatal("hardlinked master key accepted")
+	}
 	for name, content := range map[string][]byte{
 		"too-large": bytes.Repeat([]byte("a"), 129),
 		"too-short": []byte("not-a-key"),

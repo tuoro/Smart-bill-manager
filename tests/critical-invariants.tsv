@@ -112,3 +112,26 @@ insight-permission-tenant	owner/finance/viewer 可读、reviewer 拒绝，具体
 insight-read-snapshot	并发提交期间同一洞察读事务的前后读取保持同一 SQLite 快照，提交后新请求可见	./internal/adapters/sqlite	TestInsightReadSnapshotStaysStableAcrossConcurrentCommit
 insight-schema-single-source	迁移只增加 Payment/Invoice 筛选索引，不创建 Insight 表、物化缓存或第二数据源	./internal/adapters/sqlite	TestFactInsightIndexesAreMigratedWithoutInsightTables
 insight-http-boundary	封闭单值查询、日期/枚举/Trip/游标/limit、四角色和安全不存在性经 GET HTTP 契约固定	./internal/transport/httpapi	TestHTTPInsightQueryContractAndPermissionBoundaries
+backup-authenticated-manifest	错误独立密钥、对象篡改、认证后的尾随 JSON 与重复字段全部硬失败	./cmd/backup	TestVerifyRejectsWrongKeyTamperingAndTrailingJSON
+backup-exact-object-inventory	缺失、多余、staging、trash、符号链接与外部硬链接对象全部阻止备份发布	./cmd/backup	TestBackupRejectsIncompleteOrAmbiguousObjectStore
+backup-migration-identity	旧清单与当前迁移内容漂移均不进入兼容或恢复分支	./cmd/backup	TestVerifyRejectsOldManifestAndMigrationDrift
+backup-offline-runtime-lock	运行中写入者、已有恢复目标、非独立密钥与部分发布全部 fail-closed	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
+backup-output-source-disjoint	备份输出不得落入数据库父目录、对象根或迁移集合，拒绝后不污染 staging/trash	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
+backup-hardlink-identity	数据库与独立主密钥均拒绝多硬链接身份，避免绕过路径独立性与运行锁	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
+restore-session-invalidation	四类对象共享 key 的往返恢复精确对账并在激活前删除全部旧 Session	./cmd/backup	TestBackupVerifyAndRestoreRoundTrip
+restore-crash-safe-activation	部分跨卷发布保留持久 incomplete 状态且目标不能启动；成功后保留可认证 complete 状态	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
+backup-safe-cli-output	成功终端输出只含协议与数量聚合，不含路径、对象 key、哈希或密钥身份	./cmd/backup	TestRunPrintsOnlySafeAggregate
+backup-safe-cli-error	失败终端分类码不复述私有路径、对象标识或哈希	./cmd/backup	TestSafeErrorCodeNeverEchoesSensitiveDetail
+runtime-lock-contention-state	同数据库第二写入者被拒绝且半恢复状态阻止重新激活	./internal/adapters/runtimeguard	TestAcquireExclusiveRejectsContentionAndIncompleteRestore
+runtime-lock-path-safety	宽权限锁、符号链接父目录与符号链接数据库均被拒绝	./internal/adapters/runtimeguard	TestAcquireExclusiveRejectsUnsafeLockAndSymlinkParent
+runtime-lock-hardlink-safety	多硬链接数据库不能借别名取得独立运行锁	./internal/adapters/runtimeguard	TestAcquireExclusiveRejectsHardlinkedDatabase
+restore-state-durable-publication	complete 内容先单独持久化再原子替换；同步失败仍保留 incomplete 阻断态	./internal/adapters/runtimeguard	TestCompletedRestoreStatePublicationIsFailClosed
+restore-state-database-pair	持久 complete 状态与数据库必须同时存在，孤立状态不得触发空库启动	./internal/adapters/runtimeguard	TestCompletedRestoreStateWithoutDatabaseIsRejected
+recovery-synthetic-email	演练邮件只含一个可解析的非空纯合成 PNG 附件且原文与附件摘要独立	./cmd/recovery-exercise	TestSyntheticEmailContainsOneExactPNGAttachment
+recovery-safe-output	恢复辅助命令终端输出不含受保护 ID、对象摘要或字段名	./cmd/recovery-exercise	TestSafeRecoveryOutputOmitsIdentifiersAndHashes
+recovery-safe-error	恢复辅助命令错误分类不复述受保护 ID、路径或哈希	./cmd/recovery-exercise	TestSafeRecoveryErrorCodeOmitsProtectedDetails
+recovery-exact-increments	备份前冻结形状、既有行摘要与恢复后 Session、attempt、version、同请求契约 AiRun、Claim→Review→Fact 精确增量逐项核对	./cmd/recovery-exercise	TestRecoverySnapshotAndExactPostRestoreIncrements
+recovery-protected-snapshot	恢复审计只接受 owner-only 的普通快照文件并拒绝额外 Session	./cmd/recovery-exercise	TestRecoverySnapshotAndExactPostRestoreIncrements
+recovery-output-reservation	结果路径在任何演练业务写入前以 owner-only O_EXCL 标记占位，不能因输出冲突污染数据集	./cmd/recovery-exercise	TestProtectedResultIsReservedBeforeExerciseMutation
+performance-output-reservation	性能种子结果在数据库写入前排他占位，冲突时不得开始造数	./cmd/seed-performance	TestPerformanceSeedOutputIsReservedBeforeDatabaseWrites
+performance-output-path-safety	性能种子结果不得指向数据库、运行锁、恢复状态或迁移集合，拒绝后不得开始造数	./cmd/seed-performance	TestPerformanceSeedOutputCannotAliasProtectedPaths

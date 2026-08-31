@@ -1,6 +1,6 @@
 # 范围与非目标
 
-状态：M0、M1、M2、M3 已完成；M4 首切片“确定性 Fact 洞察与筛选查询”已完成，下一断点为完整备份恢复演练
+状态：M0、M1、M2、M3 已完成；M4 首、第二切片已完成，当前进入运行质量与本地发布准备
 适用范围：Clean Slate 新架构
 
 ## 最高边界
@@ -242,7 +242,7 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 
 ## M4：洞察、加固与本地发布准备
 
-状态：进行中；首切片已完成并通过验收，下一切片待冻结。
+状态：进行中；首、第二切片已完成并通过验收，下一切片为运行质量与本地发布准备。
 
 ### 首切片范围内：确定性 Fact 洞察与筛选查询
 
@@ -260,7 +260,26 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 - 汇率换算、跨币种或跨 Payment/Invoice 类型的金额合计；
 - 真实模型评测、真实邮箱/Provider/外部账号联调、部署、发布、Tag 或远端操作。
 
-完整不变量、失败边界和验收要求见 `docs/decisions/0017-deterministic-fact-insights-and-query.md` 与 `docs/acceptance.md`，验收证据见 `docs/m4-evidence.md` 与 `tests/evidence/m4/fact-insights-gate-summary.json`。后续 M4 切片仍须依次冻结备份恢复、运行质量和本地发布准备范围后实施。
+完整不变量、失败边界和验收要求见 `docs/decisions/0017-deterministic-fact-insights-and-query.md` 与 `docs/acceptance.md`，验收证据见 `docs/m4-evidence.md` 与 `tests/evidence/m4/fact-insights-gate-summary.json`。第二切片现已单独冻结；运行质量和本地发布准备仍须在各自实施前更新权威范围。
+
+### 第二切片范围内：认证的停机备份与完整恢复演练
+
+- 用新的 `smart-bill-manager-backup/2` 替代 M1 清单和工具入口，不保留旧版本解析或参数兼容；
+- 数据备份包只含 SQLite、精确已提交对象集合和经 HMAC 认证且带随机 `backup_set_id` 的清单；既有主密钥由独立托管文件提供，不复制进数据包；
+- 应用、初始化命令和备份共享运行锁；备份要求 WAL checkpoint、排他快照、完整/外键/迁移/Schema 校验以及空 `staging/`、空 `trash/`；
+- 对上传 Document、DocumentPage、邮件原文和非空邮件附件的全部对象引用做去重后精确对账，拒绝缺失、冲突和未引用文件；
+- 恢复只写与源、迁移和 guard 路径不重叠的不存在目标，使用分区 staging 与永久 `restore-state`；durable incomplete 阻断半恢复，独立同步后的 complete 原子替换并与数据库成对；首次启动前失效全部旧 Session；
+- 用恰好 1,000 个具有实际纯合成原件的 Document，覆盖 997 个普通失败上传、1 个失败邮件附件 Document、已确认 Fact、处理中租约、已由挂起 Provider 请求证明落库的 `running` AiRun、邮件原文/附件共享对象和恰好 2 个派生页；对象固定为 1,004 条引用与 1,003 个唯一物理文件；
+- 创建数据包后、首次独立 verify 前启动唯一 30 分钟时钟；恢复副本先证明原快照查询/下载可用，再覆盖租约接管、AiRun 收口、继续审核和唯一闭合 Fact 链。既有非 Session 行摘要与非目标 Job/AiRun 必须不变。
+
+### 第二切片范围外
+
+- 在线/增量备份、云备份、自动故障转移、非零 RPO 的生产变更重放或真实灾难切换；
+- 提交、保留或复用真实/长期凭据；本轮经单独授权的一次性本地演练凭据不构成产品能力；真实 Provider、邮箱、外部账号、云服务、部署或发布；
+- 旧 M1 清单、旧数据库、旧对象布局、旧任务状态或旧工具入口兼容；
+- 运行质量、生产镜像与本地发布准备的其余门禁，它们在本切片通过后另行冻结。
+
+本切片的唯一决策边界为 `docs/decisions/0018-authenticated-offline-backup-and-recovery.md`。通过证据写入 `docs/m4-evidence.md` 与 `tests/evidence/m4/backup-restore-gate-summary.json`；完整演练已经通过，后续不得用该本地结果冒充真实灾难切换或生产发布结论。
 
 ## 范围变更规则
 

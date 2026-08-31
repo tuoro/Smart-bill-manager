@@ -1,19 +1,34 @@
 #!/usr/bin/env node
 
-import { timingSafeEqual } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 import { createServer } from "node:http";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const maxRequestBytes = 24 * 1024 * 1024;
+const providerKind = "smart-bill-manager-synthetic-provider";
+const providerVersion = 1;
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
   const apiKey = await readProtectedSecret(options.apiKeyFile, 4096);
+  const instanceID = randomUUID();
   const counters = { requests: 0, probes: 0, extractions: 0 };
   const server = createServer(async (request, response) => {
     try {
       if (request.method === "GET" && request.url === "/healthz") {
-        return writeJSON(response, 200, { status: "ok", ...counters });
+        return writeJSON(response, 200, {
+          kind: providerKind,
+          version: providerVersion,
+          status: "ok",
+          model: options.model,
+          mode: options.mode,
+          exercise_id: options.exerciseID,
+          instance_id: instanceID,
+          ...counters,
+        });
       }
       if (request.method !== "POST" || request.url !== "/v1/chat/completions") {
         return writeJSON(response, 404, { error: { message: "not found" } });
@@ -91,7 +106,7 @@ async function main() {
     shuttingDown = true;
     server.close((error) => {
       apiKey.fill(0);
-      if (error) process.stderr.write(`${error.message}\n`);
+      if (error) process.stderr.write("synthetic-provider: shutdown_failed\n");
       process.exitCode = error ? 1 : 0;
     });
     setTimeout(() => server.closeAllConnections(), 1_000).unref();
@@ -132,9 +147,13 @@ function paymentEnvelope() {
 function authorized(value, expected) {
   if (!value?.startsWith("Bearer ")) return false;
   const provided = Buffer.from(value.slice("Bearer ".length), "utf8");
-  return (
-    provided.length === expected.length && timingSafeEqual(provided, expected)
-  );
+  try {
+    return (
+      provided.length === expected.length && timingSafeEqual(provided, expected)
+    );
+  } finally {
+    provided.fill(0);
+  }
 }
 
 async function readRequest(request, maximumBytes) {
@@ -170,9 +189,21 @@ function parseArguments(argumentsList) {
     const value = argumentsList[index + 1];
     if (!key?.startsWith("--") || value === undefined)
       throw new Error(`invalid argument near ${key ?? "<end>"}`);
-    values.set(key.slice(2), value);
+    const name = key.slice(2);
+    if (values.has(name)) throw new Error(`duplicate --${name}`);
+    values.set(name, value);
   }
-  for (const name of ["listen", "api-key-file", "model"]) {
+  const allowed = new Set([
+    "listen",
+    "api-key-file",
+    "model",
+    "mode",
+    "exercise-id",
+  ]);
+  for (const name of values.keys()) {
+    if (!allowed.has(name)) throw new Error(`unknown --${name}`);
+  }
+  for (const name of ["listen", "api-key-file", "model", "exercise-id"]) {
     if (!values.get(name)) throw new Error(`--${name} is required`);
   }
   const match = /^(127\.0\.0\.1|::1):(\d+)$/.exec(values.get("listen"));
@@ -184,34 +215,93 @@ function parseArguments(argumentsList) {
   const mode = values.get("mode") ?? "normal";
   if (mode !== "normal" && mode !== "hang-extractions")
     throw new Error("--mode must be normal or hang-extractions");
+  if (!/^synthetic-[a-z0-9._-]+$/.test(values.get("model"))) {
+    throw new Error("--model must use a synthetic-* identity");
+  }
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+      values.get("exercise-id"),
+    )
+  ) {
+    throw new Error("--exercise-id must be a UUIDv4");
+  }
   return {
     host: match[1],
     port,
     apiKeyFile: values.get("api-key-file"),
     model: values.get("model"),
     mode,
+    exerciseID: values.get("exercise-id"),
   };
 }
 
 async function readProtectedSecret(path, maximumBytes) {
-  const information = await stat(path);
-  if (!information.isFile() || (information.mode & 0o077) !== 0) {
+  const handle = await open(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW,
+  ).catch(() => {
+    throw new Error("open protected API key file");
+  });
+  const information = await handle.stat().catch(async () => {
+    await handle.close().catch(() => {});
+    throw new Error("inspect protected API key file");
+  });
+  if (
+    !information.isFile() ||
+    (information.mode & 0o077) !== 0 ||
+    information.nlink !== 1
+  ) {
+    await handle.close();
     throw new Error("API key file must be regular and owner-only");
   }
-  const content = await readFile(path);
+  let content;
+  try {
+    content = await handle.readFile();
+  } finally {
+    await handle.close();
+  }
   const end =
     content.at(-1) === 0x0a
       ? content.length - (content.at(-2) === 0x0d ? 2 : 1)
       : content.length;
   const result = Buffer.from(content.subarray(0, end));
-  if (result.length < 1 || result.length > maximumBytes)
+  content.fill(0);
+  if (result.length < 1 || result.length > maximumBytes) {
+    result.fill(0);
     throw new Error("API key file size is invalid");
+  }
   return result;
 }
 
-main().catch((error) => {
-  process.stderr.write(
-    `${error instanceof Error ? error.message : String(error)}\n`,
-  );
-  process.exitCode = 1;
-});
+function safeProviderErrorCode(error) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (
+    message.includes("argument") ||
+    message.includes("required") ||
+    message.includes("listen") ||
+    message.includes("model") ||
+    message.includes("mode") ||
+    message.includes("unknown") ||
+    message.includes("duplicate")
+  ) {
+    return "invalid_arguments";
+  }
+  if (message.includes("api key") || message.includes("protected")) {
+    return "protected_key_invalid";
+  }
+  return "startup_failed";
+}
+
+export { parseArguments, safeProviderErrorCode };
+
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  main().catch((error) => {
+    process.stderr.write(
+      `synthetic-provider: ${safeProviderErrorCode(error)}\n`,
+    );
+    process.exitCode = 1;
+  });
+}

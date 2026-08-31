@@ -35,9 +35,16 @@ __pycache__/
 **/*.sqlite3
 **/*.sqlite-shm
 **/*.sqlite-wal
+**/*.sqlite.runtime.lock
+**/*.sqlite.restore-state
+**/.sbm-restore-complete-*
 **/*.db
 **/*.db-shm
 **/*.db-wal
+**/.sbm-backup-*/
+**/.sbm-restore-database-*/
+**/.sbm-restore-objects-*/
+**/.sbm-restore-key-*/
 
 # IDE
 .idea/

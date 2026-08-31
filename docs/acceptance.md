@@ -449,6 +449,22 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 本节只覆盖新系统自身，不读取或恢复旧版本数据。
 
+### M4 完整恢复切片的冻结口径
+
+- 恢复集合由经认证的数据包与独立托管的既有主密钥组成；主密钥不得进入数据包、清单、CLI 输出或仓库证据。清单固定为 `smart-bill-manager-backup/2`，使用主密钥域分离派生的 HMAC-SHA-256 认证并包含随机 `backup_set_id`；backup、verify、restore、API 与数据库受保护结果必须属于同一集合，不兼容 M1 清单。
+- 应用、Owner 初始化与备份共享运行锁。数据包创建必须在应用锁可独占、WAL checkpoint 完成和排他 SQLite 事务内进行；`staging/`、`trash/` 必须为空。
+- SQLite 必须通过完整 `integrity_check`、空 `foreign_key_check`、当前迁移集合与 Schema 身份核对；数据库表数量、审计链和 SQLite 文件记录进入清单。
+- 对象清单必须精确等于数据库引用的唯一物理对象集合。引用来源覆盖 Document、DocumentPage、EmailMessage 原文和非空 EmailAttachment；共享 key 去重但引用行数单独记录，同 key 的哈希和已知大小必须一致。缺失、多余、错哈希、错大小或不安全路径全部失败。
+- 恢复只写不存在且与备份/迁移/运行锁/激活状态互不重叠的目标。数据库、对象根和主密钥在各自目标文件系统内 staging 并离线复核；发布前持久化 owner-only `restore-state=incomplete`。只有全部发布、同步和后检查成功后，才能用已单独同步的 complete 文件原子替换；状态永久保留，incomplete、未知、损坏或孤立状态均阻止启动。
+- 离线恢复先证明原始快照与清单完全一致，再删除全部 Session。会话失效后除 `sessions = 0` 外的表数量、Schema、审计链和对象集合仍须相等；旧 Cookie 必须失败，新登录必须成功。
+- 固定数据集最终恰好为 1,000 个具有实际纯合成原件的 Document：997 个普通上传与 1 个邮件附件 Document/Job 明确失败于 `provider_config_missing`、1 个已确认 Payment Fact、1 个备份时带有效租约和唯一旧 `running` AiRun 的 Processing Job；唯一旧 `succeeded` AiRun 必须归属已确认 Document。固定包含 2 个 DocumentPage、1,004 条对象引用与 1,003 个唯一物理对象。控制器必须以同一 exercise/model/mode/instance 的回环 health 精确证明 0→1 次提取，不能只凭 Job=`processing` 推断 AiRun 已落库。
+- 先创建数据包，再在首次独立 verify 前启动不可重置的 30 分钟时钟。恢复启动后先验证 ready、旧 Cookie 拒绝、新登录和原快照 Fact/Document/五个上传与邮件对象可查询下载；全部读取完成后必须以目标 Job 仍为 `processing` 且 attempt 未变化形成线性化屏障，随后才允许租约接管、旧 AiRun 全库唯一转为 `failed/lease_expired`、attempt 增加一次、version 按唯一正常链增长、继续到 `needs_review` 与最终确认。
+- 备份前必须冻结全部既有非 Session 行的稳定摘要；恢复后除目标 Job/Document/旧 AiRun 的明确列外摘要完全相等。目标新 AiRun 必须与旧请求保持同一 Provider 版本/指纹、模型、Prompt、Schema/Mapper/输入版本和请求哈希。最终只允许新增一个与该新 AiRun 闭合的 Claim→Review→Payment 链及其 Evidence、Validation、Origin、可选重复候选/决定和一个确认审计事件；其他变化失败。
+- 演练 RPO 固定为 0；备份完成到恢复验证之间不得写入或删除业务数据。非零 RPO、快照后租户删除/凭据撤销重放和真实灾难切换属于生产发布门禁，不得由本地演练虚构。
+- 证据 JSON 只允许安全聚合、清单摘要、相等性布尔值、状态数量和耗时；不得包含数据包、数据库、对象、独立主密钥、Cookie、密码、Provider 密钥、真实财务字段、原始响应或日志。
+
+验收状态：2026-08-31 按 ADR-0018 通过。完整演练使用经单独授权、仅存在于 `/tmp` 隔离目录的一次性本地主密钥、Owner 密码与 synthetic Provider key；固定数据集精确包含 1,000 个 Document、1,000 个 Job、2 个 DocumentPage、1,004 条对象引用与 1,003 个唯一物理对象。认证备份、独立验证和恢复分别用时 738、317 和 1,356 ms，恢复前 3 个 Session 全部失效；从不可重置时钟到任务继续、最终确认和数据库复核共 115,291 ms，低于 30 分钟门槛。旧 Cookie 被拒绝，3 个 Document 查询和 5 个鉴权下载先于任务续跑验证，目标 attempt 只增加一次、version 按唯一链增加 3，稳定既有行摘要保持不变且只新增一个闭合 Claim→Review→Payment 链。全量测试、静态检查、构建、Web、14 项控制器逻辑测试、136 / 136 关键不变量及两层覆盖率门禁均通过；既有 M1 两 Document 冒烟未被计入本切片结果。
+
 ## 十一、UI/UX 与可访问性
 
 - 已冻结 `docs/ui-ux.md` 中的 02「国内大厂中后台」，M1 不得并行实现其他页面骨架。

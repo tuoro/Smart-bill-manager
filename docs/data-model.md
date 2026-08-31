@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1、M2、M3 已完成；M4 首切片“确定性 Fact 洞察与筛选查询”已完成，下一断点为完整备份恢复演练
+状态：M0、M1、M2、M3 已完成；M4 首、第二切片已完成，当前进入运行质量与本地发布准备
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -516,6 +516,22 @@ FactInsightProjection 不是数据库实体，只在一次 SQLite 读事务和�
 - 可选当前 Trip：trip_id、destination、start_date、end_date。
 
 当前 allocated_minor 只从活动 PaymentInvoiceLink 聚合；当前 Trip 只从活动 TripFactAssignment 读取。投影不保存 Source、Claim、Evidence、邮件、Provider、Reimbursement 快照或删除资源内容，不允许反向写回 Fact。汇总按币种与 fact_type 分别包含数量、总额、已分配、剩余和状态数量；它同样不是表、缓存或第二数据源。规范版本固定为 `fact-insights/1`，游标版本固定为 `fact-insight-cursor/1`。
+
+## BackupManifestV2（M4 第二切片，离线制品）
+
+BackupManifestV2 不是数据库实体或运行时第二数据源，只描述一次停机快照。规范身份固定为 `smart-bill-manager-backup/2`：
+
+- backup_set_id（128-bit 随机小写十六进制）、created_at、migration_set_sha256、schema_sha256；
+- SQLite 文件 path、size_bytes、sha256，`integrity_check = ok`、`foreign_key_violation_count = 0`；
+- 按表名排序的全部 table_counts，以及 audit_chain_sha256；
+- document_count、object_reference_count、unique_object_count；
+- 按安全相对路径排序且唯一的 ObjectFileRecord：path、size_bytes、sha256。
+
+清单不包含主密钥、密钥哈希、凭据、Cookie、业务字段或原始响应。单独的认证标签使用独立主密钥经固定域分离后对清单原始字节计算 HMAC-SHA-256。清单、标签与数据包不能自行恢复或伪造认证；操作者必须从独立数据源提供同一既有主密钥。
+
+对象引用行可以因 EmailAttachment 与其 Document 共享原件而重复，但同一 storage_key 的 SHA-256 和已知大小必须一致；unique_object_count 是去重后的物理集合，且必须精确等于数据包和恢复对象根的文件集合。`staging/`、`trash/`、运行锁和永久 `restore-state` 都不属于备份对象。
+
+离线恢复先逐字验证该快照；随后 sessions 被强制清空，因此激活前最终状态要求除 sessions 从清单值变为 0 外，其余表数量、Schema、审计链和对象集合不变。恢复过程不把该预期安全变化写回原清单。演练另在受保护快照中冻结既有非 Session 行的确定性摘要与 append-only 表前缀计数；这些不是运行时实体或第二数据源，只用于证明首次启动后的新增行全部闭合到唯一恢复任务。
 
 ## 删除与保留
 

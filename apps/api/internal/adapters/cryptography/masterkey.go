@@ -7,21 +7,30 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 func LoadMasterKeyFile(path string) ([]byte, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return nil, fmt.Errorf("inspect master key file: %w", err)
-	}
-	if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
-		return nil, errors.New("master key file must be regular and accessible only by its owner")
-	}
-	file, err := os.Open(path)
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open master key file: %w", err)
 	}
+	file := os.NewFile(uintptr(fd), path)
+	if file == nil {
+		_ = unix.Close(fd)
+		return nil, errors.New("open master key file: invalid file descriptor")
+	}
 	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("inspect master key file: %w", err)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 || !ok || stat.Nlink != 1 {
+		return nil, errors.New("master key file must be a singly linked regular file accessible only by its owner")
+	}
 	encoded, err := io.ReadAll(io.LimitReader(file, 129))
 	if err != nil {
 		return nil, fmt.Errorf("read master key file: %w", err)

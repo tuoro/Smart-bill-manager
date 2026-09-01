@@ -3,7 +3,7 @@
 > **中文：** [README.md](README.md)
 
 > [!IMPORTANT]
-> M0 through M4 local functionality and local-release readiness are complete. PostgreSQL 17 is the only relational data source. The new system does not preserve v0.x compatibility or read or migrate legacy data. Formal real-model evaluation, real external integration, and production release remain separately authorized gates.
+> `v0.3.0` is a public-testing prerelease of the Clean Slate system. M0 through M4 local functionality and local-release readiness are complete. PostgreSQL 17 is the only relational data source. The new system does not preserve v0.x compatibility or read or migrate legacy data. Formal real-model evaluation, real external integration, and production deployment are not yet complete.
 
 Smart Bill Manager is a self-hosted AI financial-document workspace for individuals and small teams. After a user uploads a payment screenshot or invoice, the system produces verifiable candidate fields and evidence. A candidate becomes a formal financial fact only after explicit user confirmation.
 

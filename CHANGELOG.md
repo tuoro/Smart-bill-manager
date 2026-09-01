@@ -2,6 +2,25 @@
 
 本项目从 `v0.2.0` 起按语义化版本记录面向使用者和维护者的重要变化。
 
+## [0.3.0] - 2026-09-01
+
+### Clean Slate 新架构
+
+- 交付 M0～M4 本地产品功能：AI 收件箱、人工审核、Payment/Invoice Fact、金额分配、重复检测、跨页明细、批量上传、邮件附件、行程、报销和确定性洞察。
+- PostgreSQL 17 成为唯一关系数据源；新系统不读取或迁移 SQLite 及 `v0.x` 旧数据，也不保留旧 API、双写或兼容入口。
+- AI 链路固定为原始图片直达多模态模型、最小中文指令提取票面文本、本地确定性规范化与 JSON/Claim 组装；模型不能直接创建 Fact。
+
+### 本地发布准备
+
+- 提供单一受限 Compose 运行入口、最小权限 PostgreSQL 角色、显式迁移、Owner 初始化、健康检查和认证备份恢复工具。
+- 本地门禁已覆盖 M1～M4 不变量、10,000 Fact 性能、内存稳定、1,000 Document 恢复、浏览器流程、响应式、可访问性和发布镜像安全检查。
+- 本版本作为新架构公开实测预发布版发布。真实模型正确率正式评测、真实邮箱或 Provider 联调及生产部署尚未完成，不应视为生产稳定版。
+
+### 重要边界
+
+- `v0.3.0` 必须使用全新数据库和对象存储；不支持从 `v0.2.4` 或更早版本原地升级。
+- 仓库内旧 `backend-go/`、`frontend/` 与旧部署文件只保留为历史参考，不是 `v0.3.0` 运行入口。
+
 ## [0.2.4] - 2026-08-10
 
 ### 数据迁移与密钥一致性
@@ -121,6 +140,7 @@
 - 提供支付、发票、邮箱、行程、多用户和异步 OCR 的既有功能。
 - 保存可回退 Git 标签和 GHCR 容器镜像。
 
+[0.3.0]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.1...v0.2.2

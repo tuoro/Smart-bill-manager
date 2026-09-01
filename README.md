@@ -5,26 +5,26 @@
 Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作台。它把支付截图、发票和行程资料整理成可追溯候选；只有用户明确审核确认后，候选才会成为正式财务事实。
 
 > [!IMPORTANT]
-> `v0.3.1` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
+> `v0.3.2` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
 
 ## Docker 快速部署
 
 使用 Release 部署包只需要 Docker Engine、Docker Compose 2.24.4 或更新版本，以及至少 6 GiB 可用内存；只有从源码 Tag 部署时才需要 Git。
 
-GitHub Release 从下一个补丁版开始同时提供 `smart-bill-manager-docker-<version>.tar.gz` 和 SHA-256 文件。该部署包只包含 Compose、部署工具和必要文档，不包含源码。下载并校验所选 Release 的两个附件后：
+GitHub Release 从 `v0.3.2` 开始同时提供 `smart-bill-manager-docker-<version>.tar.gz` 和 SHA-256 文件。该部署包只包含 Compose、部署工具和必要文档，不包含源码。下载并校验所选 Release 的两个附件后：
 
 ```bash
-sha256sum -c smart-bill-manager-docker-<version>.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-<version>.tar.gz
+sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
 cd smart-bill-manager-docker
 ```
 
-当前 `v0.3.1` 仍可从固定源码 Tag 取得同一部署入口：
+也可以从固定源码 Tag 取得同一部署入口：
 
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
-git checkout v0.3.1
+git checkout v0.3.2
 
 mkdir -p ../sbm-runtime-parent
 runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"

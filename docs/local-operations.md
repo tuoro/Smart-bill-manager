@@ -1,8 +1,8 @@
 # 本地运行与发布候选运维说明
 
-状态：M4 PostgreSQL 本地候选与 v0.3.1 单机公开实测分发已完成；不代表生产部署
+状态：M4 PostgreSQL 本地候选与 v0.3.2 Docker 单机公开实测分发已完成；不代表生产部署
 
-普通使用者应先阅读 [v0.3.1 单机自托管部署](deployment.md)。本文件保留候选构建、深度诊断、恢复和验收细节，不是首次安装的最短路径。
+普通使用者应先阅读 [Docker 单机自托管部署](deployment.md)。本文件保留候选构建、深度诊断、恢复和验收细节，不是首次安装的最短路径。
 
 本说明只适用于 `rebirth` Clean Slate 系统。唯一入口是 `infra/docker/app.Dockerfile` 与 `infra/compose/compose.yaml`；旧应用、旧数据库、旧 Compose、旧任务状态和旧架构数据迁移均不受支持。该边界不禁止新架构 PostgreSQL 的连续 Schema migration；认证备份与恢复的完整不变量见 `docs/backup-restore.md`。
 

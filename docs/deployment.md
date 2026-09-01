@@ -15,23 +15,23 @@
 
 从所选 GitHub Release 下载同版本的以下两个附件：
 
-- `smart-bill-manager-docker-<version>.tar.gz`；
-- `smart-bill-manager-docker-<version>.tar.gz.sha256`。
+- `smart-bill-manager-docker-v0.3.2.tar.gz`；
+- `smart-bill-manager-docker-v0.3.2.tar.gz.sha256`。
 
 在同一目录校验并展开：
 
 ```bash
-sha256sum -c smart-bill-manager-docker-<version>.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-<version>.tar.gz
+sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
 cd smart-bill-manager-docker
 ```
 
-部署包只包含当前 Compose、版本镜像清单、部署工具和必要文档，不包含源码、凭据或运行数据。`v0.3.1` 尚未附带该压缩包，可使用固定源码 Tag：
+部署包只包含当前 Compose、版本镜像清单、部署工具和必要文档，不包含源码、凭据或运行数据。也可以使用固定源码 Tag：
 
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
-git checkout v0.3.1
+git checkout v0.3.2
 ```
 
 使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。

@@ -5,26 +5,26 @@
 Smart Bill Manager is a self-hosted AI workspace for financial documents. It turns payment screenshots, invoices, and trip material into traceable candidates; a candidate becomes formal financial data only after explicit human review and confirmation.
 
 > [!IMPORTANT]
-> `v0.3.1` is a public-testing prerelease of the Clean Slate system. The first distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
+> `v0.3.2` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
 
 ## Docker quick deployment
 
 The Release deployment bundle only requires Docker Engine, Docker Compose 2.24.4 or newer, and at least 6 GiB of available memory. Git is only required when deploying from a source tag.
 
-Starting with the next patch release, each GitHub Release also includes `smart-bill-manager-docker-<version>.tar.gz` and its SHA-256 file. The bundle contains only Compose, deployment tools, and required documentation—not the source tree. Download both assets from the selected Release, then run:
+Starting with `v0.3.2`, each GitHub Release also includes `smart-bill-manager-docker-<version>.tar.gz` and its SHA-256 file. The bundle contains only Compose, deployment tools, and required documentation—not the source tree. Download both assets from the selected Release, then run:
 
 ```bash
-sha256sum -c smart-bill-manager-docker-<version>.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-<version>.tar.gz
+sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
 cd smart-bill-manager-docker
 ```
 
-The current `v0.3.1` deployment entry point remains available from its fixed source tag:
+The same deployment entry point is also available from the fixed source tag:
 
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
-git checkout v0.3.1
+git checkout v0.3.2
 
 mkdir -p ../sbm-runtime-parent
 runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"

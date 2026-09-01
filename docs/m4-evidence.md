@@ -5,7 +5,7 @@
 
 ## 当前权威结论
 
-M4 当前基线以 ADR-0020、ADR-0019 和 ADR-0021 为边界：PostgreSQL 17 是唯一关系数据源，本地对象文件存储保持不变。系统不读取或迁移 SQLite 数据，不保留 SQLite 驱动、生产适配器、迁移、运行配置、数据库卷、备份入口、运行时选择、双写或第二测试数据源。
+M4 当前基线以 ADR-0020、ADR-0019、ADR-0021 和 ADR-0022 为边界：PostgreSQL 17 是唯一关系数据源，本地对象文件存储保持不变。系统不读取或迁移 SQLite 数据，不保留 SQLite 驱动、生产适配器、迁移、运行配置、数据库卷、备份入口、运行时选择、双写或第二测试数据源；新架构公开版本之间则使用连续 PostgreSQL Schema migration 保留数据前向升级。
 
 历史 SQLite 洞察与恢复切片曾于 2026-08-31 通过，但已被 ADR-0020 替代，只保留为决策历史，不能作为当前发布候选证据。当前 PostgreSQL 结论来自本轮重新实现和 final13 候选的完整重新验收。
 
@@ -57,7 +57,7 @@ M4 当前基线以 ADR-0020、ADR-0019 和 ADR-0021 为边界：PostgreSQL 17 �
 
 安全聚合见 `tests/evidence/m4/self-hosted-prerelease-gate-summary.json`。它只记录镜像身份、布尔门禁和数量，不保存路径、容器 ID、Cookie、密码、主密钥、数据库内容或原始响应。
 
-## 通用 Docker 分发与前向升级
+## v0.3.2 通用 Docker 分发与前向升级
 
 ADR-0022 在不改变业务镜像、API、Schema 或 Web 的前提下收敛了后续补丁版分发：GitHub Release 可以附带只含 12 个批准文件的最小 Docker 部署包和 SHA-256；不可变镜像身份由包内 `release.env` 提供，用户运行目录只保存非秘密配置、持久化路径和 secret 文件路径。调用方环境不能覆盖两个固定镜像摘要。
 

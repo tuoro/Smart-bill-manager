@@ -10,48 +10,64 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 ## Docker quick deployment
 
-The Release deployment bundle only requires Docker Engine, Docker Compose 2.24.4 or newer, and at least 6 GiB of available memory. Git is only required when deploying from a source tag.
+Requires `linux/amd64`, Docker Engine, Docker Compose 2.24.4 or newer, `curl`, `sha256sum`, `tar`, and at least 6 GiB of available memory.
 
-Starting with `v0.3.2`, each GitHub Release also includes `smart-bill-manager-docker-<version>.tar.gz` and its SHA-256 file. The bundle contains only Compose, deployment tools, and required documentation—not the source tree. Download both assets from the selected Release, then run:
+### One-command installation (recommended)
 
-```bash
-sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
-cd smart-bill-manager-docker
-```
-
-Starting with the next deployment bundle, run the guided installer directly:
+After the next patch release is published, replace the version below to download the installer from an immutable tag, verify the matching deployment bundle, and enter guided setup:
 
 ```bash
-./install.sh
+version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
-It asks for the runtime directory, PostgreSQL data directory, object directory, backup directory, Owner details, and local port, then pulls the two independent images, initializes the database, and starts the service. Press Enter to accept the default paths, or enter new absolute paths for separate storage. PostgreSQL is not embedded in the application image.
+The installer asks for runtime, PostgreSQL data, object, and backup directories, Owner details, and the local port. Press Enter to accept defaults. Public `v0.3.2` does not contain this entry point; use the [v0.3.2 deployment guide](docs/deployment.md) until the next release is published.
 
-The same deployment entry point is also available from the fixed source tag:
+### Docker Compose
+
+After extracting the matching Release bundle, run `./install.sh` for first-time setup. Once initialized, the same configuration can be managed explicitly with Compose:
 
 ```bash
-git clone https://github.com/tuoro/Smart-bill-manager.git
-cd Smart-bill-manager
-git checkout v0.3.2
-
-mkdir -p ../sbm-runtime-parent
-runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
-./tools/prepare-self-hosted-deployment.sh "$runtime_directory"
-./tools/sbm-deploy.sh "$runtime_directory" pull
+runtime_directory=/absolute/path/to/sbm-runtime
+docker compose --project-name smart-bill-manager \
+  --env-file "$runtime_directory/deployment.env" \
+  --env-file infra/compose/release.env \
+  -f infra/compose/compose.yaml \
+  -f infra/compose/compose.release.yaml \
+  up -d --no-build --pull never --wait app
 ```
 
-The current `main` source tree can run `./tools/install-self-hosted.sh` for the same guided flow. The public `v0.3.2` bundle does not contain `install.sh`, so that release still uses the manual commands above.
+The first provision, migration, and Owner bootstrap must still be run in order by `./install.sh`; do not skip them with a standalone `compose up`.
 
-Record the one-time Owner password from `$runtime_directory/owner-password`, then bootstrap and start the application:
+### Docker CLI (`docker run` style)
+
+If PostgreSQL 17, least-privilege roles, the schema, and the Owner have already been prepared according to the deployment guide, the application container can be started with Docker CLI:
 
 ```bash
-./tools/sbm-deploy.sh "$runtime_directory" bootstrap \
-  owner@example.invalid "Owner" "My Workspace" CNY Asia/Shanghai
-./tools/sbm-deploy.sh "$runtime_directory" start
+docker run -d \
+  --name smart-bill-manager \
+  --restart unless-stopped \
+  --init \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=268435456 \
+  --tmpfs /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700 \
+  --cap-drop ALL \
+  --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add SETGID --cap-add SETUID \
+  --security-opt no-new-privileges:true \
+  --pids-limit 256 --cpus 2 --memory 3584m --stop-timeout 20 \
+  --network smart-bill-manager_database \
+  -p 127.0.0.1:7476:8080 \
+  -v /absolute/path/to/objects:/var/lib/sbm/objects \
+  --mount type=bind,src=/absolute/path/to/master-key,dst=/run/secrets/sbm_master_key,readonly \
+  --mount type=bind,src=/absolute/path/to/postgres-runtime-password,dst=/run/secrets/sbm_postgres_runtime_password,readonly \
+  -e SBM_DEPLOYMENT_MODE=local \
+  -e SBM_COOKIE_SECURE=false \
+  -e SBM_SESSION_TTL=168h \
+  -e SBM_AI_CONCURRENCY=2 \
+  ghcr.io/tuoro/smart-bill-manager:v0.3.3
+docker network connect bridge smart-bill-manager
 ```
 
-Open <http://127.0.0.1:8080> and sign in. See the [deployment guide](docs/deployment.md) for prerequisites, security boundaries, daily operations, and backup guidance. The detailed deployment guide is currently maintained in Chinese.
+Stop the Compose-managed app first to avoid a port conflict. This starts only the application container. It does not create PostgreSQL, roles, schema, or the Owner. It reuses the internal database network created by Compose, where PostgreSQL has the alias `database`, then joins the default bridge for outbound Provider access. Prefer the one-command installer or Compose for a complete installation. Open <http://127.0.0.1:7476> after successful startup. See the [deployment guide](docs/deployment.md) for complete boundaries; the detailed guide is maintained in Chinese.
 
 ## Database and persistence
 

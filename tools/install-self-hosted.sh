@@ -6,6 +6,7 @@ usage() {
 usage: install-self-hosted.sh [options]
 
 options:
+  --release-version vMAJOR.MINOR.PATCH
   --runtime-directory ABSOLUTE_NEW_DIRECTORY
   --postgres-directory ABSOLUTE_NEW_DIRECTORY
   --objects-directory ABSOLUTE_NEW_DIRECTORY
@@ -20,18 +21,7 @@ EOF
   exit 2
 }
 
-script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-if [ -x "${script_directory}/prepare-self-hosted-deployment.sh" ]; then
-  tools_directory=$script_directory
-  bundle_root=$(dirname -- "$script_directory")
-elif [ -x "${script_directory}/tools/prepare-self-hosted-deployment.sh" ]; then
-  tools_directory=${script_directory}/tools
-  bundle_root=$script_directory
-else
-  printf '%s\n' "deployment tools are unavailable" >&2
-  exit 1
-fi
-
+release_version=
 runtime_directory=
 postgres_directory=
 objects_directory=
@@ -46,6 +36,7 @@ http_port=
 while [ "$#" -gt 0 ]; do
   [ "$#" -ge 2 ] || usage
   case "$1" in
+    --release-version) release_version=$2 ;;
     --runtime-directory) runtime_directory=$2 ;;
     --postgres-directory) postgres_directory=$2 ;;
     --objects-directory) objects_directory=$2 ;;
@@ -61,13 +52,88 @@ while [ "$#" -gt 0 ]; do
   shift 2
 done
 
+script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+if [ -x "${script_directory}/prepare-self-hosted-deployment.sh" ]; then
+  tools_directory=$script_directory
+  bundle_root=$(dirname -- "$script_directory")
+elif [ -x "${script_directory}/tools/prepare-self-hosted-deployment.sh" ]; then
+  tools_directory=${script_directory}/tools
+  bundle_root=$script_directory
+else
+  [ -n "$release_version" ] || {
+    printf '%s\n' "--release-version is required when the installer is streamed" >&2
+    exit 2
+  }
+  printf '%s\n' "$release_version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || {
+    printf '%s\n' "release version must use vMAJOR.MINOR.PATCH" >&2
+    exit 2
+  }
+  for downloader_command in curl sha256sum tar; do
+    command -v "$downloader_command" >/dev/null 2>&1 || {
+      printf '%s\n' "$downloader_command is required for one-command installation" >&2
+      exit 1
+    }
+  done
+
+  remote_directory=$(mktemp -d "${TMPDIR:-/tmp}/sbm-release-install.XXXXXX")
+  chmod 0700 "$remote_directory"
+  cleanup_remote() {
+    case "$remote_directory" in
+      "${TMPDIR:-/tmp}"/sbm-release-install.*) rm -rf -- "$remote_directory" ;;
+    esac
+  }
+  trap cleanup_remote EXIT HUP INT TERM
+
+  archive_name=smart-bill-manager-docker-${release_version}.tar.gz
+  release_url=https://github.com/tuoro/Smart-bill-manager/releases/download/${release_version}
+  curl -fL --proto '=https' --tlsv1.2 \
+    -o "${remote_directory}/${archive_name}" "${release_url}/${archive_name}"
+  curl -fL --proto '=https' --tlsv1.2 \
+    -o "${remote_directory}/${archive_name}.sha256" "${release_url}/${archive_name}.sha256"
+  (CDPATH= cd -- "$remote_directory" && sha256sum -c "${archive_name}.sha256")
+  tar -xzf "${remote_directory}/${archive_name}" -C "$remote_directory"
+  remote_installer=${remote_directory}/smart-bill-manager-docker/install.sh
+  [ -x "$remote_installer" ] || {
+    printf '%s\n' "verified deployment bundle does not contain install.sh" >&2
+    exit 1
+  }
+
+  set --
+  [ -z "$runtime_directory" ] || set -- "$@" --runtime-directory "$runtime_directory"
+  [ -z "$postgres_directory" ] || set -- "$@" --postgres-directory "$postgres_directory"
+  [ -z "$objects_directory" ] || set -- "$@" --objects-directory "$objects_directory"
+  [ -z "$backups_directory" ] || set -- "$@" --backups-directory "$backups_directory"
+  [ -z "$owner_email" ] || set -- "$@" --owner-email "$owner_email"
+  [ -z "$owner_display_name" ] || set -- "$@" --owner-display-name "$owner_display_name"
+  [ -z "$tenant_name" ] || set -- "$@" --tenant-name "$tenant_name"
+  [ -z "$currency" ] || set -- "$@" --currency "$currency"
+  [ -z "$timezone" ] || set -- "$@" --timezone "$timezone"
+  [ -z "$http_port" ] || set -- "$@" --http-port "$http_port"
+  "$remote_installer" "$@"
+  trap - EXIT HUP INT TERM
+  cleanup_remote
+  exit 0
+fi
+
 default_runtime_directory=$(dirname -- "$bundle_root")/smart-bill-manager-runtime
+use_controlling_terminal=false
+if [ ! -t 0 ] && ( : </dev/tty ) 2>/dev/null; then
+  use_controlling_terminal=true
+fi
+
+read_install_input() {
+  if [ "$use_controlling_terminal" = true ]; then
+    IFS= read -r prompt_value </dev/tty
+  else
+    IFS= read -r prompt_value
+  fi
+}
 
 prompt_default() {
   prompt_label=$1
   prompt_default_value=$2
   printf '%s [%s]: ' "$prompt_label" "$prompt_default_value" >&2
-  IFS= read -r prompt_value || {
+  read_install_input || {
     printf '%s\n' "installation input ended before configuration was complete" >&2
     exit 1
   }
@@ -81,7 +147,7 @@ prompt_default() {
 prompt_required() {
   prompt_label=$1
   printf '%s: ' "$prompt_label" >&2
-  IFS= read -r prompt_value || {
+  read_install_input || {
     printf '%s\n' "installation input ended before configuration was complete" >&2
     exit 1
   }
@@ -125,7 +191,7 @@ owner_password_file=${runtime_directory}/owner-password
 printf '\n一次性 Owner 密码已写入：%s\n' "$owner_password_file"
 printf '%s\n' "请现在将其保存到密码管理器；初始化成功后该文件会被删除。"
 printf '%s' "保存完成后按 Enter 继续，或按 Ctrl+C 停止安装：" >&2
-IFS= read -r _confirmation || {
+read_install_input || {
   printf '%s\n' "installation stopped before Owner bootstrap; prepared files were retained" >&2
   exit 1
 }

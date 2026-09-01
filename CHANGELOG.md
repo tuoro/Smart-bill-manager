@@ -7,7 +7,9 @@
 ### Docker 安装
 
 - 新增引导式单机安装入口，一次完成配置、固定镜像拉取、PostgreSQL 初始化、Owner 创建和应用启动。
+- 支持从固定版本 Tag 以单行命令启动安装器，并在执行前下载、校验同版本 Release Bundle。
 - 安装时可分别选择 PostgreSQL 数据、对象文件和备份目录；应用与 PostgreSQL 仍保持独立容器和独立升级生命周期。
+- README 同时给出一键、Docker Compose 和 `docker run` 风格，并明确直接 Docker CLI 只负责已初始化部署的应用容器。
 
 ## [0.3.2] - 2026-09-01
 

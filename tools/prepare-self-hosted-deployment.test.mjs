@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -180,6 +180,97 @@ test("guided installer preserves custom mappings and invokes the deployment life
     const start = calls.lastIndexOf(" up -d --no-build --pull never --wait app");
     const status = calls.lastIndexOf(" ps");
     assert.ok(pull >= 0 && bootstrap > pull && start > bootstrap && status > start);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("streamed installer downloads and verifies a versioned release bundle before installation", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "sbm-streamed-installer-test-"));
+  const version = "v9.8.7";
+  const archive = join(parent, `smart-bill-manager-docker-${version}.tar.gz`);
+  const streamedInstaller = join(parent, "install.sh");
+  const target = join(parent, "runtime");
+  const postgres = join(parent, "postgres");
+  const objects = join(parent, "objects");
+  const backups = join(parent, "backups");
+  const binaryDirectory = join(parent, "bin");
+  const dockerLog = join(parent, "docker.log");
+  try {
+    await execFileAsync(join(toolsDirectory, "build-self-hosted-bundle.sh"), [archive]);
+    await writeFile(streamedInstaller, await readFile(join(toolsDirectory, "install-self-hosted.sh")), { mode: 0o755 });
+    await mkdir(binaryDirectory);
+    await writeFile(
+      join(binaryDirectory, "curl"),
+      '#!/bin/sh\noutput=\nurl=\nwhile [ "$#" -gt 0 ]; do\n  if [ "$1" = -o ]; then output=$2; shift 2; else url=$1; shift; fi\ndone\ncase "$url" in\n  *.sha256) cp "$FAKE_RELEASE_CHECKSUM" "$output" ;;\n  *) cp "$FAKE_RELEASE_ARCHIVE" "$output" ;;\nesac\n',
+      { mode: 0o755 },
+    );
+    await writeFile(
+      join(binaryDirectory, "docker"),
+      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
+      { mode: 0o755 },
+    );
+    const environment = {
+      ...process.env,
+      PATH: `${binaryDirectory}:${process.env.PATH}`,
+      TMPDIR: parent,
+      FAKE_RELEASE_ARCHIVE: archive,
+      FAKE_RELEASE_CHECKSUM: `${archive}.sha256`,
+      FAKE_DOCKER_LOG: dockerLog,
+    };
+    const { stdout } = await execFileWithInput(streamedInstaller, [
+      "--release-version", version,
+      "--runtime-directory", target,
+      "--postgres-directory", postgres,
+      "--objects-directory", objects,
+      "--backups-directory", backups,
+      "--owner-email", "owner@example.invalid",
+      "--owner-display-name", "Owner",
+      "--tenant-name", "Streamed Workspace",
+      "--currency", "CNY",
+      "--timezone", "Asia/Shanghai",
+      "--http-port", "7476",
+    ], "\n", { env: environment });
+    assert.match(stdout, /smart-bill-manager-docker-v9\.8\.7\.tar\.gz: OK/);
+    assert.match(stdout, /http:\/\/127\.0\.0\.1:7476/);
+    assert.equal((await readdir(parent)).some((name) => name.startsWith("sbm-release-install.")), false);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("streamed installer rejects invalid versions and checksum mismatches without leaving downloads", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "sbm-streamed-installer-failure-test-"));
+  const streamedInstaller = join(parent, "install.sh");
+  const binaryDirectory = join(parent, "bin");
+  const fakeArchive = join(parent, "fake.tar.gz");
+  const fakeChecksum = join(parent, "fake.tar.gz.sha256");
+  try {
+    await writeFile(streamedInstaller, await readFile(join(toolsDirectory, "install-self-hosted.sh")), { mode: 0o755 });
+    await assert.rejects(() => execFileAsync(streamedInstaller, ["--release-version", "latest"]));
+
+    await mkdir(binaryDirectory);
+    await writeFile(fakeArchive, "not a release bundle");
+    await writeFile(
+      fakeChecksum,
+      `${"0".repeat(64)}  smart-bill-manager-docker-v9.8.7.tar.gz\n`,
+    );
+    await writeFile(
+      join(binaryDirectory, "curl"),
+      '#!/bin/sh\noutput=\nurl=\nwhile [ "$#" -gt 0 ]; do\n  if [ "$1" = -o ]; then output=$2; shift 2; else url=$1; shift; fi\ndone\ncase "$url" in\n  *.sha256) cp "$FAKE_RELEASE_CHECKSUM" "$output" ;;\n  *) cp "$FAKE_RELEASE_ARCHIVE" "$output" ;;\nesac\n',
+      { mode: 0o755 },
+    );
+    const environment = {
+      ...process.env,
+      PATH: `${binaryDirectory}:${process.env.PATH}`,
+      TMPDIR: parent,
+      FAKE_RELEASE_ARCHIVE: fakeArchive,
+      FAKE_RELEASE_CHECKSUM: fakeChecksum,
+    };
+    await assert.rejects(() => execFileAsync(streamedInstaller, [
+      "--release-version", "v9.8.7",
+    ], { env: environment }));
+    assert.equal((await readdir(parent)).some((name) => name.startsWith("sbm-release-install.")), false);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }

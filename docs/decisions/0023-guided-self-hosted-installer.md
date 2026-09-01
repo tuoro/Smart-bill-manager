@@ -11,9 +11,11 @@ ADR-0022 已提供固定镜像摘要、Compose 部署包和宿主持久化目录
 
 - PostgreSQL 17 与应用继续作为两个独立容器运行；不把数据库进程、数据目录或升级生命周期并入应用镜像。
 - 新增一个引导式安装入口，交互收集运行目录、三类持久化目录、Owner 身份和监听配置，然后复用现有准备器与部署 wrapper 完成镜像拉取、数据库 provision、Schema migration、Owner bootstrap 和应用启动。
+- 同一安装器支持从固定 Git Tag 流式启动：只接受显式语义版本，下载该 GitHub Release 的版本化 Bundle 与 sidecar，在 owner-only 临时目录通过 SHA-256 后调用包内安装器并回收临时文件。它不解析 `latest`、不查询 API，也不执行未校验 Bundle。
 - PostgreSQL 数据、对象文件和备份目录可分别指定绝对路径；缺省时仍位于运行目录的 `data/postgres`、`data/objects` 和 `backups`。三个目标必须彼此独立、尚不存在且位于 Git 仓库外，安装器不会接管或覆盖已有目录。
 - Secret 仍只写入 Owner 可读文件，不进入命令参数、普通环境、日志或仓库。安装器不打印 Owner 密码；继续前明确暂停，让用户从一次性文件保存密码。bootstrap 成功后删除该文件。
 - 安装器只是唯一 Compose 契约的易用入口。升级、备份、恢复、日志和停止继续使用版本化部署包内的 `sbm-deploy.sh`，不增加第二运行配置或隐藏自动更新器。
+- README 同时给出显式 Compose 命令和 `docker run` 风格的应用容器示例。后者只适用于已由权威流程初始化的独立 PostgreSQL 部署，不承担数据库、角色、migration 或 Owner bootstrap，也不成为第二受支持安装链路。
 
 ## 失败边界
 
@@ -27,6 +29,7 @@ ADR-0022 已提供固定镜像摘要、Compose 部署包和宿主持久化目录
 2. 安装器按 `pull -> bootstrap -> start -> status` 顺序调用唯一部署 wrapper，并在 bootstrap 前暂停提示保存一次性 Owner 密码。
 3. 相对路径、重复路径、既有目标、非法端口和仓库内目标均明确失败，不覆盖用户文件。
 4. Release 部署包只新增安装入口；不包含凭据、数据、源码或新的运行时依赖。
+5. 流式模式拒绝缺失或非法版本，固定下载同版本两个附件，摘要错误时不得解包；纯本地测试证明成功路径会回收下载目录。
 
 ## 结果
 

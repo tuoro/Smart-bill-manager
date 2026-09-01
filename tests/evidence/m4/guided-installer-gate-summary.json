@@ -1,8 +1,8 @@
 {
   "schema_version": "guided-installer-gate-summary/1",
   "recorded_at": "2026-09-01",
-  "baseline_head": "ec52d5b",
-  "scope": "unreleased guided single-host installer and configurable bind directories",
+  "baseline_head": "b24b413",
+  "scope": "unreleased version-pinned one-command installer, configurable bind directories, and documented Compose/Docker CLI forms",
   "architecture": {
     "application_and_postgresql_are_separate_containers": true,
     "postgresql_host_port_published": false,
@@ -16,10 +16,14 @@
     "tool_tests": "passed",
     "default_and_custom_directory_cases": "passed",
     "guided_lifecycle_order": "pull -> bootstrap -> start -> status",
+    "streamed_release_version_validation": "passed",
+    "streamed_bundle_checksum_success_and_failure": "passed",
+    "streamed_temporary_directory_cleanup": "passed",
+    "readme_deployment_forms": "one-command, Docker Compose, bounded docker run",
     "compose_release_config": "passed",
     "bundle_allowlisted_files": 13,
     "bundle_checksum": "verified",
-    "local_markdown_links": 32,
+    "local_markdown_links": 34,
     "git_diff_check": "passed"
   },
   "resource_cleanup": {
@@ -27,7 +31,7 @@
     "matching_container_residuals": 0,
     "temporary_bundle_removed": true,
     "temporary_compose_environment_removed": true,
-    "available_memory_mib_after_tests": 8216
+    "available_memory_mib_after_tests": 8432
   },
   "external_actions": {
     "real_provider_calls": 0,

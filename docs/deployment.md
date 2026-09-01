@@ -6,6 +6,7 @@
 
 - `linux/amd64`；
 - Docker Engine 和 Docker Compose 2.24.4 或更新版本（发布 overlay 使用官方 [`!reset` 合并语义](https://docs.docker.com/reference/compose-file/merge/#reset-value)）；
+- 一条命令安装还需要 `curl`、`sha256sum` 和 `tar`；
 - 至少 6 GiB 可用内存和足够的数据库、对象文件空间；
 - 首次拉取镜像时能访问 `ghcr.io` 和 Docker Hub。
 
@@ -37,6 +38,12 @@ git checkout v0.3.2
 使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
 
 ## 2. 引导式安装（当前 main / 下一版本部署包）
+
+下一补丁版发布后可从固定 Tag 流式取得安装器；安装器随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
+
+```bash
+version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+```
 
 下一版本部署包会在根目录提供安装器：
 
@@ -143,6 +150,29 @@ Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库�
 ```
 
 `down` 只移除容器和网络，保留数据库、对象和配置目录。部署工具故意不提供删除持久数据的命令；不要使用 `docker compose down --volumes`、`docker volume rm` 或手工删除对象文件。
+
+### 直接使用 Docker Compose
+
+`sbm-deploy.sh` 是对唯一 Compose 契约的顺序封装。完成首次 bootstrap 后，也可以显式调用同一组文件：
+
+```bash
+docker compose --project-name smart-bill-manager \
+  --env-file "$runtime_directory/deployment.env" \
+  --env-file infra/compose/release.env \
+  -f infra/compose/compose.yaml \
+  -f infra/compose/compose.release.yaml \
+  up -d --no-build --pull never --wait app
+```
+
+不要在全新数据库上直接执行该命令来替代安装器；首次安装还需要按顺序执行 database health、provision、migration 和 Owner bootstrap。
+
+### `docker run` 风格
+
+README 中的 `docker run -d` 示例是已初始化部署的“应用容器启动等价式”，不是完整安装器。它要求 Compose 已创建 PostgreSQL 容器、`smart-bill-manager_database` internal 网络、最小权限角色、Schema、Owner 和受保护 secret 文件；应用启动后还需连接默认 bridge，才能调用用户后续配置的 Provider。
+
+切换前先用 `./tools/sbm-deploy.sh "$runtime_directory" stop` 停止 Compose app，避免容器和端口冲突。直接容器必须保留 README 示例中的只读根、受限 tmpfs、capability、PID、CPU、内存和停止窗口；主密钥与运行数据库密码仍使用只读文件挂载，不能改成 `-e` 明文环境变量。
+
+直接 Docker CLI 不会获得 Compose 的声明式 lifecycle、依赖顺序和升级编排，因此首次安装、升级和恢复仍以一键安装器与 Compose wrapper 为权威入口。不得为了把命令压缩成单个容器而把 PostgreSQL、管理员密码或 migration 权限放进应用容器。
 
 ## 新架构版本升级
 

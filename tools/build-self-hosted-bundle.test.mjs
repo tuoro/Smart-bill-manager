@@ -75,3 +75,15 @@ test("self-hosted bundle generation is deterministic", async () => {
     await rm(parent, { recursive: true, force: true });
   }
 });
+
+test("README exposes one-command, Compose, and bounded Docker CLI deployment forms", async () => {
+  for (const name of ["README.md", "README_EN.md"]) {
+    const readme = await readFile(join(dirname(toolsDirectory), name), "utf8");
+    assert.match(readme, /version=v0\.3\.3; curl .*--release-version "\$version"/);
+    assert.match(readme, /docker compose --project-name smart-bill-manager/);
+    assert.match(readme, /docker run -d \\/);
+    assert.match(readme, /--network smart-bill-manager_database/);
+    assert.match(readme, /docker network connect bridge smart-bill-manager/);
+    assert.match(readme, /--read-only/);
+  }
+});

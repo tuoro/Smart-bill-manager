@@ -10,48 +10,64 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 ## Docker 快速部署
 
-使用 Release 部署包只需要 Docker Engine、Docker Compose 2.24.4 或更新版本，以及至少 6 GiB 可用内存；只有从源码 Tag 部署时才需要 Git。
+需要 `linux/amd64`、Docker Engine、Docker Compose 2.24.4 或更新版本、`curl`、`sha256sum`、`tar`，以及至少 6 GiB 可用内存。
 
-GitHub Release 从 `v0.3.2` 开始同时提供 `smart-bill-manager-docker-<version>.tar.gz` 和 SHA-256 文件。该部署包只包含 Compose、部署工具和必要文档，不包含源码。下载并校验所选 Release 的两个附件后：
+### 一条命令安装（推荐）
 
-```bash
-sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
-cd smart-bill-manager-docker
-```
-
-下一版本部署包展开后可直接运行：
+下一补丁版发布后，替换下面的版本号即可直接下载固定 Tag 安装器、校验同版本部署包并进入引导安装：
 
 ```bash
-./install.sh
+version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
-安装器会询问运行目录、PostgreSQL 数据目录、附件目录、备份目录、Owner 信息和本机端口，然后自动拉取两个独立镜像、初始化数据库并启动服务。直接回车使用默认目录；需要独立数据盘时，在提示中填写对应的全新绝对路径。安装器不会把 PostgreSQL 内置进应用镜像。
+安装器会询问运行目录、PostgreSQL 数据目录、附件目录、备份目录、Owner 信息和本机端口；直接回车使用默认值。当前 `v0.3.2` 尚不包含该入口，发布前请使用 [v0.3.2 部署指南](docs/deployment.md)。
 
-也可以从固定源码 Tag 取得同一部署入口：
+### Docker Compose
+
+展开同版本 Release 部署包后，可运行 `./install.sh` 完成首次安装。需要显式管理 Compose 时，初始化完成后使用同一配置：
 
 ```bash
-git clone https://github.com/tuoro/Smart-bill-manager.git
-cd Smart-bill-manager
-git checkout v0.3.2
-
-mkdir -p ../sbm-runtime-parent
-runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
-./tools/prepare-self-hosted-deployment.sh "$runtime_directory"
-./tools/sbm-deploy.sh "$runtime_directory" pull
+runtime_directory=/absolute/path/to/sbm-runtime
+docker compose --project-name smart-bill-manager \
+  --env-file "$runtime_directory/deployment.env" \
+  --env-file infra/compose/release.env \
+  -f infra/compose/compose.yaml \
+  -f infra/compose/compose.release.yaml \
+  up -d --no-build --pull never --wait app
 ```
 
-当前 `main` 源码也可运行 `./tools/install-self-hosted.sh` 使用引导流程。公开 `v0.3.2` 部署包尚不包含 `install.sh`，因此该版本仍使用上面的手工命令。
+首次 provision、migration 和 Owner bootstrap 仍由 `./install.sh` 可靠地顺序执行；不要用单独的 `compose up` 跳过它们。
 
-从 `$runtime_directory/owner-password` 记录一次性 Owner 密码，然后初始化并启动：
+### Docker CLI（`docker run` 风格）
+
+如果 PostgreSQL 17、最小权限角色、Schema 和 Owner 已按部署指南准备完成，应用容器可以用 Docker CLI 启动：
 
 ```bash
-./tools/sbm-deploy.sh "$runtime_directory" bootstrap \
-  owner@example.invalid "Owner" "My Workspace" CNY Asia/Shanghai
-./tools/sbm-deploy.sh "$runtime_directory" start
+docker run -d \
+  --name smart-bill-manager \
+  --restart unless-stopped \
+  --init \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=268435456 \
+  --tmpfs /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700 \
+  --cap-drop ALL \
+  --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add SETGID --cap-add SETUID \
+  --security-opt no-new-privileges:true \
+  --pids-limit 256 --cpus 2 --memory 3584m --stop-timeout 20 \
+  --network smart-bill-manager_database \
+  -p 127.0.0.1:7476:8080 \
+  -v /absolute/path/to/objects:/var/lib/sbm/objects \
+  --mount type=bind,src=/absolute/path/to/master-key,dst=/run/secrets/sbm_master_key,readonly \
+  --mount type=bind,src=/absolute/path/to/postgres-runtime-password,dst=/run/secrets/sbm_postgres_runtime_password,readonly \
+  -e SBM_DEPLOYMENT_MODE=local \
+  -e SBM_COOKIE_SECURE=false \
+  -e SBM_SESSION_TTL=168h \
+  -e SBM_AI_CONCURRENCY=2 \
+  ghcr.io/tuoro/smart-bill-manager:v0.3.3
+docker network connect bridge smart-bill-manager
 ```
 
-打开 <http://127.0.0.1:8080> 登录。完整前置条件、安全边界、日常命令和备份说明见 [部署指南](docs/deployment.md)。
+运行前应先停止 Compose 管理的 app，避免端口冲突。这条命令只启动应用容器，不会创建 PostgreSQL、角色、Schema 或 Owner；它复用 Compose 已创建的 internal 数据库网络，数据库别名仍为 `database`，随后接入默认 bridge 供 Provider 出站访问。完整安装优先使用一键脚本或 Compose，避免把应用镜像误当成内置数据库的单容器包。安装成功后打开 <http://127.0.0.1:7476>。完整边界见 [部署指南](docs/deployment.md)。
 
 ## 数据库与持久化
 

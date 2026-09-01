@@ -397,7 +397,7 @@ M4 本地发布候选交付一个稳定 Compose 流程：
 - 最终运行层以 Alpine 3.23 为唯一基础，只从固定 Go 1.26.7 Debian 镜像复制 Poppler 所需的五个 glibc 文件，并移除 Alpine `apk`；Poppler 自包含 bundle 与静态降权助手都先进入发布产物哈希清单。应用镜像在禁网构建中加入已校验二进制/Web、迁移、Schema 与 entrypoint，不包含任何构建工具链、包管理器、旧应用、配置、数据或凭据。
 - PostgreSQL 数据卷、对象文件和主密钥材料使用独立持久卷/挂载；数据库不发布宿主端口。
 
-公开实测分发不增加第二运行入口。ADR-0021 的发布 overlay 只把同一 Compose 中三个应用角色固定到同一个 GHCR manifest digest，并增加仅供 bootstrap 使用的 Owner 密码 secret；数据库、网络、资源与降权契约继续来自 `infra/compose/compose.yaml`。ADR-0022 进一步把不可变镜像身份放入部署包内的 `release.env`，用户运行配置只保存非秘密设置、持久化路径和 secret 文件路径。新安装用仓库外 bind 目录承载 PostgreSQL 与对象，缺少新存储变量的既有 `v0.3.1` 配置继续使用原 named volume。凭据准备器只生成仓库外文件，部署 wrapper 只编排 Compose，不复制领域、迁移或认证逻辑。
+公开实测分发不增加第二运行入口。ADR-0021 的发布 overlay 只把同一 Compose 中三个应用角色固定到同一个 GHCR manifest digest，并增加仅供 bootstrap 使用的 Owner 密码 secret；数据库、网络、资源与降权契约继续来自 `infra/compose/compose.yaml`。ADR-0022 进一步把不可变镜像身份放入部署包内的 `release.env`，用户运行配置只保存非秘密设置、持久化路径和 secret 文件路径。新安装用仓库外 bind 目录承载 PostgreSQL 与对象，缺少新存储变量的既有 `v0.3.1` 配置继续使用原 named volume。ADR-0023 的引导式安装器只负责收集配置并顺序调用同一准备器和部署 wrapper；用户可分别选择 PostgreSQL、对象和备份目录，但 PostgreSQL 与应用仍是独立容器，数据库不进入应用镜像。凭据准备器只生成仓库外文件，部署 wrapper 只编排 Compose，不复制领域、迁移或认证逻辑。
 - Clean Slate `0001` 只为全新 PostgreSQL 创建初始结构，不导入旧系统数据。新架构后续版本通过内容身份不可变、连续且事务化的 Schema migration 前向升级；升级默认保留业务数据，失败时不写 migration ledger 且 app 保持停止。
 - 健康检查只证明进程可服务；就绪检查必须覆盖数据库和 Job 调度器。
 - 生产配置缺少主密钥、允许通配 CORS 或使用开发模式时拒绝启动。

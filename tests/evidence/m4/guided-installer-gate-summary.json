@@ -1,0 +1,40 @@
+{
+  "schema_version": "guided-installer-gate-summary/1",
+  "recorded_at": "2026-09-01",
+  "baseline_head": "ec52d5b",
+  "scope": "unreleased guided single-host installer and configurable bind directories",
+  "architecture": {
+    "application_and_postgresql_are_separate_containers": true,
+    "postgresql_host_port_published": false,
+    "compose_contracts_added": 0,
+    "database_schema_changed": false,
+    "business_code_changed": false
+  },
+  "verification": {
+    "shell_syntax": "passed",
+    "tool_test_files": 16,
+    "tool_tests": "passed",
+    "default_and_custom_directory_cases": "passed",
+    "guided_lifecycle_order": "pull -> bootstrap -> start -> status",
+    "compose_release_config": "passed",
+    "bundle_allowlisted_files": 13,
+    "bundle_checksum": "verified",
+    "local_markdown_links": 32,
+    "git_diff_check": "passed"
+  },
+  "resource_cleanup": {
+    "containers_created": 0,
+    "matching_container_residuals": 0,
+    "temporary_bundle_removed": true,
+    "temporary_compose_environment_removed": true,
+    "available_memory_mib_after_tests": 8216
+  },
+  "external_actions": {
+    "real_provider_calls": 0,
+    "downloads": 0,
+    "pushes": 0,
+    "tags": 0,
+    "releases": 0,
+    "deployments": 0
+  }
+}

@@ -44,6 +44,9 @@ trap cleanup EXIT HUP INT TERM
 
 mkdir -p -- "$bundle_root/docs" "$bundle_root/infra/compose" "$bundle_root/tools"
 
+cp -- "${repository_root}/tools/install-self-hosted.sh" "${bundle_root}/install.sh"
+chmod 0755 "${bundle_root}/install.sh"
+
 for file in README.md README_EN.md LICENSE; do
   cp -- "${repository_root}/${file}" "${bundle_root}/${file}"
 done

@@ -36,7 +36,27 @@ git checkout v0.3.2
 
 使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
 
-## 2. 创建仓库外运行目录
+## 2. 引导式安装（当前 main / 下一版本部署包）
+
+下一版本部署包会在根目录提供安装器：
+
+```bash
+./install.sh
+```
+
+当前 `main` 源码树使用：
+
+```bash
+./tools/install-self-hosted.sh
+```
+
+安装器依次询问运行目录、PostgreSQL 数据目录、附件对象目录、备份目录、Owner 登录信息和本机 HTTP 端口。直接回车采用默认值；例如可把三类持久化目录分别设置为独立数据盘下尚不存在的子目录。路径必须是绝对路径，父目录必须已存在，三个目标不能相同；安装器不会覆盖或接管已有目录。
+
+配置完成后，安装器创建 owner-only secret，暂停提示保存一次性 Owner 密码，再按固定顺序完成镜像拉取、PostgreSQL provision、Schema migration、Owner bootstrap、应用启动和状态检查。PostgreSQL 与应用始终是两个独立容器，数据库不发布宿主端口。
+
+公开 `v0.3.2` 部署包还没有 `install.sh`，请继续使用下方手工流程。引导式安装完成后可直接跳到“日常操作”。
+
+## 3. 手工创建仓库外运行目录
 
 下面的示例把运行材料放在仓库同级目录。目标目录必须是绝对路径、尚不存在且位于 Git 仓库外。
 
@@ -44,6 +64,16 @@ git checkout v0.3.2
 mkdir -p ../sbm-runtime-parent
 runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
 ./tools/prepare-self-hosted-deployment.sh "$runtime_directory"
+```
+
+手工流程同样支持自定义目录和端口：
+
+```bash
+./tools/prepare-self-hosted-deployment.sh "$runtime_directory" \
+  --postgres-directory /absolute/new/postgres \
+  --objects-directory /absolute/new/objects \
+  --backups-directory /absolute/new/backups \
+  --http-port 7476
 ```
 
 准备器会创建一份主密钥、三份独立 PostgreSQL 角色密码、一份一次性 Owner 密码，以及只含非秘密配置和 secret 文件路径的 `deployment.env`。目录权限为 `0700`，文件为 `0600`，secret 值不会打印。
@@ -68,7 +98,7 @@ deployment/
 
 初始化前请从 `$runtime_directory/owner-password` 把 Owner 密码录入密码管理器；初始化成功后部署工具会删除该一次性文件。主密钥和三个数据库密码必须持续保留并独立备份，丢失后无法恢复现有数据或 Provider 密文。
 
-## 3. 拉取固定镜像
+## 4. 拉取固定镜像
 
 ```bash
 ./tools/sbm-deploy.sh "$runtime_directory" pull
@@ -76,7 +106,7 @@ deployment/
 
 部署配置固定 Smart Bill Manager 和 PostgreSQL 17 的内容摘要，不使用 `latest`。当前应用镜像为 `linux/amd64`；其他架构会明确失败，不做模拟或自动替换。
 
-## 4. 初始化数据库结构和唯一 Owner
+## 5. 初始化数据库结构和唯一 Owner
 
 以下示例使用测试身份，请按需替换显示名称、租户名称、币种和 IANA 时区：
 
@@ -91,7 +121,7 @@ deployment/
 
 Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库地址、账户或端口，也不需要手工运行 SQL。该命令依次等待 PostgreSQL 健康、创建最小权限角色、在空数据库执行 Clean Slate `0001` 结构初始化、创建唯一 Owner，并在成功后删除一次性 Owner 密码文件。命令失败时不要反复重试；先按终端中的稳定错误定位根因。
 
-## 5. 启动并登录
+## 6. 启动并登录
 
 ```bash
 ./tools/sbm-deploy.sh "$runtime_directory" start

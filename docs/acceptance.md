@@ -501,6 +501,19 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-09-01 通过。公开 GHCR manifest 与 M4 候选镜像 ID 一致，空 Docker 配置可匿名按 digest 拉取；发布 Compose 10 项静态边界通过，五份 secret 独立且权限正确，空库 provision、migration、Owner bootstrap、ready、登录、双 Cookie 会话、退出和旧会话失效全部通过。15 个工具测试和 30 个 README/部署文档本地链接通过；临时资源已销毁。
 
+## M4 第六切片：引导式安装与自定义持久化目录
+
+本切片以 ADR-0023 为冻结决策，不改变业务镜像、数据库 Schema、API、Web、AI 契约或唯一 Compose 运行边界。
+
+- 安装器必须允许 PostgreSQL 数据、对象文件和备份分别使用用户选择的全新绝对目录；省略时使用运行目录下的标准布局。生成的 `deployment.env` 只记录路径和非秘密配置。
+- 准备器必须拒绝相对路径、重复路径、既有目标、Git 仓库内目标、非法端口和非法参数；不得覆盖、删除或接管用户已有目录。
+- 安装器必须复用唯一部署 wrapper，并严格按 `pull -> bootstrap -> start -> status` 执行；bootstrap 前必须暂停提示用户保存一次性 Owner 密码，且不得打印密码内容。
+- PostgreSQL 与应用必须保持独立镜像和容器；数据库不发布宿主端口，internal 网络、固定 digest、文件型 secret、最小权限角色、只读根和资源上限均不得弱化。
+- Release 部署包 allowlist 只新增安装器，不包含源码、凭据、运行数据或新依赖；脚本语法、参数边界、默认/自定义路径、调用顺序、Bundle 确定性、Compose 规范化、文档链接、敏感信息和 `git diff --check` 必须通过。
+- 本切片不得发布、推送、创建 Tag、修改 `v0.3.2` 或调用真实外部服务。
+
+验收结果：2026-09-01 通过。16 个工具测试文件、默认与三目录自定义映射、`7476` 端口、安装生命周期顺序、Release Compose 规范化、13 文件确定性 Bundle 与 SHA-256、32 个本地文档链接、敏感信息和 diff 检查全部通过；未启动容器，临时文件已清理。
+
 ## M4 第四切片：运行质量与本地发布准备
 
 本切片以 `docs/decisions/0019-local-release-candidate-and-runtime-quality.md` 为冻结决策，不新增业务 API、页面、迁移或第二数据源。验收对象是当前 Clean Slate 构建时基线 HEAD 与确定性发布输入摘要共同标识的本地发布候选，而不是旧 M1 镜像或历史证据；最终证据提交后必须复核发布输入摘要未变化。

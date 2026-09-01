@@ -6,6 +6,7 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 > [!IMPORTANT]
 > `v0.3.2` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
+> The current `main` branch also contains an unreleased guided installer. It does not modify or replace the existing `v0.3.2` Release.
 
 ## Docker quick deployment
 
@@ -18,6 +19,14 @@ sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
 tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
 cd smart-bill-manager-docker
 ```
+
+Starting with the next deployment bundle, run the guided installer directly:
+
+```bash
+./install.sh
+```
+
+It asks for the runtime directory, PostgreSQL data directory, object directory, backup directory, Owner details, and local port, then pulls the two independent images, initializes the database, and starts the service. Press Enter to accept the default paths, or enter new absolute paths for separate storage. PostgreSQL is not embedded in the application image.
 
 The same deployment entry point is also available from the fixed source tag:
 
@@ -32,6 +41,8 @@ runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
 ./tools/sbm-deploy.sh "$runtime_directory" pull
 ```
 
+The current `main` source tree can run `./tools/install-self-hosted.sh` for the same guided flow. The public `v0.3.2` bundle does not contain `install.sh`, so that release still uses the manual commands above.
+
 Record the one-time Owner password from `$runtime_directory/owner-password`, then bootstrap and start the application:
 
 ```bash
@@ -44,7 +55,7 @@ Open <http://127.0.0.1:8080> and sign in. See the [deployment guide](docs/deploy
 
 ## Database and persistence
 
-The default Compose stack deploys PostgreSQL 17, provisions least-privilege roles, and initializes the database schema automatically. Regular users do not enter a database address or run SQL manually. A new installation keeps all persistent material under its deployment directory:
+The default Compose stack deploys PostgreSQL 17 as a separate container, provisions least-privilege roles, and initializes the database schema automatically. Regular users do not enter a database address or run SQL manually. The default layout keeps persistent material under the deployment directory; the installer can instead map the three data directories to separate new absolute paths:
 
 ```text
 deployment/

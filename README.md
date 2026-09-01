@@ -6,6 +6,7 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 > [!IMPORTANT]
 > `v0.3.2` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
+> 当前 `main` 还包含尚未发布的引导式安装器；它不会改变或回写既有 `v0.3.2` Release。
 
 ## Docker 快速部署
 
@@ -18,6 +19,14 @@ sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
 tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
 cd smart-bill-manager-docker
 ```
+
+下一版本部署包展开后可直接运行：
+
+```bash
+./install.sh
+```
+
+安装器会询问运行目录、PostgreSQL 数据目录、附件目录、备份目录、Owner 信息和本机端口，然后自动拉取两个独立镜像、初始化数据库并启动服务。直接回车使用默认目录；需要独立数据盘时，在提示中填写对应的全新绝对路径。安装器不会把 PostgreSQL 内置进应用镜像。
 
 也可以从固定源码 Tag 取得同一部署入口：
 
@@ -32,6 +41,8 @@ runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
 ./tools/sbm-deploy.sh "$runtime_directory" pull
 ```
 
+当前 `main` 源码也可运行 `./tools/install-self-hosted.sh` 使用引导流程。公开 `v0.3.2` 部署包尚不包含 `install.sh`，因此该版本仍使用上面的手工命令。
+
 从 `$runtime_directory/owner-password` 记录一次性 Owner 密码，然后初始化并启动：
 
 ```bash
@@ -44,7 +55,7 @@ runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
 
 ## 数据库与持久化
 
-默认 Compose 会自动部署内部 PostgreSQL 17、创建最小权限角色并初始化数据库结构，普通用户无需填写数据库地址或手工运行 SQL。新安装的持久内容全部位于创建的运行目录：
+默认 Compose 会自动部署独立的 PostgreSQL 17 容器、创建最小权限角色并初始化数据库结构，普通用户无需填写数据库地址或手工运行 SQL。默认持久化布局位于创建的运行目录；安装时也可把下面三类目录分别映射到其他全新绝对路径：
 
 ```text
 deployment/

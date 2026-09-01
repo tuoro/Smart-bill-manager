@@ -13,6 +13,7 @@ const toolsDirectory = dirname(fileURLToPath(import.meta.url));
 const builder = join(toolsDirectory, "build-self-hosted-bundle.sh");
 
 const expectedFiles = [
+  "install.sh",
   "LICENSE",
   "README.md",
   "README_EN.md",

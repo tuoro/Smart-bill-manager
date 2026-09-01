@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -17,6 +17,24 @@ const releaseEnvironment = join(
   "compose",
   "release.env",
 );
+
+function execFileWithInput(file, args, input, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(file, args, { ...options, stdio: ["pipe", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(`command exited ${code}: ${stderr}`));
+    });
+    child.stdin.end(input);
+  });
+}
 
 test("deployment preparation creates distinct owner-only secrets without printing them", async () => {
   const parent = await mkdtemp(join(tmpdir(), "sbm-deployment-test-"));
@@ -61,9 +79,107 @@ test("deployment preparation creates distinct owner-only secrets without printin
     assert.match(environment, /^SBM_COMPOSE_PROJECT_NAME=smart-bill-manager$/m);
     assert.match(environment, new RegExp(`^SBM_POSTGRES_DATA_SOURCE=${target}/data/postgres$`, "m"));
     assert.match(environment, new RegExp(`^SBM_OBJECTS_SOURCE=${target}/data/objects$`, "m"));
+    assert.match(environment, new RegExp(`^SBM_BACKUPS_DIRECTORY=${target}/backups$`, "m"));
     assert.match(environment, /^SBM_BIND_ADDRESS=127\.0\.0\.1$/m);
     assert.equal(environment.includes("SBM_IMAGE="), false);
     assert.equal(environment.includes("SBM_POSTGRES_IMAGE="), false);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("deployment preparation supports distinct custom persistence directories and port", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "sbm-custom-deployment-test-"));
+  const target = join(parent, "runtime");
+  const postgres = join(parent, "postgres");
+  const objects = join(parent, "objects");
+  const backups = join(parent, "backups");
+  try {
+    await execFileAsync(script, [
+      target,
+      "--postgres-directory", postgres,
+      "--objects-directory", objects,
+      "--backups-directory", backups,
+      "--http-port", "7476",
+    ]);
+    const environment = await readFile(join(target, "deployment.env"), "utf8");
+    assert.match(environment, new RegExp(`^SBM_POSTGRES_DATA_SOURCE=${postgres}$`, "m"));
+    assert.match(environment, new RegExp(`^SBM_OBJECTS_SOURCE=${objects}$`, "m"));
+    assert.match(environment, new RegExp(`^SBM_BACKUPS_DIRECTORY=${backups}$`, "m"));
+    assert.match(environment, /^SBM_HTTP_PORT=7476$/m);
+    for (const directory of [target, postgres, objects, backups]) {
+      assert.equal((await stat(directory)).mode & 0o777, 0o700);
+    }
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("deployment preparation rejects duplicate persistence paths and invalid ports", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "sbm-invalid-deployment-test-"));
+  try {
+    const shared = join(parent, "shared");
+    await assert.rejects(() => execFileAsync(script, [
+      join(parent, "duplicate-runtime"),
+      "--postgres-directory", shared,
+      "--objects-directory", shared,
+    ]));
+    await assert.rejects(() => execFileAsync(script, [
+      join(parent, "invalid-port-runtime"),
+      "--http-port", "70000",
+    ]));
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("guided installer preserves custom mappings and invokes the deployment lifecycle in order", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "sbm-guided-installer-test-"));
+  const target = join(parent, "runtime");
+  const postgres = join(parent, "postgres");
+  const objects = join(parent, "objects");
+  const backups = join(parent, "backups");
+  const binaryDirectory = join(parent, "bin");
+  const log = join(parent, "docker.log");
+  const installer = join(toolsDirectory, "install-self-hosted.sh");
+  try {
+    await mkdir(binaryDirectory);
+    const fakeDocker = join(binaryDirectory, "docker");
+    await writeFile(
+      fakeDocker,
+      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
+      { mode: 0o755 },
+    );
+    const environment = {
+      ...process.env,
+      PATH: `${binaryDirectory}:${process.env.PATH}`,
+      FAKE_DOCKER_LOG: log,
+    };
+    const { stdout } = await execFileWithInput(installer, [
+      "--runtime-directory", target,
+      "--postgres-directory", postgres,
+      "--objects-directory", objects,
+      "--backups-directory", backups,
+      "--owner-email", "owner@example.invalid",
+      "--owner-display-name", "Owner",
+      "--tenant-name", "Test Workspace",
+      "--currency", "CNY",
+      "--timezone", "Asia/Shanghai",
+      "--http-port", "7476",
+    ], "\n", { env: environment });
+    assert.match(stdout, /http:\/\/127\.0\.0\.1:7476/);
+    await assert.rejects(() => stat(join(target, "owner-password")));
+    const environmentFile = await readFile(join(target, "deployment.env"), "utf8");
+    assert.match(environmentFile, new RegExp(`^SBM_POSTGRES_DATA_SOURCE=${postgres}$`, "m"));
+    assert.match(environmentFile, new RegExp(`^SBM_OBJECTS_SOURCE=${objects}$`, "m"));
+    assert.match(environmentFile, new RegExp(`^SBM_BACKUPS_DIRECTORY=${backups}$`, "m"));
+
+    const calls = await readFile(log, "utf8");
+    const pull = calls.indexOf(" pull database provision migrate app");
+    const bootstrap = calls.indexOf("/app/bootstrap-owner");
+    const start = calls.lastIndexOf(" up -d --no-build --pull never --wait app");
+    const status = calls.lastIndexOf(" ps");
+    assert.ok(pull >= 0 && bootstrap > pull && start > bootstrap && status > start);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }

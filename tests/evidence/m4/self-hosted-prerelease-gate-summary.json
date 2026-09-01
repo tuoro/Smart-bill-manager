@@ -1,0 +1,77 @@
+{
+  "evidence_kind": "m4-self-hosted-prerelease-gate-summary",
+  "evidence_version": 1,
+  "status": "passed_public_prerelease_distribution",
+  "source_release": {
+    "version": "v0.3.1",
+    "prior_tag_immutable": true,
+    "prepared_for_post_commit_publication": true
+  },
+  "application_image": {
+    "tag": "ghcr.io/tuoro/smart-bill-manager:v0.3.0",
+    "manifest_digest": "sha256:83bd3c795b3a7c2413a8f80279ab3fc8b9787e0e9b02cab5b08711c61d3ba6d1",
+    "local_image_id": "sha256:83bd3c795b3a7c2413a8f80279ab3fc8b9787e0e9b02cab5b08711c61d3ba6d1",
+    "release_input_sha256": "01f1fe49a26ce4d50742ae2aba17965d1fccb9a5c8fbd108ac1526e74539187b",
+    "os": "linux",
+    "architecture": "amd64",
+    "public": true,
+    "anonymous_digest_pull_passed": true,
+    "latest_tag_published": false
+  },
+  "postgresql_image": {
+    "major": 17,
+    "manifest_digest": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+    "host_port_published": false
+  },
+  "compose": {
+    "static_gates_passed": 10,
+    "application_build_removed": true,
+    "application_loopback_only": true,
+    "database_network_internal": true,
+    "application_read_only": true,
+    "database_read_only": true,
+    "owner_secret_bootstrap_only": true
+  },
+  "credential_preparation": {
+    "secret_files": 5,
+    "distinct_secret_values": true,
+    "directory_owner_only": true,
+    "files_owner_only": true,
+    "secret_values_printed": false,
+    "secret_values_in_environment_file": false,
+    "repository_target_rejected": true
+  },
+  "deployment_smoke": {
+    "empty_database": true,
+    "empty_object_store": true,
+    "postgresql_ready": true,
+    "roles_provisioned": true,
+    "clean_slate_migration_applied": true,
+    "unique_owner_bootstrapped": true,
+    "api_ready": true,
+    "owner_login": true,
+    "owner_session": true,
+    "logout": true,
+    "old_session_rejected": true,
+    "one_time_owner_password_removed": true
+  },
+  "static_verification": {
+    "node_tool_test_files_passed": 15,
+    "shell_syntax_files_passed": 2,
+    "documentation_files_checked": 4,
+    "local_documentation_links_checked": 30,
+    "missing_local_documentation_links": 0,
+    "diff_check_passed": true
+  },
+  "privacy_and_cleanup": {
+    "real_provider_called": false,
+    "real_images_sent": false,
+    "real_mailbox_connected": false,
+    "production_server_deployed": false,
+    "temporary_containers_remaining": 0,
+    "temporary_networks_remaining": 0,
+    "temporary_volumes_remaining": 0,
+    "temporary_credential_directories_remaining": 0
+  },
+  "passed": true
+}

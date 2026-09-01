@@ -1,0 +1,17 @@
+services:
+  database:
+    image: ${SBM_POSTGRES_IMAGE:?set SBM_POSTGRES_IMAGE to the approved PostgreSQL 17 digest}
+    pull_policy: ${SBM_PULL_POLICY:-missing}
+
+  provision:
+    image: ${SBM_IMAGE:?set SBM_IMAGE to the published Smart Bill Manager digest}
+    pull_policy: ${SBM_PULL_POLICY:-missing}
+
+  migrate:
+    image: ${SBM_IMAGE:?set SBM_IMAGE to the published Smart Bill Manager digest}
+    pull_policy: ${SBM_PULL_POLICY:-missing}
+
+  app:
+    image: ${SBM_IMAGE:?set SBM_IMAGE to the published Smart Bill Manager digest}
+    pull_policy: ${SBM_PULL_POLICY:-missing}
+    build: !reset null

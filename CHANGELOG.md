@@ -2,6 +2,20 @@
 
 本项目从 `v0.2.0` 起按语义化版本记录面向使用者和维护者的重要变化。
 
+## [0.3.1] - 2026-09-01
+
+### 自托管实测分发
+
+- 发布固定内容摘要的 `linux/amd64` GHCR 镜像，并提供基于当前 Clean Slate Compose 契约的发布 overlay。
+- 新增 owner-only 凭据准备器和部署命令，覆盖拉取、PostgreSQL provision/migration、唯一 Owner 初始化、启动、状态、日志、停止和保留数据卷的 down。
+- 新增面向用户的单机部署指南；默认只绑定 `127.0.0.1`，固定 PostgreSQL 17 镜像摘要，不提供隐式数据卷删除。
+- 重写中英文 README，把内部里程碑流水移至 `docs/`，首页聚焦产品、快速部署、限制、安全边界和文档入口。
+
+### 版本边界
+
+- `v0.3.0` Git Tag 保持不可变；`v0.3.1` 是补齐部署能力的补丁预发布，应用业务实现和 M4 发布输入摘要不变。
+- 真实模型正确率、真实邮箱/Provider 联调、TLS/域名和生产部署仍未完成。
+
 ## [0.3.0] - 2026-09-01
 
 ### Clean Slate 新架构
@@ -140,6 +154,7 @@
 - 提供支付、发票、邮箱、行程、多用户和异步 OCR 的既有功能。
 - 保存可回退 Git 标签和 GHCR 容器镜像。
 
+[0.3.1]: https://github.com/tuoro/Smart-bill-manager/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.2...v0.2.3

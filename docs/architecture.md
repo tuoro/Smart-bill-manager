@@ -396,6 +396,8 @@ M4 本地发布候选交付一个稳定 Compose 流程：
 - 构建前由受保护的本地准备器在独立工作区完成锁文件离线安装和 Web 构建，并在固定禁网 Go 容器中校验模块后生成四个二进制；本地产物上下文绑定源码发布摘要、工具链身份、精确文件清单和 SHA-256。Dockerfile 只验证并装配该上下文，缓存、`node_modules`、构建工具链和准备工作区均不进入最终镜像。
 - 最终运行层以 Alpine 3.23 为唯一基础，只从固定 Go 1.26.7 Debian 镜像复制 Poppler 所需的五个 glibc 文件，并移除 Alpine `apk`；Poppler 自包含 bundle 与静态降权助手都先进入发布产物哈希清单。应用镜像在禁网构建中加入已校验二进制/Web、迁移、Schema 与 entrypoint，不包含任何构建工具链、包管理器、旧应用、配置、数据或凭据。
 - PostgreSQL 数据卷、对象文件和主密钥材料使用独立持久卷/挂载；数据库不发布宿主端口。
+
+公开实测分发不增加第二运行入口。ADR-0021 的发布 overlay 只把同一 Compose 中三个应用角色固定到同一个 GHCR manifest digest，并增加仅供 bootstrap 使用的 Owner 密码 secret；数据库、网络、卷、资源与降权契约继续来自 `infra/compose/compose.yaml`。凭据准备器只生成仓库外文件，部署 wrapper 只编排 Compose，不复制领域、迁移或认证逻辑。
 - 健康检查只证明进程可服务；就绪检查必须覆盖数据库和 Job 调度器。
 - 生产配置缺少主密钥、允许通配 CORS 或使用开发模式时拒绝启动。
 - PostgreSQL 自包含 dump 与精确对象集合使用 `docs/backup-restore.md` 的认证停机数据包；既有主密钥通过独立托管副本提供，不能与密文进入同一数据包。恢复只写入全新数据库和对象目标，在线 Provider 密文删除后的备份残留最长保留 30 天。

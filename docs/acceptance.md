@@ -487,6 +487,20 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 验收结果：2026-09-01 通过。PostgreSQL 17 已成为唯一关系数据源；Clean Slate `0001`、唯一 pgx 适配器、显式迁移、最小权限、事务/Worker、Compose 与认证恢复均已实现。受影响的领域、数据库、应用、HTTP/OpenAPI、Web、关键不变量、覆盖率、10,000 数据集、内存和浏览器门禁全部只在受限临时 PostgreSQL 17 上重新通过；SQLite 当前实现与第二测试数据源均已移除。
 
+## M4 第五切片：v0.3.1 自托管公开实测分发
+
+本切片以 ADR-0021 为冻结决策，不改变业务领域、数据库 Schema、API、Web 或 AI 契约。
+
+- GHCR 只发布通过 M4 门禁的 `linux/amd64` 候选，使用明确版本 Tag 且不写入 `latest`；远端回读必须得到不可变 manifest digest，并与部署配置一致。`v0.3.0` Git Tag 不重写，部署修复发布为 `v0.3.1`。
+- 发布 overlay 只能改变应用镜像来源、拉取策略和 Owner 密码 secret；规范化 Compose 必须保持 PostgreSQL 无宿主端口、应用回环默认、internal 数据库网络、只读根、最小 capability、资源/PID 上限和独立卷。
+- 凭据准备器必须拒绝相对路径、既有目标和非法参数；成功时创建一个 `0700` 目录及五个彼此独立的 `0600` secret 文件，不向 stdout/stderr 输出任何 secret 值。
+- 部署命令不得把 secret 写入 argv 或普通环境变量；`down` 不删除卷，工具不提供隐式数据销毁、旧数据读取或迁移路径。
+- 隔离冒烟必须从空目录和空卷完成数据库健康、角色 provision、Clean Slate `0001` migration、唯一 Owner bootstrap、API ready、登录、当前会话、退出和旧会话 `401`；完成后销毁仅属于本轮的临时资源。
+- README 的首屏必须给出版本状态、架构支持和可执行快速开始；详细里程碑、ADR 与证据通过文档索引访问，不继续占用用户主路径。
+- 提交前必须通过脚本测试、Compose 规范化检查、文档链接/命令审查、`git diff --check`、敏感信息、大文件、临时产物、进程和 Docker 残留检查。
+
+验收结果：2026-09-01 通过。公开 GHCR manifest 与 M4 候选镜像 ID 一致，空 Docker 配置可匿名按 digest 拉取；发布 Compose 10 项静态边界通过，五份 secret 独立且权限正确，空库 provision、migration、Owner bootstrap、ready、登录、双 Cookie 会话、退出和旧会话失效全部通过。15 个工具测试和 30 个 README/部署文档本地链接通过；临时资源已销毁。
+
 ## M4 第四切片：运行质量与本地发布准备
 
 本切片以 `docs/decisions/0019-local-release-candidate-and-runtime-quality.md` 为冻结决策，不新增业务 API、页面、迁移或第二数据源。验收对象是当前 Clean Slate 构建时基线 HEAD 与确定性发布输入摘要共同标识的本地发布候选，而不是旧 M1 镜像或历史证据；最终证据提交后必须复核发布输入摘要未变化。

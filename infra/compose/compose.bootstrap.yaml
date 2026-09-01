@@ -1,0 +1,8 @@
+services:
+  app:
+    secrets:
+      - sbm_owner_password
+
+secrets:
+  sbm_owner_password:
+    file: ${SBM_OWNER_PASSWORD_SOURCE:?set SBM_OWNER_PASSWORD_SOURCE to the one-time owner password file}

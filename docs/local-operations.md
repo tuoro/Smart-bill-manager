@@ -4,7 +4,7 @@
 
 普通使用者应先阅读 [v0.3.1 单机自托管部署](deployment.md)。本文件保留候选构建、深度诊断、恢复和验收细节，不是首次安装的最短路径。
 
-本说明只适用于 `rebirth` Clean Slate 系统。唯一入口是 `infra/docker/app.Dockerfile` 与 `infra/compose/compose.yaml`；旧应用、旧数据库、旧 Compose、旧任务状态和旧数据迁移均不受支持。认证备份与恢复的完整不变量见 `docs/backup-restore.md`。
+本说明只适用于 `rebirth` Clean Slate 系统。唯一入口是 `infra/docker/app.Dockerfile` 与 `infra/compose/compose.yaml`；旧应用、旧数据库、旧 Compose、旧任务状态和旧架构数据迁移均不受支持。该边界不禁止新架构 PostgreSQL 的连续 Schema migration；认证备份与恢复的完整不变量见 `docs/backup-restore.md`。
 
 ## 制品与配置身份
 
@@ -55,8 +55,9 @@ Linux Docker 的 internal bridge 不激活声明的宿主端口映射。正式�
 
 ## 容量、备份与升级
 
-- 分别监控数据库卷、对象卷和宿主可用空间；任一卷达到 80% 使用率时停止大批量导入并先扩容或清理已获批准的历史备份。不得从对象卷手工删除文件释放空间。
+- 新安装分别监控运行目录下的 `data/postgres`、`data/objects`、`backups` 和宿主可用空间；既有 `v0.3.1` named volume 部署继续监控对应数据库卷与对象卷。任一数据位置达到 80% 使用率时停止大批量导入并先扩容或清理已获批准的历史备份。不得从对象目录手工删除文件释放空间。
 - 升级前停止全部写入者，并使用镜像内 `/app/backup backup` 创建新的认证数据包；随后用独立主密钥副本执行 `/app/backup verify`。没有独立验证通过的数据包不得作为回滚点。
+- 新架构版本升级默认保留数据库与对象；`upgrade --backup-confirmed` 只刷新角色、按版本顺序事务化执行尚未应用的 PostgreSQL migration，并在全部成功后启动 app。它不接受旧数据库、不复制对象、不删除当前数据，也不自动回退。
 - 数据库、对象和主密钥必须分别托管；备份包不含主密钥。ProviderConfig 删除后的旧密文备份最长保留 30 天。
 - 恢复只写全新目标，成功后全部旧 Session 失效。详见 `docs/backup-restore.md`，不得省略 HMAC、迁移、Schema、对象精确清单、完整性、外键和恢复状态检查。
 

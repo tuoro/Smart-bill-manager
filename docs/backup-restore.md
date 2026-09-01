@@ -2,7 +2,7 @@
 
 状态：已按 ADR-0020 冻结目标；以当前安全聚合证据记录 PostgreSQL 工具与 1,000 Document 演练结果
 
-本说明只覆盖当前 Clean Slate PostgreSQL 17 系统，不读取、转换或恢复旧数据库、SQLite 文件、旧对象布局、旧任务状态或历史清单。历史 SQLite 实现与演练结果只保留在 ADR-0018 和 `docs/m4-evidence.md`，不得用于当前操作。
+本说明只覆盖当前 Clean Slate PostgreSQL 17 系统，不读取、转换或恢复旧数据库、SQLite 文件、旧对象布局、旧任务状态或历史清单。历史 SQLite 实现与演练结果只保留在 ADR-0018 和 `docs/m4-evidence.md`，不得用于当前操作。新架构公开版本之间的 Schema migration 属于当前数据库的前向升级，不是旧数据导入；升级前必须使用本说明取得可验证回滚点。
 
 ## 恢复集合与保管边界
 

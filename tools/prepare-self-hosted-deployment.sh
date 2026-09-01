@@ -64,6 +64,10 @@ postgres_migration_password=${deployment_directory}/postgres-migration-password
 postgres_runtime_password=${deployment_directory}/postgres-runtime-password
 owner_password=${deployment_directory}/owner-password
 environment_file=${deployment_directory}/deployment.env
+data_directory=${deployment_directory}/data
+postgres_data_directory=${data_directory}/postgres
+objects_directory=${data_directory}/objects
+backups_directory=${deployment_directory}/backups
 
 cleanup() {
   rm -f -- \
@@ -73,9 +77,16 @@ cleanup() {
     "$postgres_runtime_password" \
     "$owner_password" \
     "$environment_file"
+  rmdir -- "$postgres_data_directory" 2>/dev/null || true
+  rmdir -- "$objects_directory" 2>/dev/null || true
+  rmdir -- "$data_directory" 2>/dev/null || true
+  rmdir -- "$backups_directory" 2>/dev/null || true
   rmdir -- "$deployment_directory" 2>/dev/null || true
 }
 trap cleanup EXIT HUP INT TERM
+
+mkdir -- "$data_directory" "$postgres_data_directory" "$objects_directory" "$backups_directory"
+chmod 0700 "$data_directory" "$postgres_data_directory" "$objects_directory" "$backups_directory"
 
 generate_hex_secret() {
   secret_path=$1
@@ -94,18 +105,16 @@ generate_hex_secret "$postgres_runtime_password"
 generate_hex_secret "$owner_password"
 
 {
-  printf '%s\n' 'SBM_IMAGE=ghcr.io/tuoro/smart-bill-manager:v0.3.0@sha256:83bd3c795b3a7c2413a8f80279ab3fc8b9787e0e9b02cab5b08711c61d3ba6d1'
-  printf '%s\n' 'SBM_POSTGRES_IMAGE=postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73'
-  printf '%s\n' 'SBM_PULL_POLICY=missing'
+  printf '%s\n' 'SBM_STORAGE_TYPE=bind'
+  printf 'SBM_POSTGRES_DATA_SOURCE=%s\n' "$postgres_data_directory"
+  printf 'SBM_OBJECTS_SOURCE=%s\n' "$objects_directory"
+  printf '%s\n' 'SBM_COMPOSE_PROJECT_NAME=smart-bill-manager'
   printf '%s\n' 'SBM_DEPLOYMENT_MODE=local'
   printf '%s\n' 'SBM_COOKIE_SECURE=false'
   printf '%s\n' 'SBM_BIND_ADDRESS=127.0.0.1'
   printf '%s\n' 'SBM_HTTP_PORT=8080'
   printf '%s\n' 'SBM_SESSION_TTL=168h'
   printf '%s\n' 'SBM_AI_CONCURRENCY=2'
-  printf '%s\n' 'SBM_RELEASE_ARTIFACTS_SOURCE=/nonexistent/disabled-by-release-overlay'
-  printf '%s\n' 'SBM_BUILD_SHA=0000000000000000000000000000000000000000'
-  printf '%s\n' 'SBM_RELEASE_INPUT_SHA256=0000000000000000000000000000000000000000000000000000000000000000'
   printf 'SBM_MASTER_KEY_SOURCE=%s\n' "$master_key"
   printf 'SBM_POSTGRES_ADMIN_PASSWORD_SOURCE=%s\n' "$postgres_admin_password"
   printf 'SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE=%s\n' "$postgres_migration_password"
@@ -116,4 +125,5 @@ chmod 0600 "$environment_file"
 
 trap - EXIT HUP INT TERM
 printf '%s\n' "deployment files created with owner-only permissions"
+printf '%s\n' "persistent database, object, and backup directories are under ${deployment_directory}"
 printf '%s\n' "record the Owner password from ${owner_password} before bootstrap; bootstrap deletes that file after success"

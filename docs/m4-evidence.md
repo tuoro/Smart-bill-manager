@@ -57,6 +57,18 @@ M4 当前基线以 ADR-0020、ADR-0019 和 ADR-0021 为边界：PostgreSQL 17 �
 
 安全聚合见 `tests/evidence/m4/self-hosted-prerelease-gate-summary.json`。它只记录镜像身份、布尔门禁和数量，不保存路径、容器 ID、Cookie、密码、主密钥、数据库内容或原始响应。
 
+## 通用 Docker 分发与前向升级
+
+ADR-0022 在不改变业务镜像、API、Schema 或 Web 的前提下收敛了后续补丁版分发：GitHub Release 可以附带只含 12 个批准文件的最小 Docker 部署包和 SHA-256；不可变镜像身份由包内 `release.env` 提供，用户运行目录只保存非秘密配置、持久化路径和 secret 文件路径。调用方环境不能覆盖两个固定镜像摘要。
+
+新安装创建 owner-only 的 `data/postgres`、`data/objects` 与 `backups`，Compose 展开后两个数据源都是精确宿主 bind。缺少新存储变量的 `v0.3.1` 配置仍展开为原 `sbm_postgres_data` 与 `sbm_objects` named volume；工具不自动复制、转换或删除既有卷。
+
+隔离 Docker 冒烟使用现有固定应用与 PostgreSQL 17 镜像，从空 bind 目录完成角色创建、Schema 初始化、唯一 Owner、ready 和登录；随后在同一数据库与对象目录执行 `upgrade --backup-confirmed`，再次 ready 和登录成功，一次性 Owner 密码已删除。第一次收口的宿主 `find` 断言因容器按最小权限接管 bind 目录而失败，运行与升级没有失败；验证没有放宽目录权限，改为从容器 Mount 身份核对精确 bind，并使用固定本地镜像执行受控临时目录归属恢复后完成清理。该失败保留在安全聚合中。
+
+16 个 Node 工具测试文件、3 份 shell 语法、33 个本地文档链接、确定性压缩包、SHA-256 sidecar、调用方镜像覆盖拒绝、`git diff --check`、疑似凭据与大文件检查均通过。验证前后可用内存分别为 8.1 GiB 与 8.2 GiB；没有遗留临时容器、网络或凭据目录。
+
+安全聚合见 `tests/evidence/m4/docker-forward-upgrade-gate-summary.json`。本切片未下载新镜像或依赖，未调用真实 Provider、邮箱、外部账号或远程数据库，也未推送、部署或发布远端制品。
+
 ## 范围与剩余门禁
 
 本分发切片未调用真实 AI Provider、未发送真实图片、未连接真实邮箱、云服务、外部账号或远程 PostgreSQL，未执行正式模型正确率评测，也未部署生产服务器。经产品负责人明确授权，只创建公开 GHCR 版本化镜像、源码补丁 Tag/Release 和对应仓库更新；未发布 `latest`、未创建云运行资源。已披露的早期工具网络策略偏差继续保留在最终安全聚合中，不能改写为整个开发过程从未访问外网。

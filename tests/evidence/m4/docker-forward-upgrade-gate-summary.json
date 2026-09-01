@@ -1,0 +1,71 @@
+{
+  "evidence_kind": "m4-docker-forward-upgrade-gate-summary",
+  "evidence_version": 1,
+  "status": "passed_local_distribution_upgrade",
+  "distribution_bundle": {
+    "allowlisted_files": 12,
+    "deterministic_archive": true,
+    "sha256_sidecar_verified": true,
+    "source_code_included": false,
+    "test_assets_included": false,
+    "runtime_data_included": false
+  },
+  "configuration": {
+    "release_identity_separate_from_user_configuration": true,
+    "caller_image_override_blocked": true,
+    "application_image_digest_pinned": true,
+    "postgresql_17_digest_pinned": true,
+    "database_host_port_published": false,
+    "application_loopback_only": true
+  },
+  "persistence": {
+    "new_installation_bind_mounts": true,
+    "postgresql_directory_owner_only_at_creation": true,
+    "object_directory_owner_only_at_creation": true,
+    "backup_directory_owner_only_at_creation": true,
+    "existing_v0_3_1_named_volume_fallback_preserved": true,
+    "automatic_existing_volume_conversion": false,
+    "persistent_data_deleted_by_upgrade": false
+  },
+  "forward_upgrade_smoke": {
+    "empty_postgresql_bootstrapped": true,
+    "database_schema_initialized": true,
+    "owner_created": true,
+    "api_ready_before_upgrade": true,
+    "owner_login_before_upgrade": true,
+    "backup_confirmation_required": true,
+    "schema_upgrade_command_passed": true,
+    "api_ready_after_upgrade": true,
+    "owner_login_after_upgrade": true,
+    "one_time_owner_password_removed": true
+  },
+  "verification": {
+    "node_tool_test_files_passed": 16,
+    "shell_syntax_files_passed": 3,
+    "local_documentation_links_checked": 33,
+    "missing_local_documentation_links": 0,
+    "diff_check_passed": true,
+    "probable_secret_scan_passed": true,
+    "changed_or_untracked_files_over_10_mib": 0
+  },
+  "observed_and_resolved_failures": {
+    "first_cleanup_assertion_failed": true,
+    "cause": "container-owned bind directories were intentionally not traversable by the host test user",
+    "runtime_or_upgrade_failed": false,
+    "second_controlled_cleanup_passed": true,
+    "runtime_permissions_relaxed": false
+  },
+  "privacy_and_cleanup": {
+    "real_provider_called": false,
+    "real_images_sent": false,
+    "real_mailbox_connected": false,
+    "new_images_or_dependencies_downloaded": false,
+    "remote_database_connected": false,
+    "temporary_containers_remaining": 0,
+    "temporary_networks_remaining": 0,
+    "temporary_credential_directories_remaining": 0,
+    "available_memory_before_gib": 8.1,
+    "available_memory_after_gib": 8.2
+  },
+  "passed": true
+}

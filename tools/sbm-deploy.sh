@@ -13,6 +13,7 @@ commands:
   logs
   stop
   down
+  upgrade --backup-confirmed
   config
 EOF
   exit 2
@@ -41,10 +42,28 @@ environment_file=${deployment_directory}/deployment.env
   printf '%s\n' "deployment environment file is unavailable" >&2
   exit 1
 }
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repository_root=$(dirname -- "$script_directory")
+release_environment_file=${repository_root}/infra/compose/release.env
+[ -f "$release_environment_file" ] && [ ! -L "$release_environment_file" ] || {
+  printf '%s\n' "release environment file is unavailable" >&2
+  exit 1
+}
 [ "$(stat -c '%a' "$environment_file" 2>/dev/null || true)" = "600" ] || {
   printf '%s\n' "deployment environment file must have mode 0600" >&2
   exit 1
 }
+
+project_name=$(sed -n 's/^SBM_COMPOSE_PROJECT_NAME=//p' "$environment_file")
+[ -n "$project_name" ] || project_name=smart-bill-manager
+case "$project_name" in
+  [a-z0-9]* ) ;;
+  *) printf '%s\n' "Compose project name is invalid" >&2; exit 1 ;;
+esac
+case "$project_name" in
+  *[!a-z0-9_-]* ) printf '%s\n' "Compose project name is invalid" >&2; exit 1 ;;
+esac
 
 compose_version=$(docker compose version --short 2>/dev/null || true)
 compose_version=${compose_version#v}
@@ -68,16 +87,40 @@ if [ "$compose_major" -lt 2 ] || \
   exit 1
 fi
 
-script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
-repository_root=$(dirname -- "$script_directory")
 base_compose=${repository_root}/infra/compose/compose.yaml
 release_compose=${repository_root}/infra/compose/compose.release.yaml
 bootstrap_compose=${repository_root}/infra/compose/compose.bootstrap.yaml
 
+# Compose 会让调用方环境覆盖 --env-file；清除全部应用插值键，确保只有
+# 已审查的发布文件与用户部署文件能够提供配置。
+unset \
+  SBM_IMAGE \
+  SBM_POSTGRES_IMAGE \
+  SBM_PULL_POLICY \
+  SBM_RELEASE_ARTIFACTS_SOURCE \
+  SBM_BUILD_SHA \
+  SBM_RELEASE_INPUT_SHA256 \
+  SBM_STORAGE_TYPE \
+  SBM_POSTGRES_DATA_SOURCE \
+  SBM_OBJECTS_SOURCE \
+  SBM_COMPOSE_PROJECT_NAME \
+  SBM_DEPLOYMENT_MODE \
+  SBM_COOKIE_SECURE \
+  SBM_BIND_ADDRESS \
+  SBM_HTTP_PORT \
+  SBM_SESSION_TTL \
+  SBM_AI_CONCURRENCY \
+  SBM_MASTER_KEY_SOURCE \
+  SBM_POSTGRES_ADMIN_PASSWORD_SOURCE \
+  SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE \
+  SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE \
+  SBM_OWNER_PASSWORD_SOURCE
+
 compose() {
   docker compose \
-    --project-name smart-bill-manager \
+    --project-name "$project_name" \
     --env-file "$environment_file" \
+    --env-file "$release_environment_file" \
     -f "$base_compose" \
     -f "$release_compose" \
     "$@"
@@ -85,8 +128,9 @@ compose() {
 
 compose_with_bootstrap() {
   docker compose \
-    --project-name smart-bill-manager \
+    --project-name "$project_name" \
     --env-file "$environment_file" \
+    --env-file "$release_environment_file" \
     -f "$base_compose" \
     -f "$release_compose" \
     -f "$bootstrap_compose" \
@@ -143,6 +187,14 @@ case "$command_name" in
   down)
     [ "$#" -eq 0 ] || usage
     compose down --remove-orphans
+    ;;
+  upgrade)
+    [ "$#" -eq 1 ] && [ "$1" = "--backup-confirmed" ] || usage
+    compose stop app
+    compose up -d --no-build --pull never --wait database
+    compose run --rm --no-deps provision
+    compose run --rm --no-deps migrate
+    compose up -d --no-build --pull never --wait app
     ;;
   config)
     [ "$#" -eq 0 ] || usage

@@ -7,9 +7,19 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 > [!IMPORTANT]
 > `v0.3.1` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
 
-## 快速部署
+## Docker 快速部署
 
-需要 Git、Docker Engine、Docker Compose 2.24.4 或更新版本，以及至少 6 GiB 可用内存。
+使用 Release 部署包只需要 Docker Engine、Docker Compose 2.24.4 或更新版本，以及至少 6 GiB 可用内存；只有从源码 Tag 部署时才需要 Git。
+
+GitHub Release 从下一个补丁版开始同时提供 `smart-bill-manager-docker-<version>.tar.gz` 和 SHA-256 文件。该部署包只包含 Compose、部署工具和必要文档，不包含源码。下载并校验所选 Release 的两个附件后：
+
+```bash
+sha256sum -c smart-bill-manager-docker-<version>.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-<version>.tar.gz
+cd smart-bill-manager-docker
+```
+
+当前 `v0.3.1` 仍可从固定源码 Tag 取得同一部署入口：
 
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
@@ -31,6 +41,31 @@ runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
 ```
 
 打开 <http://127.0.0.1:8080> 登录。完整前置条件、安全边界、日常命令和备份说明见 [部署指南](docs/deployment.md)。
+
+## 数据库与持久化
+
+默认 Compose 会自动部署内部 PostgreSQL 17、创建最小权限角色并初始化数据库结构，普通用户无需填写数据库地址或手工运行 SQL。新安装的持久内容全部位于创建的运行目录：
+
+```text
+deployment/
+├── data/postgres/     # PostgreSQL 数据
+├── data/objects/      # 上传的图片和 PDF
+├── backups/           # 独立验证的备份包
+├── master-key         # Provider 密文所需主密钥
+├── postgres-*-password
+└── deployment.env     # 非秘密运行配置和 secret 文件路径
+```
+
+必须同时备份数据库、对象文件、主密钥和认证备份；不要把其中任何 secret 提交到 Git。`down` 只删除容器和网络，不删除上述目录。
+
+Clean Slate 只表示不读取旧架构和 SQLite 数据。从当前新架构开始，后续版本默认保留数据，并通过版本化 PostgreSQL Schema migration 升级数据库结构；不会要求用户每次更新都清空数据库。
+
+升级前先按 [备份与恢复说明](docs/backup-restore.md) 创建并独立验证备份，再换用新版本部署包：
+
+```bash
+./tools/sbm-deploy.sh "$runtime_directory" pull
+./tools/sbm-deploy.sh "$runtime_directory" upgrade --backup-confirmed
+```
 
 ## 主要能力
 
@@ -60,7 +95,7 @@ Source -> Claim -> Fact
 - 正式真实模型正确率评测尚未完成；
 - 邮箱页面当前只保存无凭据连接描述符，不连接真实邮箱；
 - 不包含域名、TLS、反向代理、远程 PostgreSQL、高可用或云对象存储；
-- 不提供旧版本升级、导入或兼容承诺。
+- 不提供旧架构或 SQLite 数据导入；当前 Clean Slate PostgreSQL 版本之间默认保留数据并进行结构升级。
 
 ## 文档
 

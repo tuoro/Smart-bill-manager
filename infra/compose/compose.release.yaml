@@ -2,6 +2,10 @@ services:
   database:
     image: ${SBM_POSTGRES_IMAGE:?set SBM_POSTGRES_IMAGE to the approved PostgreSQL 17 digest}
     pull_policy: ${SBM_PULL_POLICY:-missing}
+    volumes: !override
+      - type: ${SBM_STORAGE_TYPE:-volume}
+        source: ${SBM_POSTGRES_DATA_SOURCE:-sbm_postgres_data}
+        target: /var/lib/postgresql/data
 
   provision:
     image: ${SBM_IMAGE:?set SBM_IMAGE to the published Smart Bill Manager digest}
@@ -15,3 +19,7 @@ services:
     image: ${SBM_IMAGE:?set SBM_IMAGE to the published Smart Bill Manager digest}
     pull_policy: ${SBM_PULL_POLICY:-missing}
     build: !reset null
+    volumes: !override
+      - type: ${SBM_STORAGE_TYPE:-volume}
+        source: ${SBM_OBJECTS_SOURCE:-sbm_objects}
+        target: /var/lib/sbm/objects

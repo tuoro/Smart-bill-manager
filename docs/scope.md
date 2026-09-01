@@ -7,10 +7,13 @@
 
 Smart Bill Manager 是独立的新系统，不是旧版本的升级路径。
 
+这里的“不是升级路径”只针对旧架构及其 SQLite 数据。用户从公开 Clean Slate 版本开始产生的 PostgreSQL 数据属于当前系统，后续版本默认通过连续 Schema migration 保留并升级；不得把一次性重构边界解释为每个新版本都清空数据。
+
 ### 明确包含
 
 - 全新应用结构、API 契约和数据库 Schema；
 - 自托管部署与新系统自身的备份恢复；
+- 新系统公开版本之间保留数据的 PostgreSQL Schema 前向升级；
 - OpenAI-compatible Chat Completions 模型接入；
 - Source、Claim、Fact、审核和审计链；
 - 支付、发票、邮箱、行程与报销、数据洞察；

@@ -7,9 +7,19 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 > [!IMPORTANT]
 > `v0.3.1` is a public-testing prerelease of the Clean Slate system. The first distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
 
-## Quick deployment
+## Docker quick deployment
 
-You need Git, Docker Engine, Docker Compose 2.24.4 or newer, and at least 6 GiB of available memory.
+The Release deployment bundle only requires Docker Engine, Docker Compose 2.24.4 or newer, and at least 6 GiB of available memory. Git is only required when deploying from a source tag.
+
+Starting with the next patch release, each GitHub Release also includes `smart-bill-manager-docker-<version>.tar.gz` and its SHA-256 file. The bundle contains only Compose, deployment tools, and required documentation—not the source tree. Download both assets from the selected Release, then run:
+
+```bash
+sha256sum -c smart-bill-manager-docker-<version>.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-<version>.tar.gz
+cd smart-bill-manager-docker
+```
+
+The current `v0.3.1` deployment entry point remains available from its fixed source tag:
 
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
@@ -31,6 +41,31 @@ Record the one-time Owner password from `$runtime_directory/owner-password`, the
 ```
 
 Open <http://127.0.0.1:8080> and sign in. See the [deployment guide](docs/deployment.md) for prerequisites, security boundaries, daily operations, and backup guidance. The detailed deployment guide is currently maintained in Chinese.
+
+## Database and persistence
+
+The default Compose stack deploys PostgreSQL 17, provisions least-privilege roles, and initializes the database schema automatically. Regular users do not enter a database address or run SQL manually. A new installation keeps all persistent material under its deployment directory:
+
+```text
+deployment/
+├── data/postgres/     # PostgreSQL data
+├── data/objects/      # uploaded images and PDFs
+├── backups/           # independently verified backup packages
+├── master-key         # master key required for Provider ciphertext
+├── postgres-*-password
+└── deployment.env     # non-secret runtime settings and secret file paths
+```
+
+Back up the database, objects, master key, and authenticated backup set together, while keeping secrets out of Git. `down` removes containers and networks but never these directories.
+
+Clean Slate only rejects legacy architecture and SQLite data. Releases within the current architecture preserve PostgreSQL data by default and apply versioned schema migrations; users are not expected to clear their database for each update.
+
+After creating and independently verifying a backup, update with the new deployment bundle and run:
+
+```bash
+./tools/sbm-deploy.sh "$runtime_directory" pull
+./tools/sbm-deploy.sh "$runtime_directory" upgrade --backup-confirmed
+```
 
 ## Main capabilities
 
@@ -60,7 +95,7 @@ original evidence -> AI candidate -> user-confirmed data
 - formal real-model accuracy evaluation is not complete;
 - the mailbox UI currently stores credential-free connection descriptors and does not connect to a real mailbox;
 - domain, TLS, reverse proxy, remote PostgreSQL, HA, and cloud object storage are not included;
-- there is no legacy upgrade, import, or compatibility path.
+- legacy architecture and SQLite data are not imported; releases within the current Clean Slate PostgreSQL architecture preserve data through schema upgrades.
 
 ## Documentation
 

@@ -1,10 +1,10 @@
 {
   "report_kind": "m4-backup-restore-gate-summary",
-  "evidence_version": "M4-BACKUP-RESTORE-SLICE-2026-08-31",
-  "recorded_date": "2026-08-31",
+  "evidence_version": "M4-BACKUP-RESTORE-POSTGRESQL-2026-09-01",
+  "recorded_date": "2026-09-01",
   "workspace": {
     "branch": "codex/m1-ai-inbox",
-    "base_sha": "56a9c9f526644cb9fa21cfc1b1b135b31481f3bf",
+    "base_sha": "665c9b7d1e4daa9156493b4e27faef91b466f956",
     "recorded_from_uncommitted_worktree": true,
     "local_slice_commit_authorized": true,
     "pushed": false
@@ -14,19 +14,21 @@
     "m1": "complete",
     "m2": "complete",
     "m3": "complete",
-    "m4": "in_progress",
+    "m4": "complete_local_only",
     "authenticated_backup_restore_slice": "complete",
-    "next_slice": "m4_runtime_quality_performance_security_accessibility",
-    "model_accuracy_gate": "deferred_until_all_local_functional_development_is_complete"
+    "next_slice": "formal_real_model_accuracy_evaluation",
+    "model_accuracy_gate": "pending_explicit_authorization"
   },
   "protocol": {
     "manifest_kind": "smart-bill-manager-backup",
-    "manifest_version": 2,
+    "manifest_version": 3,
     "authenticated_manifest": "hmac_sha256_domain_separated_from_master_key",
     "data_package_contains_master_key": false,
     "old_manifest_compatibility": false,
     "exact_committed_object_inventory": true,
-    "sqlite_integrity_and_foreign_key_checks": true,
+    "postgresql_server_major_17": true,
+    "postgresql_custom_dump_verified": true,
+    "postgresql_constraints_and_foreign_keys_verified": true,
     "migration_and_schema_identity_checks": true,
     "crash_safe_restore_state": true,
     "existing_targets_overwritten": false,
@@ -50,15 +52,15 @@
   "offline_operations": {
     "backup": {
       "passed": true,
-      "elapsed_ms": 738
+      "elapsed_ms": 828
     },
     "independent_verify": {
       "passed": true,
-      "elapsed_ms": 317
+      "elapsed_ms": 133
     },
     "restore": {
       "passed": true,
-      "elapsed_ms": 1356,
+      "elapsed_ms": 1364,
       "invalidated_session_count": 3
     },
     "authenticated_manifest_equal_across_operations": true,
@@ -89,7 +91,7 @@
     "all_jobs_terminal": true,
     "stable_state_preserved": true,
     "append_only_changes_scoped": true,
-    "rto_elapsed_ms": 115291,
+    "rto_elapsed_ms": 824830,
     "rto_limit_ms": 1800000,
     "rto_passed": true
   },
@@ -99,26 +101,26 @@
     "go_build_all_without_vcs_stamp": "passed",
     "web_check": "passed",
     "recovery_controller_tests": {
-      "passed": 14,
+      "passed": 17,
       "failed": 0,
-      "total": 14
+      "total": 17
     },
     "critical_invariant_branches": {
-      "passed": 136,
-      "total": 136,
+      "passed": 140,
+      "total": 140,
       "percentage": 100
     },
     "domain_application_statement_coverage": {
-      "percentage": 85.71,
-      "covered": 3101,
-      "total": 3618,
+      "percentage": 85.69,
+      "covered": 3157,
+      "total": 3684,
       "required_percentage": 85,
       "passed": true
     },
     "infrastructure_transport_statement_coverage": {
-      "percentage": 75.18,
-      "covered": 3625,
-      "total": 4822,
+      "percentage": 73.77,
+      "covered": 3727,
+      "total": 5052,
       "required_percentage": 70,
       "passed": true
     },
@@ -127,7 +129,7 @@
     "binary_and_large_file_check": "passed",
     "temporary_artifact_check": "passed",
     "current_slice_process_residue_check": "passed",
-    "browser_acceptance": "not_applicable_no_web_behavior_change"
+    "browser_acceptance": "passed_in_final_local_release_gate"
   },
   "excluded": {
     "formal_real_model_accuracy_evaluation": "not_run",

@@ -1,4 +1,4 @@
-# M1 覆盖率排除清单。这里只能列出验收文档允许的不执行声明或装配资产。
+# Clean Slate 覆盖率排除清单。这里只能列出验收文档允许的不执行声明或装配资产。
 apps/api/cmd/**                         # 进程装配入口
 apps/api/internal/ports/**              # 纯接口与数据声明
 apps/web/src/data/generated/**          # OpenAPI 生成代码

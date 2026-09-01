@@ -14,17 +14,16 @@ import (
 const exerciseTimeout = 10 * time.Minute
 
 type archiveOptions struct {
-	Database, Migrations, Objects, PDFInfo string
-	TenantID, SourceID, ExerciseID, Output string
+	Objects, PDFInfo, TenantID, SourceID, ExerciseID, Output string
 }
 
 type snapshotOptions struct {
-	Database, Objects, ProcessingJobID, ConfirmedFactID, ExerciseID, Output string
-	ExpectedDocuments                                                       int64
+	Objects, ProcessingJobID, ConfirmedFactID, ExerciseID, Output string
+	ExpectedDocuments                                             int64
 }
 
 type verifyOptions struct {
-	Database, Snapshot, RecoveredFactID, ExerciseID, BackupSetID, Output string
+	Snapshot, RecoveredFactID, ExerciseID, BackupSetID, Output string
 }
 
 func main() {
@@ -120,8 +119,6 @@ func parseArchiveOptions(arguments []string) (archiveOptions, error) {
 	flags := flag.NewFlagSet("archive-email", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var options archiveOptions
-	flags.StringVar(&options.Database, "database", "", "offline SQLite database")
-	flags.StringVar(&options.Migrations, "migrations", "", "current migrations")
 	flags.StringVar(&options.Objects, "objects", "", "offline object store")
 	flags.StringVar(&options.PDFInfo, "pdfinfo", "", "pdfinfo executable path")
 	flags.StringVar(&options.TenantID, "tenant-id", "", "synthetic tenant id")
@@ -131,9 +128,9 @@ func parseArchiveOptions(arguments []string) (archiveOptions, error) {
 	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
 		return archiveOptions{}, errors.New("invalid archive-email arguments")
 	}
-	if options.Database == "" || options.Migrations == "" || options.Objects == "" || options.PDFInfo == "" ||
+	if options.Objects == "" || options.PDFInfo == "" ||
 		options.TenantID == "" || options.SourceID == "" || options.ExerciseID == "" || options.Output == "" {
-		return archiveOptions{}, errors.New("archive-email requires -database, -migrations, -objects, -pdfinfo, -tenant-id, -source-id, -exercise-id, and -output")
+		return archiveOptions{}, errors.New("archive-email requires -objects, -pdfinfo, -tenant-id, -source-id, -exercise-id, and -output")
 	}
 	return options, nil
 }
@@ -142,7 +139,6 @@ func parseSnapshotOptions(arguments []string) (snapshotOptions, error) {
 	flags := flag.NewFlagSet("snapshot", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var options snapshotOptions
-	flags.StringVar(&options.Database, "database", "", "offline SQLite database")
 	flags.StringVar(&options.Objects, "objects", "", "offline object store")
 	flags.StringVar(&options.ProcessingJobID, "processing-job-id", "", "job held at backup")
 	flags.StringVar(&options.ConfirmedFactID, "confirmed-fact-id", "", "fact confirmed before backup")
@@ -152,8 +148,8 @@ func parseSnapshotOptions(arguments []string) (snapshotOptions, error) {
 	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
 		return snapshotOptions{}, errors.New("invalid snapshot arguments")
 	}
-	if options.Database == "" || options.Objects == "" || options.ProcessingJobID == "" || options.ConfirmedFactID == "" || options.ExerciseID == "" || options.Output == "" || options.ExpectedDocuments < 1 {
-		return snapshotOptions{}, errors.New("snapshot requires -database, -objects, -processing-job-id, -confirmed-fact-id, -exercise-id, -expected-documents, and -output")
+	if options.Objects == "" || options.ProcessingJobID == "" || options.ConfirmedFactID == "" || options.ExerciseID == "" || options.Output == "" || options.ExpectedDocuments < 1 {
+		return snapshotOptions{}, errors.New("snapshot requires -objects, -processing-job-id, -confirmed-fact-id, -exercise-id, -expected-documents, and -output")
 	}
 	return options, nil
 }
@@ -162,7 +158,6 @@ func parseVerifyOptions(arguments []string) (verifyOptions, error) {
 	flags := flag.NewFlagSet("verify", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var options verifyOptions
-	flags.StringVar(&options.Database, "database", "", "offline restored SQLite database")
 	flags.StringVar(&options.Snapshot, "snapshot", "", "protected pre-backup snapshot JSON")
 	flags.StringVar(&options.RecoveredFactID, "recovered-fact-id", "", "fact created after recovery")
 	flags.StringVar(&options.ExerciseID, "exercise-id", "", "opaque recovery exercise identity")
@@ -171,8 +166,8 @@ func parseVerifyOptions(arguments []string) (verifyOptions, error) {
 	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
 		return verifyOptions{}, errors.New("invalid verify arguments")
 	}
-	if options.Database == "" || options.Snapshot == "" || options.RecoveredFactID == "" || options.ExerciseID == "" || options.BackupSetID == "" || options.Output == "" {
-		return verifyOptions{}, errors.New("verify requires -database, -snapshot, -recovered-fact-id, -exercise-id, -backup-set-id, and -output")
+	if options.Snapshot == "" || options.RecoveredFactID == "" || options.ExerciseID == "" || options.BackupSetID == "" || options.Output == "" {
+		return verifyOptions{}, errors.New("verify requires -snapshot, -recovered-fact-id, -exercise-id, -backup-set-id, and -output")
 	}
 	return options, nil
 }

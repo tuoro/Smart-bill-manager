@@ -3,7 +3,7 @@
 > **English:** [README_EN.md](README_EN.md)
 
 > [!IMPORTANT]
-> M0、M1、M2 已完成；M2 的金额分配、确定性重复检测、跨页审核、批量上传和已确认 Fact 分配调整五个切片均已通过验收。新系统不兼容 v0.x，也不读取或迁移旧数据。
+> M0～M4 本地功能与本地发布准备已完成；PostgreSQL 17 是唯一关系数据源。新系统不兼容 v0.x，也不读取或迁移旧数据。真实模型正式评测、真实外部联调和生产发布仍待单独授权。
 
 Smart Bill Manager 是面向个人与小团队的自托管 AI 财务单据工作台。用户上传支付截图或发票后，系统生成可验证的候选字段和证据；只有用户明确确认，候选结果才能成为正式财务事实。
 
@@ -31,7 +31,7 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 - 独立工作区、基线 SHA、范围 diff、响应式和可访问性证据；
 - 独立只读复审。
 
-独立只读复审已清零 M0 阻断、重大和次要问题，完成证据见 [M0 验收证据](docs/m0-evidence.md)。[M1 AI 收件箱首条链路](docs/scope.md) 已于 2026-08-30 完成，收口证据见 [M1 验收证据](docs/m1-evidence.md)；M2 于 2026-08-31 完成五个切片，将金额分配、疑似重复、跨页审核、批量上传和已确认 Fact 的原子分配调整纳入同一 Clean Slate 链路，结果见 [M2 验收证据](docs/m2-evidence.md)。M3 首个邮箱 Source、邮件与附件本地归档切片已完成，结果见 [M3 验收证据](docs/m3-evidence.md)，下一切片从行程归属范围冻结开始；真实邮箱连接、凭据和实联调仍在授权门禁外。真实上传继续以清晰、完整、无遮挡且关键字段可直接人工辨读为当前承诺，模型正确率专项安排在全部本地功能开发完成后处理。
+独立只读复审已清零 M0 阻断、重大和次要问题，完成证据见 [M0 验收证据](docs/m0-evidence.md)。[M1 AI 收件箱首条链路](docs/scope.md) 已于 2026-08-30 完成；M2 与 M3 于 2026-08-31 完成，证据见 [M1](docs/m1-evidence.md)、[M2](docs/m2-evidence.md) 与 [M3](docs/m3-evidence.md)。M4 于 2026-09-01 完成 PostgreSQL 17 唯一持久化、确定性 Fact 洞察、1,000 Document 认证恢复、运行质量和本地发布准备，证据见 [M4 验收证据](docs/m4-evidence.md)。真实模型正式评测、真实邮箱/Provider 联调、部署和发布仍在单独门禁外。
 
 ## 权威文档
 
@@ -48,7 +48,9 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 | [M1 证据](docs/m1-evidence.md)          | 已执行门禁、真实诊断和当前阶段决定     |
 | [M2 证据](docs/m2-evidence.md)          | 五个切片实现、不变量和自动化验收       |
 | [M3 证据](docs/m3-evidence.md)          | 邮箱归档切片实现、不变量和自动化验收   |
-| [M1 备份与恢复](docs/backup-restore.md) | 离线一致快照、清单、恢复和保留策略     |
+| [M4 证据](docs/m4-evidence.md)          | 洞察、恢复与本地发布准备证据           |
+| [备份与恢复](docs/backup-restore.md)    | 认证快照、验证、恢复和保留策略         |
+| [本地运维](docs/local-operations.md)    | 构建、启动、诊断、升级和回滚           |
 | [路线图](docs/roadmap.md)               | 里程碑和进入下一阶段的门禁             |
 
 关键决策包括：
@@ -63,6 +65,12 @@ M0 已于 2026-08-27 完成并冻结以下可执行设计基线：
 - [ADR-0012：客户端编排批量上传](docs/decisions/0012-client-orchestrated-batch-upload.md)
 - [ADR-0013：已确认 Fact 分配调整](docs/decisions/0013-confirmed-fact-allocation-adjustment.md)
 - [ADR-0014：连接器中立的邮箱 Source 与不可变邮件归档](docs/decisions/0014-connector-neutral-email-archive.md)
+- [ADR-0015：Trip 与 Fact 确定性归属](docs/decisions/0015-trip-fact-attribution.md)
+- [ADR-0016：报销工作流与确定性政策提示](docs/decisions/0016-reimbursement-workflow-policy-findings.md)
+- [ADR-0017：确定性 Fact 洞察与查询](docs/decisions/0017-deterministic-fact-insights-and-query.md)
+- [ADR-0018：认证的停机备份与完整恢复](docs/decisions/0018-authenticated-offline-backup-and-recovery.md)
+- [ADR-0019：本地发布候选与运行质量门禁](docs/decisions/0019-local-release-candidate-and-runtime-quality.md)
+- [ADR-0020：PostgreSQL 唯一持久化](docs/decisions/0020-postgresql-only-persistence.md)
 
 ## 目标目录
 

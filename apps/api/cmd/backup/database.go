@@ -9,19 +9,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
-
-	_ "modernc.org/sqlite"
 )
 
 type migrationDescriptor struct {
 	Version int
 	Name    string
+	SHA256  string
 	File    string
 }
 
@@ -36,137 +34,70 @@ type objectSummary struct {
 	Objects        []fileRecord
 }
 
-func openDatabase(location string, readOnly bool) (*sql.DB, error) {
-	if err := requireRegular(location, false); err != nil {
-		return nil, fmt.Errorf("database file: %w", err)
-	}
-	absolute, err := filepath.Abs(location)
-	if err != nil {
-		return nil, err
-	}
-	mode := "rw"
-	if readOnly {
-		mode = "ro"
-	}
-	dsnURL := &url.URL{Scheme: "file", Path: absolute}
-	query := dsnURL.Query()
-	query.Set("mode", mode)
-	if readOnly {
-		query.Set("immutable", "1")
-	}
-	query.Add("_pragma", "foreign_keys(1)")
-	query.Add("_pragma", "busy_timeout(1000)")
-	if !readOnly {
-		query.Set("_txlock", "exclusive")
-	}
-	dsnURL.RawQuery = query.Encode()
-	database, err := sql.Open("sqlite", dsnURL.String())
-	if err != nil {
-		return nil, err
-	}
-	database.SetMaxOpenConns(1)
-	if err := database.Ping(); err != nil {
-		_ = database.Close()
-		return nil, err
-	}
-	return database, nil
-}
-
-func checkpoint(ctx context.Context, database *sql.DB) error {
-	var busy, logFrames, checkpointed int
-	if err := database.QueryRowContext(ctx, "PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logFrames, &checkpointed); err != nil {
-		return fmt.Errorf("checkpoint database: %w", err)
-	}
-	if busy != 0 || logFrames != checkpointed {
-		return fmt.Errorf("database checkpoint incomplete (busy=%d log=%d checkpointed=%d)", busy, logFrames, checkpointed)
-	}
-	return nil
-}
-
 func inspectDatabase(ctx context.Context, transaction *sql.Tx, committedObjects, migrations string) (databaseRecord, objectSummary, string, error) {
-	integrity, err := integrityCheck(ctx, transaction)
+	serverMajor, err := postgresServerMajor(ctx, transaction)
 	if err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL server identity: %w", err)
 	}
-	foreignKeyViolations, err := foreignKeyViolationCount(ctx, transaction)
-	if err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+	if serverMajor != 17 {
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("PostgreSQL server major %d is unsupported", serverMajor)
 	}
-	if foreignKeyViolations != 0 {
-		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("SQLite foreign_key_check found %d violations", foreignKeyViolations)
+	if err := verifyValidatedForeignKeys(ctx, transaction); err != nil {
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL constraints: %w", err)
 	}
 	migrationHash, descriptors, err := migrationSetIdentity(migrations)
 	if err != nil {
 		return databaseRecord{}, objectSummary{}, "", err
 	}
 	if err := verifyAppliedMigrations(ctx, transaction, descriptors); err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL migration identity: %w", err)
 	}
 	schemaHash, err := schemaIdentity(ctx, transaction)
 	if err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL schema identity: %w", err)
 	}
 	counts, err := tableCounts(ctx, transaction)
 	if err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL table inventory: %w", err)
 	}
 	auditHash, err := auditChainHash(ctx, transaction)
 	if err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL audit identity: %w", err)
 	}
 	objects, err := verifyObjectReferences(ctx, transaction, committedObjects)
 	if err != nil {
-		return databaseRecord{}, objectSummary{}, "", err
+		return databaseRecord{}, objectSummary{}, "", fmt.Errorf("inspect PostgreSQL object references: %w", err)
 	}
 	return databaseRecord{
-		IntegrityCheck:           integrity,
-		ForeignKeyViolationCount: foreignKeyViolations,
-		SchemaSHA256:             schemaHash,
-		TableCounts:              counts,
-		AuditChainSHA256:         auditHash,
+		DumpFormat:       "postgresql-custom",
+		ServerMajor:      serverMajor,
+		SchemaSHA256:     schemaHash,
+		TableCounts:      counts,
+		AuditChainSHA256: auditHash,
 	}, objects, migrationHash, nil
 }
 
-func integrityCheck(ctx context.Context, transaction *sql.Tx) (string, error) {
-	rows, err := transaction.QueryContext(ctx, "PRAGMA integrity_check")
-	if err != nil {
-		return "", fmt.Errorf("run SQLite integrity_check: %w", err)
+func postgresServerMajor(ctx context.Context, transaction *sql.Tx) (int, error) {
+	var major int
+	if err := transaction.QueryRowContext(ctx, `SELECT current_setting('server_version_num')::integer / 10000`).Scan(&major); err != nil {
+		return 0, fmt.Errorf("read PostgreSQL server major: %w", err)
 	}
-	defer rows.Close()
-	results := make([]string, 0, 1)
-	for rows.Next() {
-		var result string
-		if err := rows.Scan(&result); err != nil {
-			return "", err
-		}
-		results = append(results, result)
-	}
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
-	if len(results) != 1 || results[0] != "ok" {
-		return "", errors.New("SQLite integrity_check did not return exactly ok")
-	}
-	return "ok", nil
+	return major, nil
 }
 
-func foreignKeyViolationCount(ctx context.Context, transaction *sql.Tx) (int64, error) {
-	rows, err := transaction.QueryContext(ctx, "PRAGMA foreign_key_check")
-	if err != nil {
-		return 0, fmt.Errorf("run SQLite foreign_key_check: %w", err)
+func verifyValidatedForeignKeys(ctx context.Context, transaction *sql.Tx) error {
+	var invalid int64
+	if err := transaction.QueryRowContext(ctx, `
+		SELECT count(*) FROM pg_constraint constraint_row
+		JOIN pg_namespace namespace ON namespace.oid = constraint_row.connamespace
+		WHERE namespace.nspname = 'public' AND constraint_row.contype = 'f' AND NOT constraint_row.convalidated
+	`).Scan(&invalid); err != nil {
+		return fmt.Errorf("inspect PostgreSQL foreign keys: %w", err)
 	}
-	defer rows.Close()
-	var count int64
-	for rows.Next() {
-		var table, parent string
-		var rowID sql.NullInt64
-		var foreignKeyID int64
-		if err := rows.Scan(&table, &rowID, &parent, &foreignKeyID); err != nil {
-			return 0, err
-		}
-		count++
+	if invalid != 0 {
+		return fmt.Errorf("PostgreSQL has %d unvalidated foreign keys", invalid)
 	}
-	return count, rows.Err()
+	return nil
 }
 
 func migrationSetIdentity(root string) (string, []migrationDescriptor, error) {
@@ -192,24 +123,30 @@ func migrationSetIdentity(root string) (string, []migrationDescriptor, error) {
 		if err != nil {
 			return "", nil, fmt.Errorf("read migration %s: %w", entry.Name(), err)
 		}
+		contentDigest := sha256.Sum256(content)
 		writeFramed(hash, []byte(entry.Name()))
 		writeFramed(hash, content)
-		descriptors = append(descriptors, migrationDescriptor{Version: version, Name: suffix, File: entry.Name()})
+		descriptors = append(descriptors, migrationDescriptor{
+			Version: version,
+			Name:    entry.Name(),
+			SHA256:  hex.EncodeToString(contentDigest[:]),
+			File:    entry.Name(),
+		})
 	}
 	sort.Slice(descriptors, func(left, right int) bool { return descriptors[left].Version < descriptors[right].Version })
 	if len(descriptors) == 0 {
 		return "", nil, errors.New("migration directory is empty")
 	}
-	for index := range descriptors {
-		if index > 0 && descriptors[index-1].Version >= descriptors[index].Version {
-			return "", nil, errors.New("migration versions are not unique and increasing")
+	for index, descriptor := range descriptors {
+		if descriptor.Version != index+1 {
+			return "", nil, errors.New("migration versions must be contiguous from 0001")
 		}
 	}
 	return hex.EncodeToString(hash.Sum(nil)), descriptors, nil
 }
 
 func verifyAppliedMigrations(ctx context.Context, transaction *sql.Tx, expected []migrationDescriptor) error {
-	rows, err := transaction.QueryContext(ctx, "SELECT version, name FROM schema_migrations ORDER BY version")
+	rows, err := transaction.QueryContext(ctx, `SELECT version, name, content_sha256 FROM schema_migrations ORDER BY version`)
 	if err != nil {
 		return fmt.Errorf("read applied migrations: %w", err)
 	}
@@ -217,7 +154,7 @@ func verifyAppliedMigrations(ctx context.Context, transaction *sql.Tx, expected 
 	actual := make([]migrationDescriptor, 0, len(expected))
 	for rows.Next() {
 		var migration migrationDescriptor
-		if err := rows.Scan(&migration.Version, &migration.Name); err != nil {
+		if err := rows.Scan(&migration.Version, &migration.Name, &migration.SHA256); err != nil {
 			return err
 		}
 		actual = append(actual, migration)
@@ -229,7 +166,7 @@ func verifyAppliedMigrations(ctx context.Context, transaction *sql.Tx, expected 
 		return errors.New("database migration set differs from current migrations")
 	}
 	for index := range expected {
-		if actual[index].Version != expected[index].Version || actual[index].Name != expected[index].Name {
+		if actual[index].Version != expected[index].Version || actual[index].Name != expected[index].Name || actual[index].SHA256 != expected[index].SHA256 {
 			return errors.New("database migration set differs from current migrations")
 		}
 	}
@@ -238,22 +175,44 @@ func verifyAppliedMigrations(ctx context.Context, transaction *sql.Tx, expected 
 
 func schemaIdentity(ctx context.Context, transaction *sql.Tx) (string, error) {
 	rows, err := transaction.QueryContext(ctx, `
-		SELECT type, name, tbl_name, coalesce(sql, '')
-		FROM sqlite_schema
-		WHERE name NOT LIKE 'sqlite_%'
-		ORDER BY type, name
+		SELECT object_kind, object_identity, definition
+		FROM (
+			SELECT 'column' AS object_kind,
+			       table_name || '.' || lpad(ordinal_position::text, 4, '0') AS object_identity,
+			       concat_ws('|', column_name, data_type, udt_name, is_nullable, coalesce(column_default, '')) AS definition
+			FROM information_schema.columns WHERE table_schema = 'public'
+			UNION ALL
+			SELECT 'constraint', relation.relname || '.' || constraint_row.conname,
+			       pg_get_constraintdef(constraint_row.oid, true)
+			FROM pg_constraint constraint_row
+			JOIN pg_class relation ON relation.oid = constraint_row.conrelid
+			JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+			WHERE namespace.nspname = 'public'
+			UNION ALL
+			SELECT 'index', tablename || '.' || indexname, indexdef
+			FROM pg_indexes WHERE schemaname = 'public'
+			UNION ALL
+			SELECT 'function', routine.proname || '(' || pg_get_function_identity_arguments(routine.oid) || ')', pg_get_functiondef(routine.oid)
+			FROM pg_proc routine JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
+			WHERE namespace.nspname = 'public'
+			UNION ALL
+			SELECT 'trigger', relation.relname || '.' || trigger.tgname, pg_get_triggerdef(trigger.oid, true)
+			FROM pg_trigger trigger JOIN pg_class relation ON relation.oid = trigger.tgrelid
+			JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+			WHERE namespace.nspname = 'public' AND NOT trigger.tgisinternal
+		) objects ORDER BY object_kind, object_identity
 	`)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read PostgreSQL schema identity: %w", err)
 	}
 	defer rows.Close()
 	hash := sha256.New()
 	for rows.Next() {
-		var objectType, name, table, statement string
-		if err := rows.Scan(&objectType, &name, &table, &statement); err != nil {
+		var kind, identity, definition string
+		if err := rows.Scan(&kind, &identity, &definition); err != nil {
 			return "", err
 		}
-		encoded, err := json.Marshal([]string{objectType, name, table, statement})
+		encoded, err := json.Marshal([]string{kind, identity, definition})
 		if err != nil {
 			return "", err
 		}
@@ -266,15 +225,11 @@ func schemaIdentity(ctx context.Context, transaction *sql.Tx) (string, error) {
 }
 
 func tableCounts(ctx context.Context, transaction *sql.Tx) (map[string]int64, error) {
-	rows, err := transaction.QueryContext(ctx, `
-		SELECT name FROM sqlite_schema
-		WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-		ORDER BY name
-	`)
+	rows, err := transaction.QueryContext(ctx, `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`)
 	if err != nil {
 		return nil, err
 	}
-	tables := make([]string, 0)
+	var tables []string
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
@@ -305,9 +260,8 @@ func auditChainHash(ctx context.Context, transaction *sql.Tx) (string, error) {
 	hash := sha256.New()
 	rows, err := transaction.QueryContext(ctx, `
 		SELECT id, tenant_id, actor_user_id, action, resource_type, resource_id,
-		       request_id, safe_metadata_json, created_at
-		FROM audit_events
-		ORDER BY tenant_id, created_at, id
+		       request_id, safe_metadata_json::text, created_at::text
+		FROM audit_events ORDER BY tenant_id, created_at, id
 	`)
 	if err != nil {
 		return "", err
@@ -347,11 +301,10 @@ func verifyObjectReferences(ctx context.Context, transaction *sql.Tx, committedR
 			UNION ALL
 			SELECT 'email_attachment', id, storage_key, sha256, size_bytes
 			FROM email_attachments WHERE storage_key IS NOT NULL
-		)
-		ORDER BY storage_key, source_kind, source_id
+		) object_references ORDER BY storage_key, source_kind, source_id
 	`)
 	if err != nil {
-		return objectSummary{}, err
+		return objectSummary{}, fmt.Errorf("query PostgreSQL object references: %w", err)
 	}
 	defer rows.Close()
 	references := make(map[string]objectReference)
@@ -360,7 +313,7 @@ func verifyObjectReferences(ctx context.Context, transaction *sql.Tx, committedR
 		var sourceKind, sourceID, key, expectedHash string
 		var size sql.NullInt64
 		if err := rows.Scan(&sourceKind, &sourceID, &key, &expectedHash, &size); err != nil {
-			return objectSummary{}, err
+			return objectSummary{}, fmt.Errorf("scan PostgreSQL object references: %w", err)
 		}
 		if sourceKind == "" || sourceID == "" || !safeRelativePath(key) || !lowerHex64Pattern.MatchString(expectedHash) || (size.Valid && size.Int64 < 1) {
 			return objectSummary{}, errors.New("database contains an invalid object reference")
@@ -379,11 +332,11 @@ func verifyObjectReferences(ctx context.Context, transaction *sql.Tx, committedR
 		referenceCount++
 	}
 	if err := rows.Err(); err != nil {
-		return objectSummary{}, err
+		return objectSummary{}, fmt.Errorf("iterate PostgreSQL object references: %w", err)
 	}
 	actual, err := listTree(committedRoot, "objects")
 	if err != nil {
-		return objectSummary{}, err
+		return objectSummary{}, fmt.Errorf("list committed object inventory: %w", err)
 	}
 	if len(actual) != len(references) {
 		return objectSummary{}, fmt.Errorf("committed object count %d differs from unique database reference count %d", len(actual), len(references))
@@ -391,50 +344,28 @@ func verifyObjectReferences(ctx context.Context, transaction *sql.Tx, committedR
 	for _, record := range actual {
 		key := strings.TrimPrefix(record.Path, "objects/")
 		reference, found := references[key]
-		if !found {
-			return objectSummary{}, fmt.Errorf("committed object %q has no database reference", key)
-		}
-		if reference.SHA256 != record.SHA256 || (reference.HasSize && reference.Size != record.Size) {
+		if !found || reference.SHA256 != record.SHA256 || (reference.HasSize && reference.Size != record.Size) {
 			return objectSummary{}, fmt.Errorf("committed object %q differs from its database reference", key)
 		}
 	}
 	return objectSummary{ReferenceCount: referenceCount, Objects: actual}, nil
 }
 
-func invalidateSessions(ctx context.Context, databasePath string) (int64, error) {
-	database, err := openDatabase(databasePath, false)
+func invalidateSessions(ctx context.Context, database *sql.DB) (int64, error) {
+	result, err := database.ExecContext(ctx, "DELETE FROM sessions")
 	if err != nil {
-		return 0, err
-	}
-	defer database.Close()
-	transaction, err := database.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	result, err := transaction.ExecContext(ctx, "DELETE FROM sessions")
-	if err != nil {
-		_ = transaction.Rollback()
 		return 0, fmt.Errorf("invalidate restored sessions: %w", err)
 	}
 	count, err := result.RowsAffected()
 	if err != nil {
-		_ = transaction.Rollback()
-		return 0, err
-	}
-	if err := transaction.Commit(); err != nil {
-		return 0, err
-	}
-	if err := checkpoint(ctx, database); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func databaseStateEqual(actual, expected databaseRecord, expectedCounts map[string]int64) bool {
-	return actual.IntegrityCheck == expected.IntegrityCheck &&
-		actual.ForeignKeyViolationCount == expected.ForeignKeyViolationCount &&
-		actual.SchemaSHA256 == expected.SchemaSHA256 &&
-		actual.AuditChainSHA256 == expected.AuditChainSHA256 &&
+	return actual.DumpFormat == expected.DumpFormat && actual.ServerMajor == expected.ServerMajor &&
+		actual.SchemaSHA256 == expected.SchemaSHA256 && actual.AuditChainSHA256 == expected.AuditChainSHA256 &&
 		equalCounts(actual.TableCounts, expectedCounts)
 }
 

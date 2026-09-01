@@ -5,15 +5,15 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 func TestDocumentDeletionRestoresObjectsWhenDatabaseTransactionFails(t *testing.T) {
@@ -25,11 +25,11 @@ func TestDocumentDeletionRestoresObjectsWhenDatabaseTransactionFails(t *testing.
 		t.Fatal(err)
 	}
 	if _, err := store.DB().ExecContext(ctx, `
+		CREATE FUNCTION pg_temp.fail_document_tombstone() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic_deletion_failure'; END; $$;
 		CREATE TRIGGER fail_document_tombstone
 		BEFORE INSERT ON deletion_tombstones
-		BEGIN
-			SELECT RAISE(ABORT, 'synthetic_deletion_failure');
-		END
+		FOR EACH ROW EXECUTE FUNCTION pg_temp.fail_document_tombstone()
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestDocumentDeletionRestoresObjectsWhenDatabaseTransactionFails(t *testing.
 	if err != nil || len(pending) != 0 {
 		t.Fatalf("failed deletion left trash batches: %#v, error=%v", pending, err)
 	}
-	if _, err := store.DB().ExecContext(ctx, "DROP TRIGGER fail_document_tombstone"); err != nil {
+	if _, err := store.DB().ExecContext(ctx, "DROP TRIGGER fail_document_tombstone ON deletion_tombstones"); err != nil {
 		t.Fatal(err)
 	}
 	if err := service.Delete(ctx, tenant, result.DocumentID, "delete-success"); err != nil {
@@ -110,20 +110,9 @@ func TestDocumentDeletionReconcileRestoresUncommittedAndPurgesCommittedBatches(t
 	}
 }
 
-func newDeletionFixture(t *testing.T) (*sqliteadapter.Store, *localstorage.Store, domain.TenantContext) {
+func newDeletionFixture(t *testing.T) (*postgresqladapter.Store, *localstorage.Store, domain.TenantContext) {
 	t.Helper()
-	store, err := sqliteadapter.Open(context.Background(), sqliteadapter.Config{
-		DatabasePath:  filepath.Join(t.TempDir(), "deletion.sqlite"),
-		MigrationsDir: testMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Errorf("close store: %v", err)
-		}
-	})
+	store := postgresqltest.Open(t)
 	owner := ports.BootstrapOwner{
 		UserID: "00000000-0000-4000-8000-000000000201", TenantID: "00000000-0000-4000-8000-000000000202",
 		Email: "deletion@example.test", PasswordHash: "test-only", DisplayName: "Owner", TenantName: "Tenant",
@@ -141,7 +130,7 @@ func newDeletionFixture(t *testing.T) (*sqliteadapter.Store, *localstorage.Store
 
 func uploadDeletionFixture(
 	t *testing.T,
-	store *sqliteadapter.Store,
+	store *postgresqladapter.Store,
 	objects *localstorage.Store,
 	tenant domain.TenantContext,
 ) UploadResult {

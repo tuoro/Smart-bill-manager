@@ -380,7 +380,7 @@ func verifyPackageLayout(root string) error {
 	if err != nil {
 		return err
 	}
-	if len(databaseEntries) != 1 || databaseEntries[0].Name() != "sbm.sqlite" || !databaseEntries[0].Type().IsRegular() {
+	if len(databaseEntries) != 1 || databaseEntries[0].Name() != "sbm.pgcustom" || !databaseEntries[0].Type().IsRegular() {
 		return errors.New("backup database directory is invalid")
 	}
 	return nil

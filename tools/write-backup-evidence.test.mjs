@@ -14,8 +14,21 @@ test("evidence merger emits only safe aggregates after every gate passes", () =>
     recordedDate: "2026-08-31",
   });
   assert.equal(evidence.overall_status, "passed");
+  assert.equal(
+    evidence.evidence_version,
+    "M4-BACKUP-RESTORE-POSTGRESQL-2026-09-01",
+  );
   assert.equal(evidence.synthetic_dataset.document_count, 1000);
   assert.equal(evidence.recovered_runtime.rto_passed, true);
+  assert.equal(evidence.stage.m4, "complete_local_only");
+  assert.equal(
+    evidence.stage.model_accuracy_gate,
+    "pending_explicit_authorization",
+  );
+  assert.equal(
+    evidence.gates.browser_acceptance,
+    "passed_in_final_local_release_gate",
+  );
   const encoded = JSON.stringify(evidence);
   for (const forbidden of [
     "job-processing",
@@ -78,7 +91,7 @@ function validInputs() {
   const operation = (name, started, finished) => ({
     operation: name,
     manifest_kind: "smart-bill-manager-backup",
-    manifest_version: 2,
+    manifest_version: 3,
     backup_set_id: "a".repeat(32),
     document_count: 1000,
     object_reference_count: 1004,

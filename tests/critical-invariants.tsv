@@ -16,7 +16,8 @@ document-deduplication	同租户相同 SHA-256 返回 duplicate_document 且不�
 invoice-number-deduplication	发票号码 NFKC、trim、空白折叠和拉丁大小写规范化后精确判重并 blocked	./internal/application/processing	TestWorkerBlocksNormalizedDuplicateInvoiceNumber
 duplicate-visual-fingerprint	相同像素、PNG/JPEG 重新编码和等比缩放按冻结算法生成确定性视觉指纹	./internal/adapters/localstorage	TestPageVisualFingerprintMatchesApprovedReencodingAndEqualScaling
 duplicate-visual-threshold	宽高比、dHash 与 aHash 阈值边界同时满足才构成近似页	./internal/domain	TestPageVisualFingerprintAndNearBoundary
-duplicate-visual-tenant-band	四个 dHash band 只检索同租户目标，整份近似优先于跨文档页候选	./internal/adapters/sqlite	TestVisualDuplicateBandLookupIsTenantScopedAndKeepsWholeDocumentPriority
+duplicate-visual-tenant-band	四个 dHash band 只检索同租户目标，整份近似优先于跨文档页候选	./internal/adapters/postgresql	TestVisualDuplicateBandLookupIsTenantScopedAndKeepsWholeDocumentPriority
+duplicate-visual-index-plan	四个租户+dHash band 复合索引全部存在，候选检索计划不得退化为全表顺序扫描	./internal/adapters/postgresql	TestVisualDuplicateBandLookupHasEachCompositeIndexAndAvoidsSequentialCandidateScan
 duplicate-within-document	当前 Document 内两个不同页近似时只生成明确页对的 cross_page 候选	./internal/domain	TestBuildVisualDuplicateSignalsFindsRepeatedPageWithinDocument
 duplicate-field-combination	Payment 金额/币种/商户/五分钟窗口和可选订单号按冻结规则匹配	./internal/domain	TestBuildFieldDuplicateSignalsUsesFrozenPaymentCombination
 duplicate-field-combination	Invoice 字段组合匹配不复制已由精确发票号规则阻断的同号候选	./internal/domain	TestBuildFieldDuplicateSignalsKeepsExactInvoiceNumberAsHardRule
@@ -32,6 +33,7 @@ association-plan-balance	候选不可用、跨币种、目标余额和新 Fact �
 association-one-to-many	一笔 Payment 可按正整数金额分配给多张 Invoice；规范计划幂等且同键改金额冲突	./internal/application/reviews	TestPaymentAllocatesAcrossInvoicesAndReplaysCanonicalPlan
 association-many-to-one	一张 Invoice 可接收多笔 Payment；双方余额动态聚合，删除后恢复且历史 Link 保留	./internal/application/reviews	TestInvoiceReceivesMultiplePaymentsAndDeletionRestoresBalance
 association-pair-history	同一 Payment/Invoice 活动对唯一；失败事务无部分写入；Link 字段不可变且结束后不能复活或删除	./internal/application/reviews	TestPaymentInvoiceLinkRejectsDuplicateActivePairAndMutation
+association-database-unique	PostgreSQL 唯一约束冲突必须确定性映射为活动 Payment/Invoice 对冲突	./internal/adapters/postgresql	TestAllocationInsertErrorMapsPairUniqueConstraint
 association-balance-concurrency	两个事务争用同一 Fact 最后余额时最多一个成功，失败请求无部分 Fact 或 Link	./internal/application/reviews	TestConcurrentAllocationsRespectLastBalanceWithoutPartialWrites
 association-stale-candidate	候选确认前删除后必须拒绝且不产生部分 Fact	./internal/application/reviews	TestDeletedCandidateAbortsConfirmationWithoutPartialFact
 association-cross-tenant	提交其他租户真实候选 ID 时拒绝，Fact、决定、审计和 Job 均无部分变化	./internal/application/reviews	TestCrossTenantCandidateInjectionIsRejectedWithoutPartialWrites
@@ -62,13 +64,21 @@ email-archive-compensation	数据库或对象提交失败补偿消息、附件�
 email-archive-object-ownership	删除邮件来源 Document 只断开链接，邮件拥有的附件对象与下载能力保持不变	./internal/application/emails	TestEmailArchiveLifecyclePreservesSourceAndDocumentBoundaries
 email-archive-raw-boundary	32 MiB 原文完整接受，超出一个字节即明确拒绝	./internal/application/emails	TestReadEmailRawEnforcesExactSizeBoundary
 email-archive-http-boundary	严格 JSON/CSRF/角色/租户/游标、无凭据字段、无公开归档写入口和强制安全下载同时成立	./internal/transport/httpapi	TestHTTPEmailArchiveReadAndRegistrationBoundaries
-job-lease-recovery	过期 processing 租约恢复，并关闭悬空 running AiRun	./internal/adapters/sqlite	TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed
-job-persistence-exactly-once	50 个持久化 Job 不丢失且每个只租用一次	./internal/adapters/sqlite	TestPersistentQueueLeasesFiftyJobsExactlyOnce
+job-lease-recovery	过期 processing 租约恢复，并关闭悬空 running AiRun	./internal/adapters/postgresql	TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed
+job-persistence-exactly-once	50 个持久化 Job 不丢失且每个只租用一次	./internal/adapters/postgresql	TestPersistentQueueLeasesFiftyJobsExactlyOnce
+document-transaction-isolation	Document 上传使用显式 READ COMMITTED 并依赖唯一约束，使并发唯一插入不产生伪序列化失败	./internal/adapters/postgresql	TestReadCommittedDocumentTransactionsSurviveConcurrentUniqueInserts
 retry-boundary	仅无 ClaimSet 的 failed Job 可重试；其他状态和已有 ClaimSet 拒绝	./internal/domain	TestJobCancellationAndRetryBoundaries
 cancellation-no-write	取消在 Claim 持久化前生效，之后不能写 Claim 或 Fact	./internal/application/processing	TestWorkerCancellationStopsBeforeClaimPersistence
 document-delete-rollback	对象先入可恢复区；数据库事务失败后元数据和对象均恢复	./internal/application/documents	TestDocumentDeletionRestoresObjectsWhenDatabaseTransactionFails
 document-delete-reconcile	重启时无墓碑批次恢复、有墓碑批次清理	./internal/application/documents	TestDocumentDeletionReconcileRestoresUncommittedAndPurgesCommittedBatches
-last-owner-session	最后 active owner 不可停用、降级或删除；suspended membership 不产生 TenantContext	./internal/adapters/sqlite	TestMembershipLastOwnerAndSuspensionInvariants
+last-owner-session	最后 active owner 不可停用、降级或删除；suspended membership 不产生 TenantContext	./internal/adapters/postgresql	TestMembershipLastOwnerAndSuspensionInvariants
+postgres-role-separation	运行与迁移角色必须使用不同受保护凭据文件，恢复角色边界显式固定	./internal/adapters/postgresql	TestRuntimeAndMigrationConfigurationUseDistinctCredentialFiles
+postgres-config-fail-closed	端口、SSL、连接数与必填 PostgreSQL 环境配置非法时启动前失败	./internal/adapters/postgresql	TestPostgreSQLEnvironmentConfigurationFailsClosed
+postgres-clean-slate-bootstrap	Clean Slate 0001 在空 PostgreSQL 中建立完整 Schema，并只允许原子创建唯一 Owner	./internal/adapters/postgresql	TestMigrationAndBootstrapOwner
+postgres-bootstrap-rollback	Owner bootstrap 任一事务写入失败时用户、租户、成员关系与审计全部回滚	./internal/adapters/postgresql	TestBootstrapOwnerRollsBackOnInjectedTransactionFailure
+postgres-session-tenant-fk	Session 的 tenant/user 组合由复合外键强制属于同一租户	./internal/adapters/postgresql	TestTenantScopedSessionForeignKey
+postgres-migration-idempotency	同一 Clean Slate PostgreSQL 迁移重复执行保持确定性且不生成升级分支	./internal/adapters/postgresql	TestMigrationIsIdempotent
+postgres-parameter-rebind	参数占位符重写跳过字符串、标识符和注释，既有 PostgreSQL 参数保持不变	./internal/adapters/postgresql	TestRebindSkipsQuotedAndCommentQuestionMarks
 provider-schema-authority	Visible Text Provider Schema 从最小根 Envelope 确定性投影为 strict 封闭根，不含 Evidence、旧包装或内部金额字段	./internal/adapters/openaicompatible	TestProviderSchemaProjectionIsDeterministicStrictRoot
 provider-schema-authority	strict 模式缺少声明根成员时明确失败且不修复	./internal/adapters/openaicompatible	TestBillExtractionStrictModeRejectsMissingRootMemberWithoutRepair
 provider-schema-authority	json_object 模式保留嵌套票面字段错误并交给字段级 Claim 校验	./internal/adapters/openaicompatible	TestBillExtractionJSONObjectModePreservesMalformedVisibleFieldsForClaimValidation
@@ -76,6 +86,7 @@ provider-output-mode	能力检测的显式 json_object 只发送 JSON mode，并
 provider-output-mode	自动或未知输出模式在创建 ProviderConfig 时明确拒绝	./internal/application/providers	TestProviderInputAndPermissionBoundaries
 provider-capability-freshness	能力检测的 Schema 身份过期后不能激活配置	./internal/application/providers	TestActivationRejectsStaleProviderSchemaCapability
 provider-capability-freshness	活动配置的 Schema 身份过期时在模型调用前明确失败	./internal/application/processing	TestWorkerRejectsStaleProviderSchemaBeforeModelCall
+provider-database-schema-identity	数据库只允许激活与当前 Provider Schema 身份一致的配置	./internal/adapters/postgresql	TestProviderActivationRequiresSchemaIdentity
 visible-text-claim-mapping	Payment 只接收票面原文与页码；Evidence、本地时区默认和最终 Claim 均由 Mapper 确定性组装	./internal/application/claimmapping	TestMapPaymentBuildsEvidenceAndAppliesChineseTimezoneDefault
 visible-text-claim-mapping	Invoice 只把价税合计映射为 total，保留不含税金额供审核，且不计算空白单价	./internal/application/claimmapping	TestMapInvoiceUsesGrossTotalAndDoesNotCalculateBlankValues
 visible-text-money-boundary	票面金额支持批准币种的常见小数与千分位写法，并无浮点地转成内部整数	./internal/application/claimmapping	TestMapMoneyHandlesVisibleLocaleWithoutFloatingPoint
@@ -109,24 +120,13 @@ insight-safe-boundary	非法投影、重复 Fact、过分配、坏 Trip、陈旧
 insight-cursor-identity	fact-insight-cursor/1 绑定完整筛选 hash 与最后排序键，跨筛选复用及封闭 JSON 违规均拒绝	./internal/application/insights	TestServiceQueryPaginatesAndBindsCursorToFilter
 insight-current-sources	当前未删除 Fact、活动金额 Link 与活动行程归属是唯一洞察来源，删除后不保留统计副本	./internal/application/reviews	TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot
 insight-permission-tenant	owner/finance/viewer 可读、reviewer 拒绝，具体跨租户 Trip 不泄露且只读查询不写 AuditEvent	./internal/application/reviews	TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot
-insight-read-snapshot	并发提交期间同一洞察读事务的前后读取保持同一 SQLite 快照，提交后新请求可见	./internal/adapters/sqlite	TestInsightReadSnapshotStaysStableAcrossConcurrentCommit
-insight-schema-single-source	迁移只增加 Payment/Invoice 筛选索引，不创建 Insight 表、物化缓存或第二数据源	./internal/adapters/sqlite	TestFactInsightIndexesAreMigratedWithoutInsightTables
+insight-read-snapshot	并发提交期间同一洞察读事务的前后读取保持同一 PostgreSQL 快照，提交后新请求可见	./internal/adapters/postgresql	TestInsightReadSnapshotStaysStableAcrossConcurrentCommit
+insight-schema-single-source	Clean Slate 迁移只创建 Payment/Invoice 筛选索引，不创建 Insight 表、物化缓存或第二数据源	./internal/adapters/postgresql	TestFactInsightIndexesAreMigratedWithoutInsightTables
 insight-http-boundary	封闭单值查询、日期/枚举/Trip/游标/limit、四角色和安全不存在性经 GET HTTP 契约固定	./internal/transport/httpapi	TestHTTPInsightQueryContractAndPermissionBoundaries
-backup-authenticated-manifest	错误独立密钥、对象篡改、认证后的尾随 JSON 与重复字段全部硬失败	./cmd/backup	TestVerifyRejectsWrongKeyTamperingAndTrailingJSON
-backup-exact-object-inventory	缺失、多余、staging、trash、符号链接与外部硬链接对象全部阻止备份发布	./cmd/backup	TestBackupRejectsIncompleteOrAmbiguousObjectStore
-backup-migration-identity	旧清单与当前迁移内容漂移均不进入兼容或恢复分支	./cmd/backup	TestVerifyRejectsOldManifestAndMigrationDrift
-backup-offline-runtime-lock	运行中写入者、已有恢复目标、非独立密钥与部分发布全部 fail-closed	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
-backup-output-source-disjoint	备份输出不得落入数据库父目录、对象根或迁移集合，拒绝后不污染 staging/trash	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
-backup-hardlink-identity	数据库与独立主密钥均拒绝多硬链接身份，避免绕过路径独立性与运行锁	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
-restore-session-invalidation	四类对象共享 key 的往返恢复精确对账并在激活前删除全部旧 Session	./cmd/backup	TestBackupVerifyAndRestoreRoundTrip
-restore-crash-safe-activation	部分跨卷发布保留持久 incomplete 状态且目标不能启动；成功后保留可认证 complete 状态	./cmd/backup	TestBackupRuntimeLockAndRestoreTargetsAreFailClosed
-backup-safe-cli-output	成功终端输出只含协议与数量聚合，不含路径、对象 key、哈希或密钥身份	./cmd/backup	TestRunPrintsOnlySafeAggregate
-backup-safe-cli-error	失败终端分类码不复述私有路径、对象标识或哈希	./cmd/backup	TestSafeErrorCodeNeverEchoesSensitiveDetail
-runtime-lock-contention-state	同数据库第二写入者被拒绝且半恢复状态阻止重新激活	./internal/adapters/runtimeguard	TestAcquireExclusiveRejectsContentionAndIncompleteRestore
-runtime-lock-path-safety	宽权限锁、符号链接父目录与符号链接数据库均被拒绝	./internal/adapters/runtimeguard	TestAcquireExclusiveRejectsUnsafeLockAndSymlinkParent
-runtime-lock-hardlink-safety	多硬链接数据库不能借别名取得独立运行锁	./internal/adapters/runtimeguard	TestAcquireExclusiveRejectsHardlinkedDatabase
-restore-state-durable-publication	complete 内容先单独持久化再原子替换；同步失败仍保留 incomplete 阻断态	./internal/adapters/runtimeguard	TestCompletedRestoreStatePublicationIsFailClosed
-restore-state-database-pair	持久 complete 状态与数据库必须同时存在，孤立状态不得触发空库启动	./internal/adapters/runtimeguard	TestCompletedRestoreStateWithoutDatabaseIsRejected
+backup-authenticated-manifest	错误独立密钥、清单篡改、尾随 JSON 与重复字段全部硬失败	./cmd/backup	TestPostgreSQLBackupManifestAuthenticationAndStrictShape
+backup-credential-boundary	pg_dump/pg_restore 只读取受保护 service/pass 文件，密码不进入连接参数	./cmd/backup	TestPostgreSQLToolFilesKeepPasswordOutOfServiceConfiguration
+backup-migration-identity	旧清单与当前 PostgreSQL 迁移内容漂移均不进入兼容或恢复分支	./cmd/backup	TestMigrationIdentityIncludesExactPostgreSQLContent
+backup-cli-boundary	当前 CLI 只接受冻结的 PostgreSQL 数据包参数且拒绝未知入口	./cmd/backup	TestBackupArgumentsAreStrict
 recovery-synthetic-email	演练邮件只含一个可解析的非空纯合成 PNG 附件且原文与附件摘要独立	./cmd/recovery-exercise	TestSyntheticEmailContainsOneExactPNGAttachment
 recovery-safe-output	恢复辅助命令终端输出不含受保护 ID、对象摘要或字段名	./cmd/recovery-exercise	TestSafeRecoveryOutputOmitsIdentifiersAndHashes
 recovery-safe-error	恢复辅助命令错误分类不复述受保护 ID、路径或哈希	./cmd/recovery-exercise	TestSafeRecoveryErrorCodeOmitsProtectedDetails
@@ -135,3 +135,7 @@ recovery-protected-snapshot	恢复审计只接受 owner-only 的普通快照文�
 recovery-output-reservation	结果路径在任何演练业务写入前以 owner-only O_EXCL 标记占位，不能因输出冲突污染数据集	./cmd/recovery-exercise	TestProtectedResultIsReservedBeforeExerciseMutation
 performance-output-reservation	性能种子结果在数据库写入前排他占位，冲突时不得开始造数	./cmd/seed-performance	TestPerformanceSeedOutputIsReservedBeforeDatabaseWrites
 performance-output-path-safety	性能种子结果不得指向数据库、运行锁、恢复状态或迁移集合，拒绝后不得开始造数	./cmd/seed-performance	TestPerformanceSeedOutputCannotAliasProtectedPaths
+performance-output-parent-safety	性能种子结果只允许位于 /tmp 的 owner-only 真实父目录，宽权限与符号链接父目录均拒绝	./cmd/seed-performance	TestPerformanceSeedOutputParentMustBeOwnerOnly
+performance-arguments-strict	性能种子命令拒绝未知、重复、缺失和位置参数，不允许别名覆盖已冻结路径	./cmd/seed-performance	TestPerformanceSeedArgumentsRejectDuplicatesAndUnknownFlags
+runtime-privilege-drop	运行助手必须先清空补充组，再按 GID、UID 顺序降到 10001，并以原始 argv/env 直接 exec	./cmd/run-as-sbm	TestRunDropsAllGroupsBeforeExecAndPreservesArguments
+runtime-privilege-fail-closed	缺少命令、非 root 或任一降权失败时不得执行应用	./cmd/run-as-sbm	TestRunFailsClosedBeforeExec

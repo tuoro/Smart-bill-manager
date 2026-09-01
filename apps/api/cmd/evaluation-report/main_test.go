@@ -2,29 +2,24 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 	"testing"
+
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 func TestQueryAiRunsIncludesProviderSchemaIdentity(t *testing.T) {
-	t.Parallel()
-
-	database, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer database.Close()
+	database := postgresqltest.OpenEmptyDatabase(t)
 	if _, err := database.Exec(`
 		CREATE TABLE ai_runs (
 			id TEXT, job_id TEXT, outcome TEXT, error_code TEXT,
-			provider_config_version INTEGER, provider_config_fingerprint TEXT,
+			provider_config_version BIGINT, provider_config_fingerprint TEXT,
 			model TEXT, prompt_version TEXT, extraction_schema_version TEXT,
 			provider_schema_version TEXT, provider_schema_sha256 TEXT,
 			claim_schema_version TEXT, claim_mapper_version TEXT,
 			input_processing_version TEXT, request_hash TEXT, response_hash TEXT,
-			input_tokens INTEGER, output_tokens INTEGER, latency_ms INTEGER,
-			started_at TEXT, finished_at TEXT
+			input_tokens BIGINT, output_tokens BIGINT, latency_ms BIGINT,
+			started_at TIMESTAMPTZ, finished_at TIMESTAMPTZ
 		);
 		INSERT INTO ai_runs VALUES (
 			'run', 'job', 'succeeded', NULL, 1, 'safe-fingerprint',

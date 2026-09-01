@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 const (
@@ -49,26 +50,28 @@ func TestProtectedResultIsReservedBeforeExerciseMutation(t *testing.T) {
 
 func TestRecoverySnapshotAndExactPostRestoreIncrements(t *testing.T) {
 	root := t.TempDir()
-	databasePath := filepath.Join(root, "database", "sbm.sqlite")
 	objects := filepath.Join(root, "object-store")
-	for _, location := range []string{filepath.Dir(databasePath), filepath.Join(objects, "objects"), filepath.Join(objects, "staging"), filepath.Join(objects, "trash")} {
+	for _, location := range []string{filepath.Join(objects, "objects"), filepath.Join(objects, "staging"), filepath.Join(objects, "trash")} {
 		if err := os.MkdirAll(location, 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
-	store, err := sqliteadapter.Open(context.Background(), sqliteadapter.Config{
-		DatabasePath: databasePath, MigrationsDir: recoveryMigrationsDir(t),
-	})
+	config := postgresqltest.NewDatabase(t)
+	config.RuntimeRole = config.User
+	if err := postgresqladapter.Migrate(context.Background(), config); err != nil {
+		t.Fatal(err)
+	}
+	store, err := postgresqladapter.Open(context.Background(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	seedRecoveryDatabase(t, databasePath)
+	t.Cleanup(func() { _ = store.Close() })
+	setRecoveryRuntimeEnvironment(t, config)
+	database := store.DB()
+	seedRecoveryDatabase(t, database)
 
 	snapshot, err := captureRecoverySnapshot(context.Background(), snapshotOptions{
-		Database: databasePath, Objects: objects, ProcessingJobID: "job-processing",
+		Objects: objects, ProcessingJobID: "job-processing",
 		ConfirmedFactID: "payment-before", ExerciseID: recoveryExerciseID, ExpectedDocuments: 3,
 	})
 	if err != nil {
@@ -77,44 +80,28 @@ func TestRecoverySnapshotAndExactPostRestoreIncrements(t *testing.T) {
 	if !snapshot.Passed || snapshot.DocumentCount != 3 || snapshot.FailedJobCount != 1 || snapshot.RunningAIRunID != "run-before" {
 		t.Fatalf("snapshot = %#v", snapshot)
 	}
-	database := openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE ai_runs SET job_id = 'job-processing' WHERE id = 'run-confirmed'`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := captureRecoverySnapshot(context.Background(), snapshotOptions{
-		Database: databasePath, Objects: objects, ProcessingJobID: "job-processing",
+		Objects: objects, ProcessingJobID: "job-processing",
 		ConfirmedFactID: "payment-before", ExerciseID: recoveryExerciseID, ExpectedDocuments: 3,
 	}); err == nil || !strings.Contains(err.Error(), "frozen shape") {
 		t.Fatalf("ambiguous target AI run error = %v", err)
 	}
-	database = openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE ai_runs SET job_id = 'job-confirmed' WHERE id = 'run-confirmed'`); err != nil {
-		database.Close()
 		t.Fatal(err)
 	}
 	if _, err := database.Exec(`UPDATE documents SET status = 'stored' WHERE id = 'document-email'`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := captureRecoverySnapshot(context.Background(), snapshotOptions{
-		Database: databasePath, Objects: objects, ProcessingJobID: "job-processing",
+		Objects: objects, ProcessingJobID: "job-processing",
 		ConfirmedFactID: "payment-before", ExerciseID: recoveryExerciseID, ExpectedDocuments: 3,
 	}); err == nil || !strings.Contains(err.Error(), "frozen shape") {
 		t.Fatalf("unexpected document status error = %v", err)
 	}
-	database = openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE documents SET status = 'failed' WHERE id = 'document-email'`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	snapshotPath := filepath.Join(root, "snapshot.json")
@@ -126,9 +113,9 @@ func TestRecoverySnapshotAndExactPostRestoreIncrements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	applyRecoveredState(t, databasePath)
+	applyRecoveredState(t, database)
 	verified, err := verifyRecoveryState(context.Background(), verifyOptions{
-		Database: databasePath, Snapshot: snapshotPath, RecoveredFactID: "payment-after",
+		Snapshot: snapshotPath, RecoveredFactID: "payment-after",
 		ExerciseID: recoveryExerciseID, BackupSetID: recoveryBackupSetID,
 	})
 	if err != nil {
@@ -139,59 +126,38 @@ func TestRecoverySnapshotAndExactPostRestoreIncrements(t *testing.T) {
 		t.Fatalf("verification = %#v", verified)
 	}
 
-	database = openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE ai_runs SET prompt_version = 'changed' WHERE id = 'run-after'`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := verifyRecoveryState(context.Background(), verifyOptions{
-		Database: databasePath, Snapshot: snapshotPath, RecoveredFactID: "payment-after",
+		Snapshot: snapshotPath, RecoveredFactID: "payment-after",
 		ExerciseID: recoveryExerciseID, BackupSetID: recoveryBackupSetID,
 	}); err == nil || !strings.Contains(err.Error(), "frozen recovery increments") {
 		t.Fatalf("recovered AI run contract error = %v", err)
 	}
-	database = openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE ai_runs SET prompt_version = 'prompt' WHERE id = 'run-after'`); err != nil {
-		database.Close()
 		t.Fatal(err)
 	}
-	if err := database.Close(); err != nil {
-		t.Fatal(err)
-	}
-	database = openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE users SET display_name = 'Changed' WHERE id = 'user'`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := verifyRecoveryState(context.Background(), verifyOptions{
-		Database: databasePath, Snapshot: snapshotPath, RecoveredFactID: "payment-after",
+		Snapshot: snapshotPath, RecoveredFactID: "payment-after",
 		ExerciseID: recoveryExerciseID, BackupSetID: recoveryBackupSetID,
 	}); err == nil || !strings.Contains(err.Error(), "frozen recovery increments") {
 		t.Fatalf("unrelated mutation error = %v", err)
 	}
-	database = openRecoveryTestDatabase(t, databasePath)
 	if _, err := database.Exec(`UPDATE users SET display_name = 'Owner' WHERE id = 'user'`); err != nil {
-		database.Close()
 		t.Fatal(err)
 	}
 	if _, err := database.Exec(`
 		INSERT INTO sessions (id, tenant_id, user_id, token_hash, csrf_token_hash, expires_at, created_at, last_seen_at)
 		VALUES ('session-extra', 'tenant', 'user', 'token-extra', 'csrf-extra', '2026-09-02T00:00:00Z', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z')
 	`); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := verifyRecoveryState(context.Background(), verifyOptions{
-		Database: databasePath, Snapshot: snapshotPath, RecoveredFactID: "payment-after",
+		Snapshot: snapshotPath, RecoveredFactID: "payment-after",
 		ExerciseID: recoveryExerciseID, BackupSetID: recoveryBackupSetID,
 	}); err == nil || !strings.Contains(err.Error(), "frozen recovery increments") {
 		t.Fatalf("extra session error = %v", err)
@@ -201,19 +167,17 @@ func TestRecoverySnapshotAndExactPostRestoreIncrements(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := verifyRecoveryState(context.Background(), verifyOptions{
-		Database: databasePath, Snapshot: snapshotPath, RecoveredFactID: "payment-after",
+		Snapshot: snapshotPath, RecoveredFactID: "payment-after",
 		ExerciseID: recoveryExerciseID, BackupSetID: recoveryBackupSetID,
 	}); err == nil || !strings.Contains(err.Error(), "protected regular") {
 		t.Fatalf("insecure snapshot error = %v", err)
 	}
 }
 
-func seedRecoveryDatabase(t *testing.T, databasePath string) {
+func seedRecoveryDatabase(t *testing.T, database *sql.DB) {
 	t.Helper()
-	database := openRecoveryTestDatabase(t, databasePath)
-	defer database.Close()
 	// 本测试只验证恢复审计器的聚合与增量，不复制 Review/Claim 业务夹具。
-	if _, err := database.Exec(`DROP TRIGGER payments_require_confirmed_review`); err != nil {
+	if _, err := database.Exec(`DROP TRIGGER payments_require_confirmed_review ON payments`); err != nil {
 		t.Fatal(err)
 	}
 	future := time.Now().UTC().Add(5 * time.Minute).Format(time.RFC3339Nano)
@@ -225,7 +189,7 @@ func seedRecoveryDatabase(t *testing.T, databasePath string) {
 		{`INSERT INTO tenants (id, name, default_currency, timezone, created_at, updated_at) VALUES ('tenant', 'Synthetic', 'CNY', 'Asia/Shanghai', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z')`, nil},
 		{`INSERT INTO memberships (tenant_id, user_id, role, status, created_at, updated_at) VALUES ('tenant', 'user', 'owner', 'active', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z')`, nil},
 		{`INSERT INTO sessions (id, tenant_id, user_id, token_hash, csrf_token_hash, expires_at, created_at, last_seen_at) VALUES ('session', 'tenant', 'user', 'token', 'csrf', '2026-09-01T00:00:00Z', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z')`, nil},
-		{`INSERT INTO provider_configs (id, tenant_id, base_url, encrypted_api_key, model, output_mode, capability_status, capability_checked_at, capability_safe_message, capability_schema_version, capability_schema_sha256, active, version, safe_fingerprint, created_by_user_id, created_at, updated_at) VALUES ('provider', 'tenant', 'http://127.0.0.1:19086/v1', NULL, 'synthetic-m4', 'json_schema', 'passed', '2026-08-31T00:00:00Z', NULL, 'bill-visible-text/2', ?, 1, 1, 'safe', 'user', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z')`, []any{strings.Repeat("a", 64)}},
+		{`INSERT INTO provider_configs (id, tenant_id, base_url, encrypted_api_key, model, output_mode, capability_status, capability_checked_at, capability_safe_message, capability_schema_version, capability_schema_sha256, active, version, safe_fingerprint, created_by_user_id, created_at, updated_at) VALUES ('provider', 'tenant', 'http://127.0.0.1:19086/v1', NULL, 'synthetic-m4', 'json_schema', 'passed', '2026-08-31T00:00:00Z', NULL, 'bill-visible-text/2', ?, TRUE, 1, 'safe', 'user', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z')`, []any{strings.Repeat("a", 64)}},
 		{`INSERT INTO audit_events (id, tenant_id, actor_user_id, action, resource_type, resource_id, request_id, safe_metadata_json, created_at) VALUES ('audit-email', 'tenant', 'user', 'email_archived', 'email_message', 'message', 'request-email', '{}', '2026-08-31T00:00:00Z')`, nil},
 		{`INSERT INTO email_sources (id, tenant_id, display_name, mailbox_address_normalized, imap_host_normalized, imap_port, transport_security, status, idempotency_key, request_hash, created_by_user_id, created_at, last_archived_at, version) VALUES ('source', 'tenant', 'Synthetic', 'archive@example.invalid', 'imap.example.invalid', 993, 'implicit_tls', 'active', 'source-key', ?, 'user', '2026-08-31T00:00:00Z', '2026-08-31T00:00:00Z', 1)`, []any{strings.Repeat("b", 64)}},
 		{`INSERT INTO email_messages (id, tenant_id, email_source_id, external_message_key, raw_storage_key, raw_sha256, raw_size_bytes, subject, sender_address, received_at, status, audit_event_id, created_at) VALUES ('message', 'tenant', 'source', ?, 'mail/raw', ?, 1, 'Synthetic', 'sender@example.invalid', '2026-08-31T00:00:00Z', 'archived', 'audit-email', '2026-08-31T00:00:00Z')`, []any{strings.Repeat("c", 64), strings.Repeat("d", 64)}},
@@ -317,10 +281,8 @@ func seedRecoveryDatabase(t *testing.T, databasePath string) {
 	}
 }
 
-func applyRecoveredState(t *testing.T, databasePath string) {
+func applyRecoveredState(t *testing.T, database *sql.DB) {
 	t.Helper()
-	database := openRecoveryTestDatabase(t, databasePath)
-	defer database.Close()
 	createdAt := time.Now().UTC().Add(time.Minute).Format(time.RFC3339Nano)
 	statements := []struct {
 		query string
@@ -348,24 +310,13 @@ func applyRecoveredState(t *testing.T, databasePath string) {
 	}
 }
 
-func openRecoveryTestDatabase(t *testing.T, databasePath string) *sql.DB {
+func setRecoveryRuntimeEnvironment(t *testing.T, config postgresqladapter.Config) {
 	t.Helper()
-	database, err := sql.Open("sqlite", "file:"+databasePath+"?_pragma=foreign_keys(0)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := database.Ping(); err != nil {
-		database.Close()
-		t.Fatal(err)
-	}
-	return database
-}
-
-func recoveryMigrationsDir(t *testing.T) string {
-	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "../../../../infra/migrations"))
+	t.Setenv("SBM_POSTGRES_HOST", config.Host)
+	t.Setenv("SBM_POSTGRES_PORT", strconv.Itoa(int(config.Port)))
+	t.Setenv("SBM_POSTGRES_DATABASE", config.Database)
+	t.Setenv("SBM_POSTGRES_USER", config.User)
+	t.Setenv("SBM_POSTGRES_PASSWORD_FILE", config.PasswordFile)
+	t.Setenv("SBM_POSTGRES_SSL_MODE", config.SSLMode)
+	t.Setenv("SBM_MIGRATIONS_DIR", config.MigrationsDir)
 }

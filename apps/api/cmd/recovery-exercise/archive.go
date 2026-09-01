@@ -13,8 +13,7 @@ import (
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 )
@@ -36,16 +35,15 @@ func archiveSyntheticEmail(ctx context.Context, options archiveOptions) (emailFi
 	if !exerciseIDPattern.MatchString(options.ExerciseID) {
 		return emailFixtureResult{}, errors.New("synthetic email exercise identity is invalid")
 	}
-	runtimeLock, err := runtimeguard.AcquireExclusive(options.Database)
+	databaseConfig, err := postgresqladapter.RuntimeConfigFromEnvironment()
 	if err != nil {
 		return emailFixtureResult{}, err
 	}
-	defer runtimeLock.Close()
 	image := syntheticAttachmentPNG()
 	raw := buildSyntheticMIME(image)
 	digest := sha256.Sum256(raw)
 	imageDigest := sha256.Sum256(image)
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{DatabasePath: options.Database, MigrationsDir: options.Migrations})
+	store, err := postgresqladapter.Open(ctx, databaseConfig)
 	if err != nil {
 		return emailFixtureResult{}, err
 	}

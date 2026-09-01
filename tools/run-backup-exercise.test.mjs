@@ -7,6 +7,7 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 
 import {
+  ApiFailure,
   calculateRecoveryElapsed,
   crc32,
   parseArguments,
@@ -98,6 +99,48 @@ test("exercise argument boundary rejects external destinations and unknown flags
   );
 });
 
+test("restore verification requires a distinct protected baseline output", () => {
+  const base = [
+    "--phase",
+    "verify-restore",
+    "--output",
+    "/tmp/result.json",
+    "--baseline-output",
+    "/tmp/baseline.json",
+    "--server",
+    "http://127.0.0.1:18080",
+    "--email",
+    "owner@example.invalid",
+    "--password-file",
+    "/tmp/password",
+    "--state",
+    "/tmp/state.json",
+    "--old-session-file",
+    "/tmp/session",
+  ];
+  assert.equal(parseArguments(base).baselineOutput, "/tmp/baseline.json");
+  assert.throws(
+    () =>
+      parseArguments(
+        base.map((value) =>
+          value === "/tmp/baseline.json" ? "/tmp/result.json" : value,
+        ),
+      ),
+    /must differ/,
+  );
+  assert.throws(
+    () =>
+      parseArguments(
+        base.filter(
+          (value, index) =>
+            value !== "--baseline-output" &&
+            base[index - 1] !== "--baseline-output",
+        ),
+      ),
+    /baseline-output.*required/,
+  );
+});
+
 test("controller terminal output and errors omit protected identifiers and hashes", () => {
   const hash = "a".repeat(64);
   const state = {
@@ -139,6 +182,18 @@ test("controller terminal output and errors omit protected identifiers and hashe
       new Error(`job job-private failed at /secure/private with ${hash}`),
     ),
     "processing_shape_invalid",
+  );
+  assert.equal(
+    safeControllerErrorCode(
+      new ApiFailure(409, { error: { code: "transaction_conflict" } }),
+    ),
+    "api_409_transaction_conflict",
+  );
+  assert.equal(
+    safeControllerErrorCode(
+      new ApiFailure(500, { error: { code: "unsafe/code" } }),
+    ),
+    "api_500_unknown_error",
   );
 });
 

@@ -16,6 +16,7 @@ async function main() {
   const apiKey = await readProtectedSecret(options.apiKeyFile, 4096);
   const instanceID = randomUUID();
   const counters = { requests: 0, probes: 0, extractions: 0 };
+  const latencies = { probes: [], extractions: [] };
   const server = createServer(async (request, response) => {
     try {
       if (request.method === "GET" && request.url === "/healthz") {
@@ -30,12 +31,26 @@ async function main() {
           ...counters,
         });
       }
+      if (request.method === "GET" && request.url === "/metrics") {
+        return writeJSON(response, 200, {
+          kind: `${providerKind}-metrics`,
+          version: providerVersion,
+          model: options.model,
+          mode: options.mode,
+          exercise_id: options.exerciseID,
+          instance_id: instanceID,
+          ...counters,
+          probe_latency_ms: summarizeLatency(latencies.probes),
+          extraction_latency_ms: summarizeLatency(latencies.extractions),
+        });
+      }
       if (request.method !== "POST" || request.url !== "/v1/chat/completions") {
         return writeJSON(response, 404, { error: { message: "not found" } });
       }
       if (!authorized(request.headers.authorization, apiKey)) {
         return writeJSON(response, 401, { error: { message: "unauthorized" } });
       }
+      const started = process.hrtime.bigint();
       const body = JSON.parse(
         (await readRequest(request, maxRequestBytes)).toString("utf8"),
       );
@@ -63,9 +78,16 @@ async function main() {
       const probe = JSON.stringify(body.messages).includes(
         "If and only if the square is blue",
       );
-      const envelope = probe ? capabilityEnvelope() : paymentEnvelope();
+      const envelope = probe
+        ? capabilityEnvelope()
+        : paymentEnvelope(counters.extractions + 1);
       if (probe) counters.probes += 1;
       else counters.extractions += 1;
+      response.once("finish", () => {
+        const milliseconds =
+          Number(process.hrtime.bigint() - started) / 1_000_000;
+        latencies[probe ? "probes" : "extractions"].push(milliseconds);
+      });
       if (!probe && options.mode === "hang-extractions") {
         await new Promise((resolveClose) =>
           response.once("close", resolveClose),
@@ -125,14 +147,15 @@ function capabilityEnvelope() {
   };
 }
 
-function paymentEnvelope() {
+function paymentEnvelope(sequence) {
+  const suffix = sequence === 1 ? "" : ` ${String(sequence).padStart(3, "0")}`;
   return {
     schema_version: "bill-visible-text/2",
     document_type: "payment",
     payment: {
       amount: { text: "CNY 123.45", page: 1 },
       currency: { text: "CNY", page: 1 },
-      merchant: { text: "Synthetic Memory Merchant", page: 1 },
+      merchant: { text: `Synthetic Memory Merchant${suffix}`, page: 1 },
       transaction_time: { text: "2026-08-28 09:00", page: 1 },
       timezone: null,
       payment_method: null,
@@ -180,6 +203,22 @@ function writeJSON(response, status, body) {
     "Cache-Control": "no-store",
   });
   response.end(encoded);
+}
+
+function summarizeLatency(values) {
+  if (values.length === 0) {
+    return { samples: 0, p50: null, p95: null, max: null };
+  }
+  const sorted = [...values].sort((left, right) => left - right);
+  const percentile = (ratio) =>
+    sorted[Math.max(0, Math.ceil(sorted.length * ratio) - 1)];
+  const round = (value) => Math.round(value * 1_000) / 1_000;
+  return {
+    samples: sorted.length,
+    p50: round(percentile(0.5)),
+    p95: round(percentile(0.95)),
+    max: round(sorted.at(-1)),
+  };
 }
 
 function parseArguments(argumentsList) {
@@ -292,7 +331,7 @@ function safeProviderErrorCode(error) {
   return "startup_failed";
 }
 
-export { parseArguments, safeProviderErrorCode };
+export { parseArguments, paymentEnvelope, safeProviderErrorCode, summarizeLatency };
 
 if (
   process.argv[1] &&

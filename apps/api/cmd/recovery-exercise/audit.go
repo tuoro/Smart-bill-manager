@@ -21,9 +21,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"golang.org/x/sys/unix"
-	_ "modernc.org/sqlite"
 )
 
 const (
@@ -141,19 +140,15 @@ func captureRecoverySnapshot(ctx context.Context, options snapshotOptions) (reco
 	if !exerciseIDPattern.MatchString(options.ExerciseID) {
 		return recoverySnapshot{}, errors.New("recovery snapshot exercise identity is invalid")
 	}
-	runtimeLock, err := runtimeguard.AcquireExclusive(options.Database)
-	if err != nil {
-		return recoverySnapshot{}, err
-	}
-	defer runtimeLock.Close()
 	if err := requireEmptyRuntimeDirectories(options.Objects); err != nil {
 		return recoverySnapshot{}, err
 	}
-	database, err := openReadOnlyDatabase(options.Database)
+	store, err := openRecoveryStore(ctx)
 	if err != nil {
 		return recoverySnapshot{}, err
 	}
-	defer database.Close()
+	defer store.Close()
+	database := store.DB()
 	result := recoverySnapshot{
 		Kind: snapshotKind, Version: snapshotVersion, ExerciseID: options.ExerciseID,
 		CapturedAt:      time.Now().UTC().Format(time.RFC3339Nano),
@@ -174,9 +169,10 @@ func captureRecoverySnapshot(ctx context.Context, options snapshotOptions) (reco
 	); err != nil {
 		return recoverySnapshot{}, err
 	}
-	var status, leaseOwner, leaseExpires string
+	var status, leaseOwner string
+	var leaseExpires time.Time
 	if err := database.QueryRowContext(ctx, `
-		SELECT document_id, status, attempt_count, coalesce(lease_owner, ''), coalesce(lease_expires_at, ''), version
+		SELECT document_id, status, attempt_count, coalesce(lease_owner, ''), lease_expires_at, version
 		FROM processing_jobs WHERE id = ?
 	`, options.ProcessingJobID).Scan(&result.ProcessingDocumentID, &status, &result.ProcessingAttemptCount, &leaseOwner, &leaseExpires, &result.ProcessingVersion); err != nil {
 		return recoverySnapshot{}, err
@@ -201,7 +197,7 @@ func captureRecoverySnapshot(ctx context.Context, options snapshotOptions) (reco
 	var confirmedFactCount, activeProviderCount int64
 	if err := database.QueryRowContext(ctx, `
 		SELECT (SELECT count(*) FROM payments WHERE id = ? AND deleted_at IS NULL),
-		       (SELECT count(*) FROM provider_configs WHERE active = 1 AND deleted_at IS NULL)
+		       (SELECT count(*) FROM provider_configs WHERE active = TRUE AND deleted_at IS NULL)
 	`, options.ConfirmedFactID).Scan(&confirmedFactCount, &activeProviderCount); err != nil {
 		return recoverySnapshot{}, err
 	}
@@ -253,18 +249,18 @@ func captureRecoverySnapshot(ctx context.Context, options snapshotOptions) (reco
 		Scan(&confirmedCompletedJobCount, &confirmedPageCount, &processingPageCount, &processingClaimCount); err != nil {
 		return recoverySnapshot{}, err
 	}
-	var runProviderID, runModel, providerModel, providerBaseURL, runStartedAt string
+	var runProviderID, runModel, providerModel, providerBaseURL string
+	var runStartedAt time.Time
 	var runRequestHash sql.NullString
 	if err := database.QueryRowContext(ctx, `
 		SELECT r.provider_config_id, r.model, p.model, p.base_url, r.request_hash, r.started_at
 		FROM ai_runs r
 		JOIN provider_configs p ON p.tenant_id = r.tenant_id AND p.id = r.provider_config_id
-		WHERE r.id = ? AND p.active = 1 AND p.deleted_at IS NULL
+		WHERE r.id = ? AND p.active = TRUE AND p.deleted_at IS NULL
 	`, result.RunningAIRunID).Scan(&runProviderID, &runModel, &providerModel, &providerBaseURL, &runRequestHash, &runStartedAt); err != nil {
 		return recoverySnapshot{}, errors.New("running AI run is not bound to the sole active Provider")
 	}
-	leaseDeadline, parseErr := time.Parse(time.RFC3339Nano, leaseExpires)
-	if parseErr != nil || !leaseDeadline.After(time.Now().UTC()) {
+	if !leaseExpires.After(time.Now().UTC()) {
 		return recoverySnapshot{}, errors.New("processing job does not hold a current lease at the backup boundary")
 	}
 	if result.DocumentCount != options.ExpectedDocuments || result.JobCount != options.ExpectedDocuments ||
@@ -276,7 +272,7 @@ func captureRecoverySnapshot(ctx context.Context, options snapshotOptions) (reco
 		failedDocumentCount != options.ExpectedDocuments-2 || completedDocumentCount != 1 || processingDocumentCount != 1 || invalidDocumentCount != 0 ||
 		confirmedCompletedJobCount != 1 || confirmedPageCount != 1 || processingPageCount != 1 || processingClaimCount != 0 || result.ConfirmedDocumentID == result.ProcessingDocumentID ||
 		confirmedFactCount != 1 || confirmedSucceededRunCount != 1 || activeProviderCount != 1 || runProviderID == "" || runModel != providerModel ||
-		!runRequestHash.Valid || !sha256Pattern.MatchString(runRequestHash.String) || !canonicalTimeAtOrBefore(runStartedAt, result.CapturedAt) ||
+		!runRequestHash.Valid || !sha256Pattern.MatchString(runRequestHash.String) || !canonicalTimeAtOrBefore(runStartedAt.UTC().Format(time.RFC3339Nano), result.CapturedAt) ||
 		!isSyntheticLoopbackProvider(providerBaseURL, runModel) {
 		return recoverySnapshot{}, errors.New("pre-backup recovery dataset does not match the frozen shape")
 	}
@@ -307,16 +303,12 @@ func verifyRecoveryState(ctx context.Context, options verifyOptions) (recoveryVe
 	if options.ExerciseID != snapshot.ExerciseID || !exerciseIDPattern.MatchString(options.ExerciseID) || !backupSetIDPattern.MatchString(options.BackupSetID) {
 		return recoveryVerification{}, errors.New("recovery exercise or backup set identity differs from the protected snapshot")
 	}
-	runtimeLock, err := runtimeguard.AcquireExclusive(options.Database)
+	store, err := openRecoveryStore(ctx)
 	if err != nil {
 		return recoveryVerification{}, err
 	}
-	defer runtimeLock.Close()
-	database, err := openReadOnlyDatabase(options.Database)
-	if err != nil {
-		return recoveryVerification{}, err
-	}
-	defer database.Close()
+	defer store.Close()
+	database := store.DB()
 	result := recoveryVerification{
 		Kind: "m4-recovery-database-verification", Version: 1,
 		ExerciseID: options.ExerciseID, BackupSetID: options.BackupSetID, RecoveredFactID: options.RecoveredFactID,
@@ -330,7 +322,7 @@ func verifyRecoveryState(ctx context.Context, options verifyOptions) (recoveryVe
 		       (SELECT count(*) FROM email_attachments WHERE storage_key IS NOT NULL),
 		       (SELECT count(*) FROM document_pages),
 		       (SELECT count(*) FROM sessions),
-		       (SELECT count(*) FROM sessions WHERE julianday(created_at) <= julianday(?)),
+		       (SELECT count(*) FROM sessions WHERE created_at <= ?::timestamptz),
 		       (SELECT count(*) FROM ai_runs WHERE outcome = 'running'),
 		       (SELECT count(*) FROM processing_jobs WHERE status = 'processing' AND (lease_owner IS NULL OR lease_expires_at IS NULL))
 	`, snapshot.CapturedAt).Scan(
@@ -340,12 +332,13 @@ func verifyRecoveryState(ctx context.Context, options verifyOptions) (recoveryVe
 	); err != nil {
 		return recoveryVerification{}, err
 	}
-	var jobDocumentID, jobStatus, jobLeaseOwner, jobLeaseExpires, jobErrorCode, jobSafeError, jobCancelRequested, jobFinishedAt string
+	var jobDocumentID, jobStatus, jobLeaseOwner, jobErrorCode, jobSafeError string
+	var jobLeaseExpires, jobCancelRequested, jobFinishedAt sql.NullTime
 	if err := database.QueryRowContext(ctx, `
 		SELECT document_id, status, attempt_count, version,
-		       coalesce(lease_owner, ''), coalesce(lease_expires_at, ''),
-		       coalesce(error_code, ''), coalesce(safe_error_message, ''), coalesce(cancel_requested_at, ''),
-		       coalesce(finished_at, '')
+		       coalesce(lease_owner, ''), lease_expires_at,
+		       coalesce(error_code, ''), coalesce(safe_error_message, ''), cancel_requested_at,
+		       finished_at
 		FROM processing_jobs WHERE id = ?
 	`, snapshot.ProcessingJobID).Scan(
 		&jobDocumentID, &jobStatus, &result.ProcessingAttemptCount, &result.ProcessingVersion,
@@ -420,13 +413,14 @@ func verifyRecoveryState(ctx context.Context, options verifyOptions) (recoveryVe
 	result.ExactlyOneRecoveredFact = recoveredFactCount == 1 && options.RecoveredFactID != snapshot.ConfirmedFactID && result.FactCount == snapshot.FactCount+1
 	result.OriginalRunningRunClosed = originalRun.Outcome == "failed" && originalRun.ErrorCode.Valid && originalRun.ErrorCode.String == "lease_expired" &&
 		!originalRun.ResponseHash.Valid && !originalRun.InputTokens.Valid && !originalRun.OutputTokens.Valid && !originalRun.LatencyMS.Valid && originalRun.FinishedAt.Valid &&
-		canonicalTimeAtOrAfter(originalRun.FinishedAt.String, snapshot.CapturedAt) &&
+		canonicalTimeAtOrAfter(originalRun.FinishedAt.Time.UTC().Format(time.RFC3339Nano), snapshot.CapturedAt) &&
 		result.LeaseExpiredAIRunCount == 1
 	newRunSucceeded := newRunCount == 1 && sameRecoveryAIRunContract(originalRun, newRun) && newRun.Outcome == "succeeded" &&
 		!newRun.ErrorCode.Valid && newRun.ResponseHash.Valid && sha256Pattern.MatchString(newRun.ResponseHash.String) &&
 		newRun.InputTokens.Valid && newRun.InputTokens.Int64 >= 0 && newRun.OutputTokens.Valid && newRun.OutputTokens.Int64 >= 0 &&
 		newRun.LatencyMS.Valid && newRun.LatencyMS.Int64 >= 0 && newRun.FinishedAt.Valid &&
-		canonicalTimeAtOrAfter(newRun.StartedAt, snapshot.CapturedAt) && canonicalTimeAtOrAfter(newRun.FinishedAt.String, newRun.StartedAt)
+		canonicalTimeAtOrAfter(newRun.StartedAt.UTC().Format(time.RFC3339Nano), snapshot.CapturedAt) &&
+		canonicalTimeAtOrAfter(newRun.FinishedAt.Time.UTC().Format(time.RFC3339Nano), newRun.StartedAt.UTC().Format(time.RFC3339Nano))
 	result.AllJobsTerminal = nonterminalJobs == 0 && jobStatus == "completed"
 	if result.DocumentCount != snapshot.DocumentCount || result.JobCount != snapshot.JobCount ||
 		result.EmailMessageCount != snapshot.EmailMessageCount || result.EmailAttachmentCount != snapshot.EmailAttachmentCount ||
@@ -434,8 +428,8 @@ func verifyRecoveryState(ctx context.Context, options verifyOptions) (recoveryVe
 		jobDocumentID != snapshot.ProcessingDocumentID || processingDocumentStatus != "completed" ||
 		result.ProcessingAttemptCount != snapshot.ProcessingAttemptCount+result.ExpectedAttemptDelta ||
 		result.ProcessingVersion != snapshot.ProcessingVersion+result.ExpectedVersionDelta ||
-		jobLeaseOwner != "" || jobLeaseExpires != "" || jobErrorCode != "" || jobSafeError != "" || jobCancelRequested != "" ||
-		!canonicalTimeAtOrAfter(jobFinishedAt, snapshot.CapturedAt) ||
+		jobLeaseOwner != "" || jobLeaseExpires.Valid || jobErrorCode != "" || jobSafeError != "" || jobCancelRequested.Valid ||
+		!jobFinishedAt.Valid || !canonicalTimeAtOrAfter(jobFinishedAt.Time.UTC().Format(time.RFC3339Nano), snapshot.CapturedAt) ||
 		result.RunningAIRunCount != 0 || result.UnleasedProcessingJobCount != 0 || aiRunCount != snapshot.AIRunCount+1 ||
 		succeededAIRunCount != snapshot.SucceededAIRunCount+1 || unexpectedAIRunCount != 0 || !newRunSucceeded ||
 		!result.ConfirmedFactsPreserved || !result.ExactlyOneRecoveredFact || !result.OriginalRunningRunClosed || !result.AllJobsTerminal ||
@@ -465,8 +459,8 @@ type recoveryAIRunAudit struct {
 	LatencyMS                 sql.NullInt64
 	Outcome                   string
 	ErrorCode                 sql.NullString
-	StartedAt                 string
-	FinishedAt                sql.NullString
+	StartedAt                 time.Time
+	FinishedAt                sql.NullTime
 }
 
 func readRecoveryAIRun(ctx context.Context, database *sql.DB, id string) (recoveryAIRunAudit, error) {
@@ -672,7 +666,7 @@ func encodeRecoveryDigestRow(values []any) (string, error) {
 		case time.Time:
 			cells[index] = recoveryDigestCell{Kind: "time", Value: typed.UTC().Format(time.RFC3339Nano)}
 		default:
-			return "", fmt.Errorf("unsupported SQLite value type %T", value)
+			return "", fmt.Errorf("unsupported PostgreSQL value type %T", value)
 		}
 	}
 	encoded, err := json.Marshal(cells)
@@ -784,34 +778,12 @@ func isSyntheticLoopbackProvider(rawURL, model string) bool {
 	return host == "127.0.0.1" || host == "::1" || host == "localhost"
 }
 
-func openReadOnlyDatabase(location string) (*sql.DB, error) {
-	information, err := os.Lstat(location)
+func openRecoveryStore(ctx context.Context) (*postgresqladapter.Store, error) {
+	config, err := postgresqladapter.RuntimeConfigFromEnvironment()
 	if err != nil {
 		return nil, err
 	}
-	if !information.Mode().IsRegular() {
-		return nil, errors.New("database must be a regular file")
-	}
-	absolute, err := filepath.Abs(location)
-	if err != nil {
-		return nil, err
-	}
-	dsn := &url.URL{Scheme: "file", Path: absolute}
-	query := dsn.Query()
-	query.Set("mode", "ro")
-	query.Set("immutable", "1")
-	query.Add("_pragma", "foreign_keys(1)")
-	dsn.RawQuery = query.Encode()
-	database, err := sql.Open("sqlite", dsn.String())
-	if err != nil {
-		return nil, err
-	}
-	database.SetMaxOpenConns(1)
-	if err := database.Ping(); err != nil {
-		_ = database.Close()
-		return nil, err
-	}
-	return database, nil
+	return postgresqladapter.Open(ctx, config)
 }
 
 func requireEmptyRuntimeDirectories(root string) error {

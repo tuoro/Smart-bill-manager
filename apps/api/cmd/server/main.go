@@ -16,8 +16,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
@@ -35,8 +34,7 @@ import (
 const version = "m4-dev"
 
 type config struct {
-	databasePath         string
-	migrationsDir        string
+	database             postgresqladapter.Config
 	httpAddress          string
 	cookieSecure         bool
 	sessionTTL           time.Duration
@@ -51,7 +49,7 @@ type config struct {
 }
 
 type runtimeReadiness struct {
-	store  *sqliteadapter.Store
+	store  *postgresqladapter.Store
 	worker *processing.Worker
 }
 
@@ -78,17 +76,9 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	runtimeLock, err := runtimeguard.AcquireExclusive(config.databasePath)
-	if err != nil {
-		return err
-	}
-	defer runtimeLock.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  config.databasePath,
-		MigrationsDir: config.migrationsDir,
-	})
+	store, err := postgresqladapter.Open(ctx, config.database)
 	if err != nil {
 		return err
 	}
@@ -236,9 +226,12 @@ func run(logger *slog.Logger) error {
 }
 
 func loadConfig() (config, error) {
+	database, err := postgresqladapter.RuntimeConfigFromEnvironment()
+	if err != nil {
+		return config{}, err
+	}
 	value := config{
-		databasePath:         os.Getenv("SBM_DATABASE_PATH"),
-		migrationsDir:        os.Getenv("SBM_MIGRATIONS_DIR"),
+		database:             database,
 		httpAddress:          os.Getenv("SBM_HTTP_ADDRESS"),
 		objectsPath:          os.Getenv("SBM_OBJECTS_PATH"),
 		pdfInfoPath:          os.Getenv("SBM_PDFINFO_PATH"),
@@ -249,8 +242,6 @@ func loadConfig() (config, error) {
 		deploymentMode:       os.Getenv("SBM_DEPLOYMENT_MODE"),
 	}
 	for name, entry := range map[string]string{
-		"SBM_DATABASE_PATH":          value.databasePath,
-		"SBM_MIGRATIONS_DIR":         value.migrationsDir,
 		"SBM_HTTP_ADDRESS":           value.httpAddress,
 		"SBM_COOKIE_SECURE":          os.Getenv("SBM_COOKIE_SECURE"),
 		"SBM_SESSION_TTL":            os.Getenv("SBM_SESSION_TTL"),

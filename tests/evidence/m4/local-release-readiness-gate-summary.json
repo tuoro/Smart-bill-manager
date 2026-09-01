@@ -1,0 +1,118 @@
+{
+  "evidence_kind": "m4-local-release-readiness-gate-summary",
+  "evidence_version": 1,
+  "status": "passed_local_only",
+  "build_identity": {
+    "baseline_head": "665c9b7d1e4daa9156493b4e27faef91b466f956",
+    "release_input_sha256": "01f1fe49a26ce4d50742ae2aba17965d1fccb9a5c8fbd108ac1526e74539187b",
+    "image_id": "sha256:83bd3c795b3a7c2413a8f80279ab3fc8b9787e0e9b02cab5b08711c61d3ba6d1",
+    "base_compose_config_sha256": "130c06f61f269391ef8f639dfbfa897bec0d566afbaf5fe1fe69ee7dff2cb727",
+    "acceptance_compose_config_sha256": "5451d4b1be3d2372ec3eaf492a36b1bc8efbb3d8ea2b822fb9a21a28603f0697"
+  },
+  "release_artifact": {
+    "compose_static_gates": 13,
+    "image_static_gates": 12,
+    "required_assets_present": true,
+    "forbidden_assets_absent": true,
+    "toolchains_absent": true,
+    "package_managers_absent": true,
+    "entrypoint_failure_cases_passed": 7,
+    "bootstrap_owner_atomic": true,
+    "authenticated_runtime_ready": true,
+    "runtime_least_privilege": true,
+    "credential_material_hits": 0
+  },
+  "performance": {
+    "non_ai_json_api": {
+      "inbox_list": { "warmups": 100, "requests": 1000, "concurrency": 10, "p95_ms": 31, "threshold_p95_ms": 300 },
+      "document_detail": { "warmups": 100, "requests": 1000, "concurrency": 10, "p95_ms": 40.44, "threshold_p95_ms": 300 },
+      "claim_set_detail": { "warmups": 100, "requests": 1000, "concurrency": 10, "p95_ms": 34.85, "threshold_p95_ms": 300 },
+      "payment_list": { "warmups": 100, "requests": 1000, "concurrency": 10, "p95_ms": 32.85, "threshold_p95_ms": 300 },
+      "invoice_list": { "warmups": 100, "requests": 1000, "concurrency": 10, "p95_ms": 37.75, "threshold_p95_ms": 300 },
+      "fact_insights": { "warmups": 100, "requests": 1000, "concurrency": 10, "p95_ms": 192.61, "threshold_p95_ms": 300 }
+    },
+    "document_create": { "warmups": 20, "requests": 200, "concurrency": 2, "p95_ms": 10.43, "threshold_p95_ms": 500 },
+    "review_confirm": { "warmups": 20, "requests": 200, "concurrency": 2, "p95_ms": 26.93, "threshold_p95_ms": 500 }
+  },
+  "provider_latency_ms": {
+    "capability_probe": { "samples": 1, "p50": 2.909, "p95": 2.909, "max": 2.909 },
+    "extraction": { "samples": 60, "p50": 0.752, "p95": 1.304, "max": 1.492 }
+  },
+  "memory_stability": {
+    "warmup_jobs": 10,
+    "measured_jobs": 50,
+    "idle_after_terminal_ms": 2000,
+    "last_to_first_median_ratio": 0.1614,
+    "maximum_last_to_first_median_ratio": 1.2,
+    "linear_regression_slope_mib_per_job": -3.1014,
+    "maximum_slope_mib_per_job": 0.5,
+    "orphan_processing_or_cancel_requested_jobs": 0
+  },
+  "accessibility": {
+    "pages": {
+      "login": { "runs": 3, "minimum_performance": 100, "performance_threshold": 85, "minimum_accessibility": 100, "accessibility_threshold": 95 },
+      "inbox": { "runs": 3, "minimum_performance": 100, "performance_threshold": 85, "minimum_accessibility": 100, "accessibility_threshold": 95 },
+      "review": { "runs": 3, "minimum_performance": 100, "performance_threshold": 85, "minimum_accessibility": 100, "accessibility_threshold": 95 },
+      "payments": { "runs": 3, "minimum_performance": 100, "performance_threshold": 85, "minimum_accessibility": 100, "accessibility_threshold": 95 }
+    },
+    "formal_responsive_passed": 16,
+    "formal_responsive_total": 16,
+    "equivalent_reflow_passed": 16,
+    "equivalent_reflow_total": 16,
+    "keyboard_passed": true,
+    "dark_theme_passed": true
+  },
+  "browser_acceptance": {
+    "spec_files": 6,
+    "passed_scenarios": 37,
+    "failed_scenarios": 0,
+    "skipped_scenarios": 0,
+    "minimum_passed_scenarios": 33
+  },
+  "static_verification": {
+    "gates": {
+      "go_test": true,
+      "go_vet": true,
+      "go_build": true,
+      "web_check": true,
+      "node_tests": true,
+      "critical_invariants": true,
+      "coverage": true,
+      "diff_check": true,
+      "sensitive_audit": true,
+      "large_file_audit": true,
+      "temporary_audit": true,
+      "process_audit": true,
+      "release_input_recheck": true
+    },
+    "counts": {
+      "node_test_files": 14,
+      "web_test_files": 9,
+      "web_test_cases": 38,
+      "critical_invariants_passed": 140,
+      "critical_invariants_total": 140
+    },
+    "coverage": {
+      "domain_application_percent": 85.69,
+      "infrastructure_transport_percent": 73.77,
+      "domain_application_threshold_percent": 85,
+      "infrastructure_transport_threshold_percent": 70
+    }
+  },
+  "privacy_and_scope": {
+    "raw_reports_committed": false,
+    "credentials_committed": false,
+    "real_provider_called": false,
+    "real_email_connected": false,
+    "final_candidate_build_network_isolated": true,
+    "final_acceptance_network_isolated": true,
+    "prior_tooling_network_policy_incident_disclosed": true,
+    "deployed_or_published": false
+  },
+  "remaining_release_gates": [
+    "formal_real_model_evaluation",
+    "real_external_system_integration",
+    "production_deployment_and_release"
+  ],
+  "passed": true
+}

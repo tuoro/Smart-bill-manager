@@ -2502,7 +2502,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 同一 SQLite 读快照内的确定性分组汇总与稳定 Fact 明细页 */
+            /** @description 同一 PostgreSQL REPEATABLE READ 只读快照内的确定性分组汇总与稳定 Fact 明细页 */
             200: {
                 headers: {
                     [name: string]: unknown;

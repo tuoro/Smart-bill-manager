@@ -8,13 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"math"
-	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 )
 
 type evaluationRun struct {
@@ -70,13 +68,12 @@ func main() {
 }
 
 func run() error {
-	var databasePath, runResultPath, outputPath string
-	flag.StringVar(&databasePath, "database", "", "read-only path to the evaluation SQLite database")
+	var runResultPath, outputPath string
 	flag.StringVar(&runResultPath, "run-result", "", "model evaluation run JSON")
 	flag.StringVar(&outputPath, "output", "", "new output JSON path")
 	flag.Parse()
-	if flag.NArg() != 0 || databasePath == "" || runResultPath == "" || outputPath == "" {
-		return errors.New("-database, -run-result, and -output are required; positional arguments are not allowed")
+	if flag.NArg() != 0 || runResultPath == "" || outputPath == "" {
+		return errors.New("-run-result and -output are required; positional arguments are not allowed")
 	}
 	runContent, err := os.ReadFile(runResultPath)
 	if err != nil {
@@ -89,13 +86,18 @@ func run() error {
 	if input.RunID == "" || len(input.Samples) != 100 {
 		return errors.New("evaluation run must contain an ID and exactly 100 samples")
 	}
-	database, err := openReadOnlyDatabase(databasePath)
+	databaseConfig, err := postgresqladapter.RuntimeConfigFromEnvironment()
 	if err != nil {
 		return err
 	}
-	defer database.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	store, err := postgresqladapter.Open(ctx, databaseConfig)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	database := store.DB()
 	reports := make([]sampleReport, 0, len(input.Samples))
 	latencies := make([]int64, 0)
 	for _, sample := range input.Samples {
@@ -141,27 +143,6 @@ func run() error {
 	return nil
 }
 
-func openReadOnlyDatabase(path string) (*sql.DB, error) {
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("resolve database path: %w", err)
-	}
-	location := &url.URL{Scheme: "file", Path: absolute}
-	query := location.Query()
-	query.Set("mode", "ro")
-	query.Add("_pragma", "foreign_keys(1)")
-	location.RawQuery = query.Encode()
-	database, err := sql.Open("sqlite", location.String())
-	if err != nil {
-		return nil, fmt.Errorf("open evaluation database: %w", err)
-	}
-	if err := database.Ping(); err != nil {
-		_ = database.Close()
-		return nil, fmt.Errorf("ping evaluation database: %w", err)
-	}
-	return database, nil
-}
-
 func queryAiRuns(ctx context.Context, database *sql.DB, jobID string) ([]aiRunRecord, error) {
 	rows, err := database.QueryContext(ctx, `
 		SELECT id, outcome, coalesce(error_code, ''), provider_config_version,
@@ -169,8 +150,8 @@ func queryAiRuns(ctx context.Context, database *sql.DB, jobID string) ([]aiRunRe
 		       provider_schema_version, provider_schema_sha256,
 		       claim_schema_version, claim_mapper_version,
 		       input_processing_version, coalesce(request_hash, ''), coalesce(response_hash, ''),
-		       input_tokens, output_tokens, latency_ms, started_at, coalesce(finished_at, '')
-		FROM ai_runs WHERE job_id = ? ORDER BY started_at, id
+		       input_tokens, output_tokens, latency_ms, started_at::text, coalesce(finished_at::text, '')
+		FROM ai_runs WHERE job_id = $1 ORDER BY started_at, id
 	`, jobID)
 	if err != nil {
 		return nil, fmt.Errorf("query AI runs: %w", err)

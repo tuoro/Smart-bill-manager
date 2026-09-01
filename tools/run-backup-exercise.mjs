@@ -20,6 +20,7 @@ const processingTerminalStates = new Set([
   "completed",
   "rejected",
 ]);
+let activeControllerStage = "startup";
 
 class ApiFailure extends Error {
   constructor(status, body) {
@@ -33,6 +34,7 @@ async function main() {
   const options = parseArguments(process.argv.slice(2));
   const resultOutput = await reserveProtectedOutput(options.output);
   let sessionOutput;
+  let baselineOutput;
   try {
     if (options.phase === "stage-processing") {
       sessionOutput = await reserveProtectedOutput(options.oldSessionOutput);
@@ -41,11 +43,20 @@ async function main() {
       await startRecoveryClock(options, resultOutput);
       return;
     }
+    if (options.phase === "verify-restore") {
+      baselineOutput = await reserveProtectedOutput(options.baselineOutput);
+    }
     const password = await readProtectedFile(options.passwordFile, 1024);
     try {
       const client = createClient(options.server);
       if (options.phase === "verify-restore") {
-        await verifyRestore(client, options, password, resultOutput);
+        await verifyRestore(
+          client,
+          options,
+          password,
+          resultOutput,
+          baselineOutput,
+        );
         return;
       }
       const session = await client.login(options.email, password);
@@ -66,6 +77,7 @@ async function main() {
       password.fill(0);
     }
   } finally {
+    await baselineOutput?.close();
     await sessionOutput?.close();
     await resultOutput.close();
   }
@@ -338,19 +350,30 @@ async function startRecoveryClock(options, resultOutput) {
   printSafeJSON(safeControllerOutput("start-recovery", timed));
 }
 
-async function verifyRestore(client, options, password, resultOutput) {
+async function verifyRestore(
+  client,
+  options,
+  password,
+  resultOutput,
+  baselineOutput,
+) {
+  activeControllerStage = "restore_state";
   const state = await readState(options.state, {
     requireProcessing: true,
     requireRecoveryClock: true,
   });
+  activeControllerStage = "ready";
   await client.ready();
+  activeControllerStage = "old_session";
   const oldCookie = await readProtectedFile(options.oldSessionFile, 16 * 1024);
   try {
     await client.assertSessionRejected(oldCookie.toString("utf8"));
   } finally {
     oldCookie.fill(0);
   }
+  activeControllerStage = "new_login";
   await client.login(options.email, password);
+  activeControllerStage = "baseline_reads";
   const [
     baselinePayments,
     baselineEmailMessages,
@@ -398,6 +421,7 @@ async function verifyRestore(client, options, password, resultOutput) {
   const processingJobBeforeContinuation = await client.get(
     `/jobs/${encodeURIComponent(state.processing.job_id)}`,
   );
+  activeControllerStage = "baseline_shape";
   validateRestoredSnapshotBeforeContinuation(state, {
     payments: baselinePayments,
     emailMessages: baselineEmailMessages,
@@ -406,6 +430,17 @@ async function verifyRestore(client, options, password, resultOutput) {
     processingDocument,
     processingJob: processingJobBeforeContinuation,
   });
+  activeControllerStage = "baseline_output";
+  await baselineOutput.writeJSON(
+    {
+      report_kind: "m4-backup-restore-baseline",
+      report_version: 1,
+      restored_snapshot_verified_before_continuation: true,
+      passed: true,
+    },
+    [password],
+  );
+  activeControllerStage = "lease_recovery";
   const recovered = await waitForJob(
     client,
     state.processing.job_id,
@@ -415,11 +450,13 @@ async function verifyRestore(client, options, password, resultOutput) {
   if (recovered.status !== "needs_review") {
     throw new Error(`restored processing job stopped at ${recovered.status}`);
   }
+  activeControllerStage = "confirmation";
   const confirmation = await confirm(
     client,
     state.processing.job_id,
     "m4-recovery-restored",
   );
+  activeControllerStage = "final_reads";
   const finalJob = await client.get(
     `/jobs/${encodeURIComponent(state.processing.job_id)}`,
   );
@@ -438,6 +475,7 @@ async function verifyRestore(client, options, password, resultOutput) {
     expectedFacts.has(item.id),
   );
   const verifiedAtEpochMs = Date.now();
+  activeControllerStage = "recovery_clock";
   const elapsed = calculateRecoveryElapsed(
     state,
     process.hrtime.bigint(),
@@ -460,6 +498,7 @@ async function verifyRestore(client, options, password, resultOutput) {
       "restored API state does not match the frozen recovery shape",
     );
   }
+  activeControllerStage = "result_output";
   const result = {
     report_kind: "m4-backup-restore-api-result",
     report_version: 1,
@@ -924,6 +963,7 @@ function parseArguments(argumentsList) {
     "verify-restore": [
       "phase",
       "output",
+      "baseline-output",
       "server",
       "email",
       "password-file",
@@ -963,7 +1003,8 @@ function parseArguments(argumentsList) {
     }
   }
   if (phase === "verify-restore") {
-    for (const name of ["state", "old-session-file"]) required.add(name);
+    for (const name of ["state", "old-session-file", "baseline-output"])
+      required.add(name);
   }
   for (const name of required) {
     if (!values.get(name))
@@ -988,12 +1029,18 @@ function parseArguments(argumentsList) {
   if (model && !/^synthetic-[a-z0-9._-]+$/.test(model)) {
     throw new Error("recovery exercise model must use a synthetic-* identity");
   }
+  const output = resolve(values.get("output"));
+  const baselineOutput = absoluteOptional(values.get("baseline-output"));
+  if (baselineOutput === output) {
+    throw new Error("--baseline-output must differ from --output");
+  }
   return {
     phase,
     server,
     email,
     passwordFile: absoluteOptional(values.get("password-file")),
-    output: resolve(values.get("output")),
+    output,
+    baselineOutput,
     state: absoluteOptional(values.get("state")),
     emailFixture: absoluteOptional(values.get("email-fixture")),
     providerBaseUrl,
@@ -1044,7 +1091,7 @@ async function readBackupOperationResult(path) {
   if (
     result.operation !== "backup" ||
     result.manifest_kind !== "smart-bill-manager-backup" ||
-    result.manifest_version !== 2 ||
+    result.manifest_version !== 3 ||
     !/^[0-9a-f]{32}$/.test(result.backup_set_id) ||
     result.document_count !== expectedDocumentCount ||
     result.object_reference_count !== 1004 ||
@@ -1433,7 +1480,12 @@ function safeControllerOutput(phase, value) {
 }
 
 function safeControllerErrorCode(error) {
-  if (error instanceof ApiFailure) return "api_request_failed";
+  if (error instanceof ApiFailure) {
+    const code = /^[a-z][a-z0-9_]{0,63}$/.test(error.code)
+      ? error.code
+      : "unknown_error";
+    return `api_${error.status}_${code}`;
+  }
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   for (const category of [
     ["argument", "invalid_arguments"],
@@ -1511,6 +1563,7 @@ function delay(milliseconds) {
 }
 
 export {
+  ApiFailure,
   calculateRecoveryElapsed,
   crc32,
   parseArguments,
@@ -1529,7 +1582,7 @@ if (
 ) {
   main().catch((error) => {
     process.stderr.write(
-      `backup-exercise: ${safeControllerErrorCode(error)}\n`,
+      `backup-exercise: ${safeControllerErrorCode(error)}:${activeControllerStage}\n`,
     );
     process.exitCode = 1;
   });

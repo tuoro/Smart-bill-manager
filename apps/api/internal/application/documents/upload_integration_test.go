@@ -12,22 +12,15 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 func TestUploadCreatesOneImmutableDocumentAndJob(t *testing.T) {
 	ctx := context.Background()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  ":memory:",
-		MigrationsDir: testMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgresqltest.Open(t)
 	owner := ports.BootstrapOwner{
 		UserID:          "00000000-0000-4000-8000-000000000101",
 		TenantID:        "00000000-0000-4000-8000-000000000102",
@@ -88,14 +81,7 @@ func TestUploadCreatesOneImmutableDocumentAndJob(t *testing.T) {
 
 func TestIndependentUploadCommandsContinueAfterRejectedItem(t *testing.T) {
 	ctx := context.Background()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  ":memory:",
-		MigrationsDir: testMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgresqltest.Open(t)
 	owner := ports.BootstrapOwner{
 		UserID:          "00000000-0000-4000-8000-000000000151",
 		TenantID:        "00000000-0000-4000-8000-000000000152",
@@ -177,14 +163,7 @@ func TestIndependentUploadCommandsContinueAfterRejectedItem(t *testing.T) {
 
 func TestUploadCommitFailureCompensatesMetadata(t *testing.T) {
 	ctx := context.Background()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  ":memory:",
-		MigrationsDir: testMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
+	store := postgresqltest.Open(t)
 	owner := ports.BootstrapOwner{
 		UserID:          "00000000-0000-4000-8000-000000000201",
 		TenantID:        "00000000-0000-4000-8000-000000000202",

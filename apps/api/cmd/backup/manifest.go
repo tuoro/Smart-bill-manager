@@ -21,7 +21,7 @@ import (
 
 const (
 	manifestKind       = "smart-bill-manager-backup"
-	manifestVersion    = 2
+	manifestVersion    = 3
 	manifestName       = "manifest.json"
 	manifestAuthName   = "manifest.hmac"
 	manifestLimitBytes = 4 * 1024 * 1024
@@ -40,12 +40,12 @@ type fileRecord struct {
 }
 
 type databaseRecord struct {
-	File                     fileRecord       `json:"file"`
-	IntegrityCheck           string           `json:"integrity_check"`
-	ForeignKeyViolationCount int64            `json:"foreign_key_violation_count"`
-	SchemaSHA256             string           `json:"schema_sha256"`
-	TableCounts              map[string]int64 `json:"table_counts"`
-	AuditChainSHA256         string           `json:"audit_chain_sha256"`
+	File             fileRecord       `json:"file"`
+	DumpFormat       string           `json:"dump_format"`
+	ServerMajor      int              `json:"server_major"`
+	SchemaSHA256     string           `json:"schema_sha256"`
+	TableCounts      map[string]int64 `json:"table_counts"`
+	AuditChainSHA256 string           `json:"audit_chain_sha256"`
 }
 
 type backupManifest struct {
@@ -217,7 +217,7 @@ func authenticateManifest(masterKey, manifest []byte) []byte {
 	derivedKey := derivation.Sum(nil)
 	authenticator := hmac.New(sha256.New, derivedKey)
 	clear(derivedKey)
-	_, _ = authenticator.Write([]byte("smart-bill-manager/backup-manifest/v2\x00"))
+	_, _ = authenticator.Write([]byte("smart-bill-manager/backup-manifest/v3\x00"))
 	_, _ = authenticator.Write(manifest)
 	return authenticator.Sum(nil)
 }
@@ -239,10 +239,10 @@ func validateManifest(manifest backupManifest) error {
 		!lowerHex64Pattern.MatchString(manifest.Database.AuditChainSHA256) {
 		return errors.New("backup manifest contains an invalid identity hash")
 	}
-	if manifest.Database.IntegrityCheck != "ok" || manifest.Database.ForeignKeyViolationCount != 0 {
-		return errors.New("backup manifest does not record a valid database")
+	if manifest.Database.DumpFormat != "postgresql-custom" || manifest.Database.ServerMajor != 17 {
+		return errors.New("backup manifest does not record a PostgreSQL 17 custom dump")
 	}
-	if err := validateFileRecord(manifest.Database.File, "database/sbm.sqlite"); err != nil {
+	if err := validateFileRecord(manifest.Database.File, "database/sbm.pgcustom"); err != nil {
 		return fmt.Errorf("database record: %w", err)
 	}
 	if manifest.Database.TableCounts == nil || len(manifest.Database.TableCounts) == 0 {

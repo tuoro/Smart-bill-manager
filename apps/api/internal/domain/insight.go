@@ -157,8 +157,8 @@ func BuildInsightPage(
 	filtered := make([]InsightFact, 0, len(facts))
 	seenFacts := make(map[string]struct{}, len(facts))
 	for _, source := range facts {
-		item := cloneInsightFact(source)
-		if err := normalizeInsightFact(&item); err != nil {
+		item, err := NormalizeInsightFact(source)
+		if err != nil {
 			return InsightPage{}, err
 		}
 		if insightFactMatches(canonical, item) {
@@ -201,6 +201,116 @@ func BuildInsightPage(
 		result.Next = &InsightSortKey{BusinessDate: last.BusinessDate, FactType: last.FactType, FactID: last.FactID}
 	}
 	return result, nil
+}
+
+func BuildProjectedInsightPage(
+	filter InsightFilter,
+	groups []InsightAggregate,
+	items []InsightFact,
+	after *InsightSortKey,
+	limit int,
+	hasMore bool,
+) (InsightPage, error) {
+	canonical, _, err := CanonicalInsightFilter(filter)
+	if err != nil {
+		return InsightPage{}, err
+	}
+	if limit < 1 || limit > 100 || len(items) > limit || (hasMore && len(items) != limit) {
+		return InsightPage{}, invalidInsightProjection()
+	}
+	if after != nil {
+		if err := validateInsightSortKey(*after); err != nil {
+			return InsightPage{}, err
+		}
+	}
+	normalizedItems := make([]InsightFact, 0, len(items))
+	seenFacts := make(map[string]struct{}, len(items))
+	for _, source := range items {
+		item, err := NormalizeInsightFact(source)
+		if err != nil || !insightFactMatches(canonical, item) {
+			return InsightPage{}, invalidInsightProjection()
+		}
+		identity := string(item.FactType) + "\x00" + item.FactID
+		if _, duplicate := seenFacts[identity]; duplicate {
+			return InsightPage{}, invalidInsightProjection()
+		}
+		seenFacts[identity] = struct{}{}
+		if len(normalizedItems) > 0 && !insightFactBefore(normalizedItems[len(normalizedItems)-1], item) {
+			return InsightPage{}, invalidInsightProjection()
+		}
+		if after != nil {
+			cursor := InsightFact{BusinessDate: after.BusinessDate, FactType: after.FactType, FactID: after.FactID}
+			if !insightFactBefore(cursor, item) {
+				return InsightPage{}, invalidInsightProjection()
+			}
+		}
+		normalizedItems = append(normalizedItems, item)
+	}
+	normalizedGroups, groupKeys, err := validateProjectedInsightGroups(groups)
+	if err != nil {
+		return InsightPage{}, err
+	}
+	for _, item := range normalizedItems {
+		if _, exists := groupKeys[string(item.Currency)+"\x00"+string(item.FactType)]; !exists {
+			return InsightPage{}, invalidInsightProjection()
+		}
+	}
+	result := InsightPage{Groups: normalizedGroups, Items: normalizedItems}
+	if hasMore {
+		if len(normalizedItems) == 0 {
+			return InsightPage{}, invalidInsightProjection()
+		}
+		last := normalizedItems[len(normalizedItems)-1]
+		result.Next = &InsightSortKey{BusinessDate: last.BusinessDate, FactType: last.FactType, FactID: last.FactID}
+	}
+	return result, nil
+}
+
+func NormalizeInsightFact(source InsightFact) (InsightFact, error) {
+	item := cloneInsightFact(source)
+	if err := normalizeInsightFact(&item); err != nil {
+		return InsightFact{}, err
+	}
+	return item, nil
+}
+
+func validateProjectedInsightGroups(
+	groups []InsightAggregate,
+) ([]InsightAggregate, map[string]struct{}, error) {
+	result := append([]InsightAggregate(nil), groups...)
+	keys := make(map[string]struct{}, len(result))
+	for index, group := range result {
+		if _, ok := group.Currency.Exponent(); !ok ||
+			(group.FactType != DocumentPayment && group.FactType != DocumentInvoice) ||
+			group.Count <= 0 || group.TotalMinor < 0 || group.AllocatedMinor < 0 ||
+			group.RemainingMinor < 0 || group.AllocatedMinor > group.TotalMinor ||
+			group.Count > MaxSafeMinorUnits || group.TotalMinor > MaxSafeMinorUnits ||
+			group.AllocatedMinor > MaxSafeMinorUnits || group.RemainingMinor > MaxSafeMinorUnits ||
+			group.UnallocatedCount < 0 || group.PartialCount < 0 || group.AllocatedCount < 0 {
+			return nil, nil, invalidInsightProjection()
+		}
+		statusCount, err := addInsightAmount(group.UnallocatedCount, group.PartialCount)
+		if err == nil {
+			statusCount, err = addInsightAmount(statusCount, group.AllocatedCount)
+		}
+		amountTotal, amountErr := addInsightAmount(group.AllocatedMinor, group.RemainingMinor)
+		if err != nil || amountErr != nil || statusCount != group.Count || amountTotal != group.TotalMinor {
+			return nil, nil, invalidInsightProjection()
+		}
+		key := string(group.Currency) + "\x00" + string(group.FactType)
+		if _, duplicate := keys[key]; duplicate {
+			return nil, nil, invalidInsightProjection()
+		}
+		keys[key] = struct{}{}
+		if index > 0 {
+			previous := result[index-1]
+			if previous.Currency > group.Currency ||
+				(previous.Currency == group.Currency && previous.FactType <= group.FactType) {
+				return nil, nil, invalidInsightProjection()
+			}
+		}
+	}
+	return result, keys, nil
 }
 
 func normalizeInsightFact(item *InsightFact) error {

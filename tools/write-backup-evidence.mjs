@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const manifestKind = "smart-bill-manager-backup";
-const manifestVersion = 2;
+const manifestVersion = 3;
 const expectedDocuments = 1000;
 const expectedObjectReferences = 1004;
 const expectedUniqueObjects = 1003;
@@ -111,7 +111,7 @@ function buildEvidence(inputs, metadata) {
   validateMetadata(metadata);
   return {
     report_kind: "m4-backup-restore-gate-summary",
-    evidence_version: "M4-BACKUP-RESTORE-SLICE-2026-08-31",
+    evidence_version: "M4-BACKUP-RESTORE-POSTGRESQL-2026-09-01",
     recorded_date: metadata.recordedDate,
     workspace: {
       branch: metadata.branch,
@@ -125,11 +125,10 @@ function buildEvidence(inputs, metadata) {
       m1: "complete",
       m2: "complete",
       m3: "complete",
-      m4: "in_progress",
+      m4: "complete_local_only",
       authenticated_backup_restore_slice: "complete",
-      next_slice: "m4_runtime_quality_performance_security_accessibility",
-      model_accuracy_gate:
-        "deferred_until_all_local_functional_development_is_complete",
+      next_slice: "formal_real_model_accuracy_evaluation",
+      model_accuracy_gate: "pending_explicit_authorization",
     },
     protocol: {
       manifest_kind: manifestKind,
@@ -138,7 +137,9 @@ function buildEvidence(inputs, metadata) {
       data_package_contains_master_key: false,
       old_manifest_compatibility: false,
       exact_committed_object_inventory: true,
-      sqlite_integrity_and_foreign_key_checks: true,
+      postgresql_server_major_17: true,
+      postgresql_custom_dump_verified: true,
+      postgresql_constraints_and_foreign_keys_verified: true,
       migration_and_schema_identity_checks: true,
       crash_safe_restore_state: true,
       existing_targets_overwritten: false,
@@ -220,7 +221,7 @@ function buildEvidence(inputs, metadata) {
       temporary_artifact_check: staticGates.temporary_artifact_check,
       current_slice_process_residue_check:
         staticGates.current_slice_process_residue_check,
-      browser_acceptance: "not_applicable_no_web_behavior_change",
+      browser_acceptance: "passed_in_final_local_release_gate",
     },
     excluded: {
       formal_real_model_accuracy_evaluation: "not_run",

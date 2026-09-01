@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/claimsupport"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 func TestConfirmPaymentIsAtomicAndIdempotent(t *testing.T) {
@@ -1117,7 +1118,7 @@ func TestPaymentInvoiceLinkRejectsDuplicateActivePairAndMutation(t *testing.T) {
 		INSERT INTO payment_invoice_link_candidates (
 			id, tenant_id, claim_set_id, existing_invoice_id, candidate_key,
 			rule_version, reason_codes_json, name_exact, date_distance_days, created_at
-		) VALUES (?, ?, ?, ?, ?, 'payment-invoice-link/2', '["currency_exact","date_within_30_days","remaining_available","partial_allocation"]', 1, 0, ?)
+		) VALUES (?, ?, ?, ?, ?, 'payment-invoice-link/2', '["currency_exact","date_within_30_days","remaining_available","partial_allocation"]', TRUE, 0, ?)
 	`, duplicateCandidateID, fixture.tenant.TenantID, paymentReview.ClaimSetID, invoiceResult.FactID,
 		"duplicate-pair-candidate", createdAt); err != nil {
 		_ = tx.Rollback()
@@ -1139,7 +1140,7 @@ func TestPaymentInvoiceLinkRejectsDuplicateActivePairAndMutation(t *testing.T) {
 		) VALUES (?, ?, ?, ?, ?, 1000, 'CNY', ?)
 	`, duplicateLinkID, fixture.tenant.TenantID, paymentResult.FactID, invoiceResult.FactID,
 		duplicateDecisionID, createdAt)
-	if duplicateErr == nil || !strings.Contains(duplicateErr.Error(), "UNIQUE constraint failed") {
+	if duplicateErr == nil || !strings.Contains(duplicateErr.Error(), "payment_invoice_links_pair_active_idx") {
 		_ = tx.Rollback()
 		t.Fatalf("duplicate active pair error = %v", duplicateErr)
 	}
@@ -1600,9 +1601,11 @@ func TestFactConfirmationFaultInjectionRollsBackBeforeAndAfterFactInsert(t *test
 	}
 
 	if _, err := fixture.store.DB().ExecContext(ctx, `
-		CREATE TEMP TRIGGER fail_before_payment_fact
+		CREATE FUNCTION pg_temp.fail_before_payment_fact() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic_before_fact_failure'; END; $$;
+		CREATE TRIGGER fail_before_payment_fact
 		BEFORE INSERT ON payments
-		BEGIN SELECT RAISE(ABORT, 'synthetic_before_fact_failure'); END
+		FOR EACH ROW EXECUTE FUNCTION pg_temp.fail_before_payment_fact()
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -1613,15 +1616,17 @@ func TestFactConfirmationFaultInjectionRollsBackBeforeAndAfterFactInsert(t *test
 		t.Fatal("pre-fact failure was ignored")
 	}
 	assertClean("pre-fact failure")
-	if _, err := fixture.store.DB().ExecContext(ctx, "DROP TRIGGER fail_before_payment_fact"); err != nil {
+	if _, err := fixture.store.DB().ExecContext(ctx, "DROP TRIGGER fail_before_payment_fact ON payments"); err != nil {
 		t.Fatal(err)
 	}
 
 	if _, err := fixture.store.DB().ExecContext(ctx, `
-		CREATE TEMP TRIGGER fail_after_payment_fact
+		CREATE FUNCTION pg_temp.fail_after_payment_fact() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic_after_fact_failure'; END; $$;
+		CREATE TRIGGER fail_after_payment_fact
 		BEFORE INSERT ON audit_events
-		WHEN NEW.action = 'fact_confirmed'
-		BEGIN SELECT RAISE(ABORT, 'synthetic_after_fact_failure'); END
+		FOR EACH ROW WHEN (NEW.action = 'fact_confirmed')
+		EXECUTE FUNCTION pg_temp.fail_after_payment_fact()
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -1632,7 +1637,7 @@ func TestFactConfirmationFaultInjectionRollsBackBeforeAndAfterFactInsert(t *test
 		t.Fatal("post-fact failure was ignored")
 	}
 	assertClean("post-fact failure")
-	if _, err := fixture.store.DB().ExecContext(ctx, "DROP TRIGGER fail_after_payment_fact"); err != nil {
+	if _, err := fixture.store.DB().ExecContext(ctx, "DROP TRIGGER fail_after_payment_fact ON audit_events"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.Confirm(ctx, fixture.tenant, fixture.jobID, ConfirmInput{
@@ -1644,7 +1649,7 @@ func TestFactConfirmationFaultInjectionRollsBackBeforeAndAfterFactInsert(t *test
 }
 
 type reviewFixture struct {
-	store      *sqliteadapter.Store
+	store      *postgresqladapter.Store
 	tenant     domain.TenantContext
 	now        time.Time
 	documentID string
@@ -1653,24 +1658,17 @@ type reviewFixture struct {
 }
 
 func newReviewFixture(t *testing.T) reviewFixture {
-	return newReviewFixtureAt(t, ":memory:")
+	return newReviewFixtureAt(t)
 }
 
 func newFileReviewFixture(t *testing.T) reviewFixture {
-	return newReviewFixtureAt(t, filepath.Join(t.TempDir(), "reviews.sqlite"))
+	return newReviewFixtureAt(t)
 }
 
-func newReviewFixtureAt(t *testing.T, databasePath string) reviewFixture {
+func newReviewFixtureAt(t *testing.T) reviewFixture {
 	t.Helper()
 	ctx := context.Background()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  databasePath,
-		MigrationsDir: reviewMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := postgresqltest.Open(t)
 	ids := system.IDGenerator{}
 	now := time.Date(2026, 8, 27, 8, 0, 0, 0, time.UTC)
 	userID := mustID(t, ids)

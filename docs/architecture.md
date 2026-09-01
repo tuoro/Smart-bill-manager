@@ -1,6 +1,6 @@
 # Clean Slate 架构基线
 
-状态：M0、M1、M2、M3 已完成；M4 首、第二切片已完成，当前进入运行质量与本地发布准备
+状态：M0～M4 本地功能与本地发布准备已完成；PostgreSQL 17 是唯一关系数据源
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
 
@@ -14,13 +14,13 @@
 flowchart LR
     Browser[浏览器] --> Web[Vue Web]
     Web --> API[Go API / 应用进程]
-    API --> DB[(SQLite)]
+    API --> DB[(PostgreSQL 17)]
     API --> Files[(本地对象文件)]
     API --> Model[OpenAI-compatible API]
     API --> Mail[IMAP 邮箱]
 ```
 
-M1、M2 只启用 Browser、Web、API、SQLite、文件存储和模型 API。M3 只在该模块化单体内增加连接器中立的邮件归档、行程归属和报销工作流；不装配邮箱网络连接，也不为报销连接外部系统。真实邮箱与外部报销系统接入仍在独立门禁之后。
+当前系统只启用 Browser、Web、API、PostgreSQL 17、本地文件存储和模型 API。M3 增加的邮件归档、行程归属和报销工作流仍位于同一模块化单体；不装配邮箱网络连接，也不为报销连接外部系统。真实邮箱与外部报销系统接入仍在独立门禁之后。
 
 ## 目标目录
 
@@ -96,7 +96,7 @@ flowchart LR
 
 ### adapters
 
-实现 SQLite、本地文件、OpenAI-compatible、加密和未来邮箱等端口。
+实现 PostgreSQL、本地文件、OpenAI-compatible、加密和未来邮箱等端口。
 
 - M1 每个端口只有一个生产实现。
 - 禁止在业务层按供应商或存储类型分支。
@@ -135,7 +135,7 @@ M1 使用单个 API 进程：
 - 持久化 Job 调度器；
 - 最多两个默认 AI Job 执行槽；
 - 租约恢复和优雅停机；
-- SQLite 与本地对象存储适配器。
+- PostgreSQL 与本地对象存储适配器。
 
 不创建独立 Worker 服务。应用层用例与 Worker 装配分离，使未来可以增加独立进程，但当前 Compose 只有一个应用服务。
 
@@ -197,7 +197,7 @@ M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 i
 
 1. Reimbursement 是 `application/reimbursements` 独立用例，不进入 AI Worker、Claim Mapper 或 Review 确认事务，也不提供模型、邮件或测试 fixture 自动创建入口。
 2. 读取端口按显式 Trip 和 1～200 个活动 TripFactAssignment 加载未删除 Fact、选中范围内的活动 PaymentInvoiceLink，以及其他 submitted/reimbursed 报销成员；领域层唯一 `reimbursement-policy/1` 计算 Finding、按币种汇总和规范快照 hash。
-3. 预检只返回计算结果且不落库。提交端在 immediate SQLite 事务内使用同一读取与领域算法重算，严格比较期望快照和完整 Finding key 确认，再原子写 Reimbursement、Item、Finding、Decision 和 AuditEvent。
+3. 预检只返回计算结果且不落库。提交端在 PostgreSQL `SERIALIZABLE` 事务内使用同一读取与领域算法重算，锁定受影响行，严格比较期望快照和完整 Finding key 确认，再原子写 Reimbursement、Item、Finding、Decision 和 AuditEvent。
 4. Item 冻结 Trip/Assignment/Fact 的历史显示与金额快照，不参与当前 Fact 查询、余额或归属计算。当前 Fact、PaymentInvoiceLink 和 TripFactAssignment 始终是提交前预检的唯一实时来源。
 5. 当前报销状态保存在 Reimbursement；每次合法变化必须与一个不可变 Decision 在同一事务内更新状态和版本。相同 Trip 同时最多一个 submitted，陈旧状态/版本或并发唯一冲突全部回滚。
 6. 列表使用不透明游标默认 50、最大 100；详情读取不可变 Item/Finding/Decision 历史。软删除 Trip/Fact 不删除历史快照，响应明确来源已删除。
@@ -218,7 +218,7 @@ flowchart LR
 ### M4 确定性 Fact 洞察与筛选查询
 
 1. `application/insights` 是独立只读用例；它不进入 AI、Claim、Review、分配、归属或报销写链，也不提供任何写回端口。
-2. SQLite 适配器在一个只读事务中，从未删除 Payment/Invoice、活动 PaymentInvoiceLink 和活动 TripFactAssignment 生成每个 Fact 唯一的当前投影；可选 `trip_id` 也在该快照内校验为同租户未删除 Trip。
+2. PostgreSQL 适配器在一个 `REPEATABLE READ READ ONLY` 事务中，从未删除 Payment/Invoice、活动 PaymentInvoiceLink 和活动 TripFactAssignment 生成每个 Fact 唯一的当前投影；可选 `trip_id` 也在该快照内校验为同租户未删除 Trip。
 3. 领域层唯一 `fact-insights/1` 校验投影、确定分配状态、按币种与 Fact 类型分别安全聚合，并按固定排序分页；数据库只提供权威当前行，不保存汇总副本。
 4. 应用层规范化筛选，并以 `fact-insight-cursor/1` 的筛选 hash 和最后排序键保护游标。筛选变化、非法边界或不存在的游标边界明确失败，不静默回退。
 5. HTTP 只提供一个严格单值查询端点；Web `/insights` 复用同一响应中的汇总和当前页。Owner/Finance/Viewer 读取，Reviewer 拒绝；只读请求不写 AuditEvent。
@@ -226,7 +226,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Fact[当前 Payment / Invoice] --> Snapshot[SQLite 同一读快照]
+    Fact[当前 Payment / Invoice] --> Snapshot[PostgreSQL 同一读快照]
     Link[活动金额 Link] --> Snapshot
     Assignment[活动行程归属] --> Snapshot
     Snapshot --> Domain[fact-insights/1]
@@ -238,10 +238,10 @@ flowchart LR
 
 ### M4 认证停机备份与恢复激活
 
-1. 应用、`bootstrap-owner` 与备份命令通过数据库旁的运行锁互斥。备份只有在应用锁未占用、操作者确认停机、WAL checkpoint 完成且 SQLite 排他事务建立后才读取数据。
+1. 备份只在应用已停止写入并完成显式停机确认后执行；固定 PostgreSQL 17 工具创建一致性 dump，对象集合在同一停写窗口内冻结。数据库连接与对象 staging 不能依赖数据库旁的单机锁文件。
 2. 备份适配器从四个权威引用来源生成唯一对象集合：Document、DocumentPage、EmailMessage 原文与非空 EmailAttachment。共享对象按 key 去重并要求哈希/已知大小一致；该集合必须与 `objects/` 的普通文件精确相等，`staging/` 和 `trash/` 必须为空。
-3. 数据包只持有 SQLite、已提交对象和 `smart-bill-manager-backup/2` 清单；主密钥仍在独立数据源，由操作者单独提供。清单使用主密钥域分离派生的 HMAC 认证并携带随机 `backup_set_id`，数据包本身没有伪造清单或集合身份的能力。
-4. 数据库检查同时覆盖 `integrity_check`、`foreign_key_check`、迁移文件集合、`schema_migrations`、SQLite Schema、全部表数量和审计链；旧清单或旧数据库没有兼容读取路径。
+3. 数据包只持有 PostgreSQL 自包含 dump、已提交对象和当前版本认证清单；主密钥仍在独立数据源，由操作者单独提供。清单使用主密钥域分离派生的 HMAC 认证并携带随机 `backup_set_id`，数据包本身没有伪造清单或集合身份的能力。
+4. 数据库检查同时覆盖固定服务端/工具 major、迁移文件集合、`schema_migrations`、PostgreSQL Schema 身份、全部表数量、约束身份和审计链；SQLite 清单、旧清单或旧数据库没有兼容读取路径。
 5. 恢复先在数据库、对象和密钥各自目标文件系统内 staging 并完成离线精确对账，再持久化 `restore-state=incomplete` 并发布。应用在运行锁前后拒绝 incomplete、未知、损坏、孤立状态；跨卷发布不是伪装的单文件原子 rename。
 6. 离线快照复核完成后，恢复命令删除全部 Session，再验证除 Session 归零之外的持久化状态未变。只有发布、同步和后检查都通过，才用已单独 `fsync` 的 complete 文件原子替换状态并同步父目录；complete 状态永久保留且必须与数据库成对。
 7. M4 演练以恰好 1,000 个实际纯合成 Document 原件、2 个派生页、1,004 条对象引用、1,003 个唯一物理对象和 RPO 0 验证 30 分钟 RTO。备份边界必须从绑定 exercise/model/mode/instance 的挂起回环 Provider 精确观察 0→1 次提取；数据包创建后、首次独立 verify 前启动唯一时钟。恢复副本先证明原快照可查询下载，再继续租约和审核。既有行稳定摘要、旧 Session 清零、新 Session、目标租约接管、AiRun 终止与唯一闭合 Fact 链分别对账，不冒充原始清单逐字相等。
@@ -283,7 +283,7 @@ flowchart LR
 1. 调整是独立的 `application/allocations` 用例，不复用 Review 确认命令，也不修改 Claim、ReviewDecision 或 Fact。`owner` 与 `finance` 通过 `allocations.manage` 进入该边界。
 2. 读取端口以 anchor 类型、ID 和显式租户查询当前活动 Link，并返回最多 200 个同币种、日期窗口内的相反类型 Fact。当前对的可调整上限等于目标剩余金额加当前对金额；所有余额仍动态聚合活动 Link。
 3. 领域层对活动 Link 计算版本化 `plan_hash`，规范化用户提交的完整期望计划，派生 `supplement`、`withdraw` 或 `replace`，并计算请求身份和差异。无变化计划拒绝，不创建空审计记录。
-4. 写端口在 immediate SQLite 事务中先读取 `tenant_id + idempotency_key`；命中同一请求时重放原结果，命中不同请求时冲突。首次请求随后重读 anchor、活动 Link 与目标，校验期望 hash、租户、Fact 状态、币种、日期、余额和活动对唯一。
+4. 写端口在 PostgreSQL `SERIALIZABLE` 事务中先读取并锁定 `tenant_id + idempotency_key` 对应范围；命中同一请求时重放原结果，命中不同请求时冲突。首次请求随后锁定并重读 anchor、活动 Link 与目标，校验期望 hash、租户、Fact 状态、币种、日期、余额和活动对唯一。
 5. 事务预生成 Adjustment、AuditEvent 和新 Link ID，先写安全 AuditEvent 与不可变 Adjustment，再终止撤销/替换的旧 Link并创建新 Link。任一语句失败则整体回滚；未变化 Link 不写入。
 6. 初次审核 Link 以 LinkDecision 为创建来源，独立调整 Link 以 Adjustment 为创建来源，两者严格二选一。Fact 删除和独立调整也是 Link 的两种互斥终止来源；数据库触发器重复约束来源、anchor scope、Fact 状态、币种、余额和不可变历史。
 7. Web 使用 `/allocations/:factType/:factId` 独立路由承载完整计划表单。提交后总是重新读取服务端工作区；陈旧快照保留理由和用户输入并要求刷新确认，不把客户端草稿写成第二数据源。
@@ -297,7 +297,7 @@ flowchart LR
 3. 页面近似检索先用同租户、同版本的 dHash band 索引缩小集合，再以宽高比和双哈希距离作唯一判定；字段组合只使用参数化查询与确定性规范化，不调用模型或模糊文本算法。
 4. DuplicateCandidate 与 Claim revision 一起冻结。Review 展示原因、页码、距离和安全目标摘要；它是人工审核输入，不是 Document/Fact 上的可写重复状态。
 5. 用户认为当前 Document 是重复项时驳回 Claim；要确认 Fact，则必须对当前全部候选逐项提交 `keep_distinct`。完整 resolution 计划规范化后进入幂等身份。
-6. 确认事务在 immediate SQLite 写锁内重算候选键；集合变化、跨租户、旧 revision、缺失或伪造 resolution 时整体冲突。数据库在 Claim 转为 `confirmed` 前验证所有候选都由同一个确认 ReviewDecision 决定。
+6. 确认事务在 PostgreSQL `SERIALIZABLE` 事务及显式行锁内重算候选键；集合变化、跨租户、旧 revision、缺失或伪造 resolution 时整体冲突。数据库在 Claim 转为 `confirmed` 前验证所有候选都由同一个确认 ReviewDecision 决定。
 7. 精确原始 SHA-256 和规范化发票号仍分别为不可绕过的上传冲突与 blocked 规则；本切片不合并 Source、不删除页面，也不进行跨页明细重建。
 
 详细算法、阈值和失败边界见 `docs/decisions/0010-deterministic-duplicate-detection.md`。
@@ -390,13 +390,16 @@ M1 至少记录：
 
 ## 部署边界
 
-M1 交付一个 Compose 流程：
+M4 本地发布候选交付一个稳定 Compose 流程：
 
-- 单一生产镜像包含 API 与前端生产静态资源；Compose 只运行一个应用服务和内置 Worker，不创建第二服务或第二业务入口。
-- SQLite、对象文件和主密钥材料使用独立持久卷/挂载。
+- 单一生产镜像包含 API、前端生产静态资源、Owner 初始化和认证备份 CLI；Compose 只运行一个应用服务和内置 Worker，不创建第二业务入口。acceptance overlay 的 synthetic Provider 只用于纯合成本地验收，不进入发布镜像。
+- 构建前由受保护的本地准备器在独立工作区完成锁文件离线安装和 Web 构建，并在固定禁网 Go 容器中校验模块后生成四个二进制；本地产物上下文绑定源码发布摘要、工具链身份、精确文件清单和 SHA-256。Dockerfile 只验证并装配该上下文，缓存、`node_modules`、构建工具链和准备工作区均不进入最终镜像。
+- 最终运行层以 Alpine 3.23 为唯一基础，只从固定 Go 1.26.7 Debian 镜像复制 Poppler 所需的五个 glibc 文件，并移除 Alpine `apk`；Poppler 自包含 bundle 与静态降权助手都先进入发布产物哈希清单。应用镜像在禁网构建中加入已校验二进制/Web、迁移、Schema 与 entrypoint，不包含任何构建工具链、包管理器、旧应用、配置、数据或凭据。
+- PostgreSQL 数据卷、对象文件和主密钥材料使用独立持久卷/挂载；数据库不发布宿主端口。
 - 健康检查只证明进程可服务；就绪检查必须覆盖数据库和 Job 调度器。
 - 生产配置缺少主密钥、允许通配 CORS 或使用开发模式时拒绝启动。
-- SQLite 与精确对象集合使用 `docs/backup-restore.md` 的认证停机数据包；既有主密钥通过独立托管副本提供，不能与密文进入同一数据包。恢复只写入全新目标，在线 Provider 密文删除后的备份残留最长保留 30 天。
+- PostgreSQL 自包含 dump 与精确对象集合使用 `docs/backup-restore.md` 的认证停机数据包；既有主密钥通过独立托管副本提供，不能与密文进入同一数据包。恢复只写入全新数据库和对象目标，在线 Provider 密文删除后的备份残留最长保留 30 天。
+- 唯一当前入口为 `infra/docker/app.Dockerfile` 与 `infra/compose/compose.yaml`；容器默认回环绑定、只读根文件系统、两个持久卷、受限 tmpfs、最小 capability 与资源上限。镜像显式以 root 启动唯一入口，仅用于材料化主密钥和修正持久卷权限，随后立即降权到 UID/GID 10001；应用二进制不以 root 运行。该形态只证明本地制品就绪，不构成生产部署授权。
 
 ## 禁止项
 
@@ -408,4 +411,4 @@ M1 交付一个 Compose 流程：
 - 模型失败后静默使用第二模型或本地 OCR；
 - AI 输出直接写 Fact；
 - 测试数据、开发工具或源码进入生产镜像；
-- 为“以后可能需要”提前增加微服务、消息队列或 PostgreSQL 第二实现。
+- 保留 SQLite 第二实现，或为“以后可能需要”提前增加微服务、消息队列。

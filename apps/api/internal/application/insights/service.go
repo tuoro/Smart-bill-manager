@@ -66,11 +66,7 @@ func (s Service) Query(
 	if err != nil {
 		return Page{}, err
 	}
-	facts, err := s.repository.ReadInsightFacts(ctx, tenant.TenantID, filter)
-	if err != nil {
-		return Page{}, err
-	}
-	result, err := domain.BuildInsightPage(filter, facts, after, input.Limit)
+	result, err := s.repository.ReadInsightPage(ctx, tenant.TenantID, filter, after, input.Limit)
 	if err != nil {
 		return Page{}, err
 	}

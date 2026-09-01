@@ -164,17 +164,17 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	}
 
 	if _, err := fixture.store.DB().ExecContext(ctx, `
-		CREATE TEMP TRIGGER fail_reimbursement_audit
+		CREATE FUNCTION pg_temp.fail_reimbursement_audit() RETURNS trigger
+		LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic_reimbursement_audit_failure'; END; $$;
+		CREATE TRIGGER fail_reimbursement_audit
 		BEFORE INSERT ON audit_events
-		WHEN NEW.resource_type = 'reimbursement'
-		BEGIN
-			SELECT RAISE(ABORT, 'synthetic_reimbursement_audit_failure');
-		END
+		FOR EACH ROW WHEN (NEW.resource_type = 'reimbursement')
+		EXECUTE FUNCTION pg_temp.fail_reimbursement_audit()
 	`); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = fixture.store.DB().ExecContext(context.Background(), "DROP TRIGGER IF EXISTS fail_reimbursement_audit")
+		_, _ = fixture.store.DB().ExecContext(context.Background(), "DROP TRIGGER IF EXISTS fail_reimbursement_audit ON audit_events")
 	})
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
 		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
@@ -196,7 +196,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	if rolledBackReimbursements != 0 || rolledBackItems != 0 || rolledBackDecisions != 0 {
 		t.Fatalf("failed reimbursement left rows = %d/%d/%d", rolledBackReimbursements, rolledBackItems, rolledBackDecisions)
 	}
-	if _, err := fixture.store.DB().ExecContext(ctx, "DROP TRIGGER fail_reimbursement_audit"); err != nil {
+	if _, err := fixture.store.DB().ExecContext(ctx, "DROP TRIGGER fail_reimbursement_audit ON audit_events"); err != nil {
 		t.Fatal(err)
 	}
 	firstInput := reimbursementapp.SubmissionInput{
@@ -698,7 +698,7 @@ func TestReimbursementPaymentBusinessDateCrossesSourceTimezoneBoundary(t *testin
 	}
 	var storedBusinessDate string
 	if err := fixture.store.DB().QueryRowContext(ctx, `
-		SELECT business_date FROM payments WHERE tenant_id = ? AND id = ?
+		SELECT business_date::text FROM payments WHERE tenant_id = ? AND id = ?
 	`, fixture.tenant.TenantID, payment.FactID).Scan(&storedBusinessDate); err != nil {
 		t.Fatal(err)
 	}

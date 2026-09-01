@@ -152,6 +152,7 @@ type Transaction interface {
 
 type TransactionManager interface {
 	WithinTransaction(ctx context.Context, operation func(Transaction) error) error
+	WithinReadCommittedTransaction(ctx context.Context, operation func(Transaction) error) error
 }
 
 type JobRepository interface {

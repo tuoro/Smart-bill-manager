@@ -13,22 +13,19 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/runtimeguard"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 )
 
 type config struct {
-	databasePath  string
-	migrationsDir string
-	email         string
-	displayName   string
-	tenantName    string
-	currency      string
-	timezone      string
-	passwordFile  string
+	email        string
+	displayName  string
+	tenantName   string
+	currency     string
+	timezone     string
+	passwordFile string
 }
 
 func main() {
@@ -43,11 +40,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	runtimeLock, err := runtimeguard.AcquireExclusive(config.databasePath)
+	databaseConfig, err := postgresqladapter.RuntimeConfigFromEnvironment()
 	if err != nil {
 		return err
 	}
-	defer runtimeLock.Close()
 	password, err := readPassword(config.passwordFile)
 	if err != nil {
 		return err
@@ -59,16 +55,13 @@ func run() error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  config.databasePath,
-		MigrationsDir: config.migrationsDir,
-	})
+	store, err := postgresqladapter.Open(ctx, databaseConfig)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	service := bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{})
-	result, err := service.Execute(ctx, bootstrap.Input{
+	_, err = service.Execute(ctx, bootstrap.Input{
 		Email:           config.email,
 		Password:        password,
 		DisplayName:     config.displayName,
@@ -79,14 +72,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("owner created: user_id=%s tenant_id=%s\n", result.UserID, result.TenantID)
+	fmt.Println("owner created")
 	return nil
 }
 
 func parseFlags() (config, error) {
 	var value config
-	flag.StringVar(&value.databasePath, "database", "", "SQLite database path")
-	flag.StringVar(&value.migrationsDir, "migrations", "", "migration directory")
 	flag.StringVar(&value.email, "email", "", "owner login email")
 	flag.StringVar(&value.displayName, "display-name", "", "owner display name")
 	flag.StringVar(&value.tenantName, "tenant-name", "", "tenant name")
@@ -98,8 +89,6 @@ func parseFlags() (config, error) {
 		return config{}, errors.New("unexpected positional arguments")
 	}
 	required := map[string]string{
-		"database":     value.databasePath,
-		"migrations":   value.migrationsDir,
 		"email":        value.email,
 		"display-name": value.displayName,
 		"tenant-name":  value.tenantName,

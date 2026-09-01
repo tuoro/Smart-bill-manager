@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,5 +45,36 @@ func TestPerformanceSeedOutputCannotAliasProtectedPaths(t *testing.T) {
 	}
 	if err := requireRealSeedOutputParent(filepath.Join(linkedParent, "seed.json")); err == nil {
 		t.Fatal("symlinked performance output parent was accepted")
+	}
+}
+
+func TestPerformanceSeedArgumentsRejectDuplicatesAndUnknownFlags(t *testing.T) {
+	valid := []string{"-output", "/tmp/output.json"}
+	if _, err := parseSeedArguments(valid); err != nil {
+		t.Fatal(err)
+	}
+	duplicate := []string{"-output", "/tmp/one", "-output", "/tmp/two"}
+	if _, err := parseSeedArguments(duplicate); err == nil {
+		t.Fatal("duplicate flag was accepted")
+	}
+	unknown := []string{"-extra", "value"}
+	if _, err := parseSeedArguments(unknown); err == nil {
+		t.Fatal("unknown flag was accepted")
+	}
+}
+
+func TestPerformanceSeedOutputParentMustBeOwnerOnly(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Chmod(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := requireRealSeedOutputParent(filepath.Join(root, "seed.json")); err == nil {
+		t.Fatal("broad output parent was accepted")
+	}
+}
+
+func TestPerformanceSeedTimeoutHasExplicitSafeError(t *testing.T) {
+	if got := safeSeedErrorCode(context.DeadlineExceeded); got != "seed_timeout" {
+		t.Fatalf("deadline safe code = %q", got)
 	}
 }

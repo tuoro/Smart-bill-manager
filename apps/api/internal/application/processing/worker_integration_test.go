@@ -19,12 +19,13 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 func TestWorkerPersistsRetryAttemptsAndReviewClaim(t *testing.T) {
@@ -234,7 +235,7 @@ func TestWorkerPersistsSafeProviderDiagnosticCode(t *testing.T) {
 func TestWorkerFailsSafelyWithoutActiveProvider(t *testing.T) {
 	fixture := newWorkerFixture(t)
 	if _, err := fixture.store.DB().Exec(
-		"UPDATE provider_configs SET active = 0 WHERE tenant_id = ?",
+		"UPDATE provider_configs SET active = FALSE WHERE tenant_id = ?",
 		fixture.tenant.TenantID,
 	); err != nil {
 		t.Fatal(err)
@@ -258,7 +259,7 @@ func TestWorkerFailsSafelyWithoutActiveProvider(t *testing.T) {
 func TestWorkerRejectsStaleProviderSchemaBeforeModelCall(t *testing.T) {
 	fixture := newWorkerFixture(t)
 	if _, err := fixture.store.DB().Exec(
-		"UPDATE provider_configs SET capability_schema_sha256 = ? WHERE tenant_id = ? AND active = 1",
+		"UPDATE provider_configs SET capability_schema_sha256 = ? WHERE tenant_id = ? AND active = TRUE",
 		strings.Repeat("b", 64),
 		fixture.tenant.TenantID,
 	); err != nil {
@@ -444,7 +445,7 @@ func TestWorkerConfigurationAndSafeFailureBoundaries(t *testing.T) {
 }
 
 type workerFixture struct {
-	store      *sqliteadapter.Store
+	store      *postgresqladapter.Store
 	objects    *localstorage.Store
 	normalizer localstorage.Normalizer
 	tenant     domain.TenantContext
@@ -455,14 +456,7 @@ type workerFixture struct {
 func newWorkerFixture(t *testing.T) workerFixture {
 	t.Helper()
 	ctx := context.Background()
-	store, err := sqliteadapter.Open(ctx, sqliteadapter.Config{
-		DatabasePath:  ":memory:",
-		MigrationsDir: workerMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := postgresqltest.Open(t)
 	ids := system.IDGenerator{}
 	userID := workerID(t, ids)
 	tenantID := workerID(t, ids)

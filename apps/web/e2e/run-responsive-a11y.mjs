@@ -1,10 +1,23 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { cpus, platform, totalmem } from 'node:os'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { chromium } from '@playwright/test'
+
+import {
+  SafeToolError,
+  parseStrictPairs,
+  readProtectedSecret,
+  requireGitSHA,
+  requireImageID,
+  requireLoopbackURL,
+  requireSHA256,
+  reserveProtectedFile,
+  safeErrorCode,
+} from '../../../tools/lib/protected-output.mjs'
 
 const formalWidths = [768, 1024, 1440, 1920]
 const reflowCases = formalWidths.map((sourceWidth) => ({
@@ -14,18 +27,37 @@ const reflowCases = formalWidths.map((sourceWidth) => ({
 
 async function main() {
   const options = parseArguments(process.argv.slice(2))
-  const password = await readProtectedSecret(options.passwordFile, 1024)
-  const client = createClient(options.server)
+  const output = await reserveProtectedFile(options.output, [
+    options.passwordFile,
+    options.chromePath,
+  ])
+  let password
   let browser
   try {
+    password = await readProtectedSecret(options.passwordFile, 1024)
+    const client = createClient(options.server)
     await client.login(options.email, password)
     const jobs = await client.get('/jobs')
-    const reviewJob = jobs.items.find((job) => job.status === 'needs_review')
-    if (!reviewJob) throw new Error('a needs_review Job is required for responsive review checks')
+    const reviewJobs = jobs.items.filter(
+      (job) => job.status === 'needs_review' && job.original_name === 'lighthouse-review.png',
+    )
+    if (reviewJobs.length !== 1) {
+      throw new SafeToolError('synthetic_fixture_invalid')
+    }
+    const [reviewJob] = reviewJobs
     browser = await chromium.launch({
       executablePath: options.chromePath,
       headless: true,
-      args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-extensions'],
+      args: [
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-component-update',
+        '--disable-domain-reliability',
+        '--proxy-server=http://127.0.0.1:9',
+        '--proxy-bypass-list=127.0.0.1;localhost;[::1]',
+      ],
     })
     const pages = [
       { name: 'login', path: '/login', authenticated: false },
@@ -68,8 +100,14 @@ async function main() {
       ...(darkTheme.passed ? [] : ['dark-theme']),
     ]
     const report = {
-      report_kind: 'm1-responsive-accessibility-result',
+      report_kind: 'm4-responsive-accessibility-result',
       measured_at: new Date().toISOString(),
+      build_identity: {
+        baseline_head: options.buildSha,
+        release_input_sha256: options.releaseInputSha256,
+        compose_config_sha256: options.composeConfigSha256,
+        image_id: options.imageID,
+      },
       protocol: {
         formal_widths: formalWidths,
         equivalent_reflow: reflowCases,
@@ -77,6 +115,11 @@ async function main() {
           '自动化浏览器未暴露页面缩放控制，按批准协议在相同 DPR 下将 CSS 内容宽度减半。',
         viewport_height: 1000,
         reduced_motion: 'reduce',
+        network_policy: {
+          loopback_origin_only: true,
+          closed_loopback_proxy: true,
+          background_networking_disabled: true,
+        },
         pages: pages.map(({ name, path }) => ({ name, path })),
       },
       environment: {
@@ -97,14 +140,29 @@ async function main() {
       failed_checks: failedChecks,
       passed: failedChecks.length === 0,
     }
-    const encoded = `${JSON.stringify(report, null, 2)}\n`
-    assertNoSecret(encoded, [password, Buffer.from(client.cookieHeader())])
-    await writeFile(options.output, encoded, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
-    process.stdout.write(encoded)
+    const encoded = JSON.stringify(report)
+    assertNoSecret(encoded, [password, ...client.cookieSecrets()])
+    await output.writeJSON(report)
+    process.stdout.write(
+      `${JSON.stringify({
+        report_kind: report.report_kind,
+        formal_passed: formal.filter((result) => result.passed).length,
+        formal_total: formal.length,
+        equivalent_reflow_passed: equivalentReflow.filter((result) => result.passed).length,
+        equivalent_reflow_total: equivalentReflow.length,
+        keyboard_passed: keyboard.passed,
+        dark_theme_passed: darkTheme.passed,
+        passed: report.passed,
+      })}\n`,
+    )
     if (!report.passed) process.exitCode = 1
   } finally {
-    password.fill(0)
-    await browser?.close()
+    password?.fill(0)
+    try {
+      await browser?.close()
+    } finally {
+      await output.close()
+    }
   }
 }
 
@@ -134,8 +192,10 @@ async function measurePage(browser, client, server, descriptor, width, mode, sou
     const response = await page.goto(target, { waitUntil: 'networkidle', timeout: 30_000 })
     if (!response?.ok())
       throw new Error(`${descriptor.name} ${width}px returned HTTP ${response?.status()}`)
-    if (new URL(page.url()).pathname !== descriptor.path) {
-      throw new Error(`${descriptor.name} ${width}px ended at ${new URL(page.url()).pathname}`)
+    const finalURL = new URL(page.url())
+    const expectedURL = new URL(descriptor.path, ensureTrailingSlash(server))
+    if (finalURL.origin !== expectedURL.origin || finalURL.pathname !== expectedURL.pathname) {
+      throw new Error(`${descriptor.name} ${width}px ended outside its expected local route`)
     }
     await page.locator('#main-content').waitFor({ state: 'visible', timeout: 15_000 })
     const metrics = await page.evaluate(() => {
@@ -421,6 +481,7 @@ function createClient(server) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: passwordBytes.toString('utf8') }),
         signal: AbortSignal.timeout(30_000),
+        redirect: 'error',
       })
       if (!response.ok) throw new Error(`login: HTTP ${response.status}`)
       const pairs = response.headers.getSetCookie().map((entry) => entry.split(';', 1)[0])
@@ -441,6 +502,7 @@ function createClient(server) {
       const response = await fetch(base + path, {
         headers: { Cookie: cookieHeader },
         signal: AbortSignal.timeout(30_000),
+        redirect: 'error',
       })
       if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`)
       return response.json()
@@ -449,24 +511,27 @@ function createClient(server) {
       if (!cookieValues.length) throw new Error('session cookies are unavailable')
       return cookieValues
     },
-    cookieHeader() {
-      return cookieHeader
+    cookieSecrets() {
+      return cookieSecretBuffers(cookieHeader)
     },
   }
 }
 
-function parseArguments(argumentsList) {
-  const values = new Map()
-  for (let index = 0; index < argumentsList.length; index += 2) {
-    const key = argumentsList[index]
-    const value = argumentsList[index + 1]
-    if (!key?.startsWith('--') || value === undefined) {
-      throw new Error(`invalid argument near ${key ?? '<end>'}`)
-    }
-    values.set(key.slice(2), value)
-  }
-  for (const name of ['server', 'email', 'password-file', 'chrome-path', 'output']) {
-    if (!values.get(name)) throw new Error(`--${name} is required`)
+export function parseArguments(argumentsList) {
+  const values = parseStrictPairs(argumentsList, [
+    'server',
+    'email',
+    'password-file',
+    'chrome-path',
+    'output',
+    'build-sha',
+    'release-input-sha256',
+    'compose-config-sha256',
+    'image-id',
+  ])
+  requireLoopbackURL(values.get('server'), { allowPath: false })
+  if (!/^[^\s@]+@[^\s@]+$/.test(values.get('email'))) {
+    throw new SafeToolError('invalid_arguments')
   }
   return {
     server: values.get('server'),
@@ -474,22 +539,11 @@ function parseArguments(argumentsList) {
     passwordFile: resolve(values.get('password-file')),
     chromePath: resolve(values.get('chrome-path')),
     output: resolve(values.get('output')),
+    buildSha: requireGitSHA(values.get('build-sha')),
+    releaseInputSha256: requireSHA256(values.get('release-input-sha256')),
+    composeConfigSha256: requireSHA256(values.get('compose-config-sha256')),
+    imageID: requireImageID(values.get('image-id')),
   }
-}
-
-async function readProtectedSecret(path, maximumBytes) {
-  const information = await stat(path)
-  if (!information.isFile() || (information.mode & 0o077) !== 0) {
-    throw new Error('password file must be regular and owner-only')
-  }
-  const content = await readFile(path)
-  const end =
-    content.at(-1) === 0x0a ? content.length - (content.at(-2) === 0x0d ? 2 : 1) : content.length
-  const result = Buffer.from(content.subarray(0, end))
-  if (result.length < 1 || result.length > maximumBytes) {
-    throw new Error('password file size is invalid')
-  }
-  return result
 }
 
 function assertNoSecret(encoded, secrets) {
@@ -500,6 +554,15 @@ function assertNoSecret(encoded, secrets) {
   }
 }
 
+function cookieSecretBuffers(cookieHeader) {
+  return cookieHeader.split(/;\s*/).flatMap((pair) => {
+    const separator = pair.indexOf('=')
+    return separator < 1
+      ? []
+      : [Buffer.from(pair, 'utf8'), Buffer.from(pair.slice(separator + 1), 'utf8')]
+  })
+}
+
 function sha256(content) {
   return createHash('sha256').update(content).digest('hex')
 }
@@ -508,7 +571,9 @@ function ensureTrailingSlash(value) {
   return value.endsWith('/') ? value : `${value}/`
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-  process.exitCode = 1
-})
+if (pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    process.stderr.write(`responsive-a11y: ${safeErrorCode(error)}\n`)
+    process.exitCode = 1
+  })
+}

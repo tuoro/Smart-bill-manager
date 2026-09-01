@@ -152,3 +152,46 @@ func TestBuildInsightPageRejectsInvalidProjectionCursorAndOverflow(t *testing.T)
 		t.Fatalf("overflow error = %v", err)
 	}
 }
+
+func TestBuildProjectedInsightPageValidatesDatabaseProjection(t *testing.T) {
+	t.Parallel()
+
+	groups := []InsightAggregate{
+		{
+			Currency: CurrencyCNY, FactType: DocumentPayment, Count: 2,
+			TotalMinor: 300, AllocatedMinor: 100, RemainingMinor: 200,
+			UnallocatedCount: 1, PartialCount: 1,
+		},
+		{
+			Currency: CurrencyCNY, FactType: DocumentInvoice, Count: 1,
+			TotalMinor: 80, RemainingMinor: 80, UnallocatedCount: 1,
+		},
+	}
+	items := []InsightFact{
+		{FactType: DocumentPayment, FactID: "payment-b", BusinessDate: "2026-08-03", DisplayName: "合成商户乙", AmountMinor: 100, AllocatedMinor: 40, Currency: CurrencyCNY},
+		{FactType: DocumentInvoice, FactID: "invoice-a", BusinessDate: "2026-08-03", DisplayName: "合成销售方", AmountMinor: 80, Currency: CurrencyCNY},
+	}
+	page, err := BuildProjectedInsightPage(InsightFilter{}, groups, items, nil, 2, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Groups) != 2 || len(page.Items) != 2 || page.Next == nil ||
+		page.Next.FactID != "invoice-a" || page.Items[0].RemainingMinor != 60 ||
+		page.Items[0].AllocationStatus != InsightStatusPartial {
+		t.Fatalf("projected page = %#v", page)
+	}
+
+	badGroups := append([]InsightAggregate(nil), groups...)
+	badGroups[0].RemainingMinor++
+	if _, err := BuildProjectedInsightPage(InsightFilter{}, badGroups, items, nil, 2, false); !errors.Is(err, ErrConflict) {
+		t.Fatalf("invalid aggregate error = %v", err)
+	}
+	reversed := []InsightFact{items[1], items[0]}
+	if _, err := BuildProjectedInsightPage(InsightFilter{}, groups, reversed, nil, 2, false); !errors.Is(err, ErrConflict) {
+		t.Fatalf("unsorted items error = %v", err)
+	}
+	missingGroup := []InsightFact{{FactType: DocumentPayment, FactID: "payment-usd", BusinessDate: "2026-08-01", DisplayName: "合成商户", AmountMinor: 1, Currency: CurrencyUSD}}
+	if _, err := BuildProjectedInsightPage(InsightFilter{}, groups, missingGroup, nil, 2, false); !errors.Is(err, ErrConflict) {
+		t.Fatalf("missing group error = %v", err)
+	}
+}

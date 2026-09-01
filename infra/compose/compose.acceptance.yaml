@@ -1,14 +1,19 @@
 services:
   app:
+    command: [/opt/sbm/acceptance-start.sh]
+    volumes:
+      - ../../tools/acceptance-start.sh:/opt/sbm/acceptance-start.sh:ro
     secrets:
-      - sbm_owner_password
+      - source: sbm_owner_password
+        target: sbm_owner_password
 
   provider:
     image: node:24.19.0-alpine3.23
+    pull_policy: never
     network_mode: service:app
     depends_on:
       app:
-        condition: service_healthy
+        condition: service_started
     command:
       - node
       - /opt/sbm/synthetic-provider.mjs
@@ -17,11 +22,13 @@ services:
       - --api-key-file
       - /run/secrets/sbm_provider_key
       - --model
-      - synthetic-m1
+      - synthetic-local-release
+      - --exercise-id
+      - ${SBM_ACCEPTANCE_EXERCISE_ID:?set SBM_ACCEPTANCE_EXERCISE_ID to this run's UUIDv4}
     volumes:
       - ../../tools/synthetic-provider.mjs:/opt/sbm/synthetic-provider.mjs:ro
     secrets:
-      - source: sbm_owner_password
+      - source: sbm_provider_key
         target: sbm_provider_key
     read_only: true
     tmpfs:
@@ -36,6 +43,12 @@ services:
     mem_limit: 256m
     restart: "no"
 
+networks:
+  default:
+    internal: true
+
 secrets:
   sbm_owner_password:
-    file: ${SBM_ACCEPTANCE_SECRET_SOURCE:?set SBM_ACCEPTANCE_SECRET_SOURCE to a protected synthetic password file}
+    file: ${SBM_ACCEPTANCE_OWNER_PASSWORD_SOURCE:?set SBM_ACCEPTANCE_OWNER_PASSWORD_SOURCE to a protected synthetic password file}
+  sbm_provider_key:
+    file: ${SBM_ACCEPTANCE_PROVIDER_KEY_SOURCE:?set SBM_ACCEPTANCE_PROVIDER_KEY_SOURCE to a protected synthetic Provider key file}

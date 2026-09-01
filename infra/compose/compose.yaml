@@ -1,31 +1,33 @@
-name: smart-bill-manager-m1
+name: smart-bill-manager
+
+x-postgres-common: &postgres-common
+  SBM_POSTGRES_HOST: database
+  SBM_POSTGRES_PORT: "5432"
+  SBM_POSTGRES_DATABASE: smart_bill_manager
+  SBM_POSTGRES_SSL_MODE: disable
+  SBM_POSTGRES_MAX_OPEN_CONNECTIONS: "32"
+  SBM_MIGRATIONS_DIR: /app/migrations
 
 services:
-  app:
-    image: smart-bill-manager:m1
-    build:
-      context: ../..
-      dockerfile: infra/docker/m1.Dockerfile
-      args:
-        VCS_REF: ${SBM_BUILD_SHA:-working-tree}
-    init: true
+  database:
+    image: postgres:17-alpine
+    pull_policy: never
     restart: unless-stopped
-    ports:
-      - "${SBM_BIND_ADDRESS:-127.0.0.1}:${SBM_HTTP_PORT:-8080}:8080"
     environment:
-      SBM_DEPLOYMENT_MODE: ${SBM_DEPLOYMENT_MODE:?set SBM_DEPLOYMENT_MODE to local or production}
-      SBM_COOKIE_SECURE: ${SBM_COOKIE_SECURE:?set SBM_COOKIE_SECURE to true or false}
-      SBM_SESSION_TTL: ${SBM_SESSION_TTL:-168h}
-      SBM_AI_CONCURRENCY: ${SBM_AI_CONCURRENCY:-2}
+      POSTGRES_USER: sbm_admin
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/sbm_postgres_admin_password
     volumes:
-      - sbm_database:/var/lib/sbm/database
-      - sbm_objects:/var/lib/sbm/objects
-    secrets:
-      - sbm_master_key
+      - sbm_postgres_data:/var/lib/postgresql/data
     read_only: true
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=268435456
-      - /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700
+      - /tmp:rw,noexec,nosuid,nodev,size=16777216
+      - /var/run/postgresql:rw,noexec,nosuid,nodev,size=16777216,mode=3775
+    secrets:
+      - sbm_postgres_admin_password
+    networks:
+      - database
+    shm_size: 256m
     cap_drop:
       - ALL
     cap_add:
@@ -38,7 +40,129 @@ services:
       - no-new-privileges:true
     pids_limit: 256
     cpus: 2.0
-    mem_limit: 4g
+    mem_limit: 2g
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbm_admin -d postgres >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  provision:
+    image: smart-bill-manager:local
+    pull_policy: never
+    command: ["/app/provision-postgresql"]
+    restart: "no"
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      <<: *postgres-common
+      SBM_POSTGRES_USER: sbm_runtime
+      SBM_POSTGRES_PASSWORD_FILE: /run/sbm-secrets/postgres-runtime-password
+      SBM_POSTGRES_MIGRATION_USER: sbm_migration
+      SBM_POSTGRES_MIGRATION_PASSWORD_FILE: /run/sbm-secrets/postgres-migration-password
+      SBM_POSTGRES_ADMIN_USER: sbm_admin
+      SBM_POSTGRES_ADMIN_PASSWORD_FILE: /run/sbm-secrets/postgres-admin-password
+      SBM_POSTGRES_ADMIN_DATABASE: postgres
+    secrets:
+      - sbm_postgres_admin_password
+      - sbm_postgres_migration_password
+      - sbm_postgres_runtime_password
+    networks:
+      - database
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16777216
+      - /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 1.0
+    mem_limit: 512m
+
+  migrate:
+    image: smart-bill-manager:local
+    pull_policy: never
+    command: ["/app/migrate"]
+    restart: "no"
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+    environment:
+      <<: *postgres-common
+      SBM_POSTGRES_USER: sbm_runtime
+      SBM_POSTGRES_MIGRATION_USER: sbm_migration
+      SBM_POSTGRES_MIGRATION_PASSWORD_FILE: /run/sbm-secrets/postgres-migration-password
+    secrets:
+      - sbm_postgres_migration_password
+    networks:
+      - database
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16777216
+      - /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 1.0
+    mem_limit: 512m
+
+  app:
+    image: smart-bill-manager:local
+    pull_policy: never
+    build:
+      context: ../..
+      dockerfile: infra/docker/app.Dockerfile
+      network: none
+      additional_contexts:
+        release_artifacts: ${SBM_RELEASE_ARTIFACTS_SOURCE:?set SBM_RELEASE_ARTIFACTS_SOURCE to the protected /tmp release artifacts directory}
+      args:
+        GLIBC_SOURCE_IMAGE: smart-bill-manager:go-glibc-source-local
+        VCS_REF: ${SBM_BUILD_SHA:?set SBM_BUILD_SHA to the current 40-character Git HEAD}
+        RELEASE_INPUT_SHA256: ${SBM_RELEASE_INPUT_SHA256:?set SBM_RELEASE_INPUT_SHA256 to the deterministic release input digest}
+    init: true
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${SBM_BIND_ADDRESS:-127.0.0.1}:${SBM_HTTP_PORT:-8080}:8080"
+    environment:
+      <<: *postgres-common
+      SBM_POSTGRES_USER: sbm_runtime
+      SBM_POSTGRES_PASSWORD_FILE: /run/sbm-secrets/postgres-runtime-password
+      SBM_DEPLOYMENT_MODE: ${SBM_DEPLOYMENT_MODE:?set SBM_DEPLOYMENT_MODE to local or production}
+      SBM_COOKIE_SECURE: ${SBM_COOKIE_SECURE:?set SBM_COOKIE_SECURE to true or false}
+      SBM_SESSION_TTL: ${SBM_SESSION_TTL:-168h}
+      SBM_AI_CONCURRENCY: ${SBM_AI_CONCURRENCY:-2}
+    volumes:
+      - sbm_objects:/var/lib/sbm/objects
+    secrets:
+      - sbm_master_key
+      - sbm_postgres_runtime_password
+    networks:
+      - default
+      - database
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=268435456
+      - /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    cpus: 2.0
+    mem_limit: 3584m
     stop_grace_period: 20s
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/ready"]
@@ -48,9 +172,19 @@ services:
       start_period: 10s
 
 volumes:
-  sbm_database:
+  sbm_postgres_data:
   sbm_objects:
+
+networks:
+  database:
+    internal: true
 
 secrets:
   sbm_master_key:
     file: ${SBM_MASTER_KEY_SOURCE:?set SBM_MASTER_KEY_SOURCE to a protected 32-byte key file}
+  sbm_postgres_admin_password:
+    file: ${SBM_POSTGRES_ADMIN_PASSWORD_SOURCE:?set SBM_POSTGRES_ADMIN_PASSWORD_SOURCE to a protected password file}
+  sbm_postgres_migration_password:
+    file: ${SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE:?set SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE to a protected password file}
+  sbm_postgres_runtime_password:
+    file: ${SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE:?set SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE to a protected password file}

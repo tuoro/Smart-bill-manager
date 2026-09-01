@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFile, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { open, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 const email = requiredEnvironment('SBM_E2E_EMAIL')
@@ -103,7 +104,7 @@ test.describe.serial('M1 四个代表页面流程', () => {
     await page.goto(reviewPath)
     await expect(page.getByRole('heading', { name: /审核 playwright-payment\.png/ })).toBeVisible()
     await expect(page.getByRole('heading', { name: '规则校验' })).toBeVisible()
-    await expect(page.getByAltText('playwright-payment.png 原始单据')).toBeVisible()
+    await expect(page.getByAltText('playwright-payment.png 的第 1 页规范化审核图')).toBeVisible()
 
     await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
     const confirm = page.getByRole('button', { name: '确认并生成事实' })
@@ -163,13 +164,31 @@ function requiredEnvironment(name: string): string {
 }
 
 async function readProtectedSecret(path: string, maximumBytes: number): Promise<string> {
-  const information = await stat(path)
-  if (!information.isFile() || (information.mode & 0o077) !== 0) {
-    throw new Error(`${path} must be a regular owner-only secret file`)
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
+  try {
+    const information = await handle.stat()
+    if (
+      !information.isFile() ||
+      information.nlink !== 1 ||
+      (information.mode & 0o077) !== 0 ||
+      information.uid !== process.getuid?.() ||
+      information.size < 1 ||
+      information.size > maximumBytes + 2
+    ) {
+      throw new Error('secret input must be a singly linked owner-only regular file')
+    }
+    const content = await handle.readFile()
+    try {
+      const end =
+        content.at(-1) === 0x0a
+          ? content.length - (content.at(-2) === 0x0d ? 2 : 1)
+          : content.length
+      if (end < 1 || end > maximumBytes) throw new Error('secret input has an invalid size')
+      return content.subarray(0, end).toString('utf8')
+    } finally {
+      content.fill(0)
+    }
+  } finally {
+    await handle.close()
   }
-  const content = await readFile(path)
-  const end =
-    content.at(-1) === 0x0a ? content.length - (content.at(-2) === 0x0d ? 2 : 1) : content.length
-  if (end < 1 || end > maximumBytes) throw new Error(`${path} has an invalid secret size`)
-  return content.subarray(0, end).toString('utf8')
 }

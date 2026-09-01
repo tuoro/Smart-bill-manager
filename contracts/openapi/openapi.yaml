@@ -798,7 +798,7 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
       responses:
         "200":
-          description: 同一 SQLite 读快照内的确定性分组汇总与稳定 Fact 明细页
+          description: 同一 PostgreSQL REPEATABLE READ 只读快照内的确定性分组汇总与稳定 Fact 明细页
           content:
             application/json:
               schema:

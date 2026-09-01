@@ -1,106 +1,81 @@
-# 备份、验证与恢复说明
+# PostgreSQL 备份、验证与恢复说明
 
-状态：M4 `smart-bill-manager-backup/2` 已完成实现并通过 1,000 Document 完整本地演练
+状态：已按 ADR-0020 冻结目标；以当前安全聚合证据记录 PostgreSQL 工具与 1,000 Document 演练结果
 
-本说明只覆盖 Clean Slate 新系统，不读取、转换或恢复旧数据库、旧对象布局、旧任务状态或 M1 清单。权威不变量与失败边界见 `docs/decisions/0018-authenticated-offline-backup-and-recovery.md`。
+本说明只覆盖当前 Clean Slate PostgreSQL 17 系统，不读取、转换或恢复旧数据库、SQLite 文件、旧对象布局、旧任务状态或历史清单。历史 SQLite 实现与演练结果只保留在 ADR-0018 和 `docs/m4-evidence.md`，不得用于当前操作。
 
 ## 恢复集合与保管边界
 
 一次可恢复集合必须同时具备：
 
-1. 数据备份包：`database/sbm.sqlite`、`objects/`、`manifest.json` 和 `manifest.hmac`；
-2. 与数据包分开保管的既有主密钥副本。
+1. 数据备份包：固定 PostgreSQL 17 `pg_dump` 生成的自包含 dump、`objects/`、当前版本 `manifest.json` 和 `manifest.hmac`；
+2. 与数据包分开保管的既有主密钥副本；
+3. 独立托管、只在操作期间提供的数据库恢复凭据。
 
-数据包不包含主密钥，也不能独立通过认证或恢复。独立密钥副本必须位于不同的访问控制和存储故障域；仅把两个目录放在同一普通磁盘上不算独立托管。主密钥文件始终为普通文件、owner-only 权限，且其路径不得位于数据包内。
+数据包不包含主密钥或数据库凭据，也不能独立通过认证或恢复。主密钥文件和数据库密码文件必须是 owner-only 普通文件，不得位于数据包、仓库、日志目录或构建上下文。
 
-`manifest.hmac` 使用主密钥按固定域分离规则派生的 HMAC-SHA-256 验证 `manifest.json` 原始字节。每个清单另含 128-bit 随机 `backup_set_id`，backup、独立 verify、restore 与演练的 API/数据库受保护结果必须一致。CLI 成功输出只含安全聚合，不输出完整清单、路径、哈希、密钥身份或业务内容。
+清单继续使用主密钥域分离派生的 HMAC-SHA-256，并带随机 `backup_set_id`。清单只记录安全可复核的数据库/对象集合身份，不记录密码、DSN、业务字段或原始工具输出。
 
-## 构建工具
+## 当前工具边界
 
-使用与应用相同的已固定 Go 工具链和现有模块缓存，不下载依赖：
+- 服务端、`pg_dump` 和 `pg_restore` major 版本固定为 17；版本不一致时失败。
+- 数据库备份格式只允许 PostgreSQL 自包含 dump。禁止复制 PostgreSQL 数据目录、WAL、容器可写层或 Docker volume 作为应用级备份。
+- 迁移集合、`schema_migrations`、当前 Schema/约束身份、表数量和审计链必须进入认证清单并在 verify/restore 后复核。
+- 对象清单必须精确等于数据库引用的唯一物理对象集合；共享 key 去重但引用行数单独记录。
+- 当前 CLI 与 Compose 只接受 PostgreSQL 17。不得执行历史 SQLite 命令或把历史 SQLite 演练作为当前恢复证据。
 
-```bash
-cd apps/api
-go build -trimpath -o /secure/operator-bin/sbm-backup ./cmd/backup
-```
+## 创建备份的冻结流程
 
-数据备份包与恢复临时目录都不得位于仓库、Docker build context、日志目录或任何同步到公共制品的位置。
+1. 正常停止 app、Worker、Owner 初始化和所有会写入数据库或对象根的命令；确认数据库没有活动应用写连接。
+2. 确认对象存储的 `staging/` 与 `trash/` 为空，并冻结当前精确对象集合。
+3. 使用固定 PostgreSQL 17 工具和受保护密码文件，在不发布数据库宿主端口的内部网络创建自包含 dump。
+4. 只读连接复核迁移、Schema/约束、表数量、审计链和对象引用；任何未知 Schema 对象、迁移漂移、孤立引用或非法持久化状态都失败。
+5. 在 owner-only staging 中生成 dump、对象集合和认证清单；逐文件同步后才原子发布到原本不存在的备份目标。已有目标永不覆盖。
 
-## 创建数据备份包
+停写窗口内不得发生业务写入或对象删除；本地演练 RPO 固定为 0。失败后没有完整认证清单的数据目录不是有效备份。
 
-1. 停止应用和所有会写入同一数据库/对象根的本地命令；不得只暂停 HTTP 流量。
-2. 确认 `staging/` 与 `trash/` 已由应用正常协调为空。
-3. 通过独立受保护路径提供当前主密钥，并在一个不存在的目标路径创建数据包：
+## 独立验证的冻结流程
 
-```bash
-/secure/operator-bin/sbm-backup backup \
-  -database /srv/sbm/database/sbm.sqlite \
-  -objects /srv/sbm/object-store \
-  -master-key /secure/key-escrow/current-master-key \
-  -migrations /opt/sbm/migrations \
-  -output /secure/data-backups/sbm-2026-08-31T120000Z \
-  -offline-confirmed
-```
+验证必须重新取得独立主密钥、当前迁移集合和受保护的只读数据库工具身份，按顺序完成：
 
-工具先拒绝数据库、对象文件或主密钥的多硬链接、符号链接，以及落在数据库父目录、对象根或迁移集合内的输出，再取得 `/srv/sbm/database/sbm.sqlite.runtime.lock` 的排他锁。随后完成 WAL checkpoint、SQLite 排他快照、完整性/外键/迁移/Schema 检查和四类对象引用精确对账。备份先写同一父目录的随机 staging，文件与目录同步后才 rename 为 `-output`；已存在目标永不覆盖。失败后没有完整认证清单的目录不是有效备份。
+1. 严格解析清单与标签并验证 HMAC；
+2. 核对 PostgreSQL 17 工具、迁移集合、dump 哈希和对象文件；
+3. 恢复到一次性全新验证数据库；
+4. 核对 Schema/约束身份、表数量、审计链、租户边界和精确对象引用；
+5. 销毁验证数据库和临时凭据。
 
-## 独立验证
+旧版本、未知或尾随字段、路径越界、符号链接、特殊文件、重复/乱序记录、缺失/多余对象和哈希/大小不符全部失败。
 
-验证必须再次从独立数据源取得主密钥和当前迁移集合：
+## 恢复到全新目标的冻结流程
 
-```bash
-/secure/operator-bin/sbm-backup verify \
-  -backup /secure/data-backups/sbm-2026-08-31T120000Z \
-  -master-key /secure/key-escrow/current-master-key \
-  -migrations /opt/sbm/migrations
-```
+- PostgreSQL 数据库、对象根和恢复状态目标必须全新且为空；不允许覆盖、合并或回填已有数据库。
+- 发布镜像中的 `/app/backup restore` 必须通过默认 entrypoint 以固定 UID/GID 10001 执行，使新对象树从创建起归运行身份所有。隔离演练若为调用 PostgreSQL 工具而显式绕过 entrypoint，必须在 app 启动前把本轮全新恢复树一次性归一到 10001:10001；不得把该步骤用于接管既有或归属不明的目录。
+- 恢复先建立 durable `incomplete` 状态，再把 dump 恢复到全新数据库、对象恢复到同文件系统 staging，并完成全部离线复核。
+- 只有迁移、Schema/约束、表数量、审计链、对象集合与清单全部一致后，才能删除全部 Session 并把恢复状态原子切换为 `complete`。
+- `incomplete`、未知、损坏或与数据库身份不匹配的状态必须阻止 app 和 `bootstrap-owner` 启动。
+- 旧 Cookie 必须失败；操作者使用原有独立登录凭据建立新 Session。恢复不会自动调用 Provider、邮箱或其他外部系统。
+- restore 对快照中仍为 `processing` 的租约只把 `lease_expires_at` 推迟 120 秒，不修改 attempt、version 或 AiRun；该持久化宽限窗覆盖受限 Compose 启动与健康检查，用于在 Server 启动后完成只读基线验证，随后仍由既有过期租约与 `SKIP LOCKED` 竞争语义自动接管。
 
-验证顺序固定为：严格解析清单与标签、HMAC 认证、迁移身份、SQLite 文件、全部对象文件、完整对象清单、数据库完整性/外键/Schema/表数量/审计链、数据库对象引用。旧版本、未知或尾随字段、路径越界、符号链接、特殊文件、重复记录、乱序记录、缺失/多余对象和哈希/大小不符全部失败。
+## M4 1,000 Document 重新演练
 
-## 恢复到全新目标
+PostgreSQL 实现必须重新使用恰好 1,000 个纯合成 Document，保持历史演练已经冻结的对象数量、一个已确认 Fact、一个持有租约与 `running` AiRun 的目标 Job、会话失效、任务只续跑一次和稳定行摘要边界。
 
-数据库、对象根和主密钥目标都必须不存在；不接受预建空目录。主密钥来源仍从独立托管位置读取：
+演练要求：
 
-```bash
-/secure/operator-bin/sbm-backup restore \
-  -backup /secure/data-backups/sbm-2026-08-31T120000Z \
-  -master-key-source /secure/key-escrow/current-master-key \
-  -migrations /opt/sbm/migrations \
-  -database /srv/sbm-restored/database/sbm.sqlite \
-  -objects /srv/sbm-restored/object-store \
-  -master-key /srv/sbm-restored/secrets/master-key \
-  -offline-confirmed
-```
+1. 所有一次性主密钥、Owner 密码、数据库密码和 synthetic Provider key 只存在于新的 owner-only `/tmp` 隔离目录；
+2. PostgreSQL、app 与 synthetic Provider 只使用临时 internal 网络，数据库不发布宿主端口；
+3. 创建数据包后启动不可重置的 30 分钟时钟，再执行独立 verify、全新恢复、旧 Cookie 拒绝、新登录、原快照查询和对象下载；
+4. 形成任务尚未续跑的线性化屏障后，才允许 Worker 接管；旧 AiRun 只收口一次，Job attempt 只增加一次，并最终只新增一条闭合 Claim→Review→Payment 链；
+5. 恢复完成总时间不超过 30 分钟，数据库和对象的非目标稳定摘要保持不变；
+6. 通过后只写安全聚合证据，并销毁本轮凭据、数据库、容器、网络、卷、对象和原始报告。
 
-恢复先在每个目标文件系统内写随机 staging，并以 staging 路径完成完整离线复核。进入发布阶段前，工具创建 owner-only、单硬链接的 `/srv/sbm-restored/database/sbm.sqlite.restore-state`，内容为版本化 `incomplete` 状态；应用与 `bootstrap-owner` 对 incomplete、未知、损坏、权限过宽、孤立于数据库的状态全部拒绝启动。跨卷发布任一步失败或进程中断时，该阻断态保留，部分目标不得启动或复用。
+## 保留与生产门禁
 
-三部分发布后，工具删除恢复数据库中的全部 Session，再次核对除 `sessions = 0` 外的表数量、Schema、审计链和对象集合并完成 checkpoint。最后在同目录写入并同步新的 `complete` 状态文件，原子替换 durable incomplete 状态并同步父目录；成功后状态文件永久保留，只有精确 complete 内容与实际数据库同时存在才允许启动。旧 Cookie 此后必须失败；操作者使用原有独立登录凭据建立新 Session。成功恢复不会自动启动应用、连接 Provider 或访问邮箱。
-
-## M4 1,000 Document 演练
-
-完整演练由 `tools/run-backup-exercise.mjs` 的受控阶段与上述 CLI 共同执行。它只使用回环 synthetic Provider、`.invalid` 身份和纯合成 MIME/图片字节；Provider 必须以本轮 UUIDv4 `--exercise-id` 启动，health 的精确 Schema、实例、模型、模式和计数必须从 0 绑定到唯一一次提取。受保护的本地状态、密码、synthetic Provider key、数据库、对象、数据包和恢复目标必须位于临时隔离目录并保持 owner-only，不进入 Git。每个会产生业务写入的阶段先以 O_EXCL 创建持久 in-progress 结果，输出冲突不得污染精确数据集。
-
-固定流程为：
-
-1. 在无 Provider 的全新租户中创建 997 个终态普通上传 Document，并归档一封含非空附件且形成第 998 个失败 Document 的纯合成邮件；
-2. 用回环 Provider 创建并确认一个 Payment Fact；切换到挂起模式后创建一个持有租约和 `running` AiRun 的 Processing Job；只有这两个成功进入模型边界的上传生成 DocumentPage，最终固定为 1,000 个 Document、2 个 Page、1,004 条对象引用和 1,003 个物理对象；
-3. 控制器确认同一 exercise/model/mode/instance 的挂起 Provider 计数从 0 精确变为一次提取后正常停止应用，再确认全局只有一个 `running` AiRun、998 个失败任务全部为 `provider_config_missing`、两个 Page 分别属于已确认与处理中 Document，且 `staging/`、`trash/` 为空；
-4. 先创建数据包，再以 O_EXCL 写入不可重置的恢复时钟；时钟必须早于首次独立 `verify`，随后验证同一 `backup_set_id` 并恢复到全新目标；
-5. 启动恢复副本，验证 ready、旧 Cookie 未认证、新登录，并先证明原快照中的 Fact/Document 可查询、上传/邮件五个受保护对象可鉴权下载；上述读取全部完成后再读取目标 Job，只有它仍为 `processing` 且 attempt 与备份前相等，才算形成“尚未继续处理”的线性化屏障；
-6. 验证旧 `running` AiRun 在全库唯一变为 `failed/lease_expired`、Job attempt 恰好增加一次且 version 按唯一正常路径增长、任务继续到 `needs_review`，最终确认后只新增一条与该任务闭合的 Claim→Review→Payment 链；既有全部行摘要、其他 Job/AiRun 和非目标表必须不变；
-7. 从数据包创建完成后的唯一时钟起点到上述最终状态的总时间不得超过 30 分钟。
-
-备份前离线形状、原始清单相等性、Session 清零后的允许差异、既有行稳定摘要和首次启动后的闭合精确增量分别记录，不能把启动后的合法写入继续写成“与清单逐字相等”。所有受保护结果同时绑定一个 `exercise_id` 和同一认证 `backup_set_id`；证据合并器拒绝跨轮拼接、迟启时钟、缺字段和不完整覆盖率对象。
-
-## 保留、RPO 与恢复审批
-
-- 数据包和独立主密钥副本均属于敏感备份，必须使用加密介质、最小权限和访问审计；任一部分不得进入源码、普通日志或公共制品。
-- ProviderConfig 删除后，含旧密文的数据包最长保留 30 个日历日，到期按介质能力不可恢复销毁；不得无限期保留。
-- 本地验收数据全部是纯合成数据，证据固化后只清理本轮明确创建且路径已核实的临时产物，不转作运行时数据源。
-- M4 本地演练 RPO 固定为 0，备份完成到恢复验证间不得发生业务写入或删除。
-- 非零 RPO 的生产恢复必须在激活前重放独立、认证、单调的快照后租户删除与凭据撤销登记；该外部运行条件留在生产发布门禁，本地演练不伪造。
-- 恢复权限与数据包读取权限、主密钥托管权限分离；真实恢复、真实账号、凭据使用、部署和发布仍需单独授权。
+- 备份包、主密钥副本和数据库恢复凭据必须位于不同访问控制边界；任一部分不得进入源码、普通日志或公共制品。
+- ProviderConfig 删除后，含旧密文的数据包最长保留 30 个日历日，到期按介质能力不可恢复销毁。
+- 非零 RPO、在线备份、PITR、WAL 归档、HA、真实灾难切换、托管数据库和跨主机 TLS 属于后续生产发布门禁，本地演练不虚构这些能力。
+- 真实恢复、真实账号、生产凭据、部署和发布仍需单独授权。
 
 ## 证据边界
 
-通过后只提交 `tests/evidence/m4/backup-restore-gate-summary.json` 的安全聚合，包括：构建身份、清单规范、Document/对象/引用聚合数量、各离线相等性布尔值、Session 失效数量、恢复后状态增量、RTO 毫秒和 `passed`。不得提交数据库、对象、数据包、清单全文、主密钥、Cookie、密码、Provider key、业务字段、原始响应或运行日志。
+当前 PostgreSQL 演练通过后，只提交安全聚合：构建/迁移/Schema 身份、PostgreSQL major、Document/对象/引用聚合数量、相等性布尔值、Session 失效数量、恢复后状态增量、RTO 毫秒和 `passed`。不得提交 dump、数据库、对象、清单全文、主密钥、数据库密码、DSN、Cookie、Provider key、业务字段、原始响应或日志。

@@ -85,9 +85,10 @@ Thumbs.db
 /tests/evaluation/real-local/
 /tests/evidence/evaluation/real-local/
 
-# Clean Slate M1 generated artifacts
+# Clean Slate generated artifacts
 /apps/web/node_modules/
 /apps/web/dist/
 /apps/web/coverage/
 /apps/web/test-results/
 /apps/api/coverage.out
+/.local-release-cache/

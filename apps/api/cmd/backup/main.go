@@ -15,7 +15,6 @@ import (
 const commandTimeout = 30 * time.Minute
 
 type backupOptions struct {
-	Database   string
 	Objects    string
 	MasterKey  string
 	Migrations string
@@ -33,7 +32,6 @@ type restoreOptions struct {
 	Backup          string
 	MasterKeySource string
 	Migrations      string
-	Database        string
 	Objects         string
 	MasterKey       string
 	Offline         bool
@@ -76,8 +74,25 @@ func safeErrorCode(err error) string {
 		{"manifest", "manifest_invalid"},
 		{"migration", "migration_identity_mismatch"},
 		{"schema", "schema_identity_mismatch"},
-		{"integrity_check", "database_integrity_failed"},
-		{"foreign_key", "database_foreign_key_failed"},
+		{"backup staging", "backup_staging_failed"},
+		{"backup package", "backup_package_failed"},
+		{"backup dump", "postgresql_dump_failed"},
+		{"publish data backup", "backup_publish_failed"},
+		{"sync backup", "backup_sync_failed"},
+		{"server identity", "postgresql_server_identity_failed"},
+		{"constraints", "postgresql_constraint_validation_failed"},
+		{"table inventory", "postgresql_table_inventory_failed"},
+		{"audit identity", "postgresql_audit_identity_failed"},
+		{"query postgresql object references", "postgresql_object_reference_query_failed"},
+		{"scan postgresql object references", "postgresql_object_reference_scan_failed"},
+		{"iterate postgresql object references", "postgresql_object_reference_iteration_failed"},
+		{"committed object inventory", "object_inventory_invalid"},
+		{"object references", "postgresql_object_reference_failed"},
+		{"backup state", "postgresql_inspection_failed"},
+		{"backup inspection", "postgresql_inspection_failed"},
+		{"pg_dump", "postgresql_dump_failed"},
+		{"pg_restore", "postgresql_restore_failed"},
+		{"postgresql", "postgresql_operation_failed"},
 		{"object", "object_inventory_invalid"},
 		{"target", "target_not_empty_or_not_independent"},
 		{"activation state", "restore_activation_failed"},
@@ -149,7 +164,6 @@ func parseBackupOptions(arguments []string) (backupOptions, error) {
 	flags := flag.NewFlagSet("backup", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var options backupOptions
-	flags.StringVar(&options.Database, "database", "", "offline SQLite database")
 	flags.StringVar(&options.Objects, "objects", "", "offline object store root")
 	flags.StringVar(&options.MasterKey, "master-key", "", "independently stored master key")
 	flags.StringVar(&options.Migrations, "migrations", "", "current migration directory")
@@ -158,8 +172,8 @@ func parseBackupOptions(arguments []string) (backupOptions, error) {
 	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
 		return backupOptions{}, errors.New("invalid backup arguments")
 	}
-	if options.Database == "" || options.Objects == "" || options.MasterKey == "" || options.Migrations == "" || options.Output == "" {
-		return backupOptions{}, errors.New("-database, -objects, -master-key, -migrations, and -output are required")
+	if options.Objects == "" || options.MasterKey == "" || options.Migrations == "" || options.Output == "" {
+		return backupOptions{}, errors.New("-objects, -master-key, -migrations, and -output are required")
 	}
 	if !options.Offline {
 		return backupOptions{}, errors.New("stop local writers and pass -offline-confirmed")
@@ -190,15 +204,14 @@ func parseRestoreOptions(arguments []string) (restoreOptions, error) {
 	flags.StringVar(&options.Backup, "backup", "", "data backup directory")
 	flags.StringVar(&options.MasterKeySource, "master-key-source", "", "independently stored source master key")
 	flags.StringVar(&options.Migrations, "migrations", "", "current migration directory")
-	flags.StringVar(&options.Database, "database", "", "new database path")
 	flags.StringVar(&options.Objects, "objects", "", "new object store root")
 	flags.StringVar(&options.MasterKey, "master-key", "", "new runtime master key path")
 	flags.BoolVar(&options.Offline, "offline-confirmed", false, "confirm the target application is stopped")
 	if err := flags.Parse(arguments); err != nil || flags.NArg() != 0 {
 		return restoreOptions{}, errors.New("invalid restore arguments")
 	}
-	if options.Backup == "" || options.MasterKeySource == "" || options.Migrations == "" || options.Database == "" || options.Objects == "" || options.MasterKey == "" {
-		return restoreOptions{}, errors.New("-backup, -master-key-source, -migrations, -database, -objects, and -master-key are required")
+	if options.Backup == "" || options.MasterKeySource == "" || options.Migrations == "" || options.Objects == "" || options.MasterKey == "" {
+		return restoreOptions{}, errors.New("-backup, -master-key-source, -migrations, -objects, and -master-key are required")
 	}
 	if !options.Offline {
 		return restoreOptions{}, errors.New("stop the target application and pass -offline-confirmed")

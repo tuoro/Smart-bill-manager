@@ -16,14 +16,19 @@ type insightRepositoryFixture struct {
 	err      error
 }
 
-func (f *insightRepositoryFixture) ReadInsightFacts(
+func (f *insightRepositoryFixture) ReadInsightPage(
 	_ context.Context,
 	tenantID string,
 	filter domain.InsightFilter,
-) ([]domain.InsightFact, error) {
+	after *domain.InsightSortKey,
+	limit int,
+) (domain.InsightPage, error) {
 	f.tenantID = tenantID
 	f.filter = filter
-	return f.facts, f.err
+	if f.err != nil {
+		return domain.InsightPage{}, f.err
+	}
+	return domain.BuildInsightPage(filter, f.facts, after, limit)
 }
 
 func TestServiceQueryPaginatesAndBindsCursorToFilter(t *testing.T) {

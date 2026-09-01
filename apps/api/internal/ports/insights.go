@@ -7,9 +7,11 @@ import (
 )
 
 type InsightRepository interface {
-	ReadInsightFacts(
+	ReadInsightPage(
 		ctx context.Context,
 		tenantID string,
 		filter domain.InsightFilter,
-	) ([]domain.InsightFact, error)
+		after *domain.InsightSortKey,
+		limit int,
+	) (domain.InsightPage, error)
 }

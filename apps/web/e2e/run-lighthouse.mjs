@@ -1,23 +1,47 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { cpus, platform, totalmem } from 'node:os'
 import { dirname, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { launch } from 'chrome-launcher'
 import lighthouse, { desktopConfig } from 'lighthouse'
 
+import {
+  SafeToolError,
+  parseStrictPairs,
+  readProtectedSecret,
+  requireGitSHA,
+  requireImageID,
+  requireLoopbackURL,
+  requireSHA256,
+  reserveProtectedDirectory,
+  safeErrorCode,
+  writeProtectedChild,
+} from '../../../tools/lib/protected-output.mjs'
+
 const runsPerPage = 3
 const thresholds = { accessibility: 95, performance: 85 }
+const currentFile = fileURLToPath(import.meta.url)
+const expectedSource = resolve(
+  dirname(currentFile),
+  '../../../tests/evaluation/assets/m1-synthetic-v1/pay-001.png',
+)
 
 async function main() {
   const options = parseArguments(process.argv.slice(2))
-  const password = await readProtectedSecret(options.passwordFile, 1024)
-  const client = createClient(options.server)
+  const output = await reserveProtectedDirectory(options.output, [
+    options.passwordFile,
+    options.source,
+    options.chromePath,
+  ])
+  let password
   try {
+    password = await readProtectedSecret(options.passwordFile, 1024)
+    const client = createClient(options.server)
     await client.login(options.email, password)
     const reviewJobID = await ensureReviewFixture(client, options.source)
-    await createOutputDirectory(options.output)
     const pages = [
       { name: 'login', path: '/login', authenticated: false },
       { name: 'inbox', path: '/inbox', authenticated: true },
@@ -38,6 +62,10 @@ async function main() {
             '--disable-dev-shm-usage',
             '--disable-extensions',
             '--disable-background-networking',
+            '--disable-component-update',
+            '--disable-domain-reliability',
+            '--proxy-server=http://127.0.0.1:9',
+            '--proxy-bypass-list=127.0.0.1;localhost;[::1]',
           ],
           handleSIGINT: false,
           logLevel: 'silent',
@@ -56,7 +84,7 @@ async function main() {
           )
           if (!result) throw new Error(`${page.name} run ${run} returned no Lighthouse result`)
           lighthouseVersion = result.lhr.lighthouseVersion
-          assertFinalURL(page, result.lhr.finalDisplayedUrl)
+          assertFinalURL(page, result.lhr.finalDisplayedUrl, options.server)
           const scores = {
             run,
             performance: score(result.lhr.categories.performance.score),
@@ -68,18 +96,14 @@ async function main() {
           if (sanitized.configSettings.extraHeaders) {
             sanitized.configSettings.extraHeaders = { Cookie: '[REDACTED]' }
           }
-          const encoded = `${JSON.stringify(sanitized, null, 2)}\n`
-          assertNoSecret(encoded, [password, Buffer.from(client.cookie())])
-          await writeFile(resolve(options.output, `${page.name}-run-${run}.json`), encoded, {
-            encoding: 'utf8',
-            flag: 'wx',
-            mode: 0o600,
-          })
+          const encoded = JSON.stringify(sanitized)
+          assertNoSecret(encoded, [password, ...client.cookieSecrets()])
+          await writeProtectedChild(output, `${page.name}-run-${run}.json`, sanitized)
           process.stderr.write(
             `${page.name} ${run}/${runsPerPage}: performance=${scores.performance} accessibility=${scores.accessibility}\n`,
           )
         } finally {
-          chrome.kill()
+          await chrome.kill()
         }
       }
       const worstPerformance = Math.min(...runs.map((run) => run.performance))
@@ -101,14 +125,25 @@ async function main() {
       .filter(([, page]) => !page.passed)
       .map(([name]) => name)
     const summary = {
-      report_kind: 'm1-lighthouse-result',
+      report_kind: 'm4-lighthouse-result',
       measured_at: new Date().toISOString(),
+      build_identity: {
+        baseline_head: options.buildSha,
+        release_input_sha256: options.releaseInputSha256,
+        compose_config_sha256: options.composeConfigSha256,
+        image_id: options.imageID,
+      },
       lighthouse_version: lighthouseVersion,
       protocol: {
         runs_per_page: runsPerPage,
         preset: 'desktop',
         browser_profile: 'fresh temporary profile per page run',
         extensions: 'disabled',
+        network_policy: {
+          loopback_origin_only: true,
+          closed_loopback_proxy: true,
+          background_networking_disabled: true,
+        },
         categories: ['performance', 'accessibility'],
         worst_run_decides: true,
       },
@@ -129,17 +164,26 @@ async function main() {
       failed_pages: failedPages,
       passed: failedPages.length === 0,
     }
-    const encoded = `${JSON.stringify(summary, null, 2)}\n`
-    assertNoSecret(encoded, [password, Buffer.from(client.cookie())])
-    await writeFile(resolve(options.output, 'summary.json'), encoded, {
-      encoding: 'utf8',
-      flag: 'wx',
-      mode: 0o600,
-    })
-    process.stdout.write(encoded)
+    const encoded = JSON.stringify(summary)
+    assertNoSecret(encoded, [password, ...client.cookieSecrets()])
+    await writeProtectedChild(output, 'summary.json', summary)
+    process.stdout.write(
+      `${JSON.stringify({
+        report_kind: summary.report_kind,
+        page_count: Object.keys(summaries).length,
+        runs_per_page: runsPerPage,
+        minimum_performance: Math.min(
+          ...Object.values(summaries).map((page) => page.worst_performance),
+        ),
+        minimum_accessibility: Math.min(
+          ...Object.values(summaries).map((page) => page.worst_accessibility),
+        ),
+        passed: summary.passed,
+      })}\n`,
+    )
     if (failedPages.length) process.exitCode = 1
   } finally {
-    password.fill(0)
+    password?.fill(0)
   }
 }
 
@@ -153,7 +197,7 @@ async function ensureReviewFixture(client, sourcePath) {
     throw new Error('lighthouse review fixture already exists in a non-reviewable state')
   }
   const source = await readFile(sourcePath)
-  const marker = Buffer.from('SBM-M1-LIGHTHOUSE-REVIEW', 'utf8')
+  const marker = Buffer.from('SBM-M4-LIGHTHOUSE-REVIEW', 'utf8')
   const uploaded = await client.upload('lighthouse-review.png', Buffer.concat([source, marker]))
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
@@ -180,6 +224,7 @@ function createClient(server) {
       headers,
       body: options.body,
       signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+      redirect: 'error',
     })
     if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`)
     return response.status === 204 ? undefined : response.json()
@@ -191,6 +236,7 @@ function createClient(server) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: passwordBytes.toString('utf8') }),
         signal: AbortSignal.timeout(30_000),
+        redirect: 'error',
       })
       if (!response.ok) throw new Error(`login: HTTP ${response.status}`)
       cookie = response.headers
@@ -212,13 +258,17 @@ function createClient(server) {
     cookie() {
       return cookie
     },
+    cookieSecrets() {
+      return cookieSecretBuffers(cookie)
+    },
   }
 }
 
-function assertFinalURL(page, finalURL) {
+function assertFinalURL(page, finalURL, server) {
   const actual = new URL(finalURL)
-  if (actual.pathname !== page.path) {
-    throw new Error(`${page.name} ended at ${actual.pathname}, want ${page.path}`)
+  const expected = new URL(page.path, ensureTrailingSlash(server))
+  if (actual.origin !== expected.origin || actual.pathname !== expected.pathname) {
+    throw new Error(`${page.name} ended outside its expected local route`)
   }
 }
 
@@ -227,47 +277,38 @@ function score(value) {
   return Math.round(value * 100)
 }
 
-async function createOutputDirectory(path) {
-  const parent = dirname(path)
-  const parentInformation = await stat(parent)
-  if (!parentInformation.isDirectory())
-    throw new Error('Lighthouse output parent is not a directory')
-  await mkdir(path, { mode: 0o700 })
-}
-
-function parseArguments(argumentsList) {
-  const values = new Map()
-  for (let index = 0; index < argumentsList.length; index += 2) {
-    const key = argumentsList[index]
-    const value = argumentsList[index + 1]
-    if (!key?.startsWith('--') || value === undefined)
-      throw new Error(`invalid argument near ${key ?? '<end>'}`)
-    values.set(key.slice(2), value)
+export function parseArguments(argumentsList) {
+  const values = parseStrictPairs(argumentsList, [
+    'server',
+    'email',
+    'password-file',
+    'source',
+    'chrome-path',
+    'output',
+    'build-sha',
+    'release-input-sha256',
+    'compose-config-sha256',
+    'image-id',
+  ])
+  requireLoopbackURL(values.get('server'), { allowPath: false })
+  if (!/^[^\s@]+@[^\s@]+$/.test(values.get('email'))) {
+    throw new SafeToolError('invalid_arguments')
   }
-  for (const name of ['server', 'email', 'password-file', 'source', 'chrome-path', 'output']) {
-    if (!values.get(name)) throw new Error(`--${name} is required`)
-  }
-  return {
+  const result = {
     server: values.get('server'),
     email: values.get('email'),
     passwordFile: resolve(values.get('password-file')),
     source: resolve(values.get('source')),
     chromePath: resolve(values.get('chrome-path')),
     output: resolve(values.get('output')),
+    buildSha: requireGitSHA(values.get('build-sha')),
+    releaseInputSha256: requireSHA256(values.get('release-input-sha256')),
+    composeConfigSha256: requireSHA256(values.get('compose-config-sha256')),
+    imageID: requireImageID(values.get('image-id')),
   }
-}
-
-async function readProtectedSecret(path, maximumBytes) {
-  const information = await stat(path)
-  if (!information.isFile() || (information.mode & 0o077) !== 0) {
-    throw new Error('password file must be regular and owner-only')
+  if (result.source !== expectedSource) {
+    throw new SafeToolError('synthetic_source_required')
   }
-  const content = await readFile(path)
-  const end =
-    content.at(-1) === 0x0a ? content.length - (content.at(-2) === 0x0d ? 2 : 1) : content.length
-  const result = Buffer.from(content.subarray(0, end))
-  if (result.length < 1 || result.length > maximumBytes)
-    throw new Error('password file size is invalid')
   return result
 }
 
@@ -277,6 +318,15 @@ function assertNoSecret(encoded, secrets) {
       throw new Error('refusing to write Lighthouse output containing a secret')
     }
   }
+}
+
+function cookieSecretBuffers(cookieHeader) {
+  return cookieHeader.split(/;\s*/).flatMap((pair) => {
+    const separator = pair.indexOf('=')
+    return separator < 1
+      ? []
+      : [Buffer.from(pair, 'utf8'), Buffer.from(pair.slice(separator + 1), 'utf8')]
+  })
 }
 
 function sha256(content) {
@@ -291,7 +341,9 @@ function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-  process.exitCode = 1
-})
+if (pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    process.stderr.write(`lighthouse: ${safeErrorCode(error)}\n`)
+    process.exitCode = 1
+  })
+}

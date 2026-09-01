@@ -27,7 +27,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
@@ -42,10 +42,11 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 type httpTestFixture struct {
-	store         *sqliteadapter.Store
+	store         *postgresqladapter.Store
 	handler       http.Handler
 	worker        *processing.Worker
 	owner         bootstrap.Result
@@ -356,7 +357,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 		t.Fatalf("deleted provider remained visible: %s", providersAfterDelete.Body.String())
 	}
 	var encryptedKey []byte
-	var active int
+	var active bool
 	var deletedAt string
 	if err := fixture.store.DB().QueryRow(`
 		SELECT encrypted_api_key, active, deleted_at
@@ -364,8 +365,8 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	`, fixture.owner.TenantID, providerID).Scan(&encryptedKey, &active, &deletedAt); err != nil {
 		t.Fatal(err)
 	}
-	if encryptedKey != nil || active != 0 || deletedAt == "" {
-		t.Fatalf("provider deletion state = key:%v active:%d deleted:%q", encryptedKey, active, deletedAt)
+	if encryptedKey != nil || active || deletedAt == "" {
+		t.Fatalf("provider deletion state = key:%v active:%t deleted:%q", encryptedKey, active, deletedAt)
 	}
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/documents/"+firstUpload["document_id"], nil, ownerSession, true, ""), http.StatusConflict)
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/documents/"+secondUpload["document_id"], nil, ownerSession, true, ""), http.StatusNoContent)
@@ -380,7 +381,11 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	`, fixture.owner.TenantID).Scan(&resourceHash, &objectHashes, &resourceCounts); err != nil {
 		t.Fatal(err)
 	}
-	if resourceHash == secondUpload["document_id"] || strings.Contains(objectHashes, "reject.png") || !strings.Contains(resourceCounts, "\"documents\":1") || !strings.Contains(resourceCounts, "\"document_pages\":1") {
+	var tombstoneCounts map[string]int
+	if err := json.Unmarshal([]byte(resourceCounts), &tombstoneCounts); err != nil {
+		t.Fatal(err)
+	}
+	if resourceHash == secondUpload["document_id"] || strings.Contains(objectHashes, "reject.png") || tombstoneCounts["documents"] != 1 || tombstoneCounts["document_pages"] != 1 {
 		t.Fatalf("unsafe/incomplete tombstone = hash:%q objects:%s counts:%s", resourceHash, objectHashes, resourceCounts)
 	}
 
@@ -1087,13 +1092,8 @@ func httpTripRevisionPayload(t *testing.T, review map[string]any) []byte {
 func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	t.Helper()
 	root := t.TempDir()
-	store, err := sqliteadapter.Open(context.Background(), sqliteadapter.Config{
-		DatabasePath:  filepath.Join(root, "sbm.sqlite"),
-		MigrationsDir: projectPath(t, "infra", "migrations"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := postgresqltest.Open(t)
+	var err error
 	hasher := testPasswordHasher{}
 	bootstrapService := bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{})
 	ownerEmail := "owner@example.test"

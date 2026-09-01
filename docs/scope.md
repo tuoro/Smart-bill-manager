@@ -1,6 +1,6 @@
 # 范围与非目标
 
-状态：M0、M1、M2、M3 已完成；M4 首、第二切片已完成，当前进入运行质量与本地发布准备
+状态：M0～M4 本地功能与本地发布准备已完成；真实模型评测、真实外部联调和生产发布仍待单独授权
 适用范围：Clean Slate 新架构
 
 ## 最高边界
@@ -242,16 +242,16 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 
 ## M4：洞察、加固与本地发布准备
 
-状态：进行中；首、第二切片已完成并通过验收，下一切片为运行质量与本地发布准备。
+状态：本地范围已完成。SQLite 结果仅作为历史记录；当前基线已按 ADR-0020 切换为 PostgreSQL 17 唯一持久化，并完成受影响不变量与 ADR-0019 本地发布门禁的重新验收。
 
 ### 首切片范围内：确定性 Fact 洞察与筛选查询
 
-- 从当前未删除 Payment/Invoice、活动 PaymentInvoiceLink 和活动 TripFactAssignment 的同一 SQLite 读快照派生洞察，不增加统计表、物化缓存、双写或第二数据源；
+- 从当前未删除 Payment/Invoice、活动 PaymentInvoiceLink 和活动 TripFactAssignment 的同一关系数据库读快照派生洞察，不增加统计表、物化缓存、双写或第二数据源；当前实现必须使用 PostgreSQL `REPEATABLE READ READ ONLY`；
 - 支持 Fact 类型、成对起止日期、币种、分配状态、已/未归属和可选具体 Trip 筛选；Payment 只使用不可变 `business_date`，Invoice 使用 `invoice_date`；
 - 按币种与 Fact 类型分别汇总数量、总额、已分配、剩余和三种分配状态数量；金额为整数最小单位，禁止 Payment/Invoice 合并总额、跨币种相加或换汇；
 - 提供默认 50、最大 100 的稳定不透明游标分页；游标绑定完整筛选身份，筛选变化必须拒绝旧游标；
 - 新增只读 `insights.read` 能力和 `/insights` Web 工作区；Owner/Finance/Viewer 可读，Reviewer 拒绝；
-- 只使用纯合成数据完成领域、SQLite、应用、HTTP/OpenAPI、Web、浏览器、覆盖率、性能基线、权限与可访问性验证。
+- 只使用纯合成数据完成领域、PostgreSQL、应用、HTTP/OpenAPI、Web、浏览器、覆盖率、性能基线、权限与可访问性验证。
 
 ### 首切片范围外
 
@@ -260,9 +260,9 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 - 汇率换算、跨币种或跨 Payment/Invoice 类型的金额合计；
 - 真实模型评测、真实邮箱/Provider/外部账号联调、部署、发布、Tag 或远端操作。
 
-完整不变量、失败边界和验收要求见 `docs/decisions/0017-deterministic-fact-insights-and-query.md` 与 `docs/acceptance.md`，验收证据见 `docs/m4-evidence.md` 与 `tests/evidence/m4/fact-insights-gate-summary.json`。第二切片现已单独冻结；运行质量和本地发布准备仍须在各自实施前更新权威范围。
+完整不变量、失败边界和验收要求见 `docs/decisions/0017-deterministic-fact-insights-and-query.md`、`docs/decisions/0020-postgresql-only-persistence.md` 与 `docs/acceptance.md`。历史 `tests/evidence/m4/fact-insights-gate-summary.json` 只证明当时的 SQLite 实现；当前 PostgreSQL 聚合、快照和 keyset 路径由最终本地发布证据及全量门禁覆盖。
 
-### 第二切片范围内：认证的停机备份与完整恢复演练
+### 历史第二切片：SQLite 认证停机备份与完整恢复演练
 
 - 用新的 `smart-bill-manager-backup/2` 替代 M1 清单和工具入口，不保留旧版本解析或参数兼容；
 - 数据备份包只含 SQLite、精确已提交对象集合和经 HMAC 认证且带随机 `backup_set_id` 的清单；既有主密钥由独立托管文件提供，不复制进数据包；
@@ -279,7 +279,46 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 - 旧 M1 清单、旧数据库、旧对象布局、旧任务状态或旧工具入口兼容；
 - 运行质量、生产镜像与本地发布准备的其余门禁，它们在本切片通过后另行冻结。
 
-本切片的唯一决策边界为 `docs/decisions/0018-authenticated-offline-backup-and-recovery.md`。通过证据写入 `docs/m4-evidence.md` 与 `tests/evidence/m4/backup-restore-gate-summary.json`；完整演练已经通过，后续不得用该本地结果冒充真实灾难切换或生产发布结论。
+本切片的历史决策边界为 `docs/decisions/0018-authenticated-offline-backup-and-recovery.md`。既有证据只说明当时的 SQLite 实现已经通过；ADR-0020 已替代当前数据库和恢复格式，必须在 PostgreSQL 上重新实现并验收，不得把历史结果冒充当前恢复或发布结论。
+
+### 第三切片范围内：PostgreSQL 唯一持久化与重新验收
+
+- PostgreSQL 17 成为唯一关系数据源；重建 Clean Slate `0001`、唯一适配器、显式迁移入口、事务/租约语义、Compose 数据库服务和运维边界；
+- 删除 SQLite 驱动、适配器、迁移、数据库文件配置、运行锁、发布卷和当前运维入口，不保留运行时选择、双写、兼容导入或第二测试数据源；
+- 不迁移任何现有数据；所有验收从空 PostgreSQL 数据库和纯合成 fixture 开始，本地对象文件实现保持不变；
+- 数据库密码只从受保护文件读取，PostgreSQL 不发布宿主端口；常规 API 身份无 Schema DDL 权限，迁移使用独立显式入口；
+- 只读多查询使用同一 `REPEATABLE READ READ ONLY` 快照；关键写事务使用行锁、唯一约束和适用的 `SERIALIZABLE` 隔离，序列化与死锁失败显式映射为并发冲突；
+- Worker 使用 PostgreSQL 行锁安全竞争；重复检测保持索引候选缩小和本地确定性判断，洞察保持数据库聚合与 keyset 分页；
+- 将备份载荷改为固定 PostgreSQL 17 自包含 dump 与精确对象集合，重新执行 1,000 Document、RPO 0、30 分钟 RTO、会话失效和任务唯一续跑演练；
+- 在受限临时 PostgreSQL 容器上重新运行领域/适配器/HTTP、租户、并发、覆盖率、关键不变量、10,000 数据集性能、内存和完整浏览器验收。
+
+### 第三切片范围外
+
+- SQLite 数据迁移、旧 Schema 探测、双数据库、灰度双写、回滚到 SQLite 或兼容旧备份；
+- 托管 PostgreSQL、跨主机 TLS、HA、复制、自动故障转移、连接代理、读副本或 S3/对象存储；
+- 新业务 API、页面或领域规则；真实 Provider/邮箱、正式模型评测、部署、发布、付费或远端资源。
+
+本切片以 `docs/decisions/0020-postgresql-only-persistence.md` 为唯一数据库决策边界，已完成并通过重新验收。
+
+### 第四切片范围内：运行质量与本地发布准备
+
+- 用稳定的最小 Alpine 运行层、`app.Dockerfile`、entrypoint、Compose 和环境模板替代全部 `m1` 发布入口，不保留旧文件名、镜像名或 wrapper；镜像同时包含当前 Web、API、Owner 初始化与认证备份 CLI；
+- 用受保护准备器在独立工作区执行固定 Node 离线锁文件安装/Web 构建与固定 Go 禁网校验/构建，再由 Dockerfile 严格核对本地产物身份、清单和 SHA-256；不提交产物、缓存或工具链；
+- 固定镜像内容、构建时基线 HEAD 与确定性发布输入摘要、只读根文件系统、回环默认绑定、运行用户、最小 capability、tmpfs、资源上限、健康检查、主密钥材料化和 production Secure Cookie 失败边界；最终证据提交后复核发布输入摘要不变，不虚构自引用提交身份；
+- 修正 acceptance synthetic Provider 的 exercise/model/mode 身份，保持回环、纯合成和无外网；
+- 重新执行 10,000 Fact HTTP p95、Document 创建、审核确认、50 Job 内存趋势、四页三次 Lighthouse、响应式/等效 200% 回流、键盘、深色主题和当前完整 Playwright 场景；
+- 所有会产生 fixture 或业务写入的运行器先占用受保护结果路径，原始报告只留在 `/tmp`，终端和仓库证据只保留安全聚合；
+- 新增当前本地运行、首次 Owner 初始化、健康检查、备份恢复、日志、容量、升级前备份、故障诊断和同一 Clean Slate 契约回滚说明；
+- 运行全量测试、静态检查、构建、关键不变量、覆盖率、镜像资产、安全配置、敏感信息、临时产物与进程残留门禁，并生成 `tests/evidence/m4/local-release-readiness-gate-summary.json`。
+
+### 第四切片范围外
+
+- 新业务领域、API、页面、迁移、统计副本或自然语言查询；
+- 真实模型正确率正式评测、真实 Provider/邮箱/外部账号、真实图片发送或生产数据；
+- 新依赖、镜像、OCR、模型文件、付费资源、域名、证书、云资源、远端存储、部署、发布、Tag、Release 或推送；
+- 旧实现、旧数据库、旧 API、旧 Compose、旧发布入口或旧任务状态兼容。
+
+本切片以经 ADR-0020 修订的 `docs/decisions/0019-local-release-candidate-and-runtime-quality.md` 为决策边界，现已通过。结论只表示 PostgreSQL 本地产品功能与本地发布候选完成；真实模型、真实外部系统和生产发布仍在单独授权门禁前。
 
 ## 范围变更规则
 

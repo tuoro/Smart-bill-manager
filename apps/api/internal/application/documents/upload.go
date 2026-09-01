@@ -107,7 +107,7 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 		CreatedAt:    now,
 		Version:      1,
 	}
-	err = s.tx.WithinTransaction(ctx, func(transaction ports.Transaction) error {
+	err = s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
 		existingID, findErr := transaction.FindDocumentIDBySHA(ctx, input.Tenant.TenantID, staged.SHA256)
 		if findErr == nil {
 			return &domain.DuplicateDocumentError{DocumentID: existingID}
@@ -121,10 +121,19 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 		return transaction.InsertProcessingJob(ctx, job)
 	})
 	if err != nil {
+		var existingID string
+		lookupErr := s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
+			var findErr error
+			existingID, findErr = transaction.FindDocumentIDBySHA(ctx, input.Tenant.TenantID, staged.SHA256)
+			return findErr
+		})
+		if lookupErr == nil {
+			return UploadResult{}, &domain.DuplicateDocumentError{DocumentID: existingID}
+		}
 		return UploadResult{}, err
 	}
 	if err := s.objects.Commit(ctx, staged, storageKey); err != nil {
-		compensationErr := s.tx.WithinTransaction(context.WithoutCancel(ctx), func(transaction ports.Transaction) error {
+		compensationErr := s.tx.WithinReadCommittedTransaction(context.WithoutCancel(ctx), func(transaction ports.Transaction) error {
 			return transaction.DeleteUnconfirmedDocument(context.WithoutCancel(ctx), input.Tenant.TenantID, documentID)
 		})
 		if compensationErr != nil {

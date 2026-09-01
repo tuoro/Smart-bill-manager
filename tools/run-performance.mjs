@@ -1,9 +1,27 @@
 #!/usr/bin/env node
 
-import { readFile, stat, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { cpus, freemem, platform, totalmem } from "node:os";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import {
+  SafeToolError,
+  parseStrictPairs,
+  readProtectedJSON,
+  readProtectedSecret,
+  requireGitSHA,
+  requireImageID,
+  requireLoopbackURL,
+  requireSHA256,
+  reserveProtectedFile,
+  safeErrorCode,
+} from "./lib/protected-output.mjs";
+import {
+  clearBuffers,
+  hasExpectedLoopbackBinding,
+  runCaptured,
+} from "./lib/local-release-command.mjs";
 
 const projectDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePNG = resolve(
@@ -21,11 +39,18 @@ class ApiFailure extends Error {
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
-  const seed = JSON.parse(await readFile(options.seedManifest, "utf8"));
-  validateSeed(seed);
-  const password = await readProtectedSecret(options.passwordFile, 1024);
-  const client = createClient(options.server);
+  const output = await reserveProtectedFile(options.output, [
+    options.passwordFile,
+    options.seedManifest,
+    sourcePNG,
+  ]);
+  let password;
   try {
+    await assertPerformanceContainer(options);
+    const seed = await readProtectedJSON(options.seedManifest, 1024 * 1024);
+    validateSeed(seed);
+    password = await readProtectedSecret(options.passwordFile, 1024);
+    const client = createClient(options.server);
     await client.login(options.email, password);
     const endpoints = {
       inbox_list: "/jobs",
@@ -81,7 +106,7 @@ async function main() {
       ...(confirmResult.passed ? [] : ["review_confirm"]),
     ];
     const report = {
-      report_kind: "m1-performance-result",
+      report_kind: "m4-performance-result",
       measured_at: new Date().toISOString(),
       seed_kind: seed.seed_kind,
       data_shape: {
@@ -100,9 +125,11 @@ async function main() {
       },
       reference_deployment: {
         build_sha: options.buildSha,
+        release_input_sha256: options.releaseInputSha256,
         compose_version: options.composeVersion,
         compose_config_sha256: options.composeConfigSha256,
         image_id: options.imageID,
+        container_identity_passed: true,
         server_cpu_limit: options.serverCPUs,
         server_memory_limit_bytes: options.serverMemoryBytes,
         database_location: options.databaseLocation,
@@ -115,20 +142,29 @@ async function main() {
       passed: failed.length === 0,
       failed_gates: failed,
     };
-    const encoded = `${JSON.stringify(report, null, 2)}\n`;
-    if (encoded.includes(password))
-      throw new Error(
-        "refusing to write performance output containing the owner password",
-      );
-    await writeFile(options.output, encoded, {
-      encoding: "utf8",
-      flag: "wx",
-      mode: 0o600,
-    });
-    process.stdout.write(encoded);
+    const encoded = JSON.stringify(report);
+    if (encoded.includes(password.toString("utf8"))) {
+      throw new SafeToolError("secret_detected");
+    }
+    await output.writeJSON(report);
+    process.stdout.write(
+      `${JSON.stringify({
+        report_kind: report.report_kind,
+        non_ai_p95_ms: Object.fromEntries(
+          Object.entries(apiResults).map(([name, result]) => [
+            name,
+            result.p95_ms,
+          ]),
+        ),
+        document_create_p95_ms: uploadResult.p95_ms,
+        review_confirm_p95_ms: confirmResult.p95_ms,
+        passed: report.passed,
+      })}\n`,
+    );
     if (failed.length !== 0) process.exitCode = 1;
   } finally {
-    password.fill(0);
+    password?.fill(0);
+    await output.close();
   }
 }
 
@@ -166,7 +202,7 @@ async function confirmBatch(client, jobIDs, measured) {
         headers: {
           "Idempotency-Key": `performance-confirm-${jobID.slice(-12)}`,
         },
-        json: { expected_revision: 1, association_mode: "no_candidate" },
+        json: performanceConfirmationRequest(),
       },
     );
     if (result.body.replayed !== false || result.body.fact_type !== "payment") {
@@ -178,6 +214,15 @@ async function confirmBatch(client, jobIDs, measured) {
       samples.push(parseServerTiming(result.serverTiming, "review-confirm"));
   });
   return samples;
+}
+
+export function performanceConfirmationRequest() {
+  return {
+    expected_revision: 1,
+    association_mode: "no_candidate",
+    allocations: [],
+    duplicate_resolutions: [],
+  };
 }
 
 async function buildUploadVariants() {
@@ -213,6 +258,7 @@ function createClient(server) {
           ? options.body
           : JSON.stringify(options.json),
       signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+      redirect: "error",
     });
     const serverTiming = response.headers.get("server-timing") ?? "";
     if (!response.ok) {
@@ -233,6 +279,7 @@ function createClient(server) {
           password: passwordBytes.toString("utf8"),
         }),
         signal: AbortSignal.timeout(30_000),
+        redirect: "error",
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -252,6 +299,7 @@ function createClient(server) {
       const response = await fetch(base + path, {
         headers: { Cookie: cookie },
         signal: AbortSignal.timeout(30_000),
+        redirect: "error",
       });
       if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
       await response.arrayBuffer();
@@ -330,10 +378,12 @@ function parseServerTiming(value, metric) {
 
 function validateSeed(seed) {
   if (
-    seed.seed_kind !== "m1-performance-10k-facts" ||
+    seed.seed_kind !== "m4-performance-10k-facts" ||
     seed.payments !== 5_000 ||
     seed.invoices !== 5_000 ||
-    seed.source_claim_chains < 1_000
+    seed.source_claim_chains !== 10_000 ||
+    seed.ready_confirmation_reviews !== 220 ||
+    seed.confirmation_job_ids?.length !== 220
   ) {
     throw new Error(
       "performance seed manifest does not satisfy the fixed 10,000 Fact shape",
@@ -341,60 +391,49 @@ function validateSeed(seed) {
   }
 }
 
-async function readProtectedSecret(path, maximumBytes) {
-  const information = await stat(path);
-  if (!information.isFile() || (information.mode & 0o077) !== 0) {
-    throw new Error("password file must be regular and owner-only");
-  }
-  const content = await readFile(path);
-  const result =
-    content.at(-1) === 0x0a
-      ? Buffer.from(
-          content.subarray(
-            0,
-            content.at(-2) === 0x0d ? content.length - 2 : content.length - 1,
-          ),
-        )
-      : Buffer.from(content);
-  if (result.length < 1 || result.length > maximumBytes)
-    throw new Error("password file size is invalid");
-  return result;
-}
-
-function parseArguments(argumentsList) {
-  const values = new Map();
-  for (let index = 0; index < argumentsList.length; index += 2) {
-    const key = argumentsList[index];
-    const value = argumentsList[index + 1];
-    if (!key?.startsWith("--") || value === undefined)
-      throw new Error(`invalid argument near ${key ?? "<end>"}`);
-    values.set(key.slice(2), value);
-  }
-  for (const name of [
+export function parseArguments(argumentsList) {
+  const required = [
     "server",
     "email",
     "password-file",
     "seed-manifest",
     "output",
     "build-sha",
+    "release-input-sha256",
     "compose-version",
     "compose-config-sha256",
     "image-id",
+    "container-id",
     "server-cpus",
     "server-memory-bytes",
     "database-location",
     "object-storage-location",
     "provider-latency-note",
-  ]) {
-    if (!values.get(name)) throw new Error(`--${name} is required`);
+  ];
+  const values = parseStrictPairs(argumentsList, required);
+  requireLoopbackURL(values.get("server"), { allowPath: false });
+  if (!/^[^\s@]+@[^\s@]+$/.test(values.get("email"))) {
+    throw new SafeToolError("invalid_arguments");
   }
   const serverCPUs = Number(values.get("server-cpus"));
   const serverMemoryBytes = Number(values.get("server-memory-bytes"));
-  if (!Number.isFinite(serverCPUs) || serverCPUs <= 0) {
-    throw new Error("--server-cpus must be a positive number");
+  if (serverCPUs !== 2 || serverMemoryBytes !== 3584 * 1024 * 1024) {
+    throw new SafeToolError("reference_limits_invalid");
   }
-  if (!Number.isSafeInteger(serverMemoryBytes) || serverMemoryBytes < 1) {
-    throw new Error("--server-memory-bytes must be a positive safe integer");
+  if (
+    values.get("database-location") !== "named-volume:sbm_postgres_data" ||
+    values.get("object-storage-location") !== "named-volume:sbm_objects" ||
+    values.get("provider-latency-note") !==
+      "excluded-measured-by-memory-gate" ||
+    !/^v?\d+\.\d+(?:\.\d+)?(?:[-+][a-z0-9.-]+)?$/i.test(
+      values.get("compose-version"),
+    )
+  ) {
+    throw new SafeToolError("reference_identity_invalid");
+  }
+  const containerID = values.get("container-id");
+  if (!/^[0-9a-f]{64}$/.test(containerID)) {
+    throw new SafeToolError("process_identity_invalid");
   }
   return {
     server: values.get("server"),
@@ -402,16 +441,68 @@ function parseArguments(argumentsList) {
     passwordFile: resolve(values.get("password-file")),
     seedManifest: resolve(values.get("seed-manifest")),
     output: resolve(values.get("output")),
-    buildSha: values.get("build-sha"),
+    buildSha: requireGitSHA(values.get("build-sha")),
+    releaseInputSha256: requireSHA256(values.get("release-input-sha256")),
     composeVersion: values.get("compose-version"),
-    composeConfigSha256: values.get("compose-config-sha256"),
-    imageID: values.get("image-id"),
+    composeConfigSha256: requireSHA256(values.get("compose-config-sha256")),
+    imageID: requireImageID(values.get("image-id")),
+    containerID,
     serverCPUs,
     serverMemoryBytes,
     databaseLocation: values.get("database-location"),
     objectStorageLocation: values.get("object-storage-location"),
     providerLatencyNote: values.get("provider-latency-note"),
   };
+}
+
+async function assertPerformanceContainer(options) {
+  const result = await runCaptured("docker", ["inspect", options.containerID], {
+    cwd: projectDirectory,
+    env: selectedDockerEnvironment(),
+    timeout: 10_000,
+    maximumBytes: 1024 * 1024,
+  });
+  try {
+    if (result.code !== 0) throw new SafeToolError("process_identity_invalid");
+    const inspected = JSON.parse(result.stdout.toString("utf8"));
+    if (
+      !Array.isArray(inspected) ||
+      inspected.length !== 1 ||
+      !isExpectedPerformanceContainer(inspected[0], options)
+    ) {
+      throw new SafeToolError("process_identity_invalid");
+    }
+  } catch (error) {
+    if (error instanceof SafeToolError) throw error;
+    throw new SafeToolError("process_identity_invalid");
+  } finally {
+    clearBuffers([result.stdout, result.stderr]);
+  }
+}
+
+export function isExpectedPerformanceContainer(inspected, options) {
+  return (
+    inspected?.Id === options.containerID &&
+    inspected?.Image === options.imageID &&
+    inspected?.Config?.Image === "smart-bill-manager:local" &&
+    inspected?.State?.Running === true &&
+    hasExpectedLoopbackBinding(inspected, options.server)
+  );
+}
+
+function selectedDockerEnvironment() {
+  const result = {};
+  for (const name of [
+    "PATH",
+    "HOME",
+    "DOCKER_HOST",
+    "DOCKER_CONTEXT",
+    "DOCKER_CONFIG",
+    "XDG_CONFIG_HOME",
+  ]) {
+    if (process.env[name]) result[name] = process.env[name];
+  }
+  return result;
 }
 
 function ensureTrailingSlash(value) {
@@ -422,9 +513,9 @@ function round(value) {
   return Math.round(value * 100) / 100;
 }
 
-main().catch((error) => {
-  process.stderr.write(
-    `${error instanceof Error ? error.message : String(error)}\n`,
-  );
-  process.exitCode = 1;
-});
+if (pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    process.stderr.write(`performance: ${safeErrorCode(error)}\n`);
+    process.exitCode = 1;
+  });
+}

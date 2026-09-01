@@ -1,6 +1,6 @@
 # 数据模型基线
 
-状态：M0、M1、M2、M3 已完成；M4 首、第二切片已完成，当前进入运行质量与本地发布准备
+状态：M0～M4 本地数据模型已完成；当前只实现 PostgreSQL 17 Clean Slate Schema
 原则：全新 Schema，不读取、不迁移旧数据库
 
 ## 核心关系
@@ -506,7 +506,7 @@ Finding 由提交事务使用 `reimbursement-policy/1` 重算并冻结，创建�
 
 ## FactInsightProjection（M4 首切片，只读）
 
-FactInsightProjection 不是数据库实体，只在一次 SQLite 读事务和单次 API 响应内存在：
+FactInsightProjection 不是数据库实体，只在一次 PostgreSQL `REPEATABLE READ READ ONLY` 事务和单次 API 响应内存在：
 
 - fact_type：`payment | invoice`，以及对应唯一 fact_id；
 - business_date：Payment 使用持久化 `business_date`，Invoice 使用 `invoice_date`；
@@ -522,7 +522,7 @@ FactInsightProjection 不是数据库实体，只在一次 SQLite 读事务和�
 BackupManifestV2 不是数据库实体或运行时第二数据源，只描述一次停机快照。规范身份固定为 `smart-bill-manager-backup/2`：
 
 - backup_set_id（128-bit 随机小写十六进制）、created_at、migration_set_sha256、schema_sha256；
-- SQLite 文件 path、size_bytes、sha256，`integrity_check = ok`、`foreign_key_violation_count = 0`；
+- PostgreSQL dump 的相对路径、size_bytes、sha256、服务端/工具 major、Schema/约束身份与恢复验证结果；
 - 按表名排序的全部 table_counts，以及 audit_chain_sha256；
 - document_count、object_reference_count、unique_object_count；
 - 按安全相对路径排序且唯一的 ObjectFileRecord：path、size_bytes、sha256。

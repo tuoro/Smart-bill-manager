@@ -3,7 +3,7 @@
 > **中文：** [README.md](README.md)
 
 > [!IMPORTANT]
-> M0, M1, and M2 are complete. All five M2 slices—amount allocation, deterministic duplicate detection, cross-page review, batch upload, and confirmed-Fact allocation adjustment—have passed acceptance. The new system does not preserve v0.x compatibility or read or migrate legacy data.
+> M0 through M4 local functionality and local-release readiness are complete. PostgreSQL 17 is the only relational data source. The new system does not preserve v0.x compatibility or read or migrate legacy data. Formal real-model evaluation, real external integration, and production release remain separately authorized gates.
 
 Smart Bill Manager is a self-hosted AI financial-document workspace for individuals and small teams. After a user uploads a payment screenshot or invoice, the system produces verifiable candidate fields and evidence. A candidate becomes a formal financial fact only after explicit user confirmation.
 
@@ -31,7 +31,7 @@ M0 was completed on 2026-08-27 and froze this executable design baseline:
 - independent workspace, baseline SHA, scoped diff, responsive, and accessibility evidence;
 - an independent read-only review.
 
-The independent read-only review found no M0 blocker, major, or minor issue; see the [M0 evidence](docs/m0-evidence.md). The [M1 AI inbox vertical slice](docs/scope.md) was completed on 2026-08-30; see the [M1 evidence](docs/m1-evidence.md). M2 completed five slices on 2026-08-31, bringing amount allocation, suspected duplicates, cross-page review, batch upload, and atomic confirmed-Fact allocation adjustment into the same Clean Slate flow; see the [M2 evidence](docs/m2-evidence.md). M3's first email Source, message, and attachment archive slice is complete; see the [M3 evidence](docs/m3-evidence.md). The next slice starts by freezing trip-attribution scope, while real mailbox connections, credentials, and integration remain outside the authorization gate. Clear, complete, unobstructed, and directly human-readable uploads remain the input commitment, while model-accuracy hardening is deferred until all local functional development is complete.
+The independent read-only review found no M0 blocker, major, or minor issue; see the [M0 evidence](docs/m0-evidence.md). M1 was completed on 2026-08-30, and M2/M3 on 2026-08-31; see the [M1](docs/m1-evidence.md), [M2](docs/m2-evidence.md), and [M3](docs/m3-evidence.md) evidence. On 2026-09-01, M4 completed PostgreSQL 17-only persistence, deterministic Fact insights, the authenticated 1,000-Document recovery exercise, runtime quality, and local-release readiness; see the [M4 evidence](docs/m4-evidence.md). Formal real-model evaluation, real mailbox or Provider integration, deployment, and release remain behind separate authorization gates.
 
 ## Authoritative documents
 
@@ -48,7 +48,9 @@ The independent read-only review found no M0 blocker, major, or minor issue; see
 | [M1 evidence](docs/m1-evidence.md)                      | Executed gates, real-model diagnostics, and the current stage decision |
 | [M2 evidence](docs/m2-evidence.md)                      | Five slice implementations, invariants, and executed gates             |
 | [M3 evidence](docs/m3-evidence.md)                      | Email archive slice implementation, invariants, and executed gates     |
-| [M1 backup and restore runbook](docs/backup-restore.md) | Offline consistent snapshots, manifests, restore, and retention policy |
+| [M4 evidence](docs/m4-evidence.md)                      | Insights, recovery, and local-release readiness evidence               |
+| [Backup and restore runbook](docs/backup-restore.md)    | Authenticated snapshots, verification, recovery, and retention         |
+| [Local operations](docs/local-operations.md)            | Build, startup, diagnostics, upgrade, and rollback                      |
 | [Roadmap](docs/roadmap.md)                              | Milestones and entry gates                                             |
 
 Key decisions include:
@@ -63,6 +65,12 @@ Key decisions include:
 - [ADR-0012: client-orchestrated batch upload](docs/decisions/0012-client-orchestrated-batch-upload.md)
 - [ADR-0013: confirmed-Fact allocation adjustment](docs/decisions/0013-confirmed-fact-allocation-adjustment.md)
 - [ADR-0014: connector-neutral email Source and immutable archive](docs/decisions/0014-connector-neutral-email-archive.md)
+- [ADR-0015: deterministic Trip-to-Fact attribution](docs/decisions/0015-trip-fact-attribution.md)
+- [ADR-0016: reimbursement workflow and deterministic policy findings](docs/decisions/0016-reimbursement-workflow-policy-findings.md)
+- [ADR-0017: deterministic Fact insights and query](docs/decisions/0017-deterministic-fact-insights-and-query.md)
+- [ADR-0018: authenticated offline backup and complete recovery](docs/decisions/0018-authenticated-offline-backup-and-recovery.md)
+- [ADR-0019: local release candidate and runtime-quality gates](docs/decisions/0019-local-release-candidate-and-runtime-quality.md)
+- [ADR-0020: PostgreSQL-only persistence](docs/decisions/0020-postgresql-only-persistence.md)
 
 ## Target directories
 

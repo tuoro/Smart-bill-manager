@@ -17,11 +17,12 @@ import (
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/sqlite"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
 
 const syntheticOnePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -316,9 +317,11 @@ func TestEmailArchiveCompensatesDatabaseAndObjectFailures(t *testing.T) {
 		fixture := newEmailIntegrationFixture(t)
 		source := fixture.registerSource(t, "email-source-database-failure")
 		if _, err := fixture.store.DB().Exec(`
+			CREATE FUNCTION pg_temp.fail_email_message_insert() RETURNS trigger
+			LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic_email_database_failure'; END; $$;
 			CREATE TRIGGER fail_email_message_insert
 			BEFORE INSERT ON email_messages
-			BEGIN SELECT RAISE(ABORT, 'synthetic_email_database_failure'); END
+			FOR EACH ROW EXECUTE FUNCTION pg_temp.fail_email_message_insert()
 		`); err != nil {
 			t.Fatal(err)
 		}
@@ -372,7 +375,7 @@ func TestReadEmailRawEnforcesExactSizeBoundary(t *testing.T) {
 }
 
 type emailIntegrationFixture struct {
-	store      *sqliteadapter.Store
+	store      *postgresqladapter.Store
 	objects    *localstorage.Store
 	inspector  localstorage.Inspector
 	service    Service
@@ -384,13 +387,7 @@ type emailIntegrationFixture struct {
 func newEmailIntegrationFixture(t *testing.T) emailIntegrationFixture {
 	t.Helper()
 	root := t.TempDir()
-	store, err := sqliteadapter.Open(context.Background(), sqliteadapter.Config{
-		DatabasePath: filepath.Join(root, "email.sqlite"), MigrationsDir: emailMigrationsDir(t),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := postgresqltest.Open(t)
 	now := time.Date(2026, 8, 31, 8, 0, 0, 0, time.UTC)
 	owner := ports.BootstrapOwner{
 		UserID: "00000000-0000-4000-8000-000000000301", TenantID: "00000000-0000-4000-8000-000000000302",
@@ -514,7 +511,7 @@ func ioReadAllAndClose(reader interface {
 	return io.ReadAll(reader)
 }
 
-func assertArchiveAuditIsSafe(t *testing.T, store *sqliteadapter.Store, tenantID string) {
+func assertArchiveAuditIsSafe(t *testing.T, store *postgresqladapter.Store, tenantID string) {
 	t.Helper()
 	rows, err := store.DB().Query(`
 		SELECT safe_metadata_json FROM audit_events
@@ -542,7 +539,7 @@ func assertArchiveAuditIsSafe(t *testing.T, store *sqliteadapter.Store, tenantID
 	}
 }
 
-func assertEmailRowsImmutable(t *testing.T, store *sqliteadapter.Store, messageID, attachmentID, sourceID string) {
+func assertEmailRowsImmutable(t *testing.T, store *postgresqladapter.Store, messageID, attachmentID, sourceID string) {
 	t.Helper()
 	for _, statement := range []struct {
 		query string

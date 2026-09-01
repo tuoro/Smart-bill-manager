@@ -54,7 +54,7 @@
 # Development-only deterministic regression fixtures never enter image builds
 /backend-go/internal/services/testdata/regression/
 
-# Clean Slate M1 build context: legacy runtime trees are never sent to this image build.
+# Clean Slate build context: legacy runtime trees are never sent to this image build.
 /backend-go/
 /frontend/
 /scripts/
@@ -64,11 +64,12 @@
 /nginx.conf
 /supervisord.conf
 
-# M1 production image is assembled only from apps, contracts and required infra assets.
+# The local release candidate is assembled only from apps, contracts and required infra assets.
 /docs/
 /tests/
 /tools/
 /apps/web/dist/
+/.local-release-cache/
 /tests/evaluation/real-local/
 /tests/evidence/evaluation/real-local/
 

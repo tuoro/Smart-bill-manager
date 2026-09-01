@@ -65,7 +65,7 @@ func TestTripConfirmationIsAtomicTraceableAndIdempotent(t *testing.T) {
 	var associationMode *string
 	var trips, decisions, origins, audits int
 	if err := fixture.store.DB().QueryRowContext(context.Background(), `
-		SELECT trip.destination, trip.start_date, trip.end_date,
+		SELECT trip.destination, trip.start_date::text, trip.end_date::text,
 		       decision.fact_type, decision.association_mode,
 		       (SELECT count(*) FROM trips WHERE tenant_id = ?),
 		       (SELECT count(*) FROM review_decisions WHERE tenant_id = ? AND action = 'confirm' AND fact_type = 'trip'),

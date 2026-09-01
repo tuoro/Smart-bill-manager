@@ -380,13 +380,13 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 - 投影逐项返回 Fact 类型/ID、业务日期、安全显示名、整数最小单位总额/已分配/剩余、币种、`unallocated|partial|allocated` 和可选当前 Trip 摘要；同一 Fact 不重复。已分配必须在 0 到总额之间，任何无效持久化状态或超过安全整数累计上限返回显式安全错误，不截断、不饱和、不伪成功。
 - 汇总按币种和 Fact 类型分别返回 `count`、`total_minor`、`allocated_minor`、`remaining_minor` 及三种分配状态数量；禁止生成 Payment+Invoice 总金额或跨币种总金额。空结果返回空汇总和空明细。
 - 排序固定为 `business_date DESC, fact_type DESC, fact_id DESC`。游标版本为 `fact-insight-cursor/1`，绑定规范筛选 hash 与最后一项排序键；未知字段、错误版本/编码/身份、筛选不匹配或不存在的边界必须拒绝，不回退第一页。
-- 汇总与当前页必须来自同一 SQLite 读事务快照。实现不得新增统计表、触发器维护统计、运行时缓存或后台聚合；所有 SQL 使用参数化接口并按租户过滤。
+- 汇总与当前页必须来自同一 PostgreSQL `REPEATABLE READ READ ONLY` 事务快照。实现不得新增统计表、触发器维护统计、运行时缓存或后台聚合；所有 SQL 使用参数化接口并按租户过滤。
 - `insights.read` 只允许 Owner/Finance/Viewer；Reviewer 拒绝且不能据此枚举 Fact、Trip 或金额。端点只读，不创建 AuditEvent；错误不得泄露 SQL、跨租户存在性、名称、金额、Provider、邮件或凭据数据。
 - Web `/insights` 必须覆盖完整筛选、清除、多币种/多类型分组、三种分配状态、已/未归属、具体 Trip、空结果、加载更多、失败重试、离线和权限不足。键盘、错误关联、可见焦点、768px 与 384px 等效 200% 回流不得依赖横向滚动；禁止无决策价值图表或把不同币种/类型视觉合并为单一金额。
 
-最小纯合成场景固定包含：Payment/Invoice 同日及日期边界、四币种、无/部分/全额分配、多对多 Link、活动与已终止 Link、无归属/活动归属/已终止归属、软删除 Fact/Trip、具体 Trip、空结果、多页稳定游标、筛选不匹配游标、非法查询组合、累计溢出、并发读快照、四角色、跨租户、Web 键盘与响应式。领域、SQLite/应用、HTTP/OpenAPI、Web 单元与浏览器场景、关键不变量、两层覆盖率和完整工程门禁必须全部通过。
+最小纯合成场景固定包含：Payment/Invoice 同日及日期边界、四币种、无/部分/全额分配、多对多 Link、活动与已终止 Link、无归属/活动归属/已终止归属、软删除 Fact/Trip、具体 Trip、空结果、多页稳定游标、筛选不匹配游标、非法查询组合、累计溢出、并发读快照、四角色、跨租户、Web 键盘与响应式。领域、PostgreSQL/应用、HTTP/OpenAPI、Web 单元与浏览器场景、关键不变量、两层覆盖率和完整工程门禁必须全部通过。
 
-验收结果：2026-08-31 通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，9 个 Vitest 文件共 38 项测试通过；M1/M3 状态矩阵与 M4 洞察浏览器组件场景 33 / 33 通过，其中 4 项新增洞察场景覆盖筛选、分组、分页、失败恢复、四角色、键盘及 768px/384px 回流；关键不变量 113 / 113（100%）通过；领域/应用层覆盖率 85.71%（3,101 / 3,618），基础设施/传输层覆盖率 75.24%（3,477 / 4,621）。10,000 个纯合成 Fact 的 SQLite 查询与领域投影基准为 70.58 ms/op（20 次固定运行）；完整 HTTP 并发 p95 已纳入 M4 性能运行器，仍在后续运行质量切片统一重跑。本轮只使用纯合成数据，未调用真实 Provider、未连接真实邮箱或外部账号。可机读摘要见 `tests/evidence/m4/fact-insights-gate-summary.json`。
+历史验收结果：2026-08-31 的 SQLite 实现通过。固定 Go 1.26.7 禁网容器内的全量测试、静态检查与构建全部通过；OpenAPI 客户端生成和 Web 完整检查通过，9 个 Vitest 文件共 38 项测试通过；M1/M3 状态矩阵与 M4 洞察浏览器组件场景 33 / 33 通过，其中 4 项新增洞察场景覆盖筛选、分组、分页、失败恢复、四角色、键盘及 768px/384px 回流；关键不变量 113 / 113（100%）通过；领域/应用层覆盖率 85.71%（3,101 / 3,618），基础设施/传输层覆盖率 75.24%（3,477 / 4,621）。10,000 个纯合成 Fact 的 SQLite 查询与领域投影基准为 70.58 ms/op（20 次固定运行）。ADR-0020 已替代当前存储实现；上述指标必须在 PostgreSQL 重新生成，历史摘要不得作为当前发布证据。
 
 ## 八、租户与安全验收
 
@@ -413,7 +413,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 ## 九、性能与容量（已批准）
 
-参考环境：Linux x86_64、2 vCPU、4 GiB RAM、20 GiB 可用磁盘、Docker Compose v2；外部模型延迟单独记录。
+参考环境：Linux x86_64、应用 2 vCPU / 3.5 GiB、PostgreSQL 2 vCPU / 2 GiB、20 GiB 可用磁盘、Docker Compose v2；外部模型延迟单独记录。
 
 | 场景                     | 批准门槛                                          |
 | ------------------------ | ------------------------------------------------- |
@@ -429,7 +429,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 ### 性能测量协议
 
-- 证据记录构建 SHA、Compose 配置、CPU/内存限制、数据库/对象存储位置、数据种子、请求脚本版本和 Provider 延迟；除明确的 AI 项外，测试使用本机回环网络。
+- 证据记录构建 SHA、Compose 配置、CPU/内存限制、数据库/对象存储位置、数据种子、请求脚本版本和 Provider 延迟；非 AI 性能门禁明确排除 Provider 调用，Provider 延迟由同一候选的内存门禁单独测量；除明确的 AI 项外，测试使用本机回环网络。
 - 10,000 条 Fact 固定为 5,000 Payment 与 5,000 Invoice，并包含至少 1,000 条对应 Document/Claim/Review 链。非 AI JSON API 集合固定为收件箱列表、Document 详情、ClaimSet 详情、Payment 列表、Invoice 列表和 M4 的 Fact 洞察；每个端点预热 100 次，再以并发 10 测量至少 1,000 次，逐端点 p95 均不得超过 300 ms。
 - Document 创建使用预载入内存的 1 MiB 固定合成 PNG。服务端计时从请求体完整接收并通过字节数检查后开始，到 Document 与 ProcessingJob 事务提交结束；预热 20 次，再以并发 2 测量 200 次。
 - 审核确认使用 200 个彼此独立、已就绪的纯合成 ClaimSet；预热 20 个后，以并发 2 测量 200 个首次确认事务。幂等重放另行验证，不混入首提交流量。
@@ -449,7 +449,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 本节只覆盖新系统自身，不读取或恢复旧版本数据。
 
-### M4 完整恢复切片的冻结口径
+### 历史 SQLite 完整恢复切片口径
 
 - 恢复集合由经认证的数据包与独立托管的既有主密钥组成；主密钥不得进入数据包、清单、CLI 输出或仓库证据。清单固定为 `smart-bill-manager-backup/2`，使用主密钥域分离派生的 HMAC-SHA-256 认证并包含随机 `backup_set_id`；backup、verify、restore、API 与数据库受保护结果必须属于同一集合，不兼容 M1 清单。
 - 应用、Owner 初始化与备份共享运行锁。数据包创建必须在应用锁可独占、WAL checkpoint 完成和排他 SQLite 事务内进行；`staging/`、`trash/` 必须为空。
@@ -458,12 +458,56 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 - 恢复只写不存在且与备份/迁移/运行锁/激活状态互不重叠的目标。数据库、对象根和主密钥在各自目标文件系统内 staging 并离线复核；发布前持久化 owner-only `restore-state=incomplete`。只有全部发布、同步和后检查成功后，才能用已单独同步的 complete 文件原子替换；状态永久保留，incomplete、未知、损坏或孤立状态均阻止启动。
 - 离线恢复先证明原始快照与清单完全一致，再删除全部 Session。会话失效后除 `sessions = 0` 外的表数量、Schema、审计链和对象集合仍须相等；旧 Cookie 必须失败，新登录必须成功。
 - 固定数据集最终恰好为 1,000 个具有实际纯合成原件的 Document：997 个普通上传与 1 个邮件附件 Document/Job 明确失败于 `provider_config_missing`、1 个已确认 Payment Fact、1 个备份时带有效租约和唯一旧 `running` AiRun 的 Processing Job；唯一旧 `succeeded` AiRun 必须归属已确认 Document。固定包含 2 个 DocumentPage、1,004 条对象引用与 1,003 个唯一物理对象。控制器必须以同一 exercise/model/mode/instance 的回环 health 精确证明 0→1 次提取，不能只凭 Job=`processing` 推断 AiRun 已落库。
-- 先创建数据包，再在首次独立 verify 前启动不可重置的 30 分钟时钟。恢复启动后先验证 ready、旧 Cookie 拒绝、新登录和原快照 Fact/Document/五个上传与邮件对象可查询下载；全部读取完成后必须以目标 Job 仍为 `processing` 且 attempt 未变化形成线性化屏障，随后才允许租约接管、旧 AiRun 全库唯一转为 `failed/lease_expired`、attempt 增加一次、version 按唯一正常链增长、继续到 `needs_review` 与最终确认。
+- 先创建数据包，再在首次独立 verify 前启动不可重置的 30 分钟时钟。restore 必须把仍为 `processing` 的租约推迟固定 120 秒且不修改 attempt/version/AiRun。恢复启动后先验证 ready、旧 Cookie 拒绝、新登录和原快照 Fact/Document/五个上传与邮件对象可查询下载；全部读取完成后必须以目标 Job 仍为 `processing` 且 attempt 未变化形成线性化屏障，随后才允许租约接管、旧 AiRun 全库唯一转为 `failed/lease_expired`、attempt 增加一次、version 按唯一正常链增长、继续到 `needs_review` 与最终确认。
 - 备份前必须冻结全部既有非 Session 行的稳定摘要；恢复后除目标 Job/Document/旧 AiRun 的明确列外摘要完全相等。目标新 AiRun 必须与旧请求保持同一 Provider 版本/指纹、模型、Prompt、Schema/Mapper/输入版本和请求哈希。最终只允许新增一个与该新 AiRun 闭合的 Claim→Review→Payment 链及其 Evidence、Validation、Origin、可选重复候选/决定和一个确认审计事件；其他变化失败。
 - 演练 RPO 固定为 0；备份完成到恢复验证之间不得写入或删除业务数据。非零 RPO、快照后租户删除/凭据撤销重放和真实灾难切换属于生产发布门禁，不得由本地演练虚构。
 - 证据 JSON 只允许安全聚合、清单摘要、相等性布尔值、状态数量和耗时；不得包含数据包、数据库、对象、独立主密钥、Cookie、密码、Provider 密钥、真实财务字段、原始响应或日志。
 
-验收状态：2026-08-31 按 ADR-0018 通过。完整演练使用经单独授权、仅存在于 `/tmp` 隔离目录的一次性本地主密钥、Owner 密码与 synthetic Provider key；固定数据集精确包含 1,000 个 Document、1,000 个 Job、2 个 DocumentPage、1,004 条对象引用与 1,003 个唯一物理对象。认证备份、独立验证和恢复分别用时 738、317 和 1,356 ms，恢复前 3 个 Session 全部失效；从不可重置时钟到任务继续、最终确认和数据库复核共 115,291 ms，低于 30 分钟门槛。旧 Cookie 被拒绝，3 个 Document 查询和 5 个鉴权下载先于任务续跑验证，目标 attempt 只增加一次、version 按唯一链增加 3，稳定既有行摘要保持不变且只新增一个闭合 Claim→Review→Payment 链。全量测试、静态检查、构建、Web、14 项控制器逻辑测试、136 / 136 关键不变量及两层覆盖率门禁均通过；既有 M1 两 Document 冒烟未被计入本切片结果。
+历史验收状态：2026-08-31 按 ADR-0018 的 SQLite 实现通过。完整演练使用经单独授权、仅存在于 `/tmp` 隔离目录的一次性本地主密钥、Owner 密码与 synthetic Provider key；固定数据集精确包含 1,000 个 Document、1,000 个 Job、2 个 DocumentPage、1,004 条对象引用与 1,003 个唯一物理对象。认证备份、独立验证和恢复分别用时 738、317 和 1,356 ms，恢复前 3 个 Session 全部失效；从不可重置时钟到任务继续、最终确认和数据库复核共 115,291 ms，低于 30 分钟门槛。ADR-0020 已替代数据库载荷和恢复实现，该结果不能代替当前 PostgreSQL 恢复验收。
+
+### PostgreSQL 当前恢复口径
+
+- 保持停写、RPO 0、30 分钟 RTO、认证清单、独立主密钥、精确对象集合、会话失效、稳定行摘要和目标任务只续跑一次等业务边界；
+- 数据库载荷只接受固定 PostgreSQL 17 `pg_dump` 生成的自包含 dump；禁止复制数据目录、WAL 或 Docker volume，`pg_dump`/`pg_restore` 与服务端 major 必须一致并进入安全聚合身份；
+- 清单覆盖 dump 哈希、迁移身份、PostgreSQL Schema/约束身份、表数量、审计链和对象集合；数据库密码、DSN、路径和原始工具输出不得进入证据；
+- 恢复只写全新数据库和全新对象目标，完成 Schema、约束、租户、对象和审计复核后删除全部 Session；未知迁移、额外 Schema 对象、缺失约束或恢复到非空目标全部失败；
+- 用与历史演练等价的恰好 1,000 Document 纯合成数据集重新执行完整控制器；历史 SQLite 数据包、摘要或耗时不能复用为通过。
+
+## M4 第三切片：PostgreSQL 唯一持久化
+
+本切片以 ADR-0020 为冻结决策，必须在 ADR-0019 最终发布门禁之前通过。
+
+- `go.mod` 只保留一个固定 PostgreSQL 驱动，不增加 ORM；源码只保留 PostgreSQL 适配器和当前迁移，不存在 SQLite 驱动、产品适配器、运行配置、发布卷、备份入口或第二测试数据库；
+- PostgreSQL Schema 从 Clean Slate `0001` 创建空库，不读取或迁移 SQLite 数据。复合租户外键、CHECK、局部唯一索引、不可变触发器、金额安全范围和迁移内容身份必须与领域不变量一致；
+- 迁移由显式入口执行，API 运行角色无 DDL 权限。密码只从 owner-only 文件读取，不能出现在 argv、环境、日志、Compose 展开结果或测试证据；数据库只在 internal 网络可达且不发布宿主端口；
+- 多查询读取必须使用同一 `REPEATABLE READ READ ONLY` 快照；关键写入使用显式行锁和适用的 `SERIALIZABLE` 隔离；序列化失败、死锁、陈旧版本和唯一冲突映射为稳定错误且零部分写入；
+- Worker 竞争必须用 PostgreSQL 行锁安全领取，同一 Job 只能有一个有效租约；多 API/Worker 并发测试不得依赖进程内锁或 SQLite 全库锁；
+- 重复检测查询必须命中租户/band 索引，洞察必须在数据库内精确整数聚合并使用 keyset 分页；10,000 数据集不得退回为全量载入 Go 内存；
+- 所有领域、适配器、应用、HTTP/OpenAPI、关键不变量、覆盖率、性能、内存、1,000 Document 恢复和浏览器测试必须只对受限临时 PostgreSQL 17 执行并通过；测试完成立即销毁临时凭据、容器、网络、卷和原始报告。
+
+验收结果：2026-09-01 通过。PostgreSQL 17 已成为唯一关系数据源；Clean Slate `0001`、唯一 pgx 适配器、显式迁移、最小权限、事务/Worker、Compose 与认证恢复均已实现。受影响的领域、数据库、应用、HTTP/OpenAPI、Web、关键不变量、覆盖率、10,000 数据集、内存和浏览器门禁全部只在受限临时 PostgreSQL 17 上重新通过；SQLite 当前实现与第二测试数据源均已移除。
+
+## M4 第四切片：运行质量与本地发布准备
+
+本切片以 `docs/decisions/0019-local-release-candidate-and-runtime-quality.md` 为冻结决策，不新增业务 API、页面、迁移或第二数据源。验收对象是当前 Clean Slate 构建时基线 HEAD 与确定性发布输入摘要共同标识的本地发布候选，而不是旧 M1 镜像或历史证据；最终证据提交后必须复核发布输入摘要未变化。
+
+- 唯一发布资产固定为 `infra/docker/app.Dockerfile`、`infra/docker/entrypoint.sh`、`infra/compose/compose.yaml` 与 `infra/compose/.env.example`；仓库不得保留 `m1` 发布入口、镜像名、Compose project 名、entrypoint 或运行质量报告身份的兼容别名。
+- 发布产物准备器必须先在 owner-only `/tmp` 隔离区占用输出，再以固定 Node 24.19.0 独立执行 `npm ci --offline` 和 Web 生产构建，并以固定 Go 1.26.7 禁网容器、只读完整模块缓存、`GOPROXY=off`、`go mod verify` 构建四个二进制。Dockerfile 只接受本地 `release_artifacts` 上下文，并在复制前核对基线 HEAD、发布输入摘要、工具链版本、精确清单与全部 SHA-256；URL、Git、镜像型上下文、缓存缺失和额外文件均失败。
+- 运行层必须只由固定 Alpine 3.23、其既有 CA/BusyBox、固定 Poppler 26.05.0 bundle、从固定 Go 1.26.7 Debian 镜像选择性复制的五个 glibc 2.41 文件、静态 `run-as-sbm`、UID/GID 10001 与数据目录组成。Poppler manifest、来源 SHA、逐文件哈希和真实 `pdfinfo/pdftoppm -v` 必须通过；不得复制 Go 工具链、Debian 其余文件、包管理器或未列出资产。
+- 镜像必须包含当前 `server`、`bootstrap-owner`、`backup`、`run-as-sbm`、Web dist、迁移和 Provider-facing Schema；不得包含 `recovery-exercise`、`seed-performance`、测试、工具、评估/证据、文档、旧源码、Go/Node 工具链、数据库、对象、日志或任何凭据。镜像标签必须同时绑定构建时基线 HEAD 与确定性的发布输入摘要；最终证据提交后复核该输入摘要不变，不能虚构自引用的最终提交 SHA。
+- Compose 默认绑定 `127.0.0.1`；app 与 PostgreSQL 根文件系统均只读，关系数据/对象只写卷和受限 tmpfs 明确；`cap_drop=ALL`、最小增补 capability、`no-new-privileges`、PID/2 CPU/3.5 GiB 应用上限、2 GiB 数据库上限、停止窗口和健康检查均由规范化配置与真实容器验证；加上 256 MiB Provider 后同时运行总配置为 5.75 GiB。
+- entrypoint 只接收独立只读主密钥源，拒绝缺失、空、过大、非法格式、符号链接和多硬链接；材料化结果为 owner-only 单硬链接，应用最终以 UID/GID 10001 运行。本地 Compose 文件型 secret 不支持 `uid/gid/mode` 重映射，Owner 密码因此只能在 `/app/bootstrap-owner` 一次性容器中由 root entrypoint 校验并材料化为 UID/GID 10001、`0600` 的 tmpfs 文件；正常 server 容器不得存在该副本。主密钥、Owner 密码与 Provider key 不得进入 argv、环境、镜像历史、Compose 展开证据、日志或仓库。
+- 静态 `run-as-sbm` 必须先清空补充组，再按 GID、UID 顺序降到 10001，并用原始 argv/env 直接 `exec`；缺少命令、非 root、任一 syscall 失败或降权后身份不符均 fail-closed，不保留 root 代理进程。
+- acceptance Provider 只在应用网络命名空间内监听回环，固定 UUIDv4 exercise、`synthetic-*` 模型与受保护 key；纯合成 E2E 不访问外网。宿主浏览器只接受回环 HTTP origin，关闭后台网络服务，并把回环白名单之外的 HTTP(S) 请求导向本地不可用代理；Node 客户端拒绝跨源重定向。空库必须经 CLI 原子创建唯一 Owner，再完成 ready、登录、上传→Claim→Review→Fact、对象鉴权和当前全部 Web 场景。
+- 性能协议保持第九节批准口径：六个非 AI JSON API 各预热 100 次、并发 10 测量 1,000 次且 p95 <= 300 ms；Document 创建预热 20/测量 200、并发 2且 p95 <= 500 ms；审核确认预热 20/首次测量 200、并发 2且 p95 <= 500 ms。
+- 内存协议保持 10 个预热和 50 个测量 Job、终态后空闲 2 秒；RSS 采样 PID 必须是命令为 `/app/server` 且 UID/GID 均为 10001 的实际发布进程；同一 synthetic Provider 不向宿主发布端口，门禁只能通过已核验 app 容器的内部回环读取其聚合，并必须精确记录 1 次 capability probe 和 60 次 extraction，以及两类请求的样本数、p50、p95 与 max。最后/最初 10 次 RSS 中位数比 <= 1.2、斜率 <= 0.5 MiB/Job，且无孤立 `processing` 或 `cancel_requested` Job。
+- 登录、收件箱、审核和 Payment 列表四页各执行三次 Lighthouse，最低 Accessibility >= 95、最低 Performance >= 85；768/1024/1440/1920 四宽度共 16 个页面组合和对应 16 个等效 200% 回流组合全部无水平溢出、无越界可聚焦元素、无缺失标签并满足 reduced-motion；键盘和深色主题单独通过。
+- 当前 6 个 Playwright spec 的完整场景均必须执行且至少保持 33 项通过；不得用删除场景、只跑组件矩阵或复用历史 M1 结果替代当前镜像 E2E。
+- 性能、内存、Lighthouse、响应式、镜像与最终证据输出必须在首次写入或 fixture 创建前原子占用 owner-only 路径；未知/重复参数、非回环 URL、符号链接、多硬链接、宽权限父目录、仓库内输出和路径冲突均失败。终端只输出安全聚合或固定分类码。
+- 最终安全聚合必须绑定构建时基线 HEAD、发布输入摘要、镜像 ID 和 Compose 摘要，只包含批准阈值、样本数、p95、内存比/斜率、最低页面分数、场景数量和布尔门禁；不得提交原始报告、路径、容器/进程/业务 ID、对象或输入明细、Cookie、凭据、真实字段或日志。
+- 最终安全聚合只声明最终候选禁网构建与正式验收网络隔离，不得把整个开发过程笼统记为“从未使用外网”；任何已发生并已披露的工具网络策略偏差必须以安全布尔字段保留，且不能冒充真实 Provider、邮箱或生产联调。
+
+验收结果：2026-09-01 通过。最终 PostgreSQL 候选的镜像/Compose、entrypoint、首次 Owner 初始化、认证和最小权限门禁通过；六个非 AI JSON API、Document 创建和审核确认 p95 全部达标，50 Job 内存趋势达标且无孤立任务；Playwright 37 / 37、Lighthouse 四页三次最低 Performance/Accessibility 均为 100、响应式与等效 200% 回流各 16 / 16，键盘和深色主题通过。全量测试、140 / 140 关键不变量及两层覆盖率同时通过。当前只完成本地发布准备，真实模型正确率、真实外部联调和生产部署/发布仍未执行。
 
 ## 十一、UI/UX 与可访问性
 

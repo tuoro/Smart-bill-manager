@@ -16,14 +16,14 @@
 
 从所选 GitHub Release 下载同版本的以下两个附件：
 
-- `smart-bill-manager-docker-v0.3.2.tar.gz`；
-- `smart-bill-manager-docker-v0.3.2.tar.gz.sha256`。
+- `smart-bill-manager-docker-v0.3.3.tar.gz`；
+- `smart-bill-manager-docker-v0.3.3.tar.gz.sha256`。
 
 在同一目录校验并展开：
 
 ```bash
-sha256sum -c smart-bill-manager-docker-v0.3.2.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-v0.3.2.tar.gz
+sha256sum -c smart-bill-manager-docker-v0.3.3.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.3.3.tar.gz
 cd smart-bill-manager-docker
 ```
 
@@ -32,26 +32,26 @@ cd smart-bill-manager-docker
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
-git checkout v0.3.2
+git checkout v0.3.3
 ```
 
 使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
 
-## 2. 引导式安装（当前 main / 下一版本部署包）
+## 2. 一条命令或引导式安装
 
-下一补丁版发布后可从固定 Tag 流式取得安装器；安装器随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
+可从固定 Tag 流式取得安装器；安装器随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
 
 ```bash
 version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
-下一版本部署包会在根目录提供安装器：
+部署包根目录也提供安装器：
 
 ```bash
 ./install.sh
 ```
 
-当前 `main` 源码树使用：
+固定源码 Tag 使用：
 
 ```bash
 ./tools/install-self-hosted.sh
@@ -61,7 +61,7 @@ version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercon
 
 配置完成后，安装器创建 owner-only secret，暂停提示保存一次性 Owner 密码，再按固定顺序完成镜像拉取、PostgreSQL provision、Schema migration、Owner bootstrap、应用启动和状态检查。PostgreSQL 与应用始终是两个独立容器，数据库不发布宿主端口。
 
-公开 `v0.3.2` 部署包还没有 `install.sh`，请继续使用下方手工流程。引导式安装完成后可直接跳到“日常操作”。
+引导式安装完成后可直接跳到“日常操作”。
 
 ## 3. 手工创建仓库外运行目录
 

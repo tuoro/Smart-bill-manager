@@ -2,7 +2,7 @@
 
 本项目从 `v0.2.0` 起按语义化版本记录面向使用者和维护者的重要变化。
 
-## [Unreleased]
+## [0.3.3] - 2026-09-01
 
 ### Docker 安装
 
@@ -172,6 +172,7 @@
 - 提供支付、发票、邮箱、行程、多用户和异步 OCR 的既有功能。
 - 保存可回退 Git 标签和 GHCR 容器镜像。
 
+[0.3.3]: https://github.com/tuoro/Smart-bill-manager/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/tuoro/Smart-bill-manager/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/tuoro/Smart-bill-manager/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/tuoro/Smart-bill-manager/compare/v0.2.4...v0.3.0

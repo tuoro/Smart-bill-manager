@@ -23,7 +23,7 @@
     "compose_release_config": "passed",
     "bundle_allowlisted_files": 13,
     "bundle_checksum": "verified",
-    "local_markdown_links": 34,
+    "local_markdown_links": 32,
     "git_diff_check": "passed"
   },
   "resource_cleanup": {

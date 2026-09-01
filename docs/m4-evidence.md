@@ -61,8 +61,6 @@ M4 当前基线以 ADR-0020、ADR-0019、ADR-0021 和 ADR-0022 为边界：Postg
 
 ADR-0022 在不改变业务镜像、API、Schema 或 Web 的前提下收敛了后续补丁版分发：GitHub Release 可以附带只含 12 个批准文件的最小 Docker 部署包和 SHA-256；不可变镜像身份由包内 `release.env` 提供，用户运行目录只保存非秘密配置、持久化路径和 secret 文件路径。调用方环境不能覆盖两个固定镜像摘要。
 
-ADR-0023 在同一 Compose 契约上增加尚未发布的引导式安装入口：PostgreSQL 与应用继续分容器，用户可分别选择全新的数据库、对象和备份绝对目录；安装器复用现有准备器和部署 wrapper，按 `pull -> bootstrap -> start -> status` 执行。后续补充的单行入口从固定版本 Tag 取得脚本，在 owner-only 临时目录校验同版本 Bundle 后才进入交互；README 同时给出 Compose 和仅适用于已初始化应用容器的 `docker run` 形式，不增加第二完整安装链。脚本、成功/摘要失败、Compose 规范化、13 文件 Bundle、文档和资源清理证据见 `tests/evidence/m4/guided-installer-gate-summary.json`。该结果没有修改或重新发布 `v0.3.2`。
-
 新安装创建 owner-only 的 `data/postgres`、`data/objects` 与 `backups`，Compose 展开后两个数据源都是精确宿主 bind。缺少新存储变量的 `v0.3.1` 配置仍展开为原 `sbm_postgres_data` 与 `sbm_objects` named volume；工具不自动复制、转换或删除既有卷。
 
 隔离 Docker 冒烟使用现有固定应用与 PostgreSQL 17 镜像，从空 bind 目录完成角色创建、Schema 初始化、唯一 Owner、ready 和登录；随后在同一数据库与对象目录执行 `upgrade --backup-confirmed`，再次 ready 和登录成功，一次性 Owner 密码已删除。第一次收口的宿主 `find` 断言因容器按最小权限接管 bind 目录而失败，运行与升级没有失败；验证没有放宽目录权限，改为从容器 Mount 身份核对精确 bind，并使用固定本地镜像执行受控临时目录归属恢复后完成清理。该失败保留在安全聚合中。
@@ -70,6 +68,12 @@ ADR-0023 在同一 Compose 契约上增加尚未发布的引导式安装入口�
 16 个 Node 工具测试文件、3 份 shell 语法、33 个本地文档链接、确定性压缩包、SHA-256 sidecar、调用方镜像覆盖拒绝、`git diff --check`、疑似凭据与大文件检查均通过。验证前后可用内存分别为 8.1 GiB 与 8.2 GiB；没有遗留临时容器、网络或凭据目录。
 
 安全聚合见 `tests/evidence/m4/docker-forward-upgrade-gate-summary.json`。本切片未下载新镜像或依赖，未调用真实 Provider、邮箱、外部账号或远程数据库，也未推送、部署或发布远端制品。
+
+## v0.3.3 一条命令与三种部署形式
+
+ADR-0023 在同一 Compose 契约上增加引导式安装入口：PostgreSQL 与应用继续分容器，用户可分别选择全新的数据库、对象和备份绝对目录；安装器复用现有准备器和部署 wrapper，按 `pull -> bootstrap -> start -> status` 执行。单行入口从固定版本 Tag 取得脚本，在 owner-only 临时目录校验同版本 Bundle 后才进入交互；README 同时给出 Compose 和仅适用于已初始化应用容器的 `docker run` 形式，不增加第二完整安装链。
+
+本版本只更新分发脚本、文档和 Bundle allowlist，应用镜像继续固定到已通过 M4 门禁的同一 manifest digest。脚本、成功/摘要失败、Compose 规范化、13 文件 Bundle、文档和资源清理证据见 `tests/evidence/m4/guided-installer-gate-summary.json`。
 
 ## 范围与剩余门禁
 

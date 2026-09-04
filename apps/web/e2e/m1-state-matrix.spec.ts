@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import type { AllocationWorkspace, JobSummary, Payment, Review, Session } from '../src/data/client'
+import { captureResponsiveReview } from './visual-review'
 
 const timestamp = '2026-08-28T08:00:00Z'
 const transparentPNG = Buffer.from(
@@ -8,7 +9,23 @@ const transparentPNG = Buffer.from(
 )
 
 test.describe('M1/M2 真实组件状态矩阵', () => {
-  test('登录：默认、凭据错误、提交中和权限不足', async ({ page }) => {
+  test('登录：默认遵循系统深色，手动切换后刷新保留选择', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await page.route(sessionURL, (route) => fulfillError(route, 401, 'unauthenticated', '请先登录'))
+    await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' })
+    await page.goto('/login')
+    await expect(page.getByRole('heading', { name: '登录工作区' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await page.getByRole('button', { name: '切换到浅色模式', exact: true }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await page.reload()
+    await expect(page.getByRole('heading', { name: '登录工作区' })).toBeVisible()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(page.getByRole('button', { name: '切换到深色模式', exact: true })).toBeVisible()
+    expect(pageErrors).toEqual([])
+  })
+
+  test('登录：默认、凭据错误、提交中和权限不足', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await page.route(sessionURL, (route) => fulfillError(route, 401, 'unauthenticated', '请先登录'))
 
@@ -31,6 +48,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(page.locator('.login-layout')).toBeVisible()
     await expect(page.getByRole('heading', { name: '登录工作区' })).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
+    await captureResponsiveReview(page, testInfo, 'login')
 
     await page.getByLabel('邮箱').fill('reviewer@example.test')
     await page.getByLabel('密码', { exact: true }).fill('synthetic-password')
@@ -47,7 +65,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
-  test('AI 收件箱：混合队列覆盖处理、部分结果、待确认、失败和取消', async ({ page }) => {
+  test('AI 收件箱：混合队列覆盖处理、部分结果、待确认、失败和取消', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
     const jobs: JobSummary[] = [
@@ -74,7 +92,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       '处理失败',
       '正在取消',
       '已取消',
-      '已生成事实',
+      '已生成账单',
     ]) {
       await expect(queue.locator('.status').filter({ hasText: label })).toBeVisible()
     }
@@ -87,6 +105,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(
       rowFor(queue, 'partial-invoice.pdf').getByRole('link', { name: '审核' }),
     ).toBeVisible()
+    await captureResponsiveReview(page, testInfo, 'inbox')
     expect(pageErrors).toEqual([])
   })
 
@@ -98,6 +117,10 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await page.goto('/inbox')
     await expect(page.locator('section.queue-panel .state-layout')).toContainText('收件箱还是空的')
     await expect(page.getByText('0 个任务')).toBeVisible()
+    await expect(page.locator('input[type="file"]')).toHaveCount(1)
+    const fileChooser = page.waitForEvent('filechooser')
+    await page.getByRole('button', { name: '上传第一张单据', exact: true }).click()
+    expect((await fileChooser).isMultiple()).toBe(true)
     expect(pageErrors).toEqual([])
   })
 
@@ -228,7 +251,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
-  test('审核工作台：加载、待审核并完成', async ({ page }) => {
+  test('审核工作台：加载、待审核并完成', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
     const review = readyReview('job-ready')
@@ -256,18 +279,25 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     )
 
     await page.goto(`/reviews/${review.job.id}`)
-    await expect(page.getByRole('status')).toContainText('正在加载 Claim 与证据')
+    await expect(page.getByRole('status')).toContainText('正在加载识别结果与原件')
     releaseReview()
 
     await expect(page.locator('.review-grid')).toBeVisible()
-    await expect(
-      page.getByRole('heading', { name: `审核 ${review.job.original_name}` }),
-    ).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: '审核单据' })).toBeVisible()
+    await expect(page.locator('.review-document-name')).toHaveText(review.job.original_name)
     await expect(page.getByText('校验通过，待确认')).toBeVisible()
+    await expect(page.locator('.inline-validations li')).toHaveAttribute('data-status', 'passed')
+    await expect(page.locator('.inline-validations li')).toHaveCSS(
+      'color',
+      await page
+        .locator('.validation-list li[data-status="passed"]')
+        .evaluate((element) => getComputedStyle(element).color),
+    )
     await expect(page.getByRole('radio', { name: /确认当前没有候选/ })).toBeVisible()
 
     await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    await page.getByRole('button', { name: '确认并生成事实' }).click()
+    await captureResponsiveReview(page, testInfo, 'review')
+    await page.getByRole('button', { name: '确认并保存记录' }).click()
     const completion = page.locator('section.completion-state')
     await expect(completion).toBeVisible()
     await expect(completion.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
@@ -331,7 +361,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await page.getByLabel('本次分配（最小单位）').nth(0).fill('10000')
     await page.getByLabel('本次分配（最小单位）').nth(1).fill('12000')
     await expect(page.getByText('本次合计 22000')).toBeVisible()
-    await page.getByRole('button', { name: '确认并生成事实' }).click()
+    await page.getByRole('button', { name: '确认并保存记录' }).click()
 
     expect(submitted).toMatchObject({
       expected_revision: 1,
@@ -440,7 +470,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
 
     await page.goto(`/reviews/${review.job.id}`)
     await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    await expect(page.getByRole('button', { name: '确认并生成事实' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '确认并保存记录' })).toBeDisabled()
     await expect(page.locator('#duplicate-resolution-error')).toContainText(
       '请逐项确认全部疑似重复候选',
     )
@@ -449,8 +479,8 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       'duplicate-resolution-error',
     )
     await page.getByRole('checkbox', { name: /近似文件.*近似支付截图/ }).check()
-    await expect(page.getByRole('button', { name: '确认并生成事实' })).toBeEnabled()
-    await page.getByRole('button', { name: '确认并生成事实' }).click()
+    await expect(page.getByRole('button', { name: '确认并保存记录' })).toBeEnabled()
+    await page.getByRole('button', { name: '确认并保存记录' }).click()
 
     expect(submitted).toMatchObject({
       duplicate_resolutions: [
@@ -469,13 +499,20 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await page.goto(`/reviews/${review.job.id}`)
     await expect(page.locator('.review-grid')).toBeVisible()
     await expect(page.getByText('阻断，需修订')).toBeVisible()
-    await expect(page.getByText('Claim 被服务端校验阻断')).toBeVisible()
+    await expect(page.getByText('当前识别结果未通过校验')).toBeVisible()
+    await expect(page.locator('.inline-validations li')).toHaveAttribute('data-status', 'blocked')
+    await expect(page.locator('.inline-validations li')).toHaveCSS(
+      'color',
+      await page
+        .locator('.validation-list li[data-status="blocked"]')
+        .evaluate((element) => getComputedStyle(element).color),
+    )
     await expect(
       page
         .locator('[aria-labelledby="validation-title"]')
         .getByText('金额字段缺失，必须人工修订并绑定证据'),
     ).toBeVisible()
-    await expect(page.getByRole('button', { name: '确认并生成事实' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '确认并保存记录' })).toBeDisabled()
     expect(pageErrors).toEqual([])
   })
 
@@ -490,16 +527,16 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
 
     await page.goto(`/reviews/${review.job.id}`)
     await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    await page.getByRole('button', { name: '确认并生成事实' }).click()
+    await page.getByRole('button', { name: '确认并保存记录' }).click()
 
     const conflict = page.getByRole('alert')
     await expect(conflict).toContainText('审核版本已变化')
-    await expect(conflict.getByRole('button', { name: '刷新 revision' })).toBeVisible()
+    await expect(conflict.getByRole('button', { name: '刷新最新版本' })).toBeVisible()
     await expect(page.locator('.review-grid')).toBeVisible()
     expect(pageErrors).toEqual([])
   })
 
-  test('账单列表：加载、有数据并切换到空状态', async ({ page }) => {
+  test('账单列表：加载、有数据并切换到空状态', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
     const payment = syntheticPayment()
@@ -522,14 +559,16 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(paymentRow).toContainText('Synthetic State Merchant')
     await expect(paymentRow).toContainText('321.09')
     await expect(paymentRow).toContainText('SYN-STATE-001')
-    await expect(facts.getByText('1 条未删除记录')).toBeVisible()
+    await expect(facts.getByText('1 条记录')).toBeVisible()
+    await captureResponsiveReview(page, testInfo, 'payments')
 
     await page.getByRole('tab', { name: '发票' }).click()
     await expect(page.locator('section.facts-panel .state-layout')).toContainText('还没有正式发票')
+    await captureResponsiveReview(page, testInfo, 'invoices')
     expect(pageErrors).toEqual([])
   })
 
-  test('分配调整：列表入口提交完整替换计划并刷新权威余额', async ({ page }) => {
+  test('分配调整：列表入口提交完整替换计划并刷新权威余额', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
     const payment = syntheticPayment()
@@ -560,14 +599,14 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
 
     await page.goto('/payments')
     await page.getByRole('link', { name: '调整分配' }).click()
-    await expect(page.getByRole('heading', { name: '调整支付—发票分配' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '调整金额分配' })).toBeVisible()
     await expect(page.getByText('当前已分配').locator('..')).toContainText('4.00')
 
     const invoiceARow = page.locator('.allocation-target-row').filter({ hasText: '合成发票 A' })
     const invoiceBRow = page.locator('.allocation-target-row').filter({ hasText: '合成发票 B' })
-    await invoiceARow.getByLabel('期望分配（最小单位）').fill('500')
+    await invoiceARow.getByLabel('分配金额（最小单位）').fill('500')
     await invoiceBRow.getByRole('checkbox').check()
-    await invoiceBRow.getByLabel('期望分配（最小单位）').fill('300')
+    await invoiceBRow.getByLabel('分配金额（最小单位）').fill('300')
     await page.getByLabel('调整理由').fill('  人工核对后替换计划  ')
     await page.getByRole('button', { name: '确认替换分配' }).click()
 
@@ -581,6 +620,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       reason: '人工核对后替换计划',
     })
     await expect(page.getByText('当前已分配').locator('..')).toContainText('8.00')
+    await captureResponsiveReview(page, testInfo, 'allocations')
 
     for (const viewport of [
       { width: 768, height: 900 },
@@ -618,8 +658,8 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(page.getByRole('status')).toContainText('正在加载当前分配')
     releaseWorkspace()
 
-    await expect(page.getByText('没有合格目标')).toBeVisible()
-    await expect(page.getByText('当前没有同币种且日期相差不超过 30 天')).toBeVisible()
+    await expect(page.getByText('没有可分配的单据')).toBeVisible()
+    await expect(page.getByText('需要同币种且日期相差不超过 30 天的发票')).toBeVisible()
     await expect(page.getByRole('button', { name: '确认没有变化' })).toBeDisabled()
     expect(pageErrors).toEqual([])
   })
@@ -646,7 +686,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await page.getByRole('button', { name: '确认撤销分配' }).click()
     const conflict = page.getByRole('alert')
     await expect(conflict).toContainText('当前草稿已保留')
-    await expect(conflict.getByRole('button', { name: '刷新权威计划' })).toBeVisible()
+    await expect(conflict.getByRole('button', { name: '刷新当前分配' })).toBeVisible()
     await expect(page.getByLabel('调整理由')).toHaveValue('撤销全部合成分配')
     await expect(page.getByRole('checkbox', { name: /合成发票 A/ })).not.toBeChecked()
     expect(pageErrors).toEqual([])
@@ -676,7 +716,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await page.goto('/payments')
     const facts = page.locator('section.facts-panel')
     await expect(facts).toContainText('没有查看账单的权限')
-    await expect(facts).toContainText('Reviewer 只能处理审核资料')
+    await expect(facts).toContainText('当前账号仅可处理授权范围内的资料，请联系管理员调整权限。')
     await expect(facts.locator('table')).toHaveCount(0)
     expect(pageErrors).toEqual([])
   })

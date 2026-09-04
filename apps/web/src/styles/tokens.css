@@ -3,6 +3,7 @@
   --brand: #2f5fd0;
   --brand-hover: #244ead;
   --brand-soft: #edf2ff;
+  --on-brand: #ffffff;
   --canvas: #f4f6f9;
   --surface: #ffffff;
   --surface-subtle: #f8f9fb;
@@ -11,28 +12,32 @@
   --border-strong: #c5cdd8;
   --text: #1f252d;
   --text-secondary: #596572;
-  --text-muted: #586472;
+  --text-muted: #657180;
   --success: #147a4b;
   --success-soft: #eaf7f0;
   --warning: #9a5d00;
   --warning-soft: #fff6e5;
   --danger: #b42318;
+  --danger-hover: #941d14;
+  --on-danger: #ffffff;
   --danger-soft: #fff0ef;
   --info: #2456bd;
   --info-soft: #edf3ff;
   --focus: #1746ae;
   --shadow-paper: 0 10px 28px rgba(31, 37, 45, 0.13);
   --topbar-height: 52px;
-  --sidebar-width: 196px;
+  --sidebar-width: 216px;
   font-family:
     Inter,
+    'PingFang SC',
+    'Microsoft YaHei',
+    'Noto Sans CJK SC',
+    'Noto Sans SC',
     ui-sans-serif,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
-    'PingFang SC',
-    'Microsoft YaHei',
     sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -43,6 +48,7 @@
   --brand: #6f95f2;
   --brand-hover: #8aa9f6;
   --brand-soft: #202d4a;
+  --on-brand: #11151b;
   --canvas: #11151b;
   --surface: #191f27;
   --surface-subtle: #202731;
@@ -57,6 +63,8 @@
   --warning: #f3bd63;
   --warning-soft: #3b2e18;
   --danger: #ff8a82;
+  --danger-hover: #ffa39c;
+  --on-danger: #11151b;
   --danger-soft: #3a2021;
   --info: #8eaff8;
   --info-soft: #202b45;

@@ -5,7 +5,7 @@
 Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作台。它把支付截图、发票和行程资料整理成可追溯候选；只有用户明确审核确认后，候选才会成为正式财务事实。
 
 > [!IMPORTANT]
-> `v0.3.3` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
+> `v0.3.4` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
 
 ## Docker 快速部署
 
@@ -16,7 +16,7 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 直接下载固定 Tag 安装器、校验同版本部署包并进入引导安装：
 
 ```bash
-version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+version=v0.3.4; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
 安装器会询问运行目录、PostgreSQL 数据目录、附件目录、备份目录、Owner 信息和本机端口；直接回车使用默认值。
@@ -62,7 +62,7 @@ docker run -d \
   -e SBM_COOKIE_SECURE=false \
   -e SBM_SESSION_TTL=168h \
   -e SBM_AI_CONCURRENCY=2 \
-  ghcr.io/tuoro/smart-bill-manager:v0.3.3
+  ghcr.io/tuoro/smart-bill-manager:v0.3.4
 docker network connect bridge smart-bill-manager
 ```
 

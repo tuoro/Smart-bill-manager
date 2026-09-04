@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { sessionStore } from '../../app/session'
+import AppIcon from '../../components/AppIcon.vue'
 import {
   ApiError,
   api,
@@ -155,7 +156,7 @@ onUnmounted(() => {
     <header class="page-header">
       <div>
         <h1>数据洞察</h1>
-        <p>从当前已确认 Fact 确定性汇总；不同币种和支付/发票始终分开。</p>
+        <p>查看已确认单据的金额与分配情况，按币种和单据类型分别汇总。</p>
       </div>
       <button v-if="canRead" class="button" type="button" :disabled="offline" @click="applyFilters">
         刷新
@@ -163,44 +164,41 @@ onUnmounted(() => {
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
-      <span aria-hidden="true">!</span
-      ><span>当前离线。已加载结果会保留，恢复网络后可重新查询。</span>
+      <AppIcon name="alert" />
+      <span>当前离线。已加载结果会保留，恢复网络后可重新查询。</span>
     </div>
     <div v-if="error" class="notice notice-danger" role="alert">
-      <span aria-hidden="true">!</span><span>{{ error }}</span>
+      <AppIcon name="alert" /><span>{{ error }}</span>
       <button class="text-button" type="button" :disabled="offline" @click="applyFilters">
         重试
       </button>
     </div>
 
     <div v-if="loading && items.length === 0" class="panel state-layout" role="status">
-      <span class="spinner spinner-large" aria-hidden="true"></span
-      ><strong>正在读取当前 Fact</strong>
-      <span>汇总和本页明细来自同一数据库读快照。</span>
+      <span class="spinner spinner-large" aria-hidden="true"></span><strong>正在汇总单据</strong>
+      <span>正在读取金额与分配情况。</span>
     </div>
     <div v-else-if="forbidden" class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">锁</span><strong>没有查看数据洞察的权限</strong>
-      <span>Reviewer 只能处理审核资料，不能枚举正式 Fact 或金额。</span>
+      <span class="state-glyph"><AppIcon name="lock" /></span
+      ><strong>没有查看数据洞察的权限</strong>
+      <span>请联系管理员开通查看权限。</span>
     </div>
 
     <template v-else-if="canRead">
       <section class="panel insight-filter-panel" aria-labelledby="insight-filter-title">
         <div class="panel-heading">
           <div>
-            <h2 id="insight-filter-title">筛选当前 Fact</h2>
-            <p>日期为空时查询全部日期，不应用隐藏窗口。</p>
+            <h2 id="insight-filter-title">筛选单据</h2>
+            <p>不填写日期即查询全部时间。</p>
           </div>
-          <span class="status" data-tone="neutral"
-            ><span aria-hidden="true">●</span>fact-insights/1</span
-          >
         </div>
         <form
           class="insight-filter-grid"
-          aria-describedby="insight-filter-error"
+          :aria-describedby="filterError ? 'insight-filter-error' : undefined"
           @submit.prevent="applyFilters"
         >
           <div class="insight-filter-field">
-            <label for="insight-fact-type">Fact 类型</label>
+            <label for="insight-fact-type">单据类型</label>
             <select id="insight-fact-type" v-model="draft.fact_type">
               <option v-for="(label, value) in insightFactTypeLabels" :key="value" :value="value">
                 {{ label }}
@@ -282,13 +280,13 @@ onUnmounted(() => {
       <section class="panel insight-summary-panel" aria-labelledby="insight-summary-title">
         <div class="panel-heading">
           <div>
-            <h2 id="insight-summary-title">按币种与 Fact 类型汇总</h2>
-            <p>金额单位保持原币种；这里不存在跨币种或支付/发票合并总额。</p>
+            <h2 id="insight-summary-title">金额概览</h2>
+            <p>不同币种及支付、发票分别统计，不合并计算。</p>
           </div>
         </div>
         <div v-if="groupedSummaries.length === 0" class="state-layout">
-          <span class="state-glyph" aria-hidden="true">∅</span><strong>当前筛选没有汇总</strong>
-          <span>调整筛选后重新查询；系统不会用其他币种或已删除 Fact 填充结果。</span>
+          <span class="state-glyph"><AppIcon name="chart" /></span><strong>当前筛选没有汇总</strong>
+          <span>调整筛选条件，或先在收件箱完成单据审核。</span>
         </div>
         <div v-else class="insight-currency-groups">
           <section v-for="currencyGroup in groupedSummaries" :key="currencyGroup.currency">
@@ -326,13 +324,14 @@ onUnmounted(() => {
       <section class="panel insight-list-panel" aria-labelledby="insight-list-title">
         <div class="panel-heading">
           <div>
-            <h2 id="insight-list-title">当前 Fact 明细</h2>
-            <p>业务日期降序；同日支付在发票之前，随后按稳定 ID 排序。</p>
+            <h2 id="insight-list-title">单据明细</h2>
+            <p>按业务日期从新到旧排列。</p>
           </div>
           <span>{{ items.length }} 条已加载</span>
         </div>
         <div v-if="items.length === 0" class="state-layout">
-          <span class="state-glyph" aria-hidden="true">账</span><strong>当前筛选没有 Fact</strong>
+          <span class="state-glyph"><AppIcon name="search" /></span
+          ><strong>当前筛选没有单据</strong>
           <span>清除筛选可查看全部当前支付与发票。</span>
         </div>
         <ul v-else class="insight-fact-list">
@@ -356,7 +355,7 @@ onUnmounted(() => {
                   <strong
                     >{{ insightFactTypeLabel(item.fact_type) }} · {{ item.display_name }}</strong
                   >
-                  <small>{{ item.business_date }} · {{ item.fact_id }}</small>
+                  <small>{{ item.business_date }} · 记录编号 {{ item.fact_id }}</small>
                 </div>
                 <strong class="numeric">{{
                   formatMinorUnits(item.amount_minor, item.currency)

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { sessionStore } from '../../app/session'
+import AppIcon from '../../components/AppIcon.vue'
 import {
   ApiError,
   api,
@@ -164,8 +166,8 @@ function factTypeLabel(type: TripAttributionCandidate['fact_type']) {
 
 function emptyCandidateMessage() {
   if (view.value === 'suggested') return '当前规则没有建议项；切换“全部”仍可手工归属。'
-  if (view.value === 'assigned') return '当前行程还没有已归属 Fact。'
-  return '当前租户还没有可归属的支付或发票。'
+  if (view.value === 'assigned') return '当前行程还没有已归属单据。'
+  return '还没有可归属的支付或发票，请先在收件箱完成审核。'
 }
 
 function setOnlineState() {
@@ -192,8 +194,8 @@ onUnmounted(() => {
     </nav>
     <header class="page-header">
       <div>
-        <h1>行程与单据归属</h1>
-        <p>按确定性日期和既有关联给出建议，所有归属仍由人工明确提交。</p>
+        <h1>行程归属</h1>
+        <p>整理行程中的支付与发票，参考日期建议后确认归属。</p>
       </div>
       <button v-if="canRead" class="button" type="button" :disabled="offline" @click="loadTrips()">
         刷新
@@ -201,13 +203,13 @@ onUnmounted(() => {
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
-      <span aria-hidden="true">!</span><span>当前离线。已加载的行程和理由草稿会保留。</span>
+      <AppIcon name="alert" /><span>当前离线。已加载的行程和理由草稿会保留。</span>
     </div>
     <div v-if="success" class="notice notice-success" role="status">
-      <span aria-hidden="true">✓</span><span>{{ success }}</span>
+      <AppIcon name="check" /><span>{{ success }}</span>
     </div>
     <div v-if="error" class="notice notice-danger" role="alert">
-      <span aria-hidden="true">!</span><span>{{ error }}</span
+      <AppIcon name="alert" /><span>{{ error }}</span
       ><button class="text-button" type="button" :disabled="offline" @click="loadTrips()">
         重试
       </button>
@@ -215,15 +217,16 @@ onUnmounted(() => {
 
     <div v-if="loading" class="panel state-layout" role="status">
       <span class="spinner spinner-large" aria-hidden="true"></span><strong>正在读取行程</strong
-      ><span>只读取当前租户已确认且未删除的 Fact。</span>
+      ><span>正在整理已确认的行程与单据。</span>
     </div>
     <div v-else-if="forbidden" class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">锁</span><strong>没有查看行程的权限</strong
-      ><span>Reviewer 可审核 Trip Claim，但不能读取正式 Fact 列表。</span>
+      <span class="state-glyph"><AppIcon name="lock" /></span><strong>没有查看行程的权限</strong
+      ><span>请联系管理员开通查看权限。</span>
     </div>
     <div v-else-if="trips.length === 0" class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">行</span><strong>还没有正式行程</strong
-      ><span>在审核工作台确认一条 Trip Claim 后会显示在这里。</span>
+      <span class="state-glyph"><AppIcon name="trip" /></span><strong>还没有正式行程</strong
+      ><span>上传行程单并完成审核后，即可在这里整理相关支付和发票。</span>
+      <RouterLink class="button" to="/inbox">前往收件箱</RouterLink>
     </div>
 
     <div v-else class="trip-layout">
@@ -231,7 +234,7 @@ onUnmounted(() => {
         <div class="panel-heading">
           <div>
             <h2 id="trip-list-title">行程列表</h2>
-            <p>{{ trips.length }} 条未删除记录</p>
+            <p>{{ trips.length }} 个行程</p>
           </div>
         </div>
         <ul class="trip-list">
@@ -257,9 +260,7 @@ onUnmounted(() => {
         <div class="panel-heading trip-workspace-heading">
           <div>
             <h2 id="trip-workspace-title">{{ selectedTrip?.destination }}</h2>
-            <p>
-              {{ selectedTrip?.start_date }} 至 {{ selectedTrip?.end_date }} · trip-attribution/1
-            </p>
+            <p>{{ selectedTrip?.start_date }} 至 {{ selectedTrip?.end_date }}</p>
           </div>
           <div class="trip-view-switch" role="group" aria-label="归属候选筛选">
             <button
@@ -279,7 +280,7 @@ onUnmounted(() => {
           <span class="spinner" aria-hidden="true"></span><strong>正在计算归属候选</strong>
         </div>
         <div v-else-if="candidates.length === 0" class="state-layout">
-          <span class="state-glyph" aria-hidden="true">∅</span><strong>当前筛选没有 Fact</strong
+          <span class="state-glyph"><AppIcon name="search" /></span><strong>当前筛选没有单据</strong
           ><span>{{ emptyCandidateMessage() }}</span>
         </div>
         <ul v-else class="trip-candidate-list">
@@ -294,7 +295,7 @@ onUnmounted(() => {
                   <strong
                     >{{ factTypeLabel(candidate.fact_type) }} · {{ candidate.display_name }}</strong
                   >
-                  <small>{{ candidate.business_date }} · {{ candidate.fact_id }}</small>
+                  <small>{{ candidate.business_date }} · 记录编号 {{ candidate.fact_id }}</small>
                 </div>
                 <strong class="numeric">{{
                   formatMinorUnits(candidate.amount_minor, candidate.currency)

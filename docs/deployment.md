@@ -16,14 +16,14 @@
 
 从所选 GitHub Release 下载同版本的以下两个附件：
 
-- `smart-bill-manager-docker-v0.3.3.tar.gz`；
-- `smart-bill-manager-docker-v0.3.3.tar.gz.sha256`。
+- `smart-bill-manager-docker-v0.3.4.tar.gz`；
+- `smart-bill-manager-docker-v0.3.4.tar.gz.sha256`。
 
 在同一目录校验并展开：
 
 ```bash
-sha256sum -c smart-bill-manager-docker-v0.3.3.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-v0.3.3.tar.gz
+sha256sum -c smart-bill-manager-docker-v0.3.4.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.3.4.tar.gz
 cd smart-bill-manager-docker
 ```
 
@@ -32,7 +32,7 @@ cd smart-bill-manager-docker
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
-git checkout v0.3.3
+git checkout v0.3.4
 ```
 
 使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
@@ -42,7 +42,7 @@ git checkout v0.3.3
 可从固定 Tag 流式取得安装器；安装器随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
 
 ```bash
-version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+version=v0.3.4; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
 部署包根目录也提供安装器：
@@ -135,7 +135,7 @@ Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库�
 ./tools/sbm-deploy.sh "$runtime_directory" status
 ```
 
-浏览器打开 <http://127.0.0.1:8080>，使用初始化邮箱和已记录的 Owner 密码登录。登录后在“AI Provider”页面创建配置，依次完成能力检测和激活；API Key 只通过页面提交并加密保存，不要写入 `deployment.env`、Compose 或命令行。
+浏览器打开 <http://127.0.0.1:8080>，使用初始化邮箱和已记录的 Owner 密码登录。登录后在“AI 配置”页面创建配置，依次完成能力检测和激活；API Key 只通过页面提交并加密保存，不要写入 `deployment.env`、Compose 或命令行。
 
 真实模型正确率尚未完成正式评测。实测时应使用清晰、完整、无遮挡且关键字段可直接辨读的原始图片，并始终人工审核 Claim 后再确认 Fact。
 

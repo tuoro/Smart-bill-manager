@@ -294,7 +294,7 @@ async function measurePage(browser, client, server, descriptor, width, mode, sou
       if (Math.abs(metrics.main_padding_left - expectedPadding) > 0.1) failures.push('main-padding')
     }
     if (descriptor.name === 'review') {
-      const expectedColumns = width < 768 ? 1 : width < 1440 ? 2 : 3
+      const expectedColumns = width < 1024 ? 1 : width < 1440 ? 2 : 3
       if (metrics.review_columns !== expectedColumns) failures.push('review-columns')
     }
     return {
@@ -340,7 +340,16 @@ async function measureKeyboard(browser, server) {
       timeout: 30_000,
     })
     const focusSequence = []
-    for (let index = 0; index < 6; index += 1) {
+    const expectedSequence = [
+      'skip-link',
+      'brand',
+      '切换到深色模式',
+      'email',
+      'password',
+      'password-toggle',
+      'login-submit',
+    ]
+    for (let index = 0; index < expectedSequence.length; index += 1) {
       await page.keyboard.press('Tab')
       focusSequence.push(
         await page.evaluate(() => {
@@ -356,7 +365,7 @@ async function measureKeyboard(browser, server) {
                   ? 'password-toggle'
                   : element.classList.contains('login-submit')
                     ? 'login-submit'
-                    : element.tagName.toLowerCase())
+                    : element.getAttribute('aria-label') || element.tagName.toLowerCase())
           return {
             signature,
             outline: `${style.outlineStyle} ${style.outlineWidth}`,
@@ -382,14 +391,6 @@ async function measureKeyboard(browser, server) {
         .querySelector('input[name="password"]')
         ?.getAttribute('aria-describedby'),
     }))
-    const expectedSequence = [
-      'skip-link',
-      'brand',
-      'email',
-      'password',
-      'password-toggle',
-      'login-submit',
-    ]
     const failures = []
     if (skipResult.hash !== '#main-content' || skipResult.active_id !== 'main-content') {
       failures.push('skip-link-target')
@@ -448,11 +449,13 @@ async function measureDarkTheme(browser, client, server) {
       return { outline: `${style.outlineStyle} ${style.outlineWidth}` }
     })
     await page.getByRole('button', { name: '切换到深色模式', exact: true }).click()
-    const state = await page.evaluate(() => ({
-      theme: document.documentElement.dataset.theme,
-      stored: localStorage.getItem('sbm_theme'),
-      control_name: document.querySelector('.icon-button')?.getAttribute('aria-label'),
-    }))
+    const state = await page
+      .getByRole('button', { name: '切换到浅色模式', exact: true })
+      .evaluate((button) => ({
+        theme: document.documentElement.dataset.theme,
+        stored: localStorage.getItem('sbm_theme'),
+        control_name: button.getAttribute('aria-label'),
+      }))
     const failures = []
     if (uploadFocus.outline.startsWith('none') || uploadFocus.outline.endsWith(' 0px')) {
       failures.push('upload-focus-visibility')

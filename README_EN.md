@@ -5,7 +5,7 @@
 Smart Bill Manager is a self-hosted AI workspace for financial documents. It turns payment screenshots, invoices, and trip material into traceable candidates; a candidate becomes formal financial data only after explicit human review and confirmation.
 
 > [!IMPORTANT]
-> `v0.3.3` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
+> `v0.3.4` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
 
 ## Docker quick deployment
 
@@ -16,7 +16,7 @@ Requires `linux/amd64`, Docker Engine, Docker Compose 2.24.4 or newer, `curl`, `
 Download the installer from an immutable tag, verify the matching deployment bundle, and enter guided setup:
 
 ```bash
-version=v0.3.3; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+version=v0.3.4; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
 The installer asks for runtime, PostgreSQL data, object, and backup directories, Owner details, and the local port. Press Enter to accept defaults.
@@ -62,7 +62,7 @@ docker run -d \
   -e SBM_COOKIE_SECURE=false \
   -e SBM_SESSION_TTL=168h \
   -e SBM_AI_CONCURRENCY=2 \
-  ghcr.io/tuoro/smart-bill-manager:v0.3.3
+  ghcr.io/tuoro/smart-bill-manager:v0.3.4
 docker network connect bridge smart-bill-manager
 ```
 

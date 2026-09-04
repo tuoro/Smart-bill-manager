@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ApiError, api, type AllocationFactType, type AllocationWorkspace } from '../../data/client'
+import AppIcon from '../../components/AppIcon.vue'
 import { formatMinorUnits } from '../facts/money'
 import {
   allocationModeLabel,
@@ -114,8 +115,8 @@ onMounted(() => void load())
     </nav>
     <header class="page-header">
       <div>
-        <h1>调整支付—发票分配</h1>
-        <p>提交完整期望计划；金额变化会终止旧 Link 并创建新 Link。</p>
+        <h1>调整金额分配</h1>
+        <p>选择关联单据并填写分配金额。更改会保留历史记录，不会覆盖原有分配。</p>
       </div>
       <RouterLink class="button button-small" :to="returnPath">{{ returnLabel }}</RouterLink>
     </header>
@@ -125,25 +126,25 @@ onMounted(() => void load())
       ><strong>正在加载当前分配</strong>
     </section>
     <section v-else-if="forbidden" class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">锁</span><strong>没有调整分配的权限</strong
-      ><span>只有 Owner 或 Finance 可以更改已确认 Fact 的分配关系。</span>
+      <span class="state-glyph"><AppIcon name="lock" /></span><strong>没有调整分配的权限</strong
+      ><span>只有管理员或财务人员可以更改已确认单据的分配关系。</span>
     </section>
-    <section v-else-if="!workspace" class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">!</span><strong>分配工作区不可用</strong
+    <section v-else-if="!workspace" class="panel state-layout" role="alert">
+      <span class="state-glyph"><AppIcon name="alert" /></span><strong>分配工作区不可用</strong
       ><span>{{ error }}</span
       ><button class="button" type="button" @click="load">重试</button>
     </section>
 
     <template v-else>
       <div v-if="success" class="notice notice-success" role="status" aria-live="polite">
-        <span aria-hidden="true">✓</span><strong>{{ success }}</strong>
+        <AppIcon name="check" /><strong>{{ success }}</strong>
       </div>
       <div v-if="conflict" class="notice notice-warning" role="alert">
-        <span aria-hidden="true">!</span><span>{{ conflict }}</span
-        ><button class="text-button" type="button" @click="load">刷新权威计划</button>
+        <AppIcon name="alert" /><span>{{ conflict }}</span
+        ><button class="text-button" type="button" @click="load">刷新当前分配</button>
       </div>
       <div v-if="error" class="notice notice-danger" role="alert">
-        <span aria-hidden="true">!</span><span>{{ error }}</span>
+        <AppIcon name="alert" /><span>{{ error }}</span>
       </div>
 
       <section class="panel allocation-anchor" aria-labelledby="allocation-anchor-title">
@@ -176,7 +177,7 @@ onMounted(() => void load())
             </dd>
           </div>
           <div>
-            <dt>活动 Link</dt>
+            <dt>有效分配</dt>
             <dd>{{ workspace.links.length }} 条</dd>
           </div>
         </dl>
@@ -189,14 +190,19 @@ onMounted(() => void load())
       >
         <div class="panel-heading">
           <div>
-            <h2 id="allocation-targets-title">完整期望分配计划</h2>
+            <h2 id="allocation-targets-title">选择分配单据</h2>
             <p>已选择 {{ selectedCount }} / {{ rows.length }} 个目标 · {{ modeLabel }}</p>
           </div>
         </div>
 
         <div v-if="rows.length === 0" class="state-layout compact">
-          <span class="state-glyph" aria-hidden="true">链</span><strong>没有合格目标</strong
-          ><span>当前没有同币种且日期相差不超过 30 天的相反类型 Fact。</span>
+          <span class="state-glyph"><AppIcon name="receipt" /></span
+          ><strong>没有可分配的单据</strong
+          ><span
+            >需要同币种且日期相差不超过 30 天的{{
+              factType === 'payment' ? '发票' : '支付记录'
+            }}。</span
+          >
         </div>
         <ul v-else class="allocation-target-list">
           <li v-for="row in rows" :key="row.target.id" class="allocation-target-row">
@@ -216,7 +222,7 @@ onMounted(() => void load())
                 <dd>{{ formatMinorUnits(row.target.amount_minor, row.target.currency) }}</dd>
               </div>
               <div>
-                <dt>其他已占用</dt>
+                <dt>已分配给其他单据</dt>
                 <dd>
                   {{
                     formatMinorUnits(
@@ -227,7 +233,7 @@ onMounted(() => void load())
                 </dd>
               </div>
               <div>
-                <dt>当前对</dt>
+                <dt>当前分配</dt>
                 <dd>
                   {{ formatMinorUnits(row.target.current_allocated_minor, row.target.currency) }}
                 </dd>
@@ -240,7 +246,7 @@ onMounted(() => void load())
               </div>
             </dl>
             <label class="field-stack allocation-amount">
-              <span>期望分配（最小单位）</span>
+              <span>分配金额（最小单位）</span>
               <input
                 v-model="row.amountText"
                 class="input numeric"
@@ -257,7 +263,7 @@ onMounted(() => void load())
                 @input="attempted = false"
               />
               <small v-if="row.target.current_link_id && !row.selected" class="danger-text"
-                >提交后将终止当前 Link</small
+                >提交后将撤销这条分配，历史记录保留</small
               >
               <small
                 v-if="attempted && validation?.targetErrors[row.target.id]"
@@ -299,7 +305,7 @@ onMounted(() => void load())
               @input="attempted = false"
             ></textarea>
             <small id="allocation-reason-note" class="form-note"
-              >必填，最多 500 个字符；不会写入安全审计 metadata。</small
+              >必填，说明本次调整的原因；最多 500 个字符。</small
             >
             <small
               v-if="attempted && validation?.reasonError"

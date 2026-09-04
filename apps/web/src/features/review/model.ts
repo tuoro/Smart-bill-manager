@@ -287,7 +287,7 @@ export function buildDuplicateResolutionDecision(
     review.duplicate_candidates.map((candidate) => [candidate.id, candidate]),
   )
   if (review.duplicate_candidates.some((candidate) => !candidate.available)) {
-    return { error: '存在已不可用的疑似重复候选，请保存新 revision' }
+    return { error: '存在已不可用的疑似重复候选，请保存修订版本' }
   }
   for (const candidateId of selected) {
     const candidate = candidates.get(candidateId)
@@ -369,9 +369,9 @@ export function buildAssociationDecision(
     errors.$association = '请至少选择一个可用候选并填写分配金额'
   }
   if (!Number.isSafeInteger(factAmountMinor) || factAmountMinor < 0) {
-    errors.$association = '当前 Fact 金额无效，请先修订字段'
+    errors.$association = '当前单据金额无效，请先修订字段'
   } else if (totalMinor > factAmountMinor) {
-    errors.$association = '本次分配合计超过当前 Fact 金额'
+    errors.$association = '本次分配合计超过当前单据金额'
   }
   return {
     ...(Object.keys(errors).length

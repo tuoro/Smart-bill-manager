@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../../data/client'
 import { sessionStore } from '../../app/session'
+import { theme, toggleTheme } from '../../app/theme'
+import AppIcon from '../../components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,24 +40,31 @@ async function submit() {
 <template>
   <main id="main-content" class="login-page" tabindex="-1">
     <header class="login-topbar">
-      <a class="brand" href="/login" aria-label="账 智能账单管理">
-        <span class="brand-mark" aria-hidden="true">账</span>
+      <a class="brand" href="/login" aria-label="智能账单管理">
+        <span class="brand-mark"><AppIcon name="receipt" /></span>
         <span class="brand-name">智能账单管理</span>
       </a>
-      <span class="login-edition">Clean Slate · M1</span>
+      <button
+        class="icon-button"
+        type="button"
+        :aria-label="theme === 'light' ? '切换到深色模式' : '切换到浅色模式'"
+        @click="toggleTheme"
+      >
+        <AppIcon :name="theme === 'light' ? 'moon' : 'sun'" />
+      </button>
     </header>
 
     <div class="login-layout">
       <section class="login-story" aria-labelledby="login-story-title">
-        <p class="eyebrow">可信的 AI 财务工作台</p>
-        <h1 id="login-story-title">让每一笔账，都能回到它的原始依据</h1>
+        <p class="eyebrow">智能账单管理</p>
+        <h1 id="login-story-title">整理单据，从这里开始</h1>
         <p class="login-intro">
-          原始单据保持不变，AI 只生成候选 Claim；只有经过人的确认，才形成正式财务事实。
+          上传支付凭证、发票或行程单，让 AI 整理信息。核对原件并确认后，再存入正式记录。
         </p>
-        <ol class="trace-flow" aria-label="数据可信链">
-          <li><strong>Source</strong><span>保留原始文件与页级证据</span></li>
-          <li><strong>Claim</strong><span>结构化提取并运行确定性校验</span></li>
-          <li><strong>Fact</strong><span>人工审核后才写入正式账单</span></li>
+        <ol class="trace-flow" aria-label="单据处理流程">
+          <li><strong>上传</strong><span>保留原始单据，随时查看依据</span></li>
+          <li><strong>整理</strong><span>AI 提取信息，提示待核对项目</span></li>
+          <li><strong>确认</strong><span>由你审核，确认后保存正式记录</span></li>
         </ol>
       </section>
 
@@ -67,7 +76,7 @@ async function submit() {
           </div>
 
           <div v-if="error" id="login-error" class="notice notice-danger" role="alert">
-            <span aria-hidden="true">!</span>
+            <AppIcon name="alert" />
             <span>{{ error }}</span>
           </div>
 
@@ -116,7 +125,9 @@ async function submit() {
             <span v-if="pending" class="spinner" aria-hidden="true"></span>
             {{ pending ? '正在登录…' : '登录' }}
           </button>
-          <p class="login-security">会话仅保存在安全 Cookie 中；浏览器不会保存 Provider 密钥。</p>
+          <p class="login-security">
+            <AppIcon name="shield" /> AI 识别结果由你核对，不会自动入账。
+          </p>
         </form>
       </section>
     </div>

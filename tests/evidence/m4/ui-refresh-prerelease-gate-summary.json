@@ -1,0 +1,104 @@
+{
+  "report_kind": "v0.3.4-ui-refresh-prerelease-local-summary",
+  "measured_on": "2026-09-04",
+  "scope": "web-ui-and-distribution-only",
+  "build_identity": {
+    "baseline_head": "46961e15551920bb281f0a14cf49e3645e5c8384",
+    "release_input_sha256": "d671080939d65123718e03aeb991ce938745c13e45a3180b64124e7e6f772935",
+    "image_id": "sha256:8d3fc8267170a94517ec911d4766f44468759dbdaaf88c6526d6f911e0370c9a",
+    "platform": "linux/amd64"
+  },
+  "web": {
+    "unit_tests_passed": 38,
+    "typecheck_lint_format_build_passed": true,
+    "playwright_spec_files": 8,
+    "playwright_passed": 73,
+    "playwright_failed": 0,
+    "playwright_skipped": 0,
+    "real_local_synthetic_api_representative_flows": 4,
+    "lighthouse_pages": 4,
+    "lighthouse_runs_per_page": 3,
+    "lighthouse_worst_performance": 100,
+    "lighthouse_worst_accessibility": 100,
+    "responsive_passed": 16,
+    "equivalent_200_percent_reflow_passed": 16,
+    "keyboard_passed": true,
+    "dark_theme_passed": true
+  },
+  "image_and_runtime": {
+    "artifact_files_verified": 333,
+    "compose_static_gates_passed": 13,
+    "image_static_gates_passed": 12,
+    "forbidden_assets_and_toolchains_absent": true,
+    "first_owner_bootstrap_passed": true,
+    "repeated_owner_bootstrap_rejected": true,
+    "authentication_and_logout_invalidation_passed": true,
+    "runtime_isolation_passed": true,
+    "postgresql_least_privilege_and_no_host_port_passed": true,
+    "credential_scan_hits": 0,
+    "backend_schema_contract_entrypoint_source_unchanged": true,
+    "backend_schema_contract_entrypoint_assets_compared": 9,
+    "backend_schema_contract_entrypoint_assets_byte_identical": true
+  },
+  "distribution_preparation": {
+    "node_tool_test_files_passed": 16,
+    "node_tool_test_cases_passed": 60,
+    "shell_syntax_files_passed": 4,
+    "git_diff_check_passed": true,
+    "reviewed_changed_files": 51,
+    "high_confidence_credential_hits": 0,
+    "changed_files_over_one_mib": 0,
+    "bundle_allowlisted_files": 13,
+    "bundle_repeated_build_byte_identical": true,
+    "bundle_bytes": 26045,
+    "bundle_sha256": "323cf2c152d27ddea647aacb3fcd715b523aae4812035455eb2520c4e20190c5",
+    "anonymous_ghcr_manifest_and_config_verified": true,
+    "ghcr_root_digest_matches_local_image": true,
+    "latest_not_published": true
+  },
+  "resources": {
+    "heavy_gates_serial": true,
+    "playwright_workers": 1,
+    "go_maxprocs": 2,
+    "go_build_parallelism": 1,
+    "maximum_single_container_gib": 3.5,
+    "simultaneous_container_limit_gib": 5.75,
+    "minimum_observed_host_available_mib": 5571,
+    "host_swap_was_full": true,
+    "oom_observed": false,
+    "temporary_projects_removed": 3,
+    "one_time_exercise_credentials_destroyed": true,
+    "user_local_instance_unchanged": true
+  },
+  "earlier_attempts": [
+    {
+      "result": "one_keyboard_filechooser_scenario_timed_out",
+      "correction": "bind Enter to the focused upload locator and register filechooser wait before activation",
+      "focused_repeats_passed": 5,
+      "final_full_suite_passed": true
+    },
+    {
+      "result": "responsive_expectations_predated_persistent_sidebar_and_login_theme_button",
+      "correction": "align column thresholds and complete seven-control focus sequence with approved UI scope",
+      "overflow_focus_label_and_error_thresholds_unchanged": true,
+      "final_full_gate_passed": true
+    }
+  ],
+  "source_report_sha256": {
+    "image": "65ec13b9ea9bed535701d3880ecfe8a5461e064474f36a04e83c8f7cf8e4284b",
+    "bootstrap": "63e6e4b68755fd6594252c958c48dd68b3c760b2fc2a62cf37feb5fce6a05a17",
+    "runtime": "90a39c9dcfbcc15c7cfd6c208749dde497b1fe66fcedbf3b9c5029a8beacb55b",
+    "playwright": "7fbed46740579aebea6ca71bfee380cede69b74af9df63d61b939ea286d659e1",
+    "lighthouse": "7360636fe84d3c7dead8f1ad6df2727944a1de551a3c374b0068451369ae0149",
+    "responsive": "2afe2a5f972a7aed519c369b154cae3e4d94d1873f2d0d17315fdc13d9f2938f"
+  },
+  "not_rerun_or_claimed": [
+    "unchanged-backend-10000-fact-performance",
+    "unchanged-backend-50-job-memory",
+    "unchanged-backend-1000-document-restore",
+    "formal-real-model-quality-evaluation",
+    "real-external-account-integration",
+    "production-deployment"
+  ],
+  "local_gates_passed": true
+}

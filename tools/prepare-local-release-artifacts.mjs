@@ -234,6 +234,7 @@ async function buildWeb(options, workspace, output) {
   ]);
   const environment = selectedEnvironment({
     HOME: npmHome,
+    NODE_OPTIONS: "--max-old-space-size=1536",
     npm_config_cache: options.npmCache,
     npm_config_offline: "true",
     npm_config_audit: "false",
@@ -327,6 +328,10 @@ async function buildGo(options, output) {
     "GOPROXY=off",
     "--env",
     "GOSUMDB=off",
+    "--env",
+    "GOMAXPROCS=2",
+    "--env",
+    "GOFLAGS=-p=1",
     goImage,
     "sh",
     "-c",

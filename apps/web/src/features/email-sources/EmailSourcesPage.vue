@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { sessionStore } from '../../app/session'
+import AppIcon from '../../components/AppIcon.vue'
 import {
   ApiError,
   api,
@@ -162,7 +163,7 @@ onUnmounted(() => {
     <header class="page-header">
       <div>
         <h1>邮箱来源</h1>
-        <p>登记无凭据连接描述符，查看本地归档邮件与逐附件处理结果。</p>
+        <p>管理邮箱来源，查看已归档的邮件和附件处理结果。</p>
       </div>
       <button
         v-if="canManage"
@@ -177,16 +178,16 @@ onUnmounted(() => {
     </header>
 
     <div v-if="!canRead" class="notice notice-danger" role="alert">
-      <span aria-hidden="true">!</span>
+      <AppIcon name="lock" />
       <span>当前账号没有读取邮箱归档的权限。</span>
     </div>
     <template v-else>
       <div v-if="offline" class="notice notice-warning" role="status">
-        <span aria-hidden="true">!</span>
+        <AppIcon name="alert" />
         <span>当前离线。已显示的本地归档摘要仍保留，恢复网络后会重新加载。</span>
       </div>
       <div v-if="error" class="notice notice-danger" role="alert">
-        <span aria-hidden="true">!</span><span>{{ error }}</span>
+        <AppIcon name="alert" /><span>{{ error }}</span>
         <button class="text-button" type="button" :disabled="offline" @click="loadSources()">
           重试
         </button>
@@ -199,8 +200,8 @@ onUnmounted(() => {
       >
         <div class="panel-heading">
           <div>
-            <h2 id="email-registration-title">登记无凭据描述符</h2>
-            <p>保存后状态为“待连接”；本切片不会连接邮箱或立即同步。</p>
+            <h2 id="email-registration-title">登记邮箱信息</h2>
+            <p>仅保存邮箱地址和服务器信息，不会连接邮箱或同步邮件。</p>
           </div>
         </div>
         <form class="email-registration-form" @submit.prevent="registerSource">
@@ -220,7 +221,7 @@ onUnmounted(() => {
             />
           </label>
           <label class="field-stack">
-            <span>IMAP 主机</span>
+            <span>邮箱服务器（IMAP）</span>
             <input
               v-model.trim="imapHost"
               class="input"
@@ -243,16 +244,18 @@ onUnmounted(() => {
             />
           </label>
           <label class="field-stack">
-            <span>传输安全</span>
+            <span>加密方式</span>
             <select v-model="transportSecurity" class="select">
               <option value="implicit_tls">隐式 TLS</option>
               <option value="starttls">STARTTLS</option>
             </select>
           </label>
           <div class="email-registration-action">
-            <p class="form-note">这里只保存连接身份，不验证外部账号，也不产生同步成功状态。</p>
+            <p class="form-note">
+              无需填写密码。保存后显示为“待连接”，当前版本不支持直接连接邮箱。
+            </p>
             <button class="button button-primary" type="submit" :disabled="creating || offline">
-              {{ creating ? '正在登记…' : '保存来源描述符' }}
+              {{ creating ? '正在登记…' : '保存邮箱来源' }}
             </button>
           </div>
         </form>
@@ -261,14 +264,14 @@ onUnmounted(() => {
       <div v-if="loading" class="panel state-layout" role="status">
         <span class="spinner spinner-large" aria-hidden="true"></span>
         <strong>正在读取邮箱来源</strong>
-        <span>只加载当前租户的本地归档摘要。</span>
+        <span>正在读取当前工作区的来源列表。</span>
       </div>
 
       <div v-else-if="sources.length === 0" class="panel state-layout">
-        <span class="state-glyph" aria-hidden="true">邮</span>
+        <span class="state-glyph"><AppIcon name="mail" /></span>
         <strong>还没有邮箱来源</strong>
         <span>{{
-          canManage ? '登记一个无凭据描述符，准备后续连接。' : '请联系 Owner 登记来源。'
+          canManage ? '先登记邮箱信息，已归档的邮件会显示在这里。' : '请联系管理员登记邮箱来源。'
         }}</span>
       </div>
 
@@ -297,7 +300,9 @@ onUnmounted(() => {
                 <span>{{ source.mailbox_address }}</span>
                 <small
                   >{{ source.imap_host }}:{{ source.imap_port }} ·
-                  {{ source.transport_security }}</small
+                  {{
+                    source.transport_security === 'implicit_tls' ? '隐式 TLS' : 'STARTTLS'
+                  }}</small
                 >
                 <small>
                   邮件 {{ source.message_count }} · 附件 {{ source.attachment_count }} · 阻断
@@ -313,9 +318,9 @@ onUnmounted(() => {
             <div>
               <h2 id="email-message-list-title">{{ selectedSource?.display_name }}的本地邮件</h2>
               <p v-if="selectedSource?.status === 'pending_connection'">
-                描述符已保存，尚未建立真实邮箱连接。
+                邮箱信息已保存，尚未连接邮箱。
               </p>
-              <p v-else>这里只显示安全头投影与附件结果，不渲染邮件正文。</p>
+              <p v-else>查看邮件摘要与附件结果；正文请下载原始邮件查看。</p>
             </div>
             <span v-if="selectedSource" class="quiet">本页 {{ messages.length }} 封</span>
           </div>
@@ -325,9 +330,9 @@ onUnmounted(() => {
             <strong>正在读取本地邮件归档</strong>
           </div>
           <div v-else-if="messages.length === 0" class="state-layout compact">
-            <span class="state-glyph" aria-hidden="true">信</span>
+            <span class="state-glyph"><AppIcon name="mail" /></span>
             <strong>这个来源还没有本地邮件</strong>
-            <span>没有同步按钮；真实邮箱连接仍在独立联调门禁之外。</span>
+            <span>当前仅展示已归档的邮件，不会自动连接邮箱或同步。</span>
           </div>
           <ol v-else class="email-message-list">
             <li v-for="message in messages" :key="message.id" class="email-message-card">

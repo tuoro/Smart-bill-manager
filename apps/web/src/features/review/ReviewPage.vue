@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import AppIcon from '../../components/AppIcon.vue'
 import {
   ApiError,
   api,
@@ -295,9 +296,9 @@ async function rejectReview() {
 
 function handleMutationError(caught: unknown) {
   if (caught instanceof ApiError && caught.code === 'duplicate_candidate_set_stale') {
-    error.value = '疑似重复候选已变化。请保存当前完整字段为新 revision 后重新核对。'
+    error.value = '疑似重复候选已变化。请保存当前字段为新版本后重新核对。'
   } else if (caught instanceof ApiError && caught.status === 409) {
-    error.value = '审核版本已变化。请刷新最新 revision 后重新核对。'
+    error.value = '审核版本已变化。请刷新最新版本后重新核对。'
   } else {
     error.value = caught instanceof ApiError ? caught.message : '操作失败，请检查网络后重试'
   }
@@ -324,6 +325,13 @@ function statusLabel(status: Review['claim_status']) {
   return status === 'blocked' ? '阻断，需修订' : '校验通过，待确认'
 }
 
+function documentTypeLabel(type?: string) {
+  if (type === 'payment') return '支付'
+  if (type === 'invoice') return '发票'
+  if (type === 'trip') return '行程'
+  return '单据'
+}
+
 onMounted(() => void load())
 </script>
 
@@ -336,25 +344,25 @@ onMounted(() => void load())
 
     <div v-if="loading" class="panel state-layout" role="status">
       <span class="spinner spinner-large" aria-hidden="true"></span
-      ><strong>正在加载 Claim 与证据</strong><span>仅展示当前 revision。</span>
+      ><strong>正在加载识别结果与原件</strong><span>准备当前版本的字段和证据。</span>
     </div>
 
     <template v-else-if="completed">
       <section class="panel completion-state" aria-labelledby="completion-title">
-        <span class="completion-mark" aria-hidden="true">✓</span>
+        <span class="completion-mark"><AppIcon name="check" /></span>
         <h1 id="completion-title">正式账单已创建</h1>
-        <p>本次人工确认、字段来源和审计记录已在同一事务中提交。</p>
+        <p>审核已完成，字段来源与操作记录已一并保存。</p>
         <dl class="completion-details">
           <div>
-            <dt>事实类型</dt>
-            <dd>{{ completed.fact_type }}</dd>
+            <dt>记录类型</dt>
+            <dd>{{ documentTypeLabel(completed.fact_type) }}</dd>
           </div>
           <div>
-            <dt>Fact ID</dt>
-            <dd>{{ completed.fact_id }}</dd>
+            <dt>记录编号</dt>
+            <dd class="technical-meta">{{ completed.fact_id }}</dd>
           </div>
           <div v-if="completed.link_ids.length">
-            <dt>分配 Link</dt>
+            <dt>金额分配</dt>
             <dd>{{ completed.link_ids.length }} 条</dd>
           </div>
         </dl>
@@ -368,7 +376,7 @@ onMounted(() => void load())
                   ? '/invoices'
                   : '/trips'
             "
-            >查看正式事实</RouterLink
+            >查看正式记录</RouterLink
           ><RouterLink class="button" to="/inbox">返回收件箱</RouterLink>
         </div>
       </section>
@@ -377,8 +385,11 @@ onMounted(() => void load())
     <template v-else-if="review">
       <header class="page-header review-header">
         <div>
-          <h1>审核 {{ review.job.original_name }}</h1>
-          <p>Revision {{ review.revision }} · {{ review.page_count }} 页 · {{ review.job.id }}</p>
+          <h1>审核单据</h1>
+          <p class="review-document-name">{{ review.job.original_name }}</p>
+          <p class="technical-meta">
+            版本 {{ review.revision }} · {{ review.page_count }} 页 · 任务 {{ review.job.id }}
+          </p>
         </div>
         <div class="page-actions">
           <span class="status" :data-tone="review.claim_status === 'blocked' ? 'danger' : 'warning'"
@@ -393,12 +404,12 @@ onMounted(() => void load())
         <li class="done"><span>1</span><strong>上传完成</strong></li>
         <li class="done"><span>2</span><strong>AI 提取</strong></li>
         <li class="current"><span>3</span><strong>人工审核</strong></li>
-        <li><span>4</span><strong>生成事实</strong></li>
+        <li><span>4</span><strong>保存记录</strong></li>
       </ol>
 
       <div v-if="error" class="notice notice-danger" role="alert">
-        <span aria-hidden="true">!</span><span>{{ error }}</span
-        ><button class="text-button" type="button" @click="load">刷新 revision</button>
+        <AppIcon name="alert" /><span>{{ error }}</span
+        ><button class="text-button" type="button" @click="load">刷新最新版本</button>
       </div>
 
       <div class="review-grid">
@@ -406,7 +417,7 @@ onMounted(() => void load())
           <div class="panel-heading">
             <div>
               <h2 id="source-title">原始单据</h2>
-              <p>不可变 Source · 当前显示规范化审核页</p>
+              <p>原始文件保留不变，选择字段可定位原件依据。</p>
             </div>
             <a class="text-button" :href="documentURL" target="_blank" rel="noreferrer"
               >新窗口查看</a
@@ -474,12 +485,12 @@ onMounted(() => void load())
         <section class="panel fields-panel" aria-labelledby="fields-title">
           <div class="panel-heading">
             <div>
-              <h2 id="fields-title">结构化字段</h2>
+              <h2 id="fields-title">识别结果</h2>
               <p>
                 {{
                   editing
-                    ? `完整用户 revision · 当前第 ${activePage} 页`
-                    : `AI / 用户来源 · 第 ${activePage} 页相关路径`
+                    ? `正在修订 · 当前第 ${activePage} 页`
+                    : `核对字段与原件 · 当前第 ${activePage} 页`
                 }}
               </p>
             </div>
@@ -520,7 +531,7 @@ onMounted(() => void load())
                       @click="selectPath(field.path)"
                     >
                       <strong>{{ fieldLabel(field.path) }}</strong
-                      ><small>{{ field.path }}</small
+                      ><small class="technical-meta">{{ field.path }}</small
                       ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
                         itemPageLabel(review, field.path)
                       }}</small></button
@@ -579,14 +590,18 @@ onMounted(() => void load())
                 <button class="claim-field-button" type="button" @click="selectPath(field.path)">
                   <span
                     ><strong>{{ fieldLabel(field.path) }}</strong
-                    ><small>{{ field.path }}</small
+                    ><small class="technical-meta">{{ field.path }}</small
                     ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
                       itemPageLabel(review, field.path)
                     }}</small></span
                   ><span class="claim-value">{{ displayValue(field.value) }}</span>
                 </button>
                 <ul v-if="validationForField(field.id).length" class="inline-validations">
-                  <li v-for="validation in validationForField(field.id)" :key="validation.id">
+                  <li
+                    v-for="validation in validationForField(field.id)"
+                    :key="validation.id"
+                    :data-status="validation.status"
+                  >
                     {{ validation.safe_message }}
                   </li>
                 </ul>
@@ -595,8 +610,7 @@ onMounted(() => void load())
           </div>
 
           <div v-if="editing && documentType === 'invoice'" class="item-actions">
-            <button class="button button-small" type="button" @click="addItem">
-              ＋ 新增发票明细</button
+            <button class="button button-small" type="button" @click="addItem">新增发票明细</button
             ><button
               v-for="key in itemKeys"
               :key="key"
@@ -615,7 +629,7 @@ onMounted(() => void load())
               :disabled="saving"
               @click="saveRevision"
             >
-              {{ saving ? '正在保存…' : '保存新 revision' }}
+              {{ saving ? '正在保存…' : '保存修订版本' }}
             </button>
           </div>
         </section>
@@ -651,7 +665,7 @@ onMounted(() => void load())
             <div class="panel-heading">
               <div>
                 <h2 id="validation-title">规则校验</h2>
-                <p>服务端确定性结果</p>
+                <p>请先处理阻断项，再确认正式记录。</p>
               </div>
             </div>
             <ul class="validation-list">
@@ -660,12 +674,17 @@ onMounted(() => void load())
                 :key="validation.id"
                 :data-status="validation.status"
               >
-                <span aria-hidden="true">{{
-                  validation.status === 'passed' ? '✓' : validation.status === 'warning' ? '!' : '×'
-                }}</span>
+                <span><AppIcon :name="validation.status === 'passed' ? 'check' : 'alert'" /></span>
                 <div>
-                  <strong>{{ validation.rule_code }}</strong>
+                  <strong>{{
+                    validation.status === 'passed'
+                      ? '校验通过'
+                      : validation.status === 'warning'
+                        ? '请留意'
+                        : '需要处理'
+                  }}</strong>
                   <p>{{ validation.safe_message }}</p>
+                  <small class="technical-meta">{{ validation.rule_code }}</small>
                 </div>
               </li>
             </ul>
@@ -675,7 +694,7 @@ onMounted(() => void load())
             <div class="panel-heading">
               <div>
                 <h2 id="duplicate-title">疑似重复</h2>
-                <p>本地确定性检测 · 不会自动合并或删除</p>
+                <p>逐项核对后决定是否保留，不会自动合并或删除。</p>
               </div>
             </div>
             <fieldset
@@ -714,10 +733,12 @@ onMounted(() => void load())
                     {{
                       candidate.available
                         ? '勾选表示仍保留为独立记录'
-                        : '目标状态已变化，请保存新 revision'
+                        : '目标状态已变化，请保存修订版本'
                     }}
                   </small>
-                  <small>{{ candidate.reason_codes.join(' · ') }}</small>
+                  <small class="technical-meta"
+                    >检测规则：{{ candidate.reason_codes.join(' · ') }}</small
+                  >
                 </span>
               </label>
             </fieldset>
@@ -739,8 +760,8 @@ onMounted(() => void load())
           >
             <div class="panel-heading">
               <div>
-                <h2 id="association-title">支付 / 发票关联</h2>
-                <p>不会由 AI 自动接受</p>
+                <h2 id="association-title">金额分配</h2>
+                <p>选择关联单据和金额，或明确不关联。</p>
               </div>
             </div>
             <fieldset class="association-options">
@@ -760,14 +781,14 @@ onMounted(() => void load())
                       @change="selectAllocation(editor)"
                     /><span>
                       <strong>
-                        分配给 {{ candidateFor(editor)?.target_type }} ·
+                        分配给{{ documentTypeLabel(candidateFor(editor)?.target_type) }} ·
                         {{ candidateFor(editor)?.display_name }}
                       </strong>
                       <small>
                         总额 {{ candidateFor(editor)?.amount_minor }} · 已分配
                         {{ candidateFor(editor)?.allocated_minor }} · 剩余
                         {{ candidateFor(editor)?.remaining_minor }}
-                        {{ candidateFor(editor)?.currency }}
+                        {{ candidateFor(editor)?.currency }}（最小单位）
                       </small>
                       <small>
                         {{ candidateFor(editor)?.business_date }} ·
@@ -798,10 +819,11 @@ onMounted(() => void load())
                     </small>
                   </div>
                 </div>
-                <div class="allocation-summary" aria-live="polite">
+                <div class="review-allocation-summary" aria-live="polite">
+                  <span>单据总额 {{ associationDecision?.factAmountMinor ?? 0 }}</span>
                   <span>本次合计 {{ associationDecision?.totalMinor ?? 0 }}</span>
                   <span>
-                    当前 Fact 剩余
+                    分配后剩余
                     {{
                       Math.max(
                         (associationDecision?.factAmountMinor ?? 0) -
@@ -810,6 +832,7 @@ onMounted(() => void load())
                       )
                     }}
                   </span>
+                  <small>以上金额均为最小货币单位</small>
                 </div>
                 <label>
                   <input
@@ -820,7 +843,7 @@ onMounted(() => void load())
                     @change="chooseNonAllocation('reject_all')"
                   /><span>
                     <strong>不关联任何候选</strong>
-                    <small>保留全部拒绝决定，不创建 Link</small>
+                    <small>仅保存当前单据，不创建金额分配</small>
                   </span>
                 </label>
               </template>
@@ -831,7 +854,7 @@ onMounted(() => void load())
                   name="association"
                   value="no_candidate"
                   @change="chooseNonAllocation('no_candidate')"
-                /><span> <strong>确认当前没有候选</strong><small>本次只创建 Fact</small> </span>
+                /><span> <strong>确认当前没有候选</strong><small>本次仅保存正式记录</small> </span>
               </label>
             </fieldset>
           </section>
@@ -839,7 +862,7 @@ onMounted(() => void load())
           <section class="panel final-actions" aria-labelledby="final-title">
             <h2 id="final-title">完成审核</h2>
             <p v-if="review.claim_status === 'blocked'" class="danger-text">
-              Claim 被服务端校验阻断，请先创建通过校验的新 revision。
+              当前识别结果未通过校验，请先修订字段并保存，再完成审核。
             </p>
             <p v-else-if="duplicateDecision && !duplicateDecision.request">
               {{ duplicateDecision.error }}
@@ -853,21 +876,25 @@ onMounted(() => void load())
             >
               {{ associationDecision.errors.$association || '请修正候选分配金额。' }}
             </p>
-            <p v-else>确认后将创建正式 {{ review.document_type }} Fact，并保留完整来源链。</p>
+            <p v-else>
+              确认后将保存正式{{
+                documentTypeLabel(review.document_type)
+              }}记录，并保留原件与审核依据。
+            </p>
             <button
               class="button button-primary button-block"
               type="button"
               :disabled="!canConfirm || confirming || editing"
               @click="confirmReview"
             >
-              {{ confirming ? '正在提交事务…' : '确认并生成事实' }}
+              {{ confirming ? '正在保存…' : '确认并保存记录' }}
             </button>
             <button
               class="button button-block"
               type="button"
               @click="rejectPanelOpen = !rejectPanelOpen"
             >
-              驳回 Claim
+              驳回识别结果
             </button>
             <div v-if="rejectPanelOpen" class="reject-panel">
               <label for="reject-reason">驳回原因（可选）</label
@@ -884,7 +911,7 @@ onMounted(() => void load())
                 :disabled="rejecting"
                 @click="rejectReview"
               >
-                {{ rejecting ? '正在驳回…' : '确认驳回且不创建 Fact' }}
+                {{ rejecting ? '正在驳回…' : '确认驳回，不保存正式记录' }}
               </button>
             </div>
           </section>
@@ -892,8 +919,8 @@ onMounted(() => void load())
       </div>
     </template>
 
-    <section v-else class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">!</span><strong>无法打开审核</strong>
+    <section v-else class="panel state-layout" role="alert">
+      <span class="state-glyph"><AppIcon name="alert" /></span><strong>无法打开审核</strong>
       <p>{{ error }}</p>
       <RouterLink class="button" to="/inbox">返回收件箱</RouterLink>
     </section>

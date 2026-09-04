@@ -284,7 +284,7 @@ export function buildSafeEvidence(reports, expected) {
       passed_scenarios: reports.playwright.passed_scenarios,
       failed_scenarios: 0,
       skipped_scenarios: 0,
-      minimum_passed_scenarios: 33,
+      minimum_passed_scenarios: 73,
     },
     static_verification: {
       gates: reports.static.gates,
@@ -462,10 +462,10 @@ function validateResponsive(report) {
 
 function validatePlaywright(report) {
   if (
-    report.required_spec_files !== 6 ||
-    report.minimum_passed_scenarios !== 33 ||
-    report.spec_files !== 6 ||
-    report.passed_scenarios < 33 ||
+    report.required_spec_files !== 8 ||
+    report.minimum_passed_scenarios !== 73 ||
+    report.spec_files !== 8 ||
+    report.passed_scenarios < 73 ||
     report.total_scenarios !== report.passed_scenarios ||
     report.failed_scenarios !== 0 ||
     report.skipped_scenarios !== 0 ||

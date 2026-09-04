@@ -9,6 +9,7 @@ import type {
   Trip,
   TripAttributionCandidate,
 } from '../src/data/client'
+import { captureResponsiveReview } from './visual-review'
 
 const timestamp = '2026-08-31T08:00:00Z'
 const tripID = '00000000-0000-4000-8000-000000000701'
@@ -22,7 +23,7 @@ const invoiceID = '00000000-0000-4000-8000-000000000722'
 const findingKey = 'a'.repeat(64)
 
 test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
-  test('Owner：明确选择、完整提示确认、不可变提交与冲突草稿保留', async ({ page }) => {
+  test('Owner：明确选择、完整提示确认、不可变提交与冲突草稿保留', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(
       page,
@@ -121,7 +122,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     })
 
     await page.goto('/reimbursements')
-    await expect(page.getByRole('heading', { name: '报销快照与状态历史' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '报销管理', exact: true })).toBeVisible()
     const payment = page.getByRole('checkbox', { name: /支付 · 合成交通商户/ })
     const invoice = page.getByRole('checkbox', { name: /发票 · 合成住宿发票/ })
     await expect(payment).not.toBeChecked()
@@ -131,13 +132,13 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await payment.check()
     await invoice.check()
     await page.getByRole('button', { name: '运行政策预检' }).click()
-    await expect(page.getByText('1 条确定性提示')).toBeVisible()
-    await expect(page.getByText('该 Fact 已出现在其他有效报销中')).toBeVisible()
+    await expect(page.getByText('1 条政策提示')).toBeVisible()
+    await expect(page.getByText('该单据已出现在其他有效报销中')).toBeVisible()
     await page.getByLabel('提交理由').fill(' 合成报销提交 ')
-    await expect(page.getByRole('button', { name: '提交不可变报销快照' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '提交报销' })).toBeDisabled()
     await page.getByRole('checkbox', { name: /我已逐项核对/ }).check()
-    await expect(page.getByRole('button', { name: '提交不可变报销快照' })).toBeEnabled()
-    await page.getByRole('button', { name: '提交不可变报销快照' }).click()
+    await expect(page.getByRole('button', { name: '提交报销' })).toBeEnabled()
+    await page.getByRole('button', { name: '提交报销' }).click()
     await expect(page.locator('.notice-success')).toContainText('报销快照已提交')
     expect(submitted).toEqual([
       {
@@ -175,7 +176,8 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     ])
     expect(idempotencyKeys[1]).not.toBe(idempotencyKeys[2])
     await expect(page.getByText('提交时政策提示')).toBeVisible()
-    await expect(page.getByText('状态决定历史')).toBeVisible()
+    await expect(page.getByText('处理历史')).toBeVisible()
+    await captureResponsiveReview(page, testInfo, 'reimbursements')
 
     for (const width of [768, 384]) {
       await page.setViewportSize({ width, height: 1000 })
@@ -202,7 +204,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     )
     await page.goto('/reimbursements')
     await expect(page.getByText('当前账号为只读')).toBeVisible()
-    await expect(page.getByText('新建报销快照')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: '新建报销', exact: true })).toHaveCount(0)
     await expect(page.getByLabel('状态变化理由')).toHaveCount(0)
     expect(viewerRequests).toBe(1)
 
@@ -230,13 +232,13 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await page.route(reimbursementDetailURL, (route) => fulfillJSON(route, rich))
 
     await page.goto('/reimbursements')
-    await expect(page.getByText('原 Trip 已删除')).toBeVisible()
-    await expect(page.getByText(/原 Fact 已删除/)).toBeVisible()
+    await expect(page.getByText('原行程已删除')).toBeVisible()
+    await expect(page.getByText(/原单据已删除/)).toBeVisible()
     await expect(page.getByText('所选支付缺少所选发票')).toBeVisible()
     await expect(page.getByText('当前选择中没有与该支付相连的活动发票分配。')).toBeVisible()
     await expect(page.getByText('所选支付与发票的分配金额不一致')).toBeVisible()
-    await expect(page.getByText(/本次所选 Link 合计/)).toContainText('CNY 100.00')
-    await expect(page.getByText('该 Fact 已出现在其他有效报销中')).toBeVisible()
+    await expect(page.getByText(/本次所选分配合计/)).toContainText('CNY 100.00')
+    await expect(page.getByText('该单据已出现在其他有效报销中')).toBeVisible()
     await expect(page.getByText(new RegExp(`关联报销 ${relatedID} · 已报销`))).toBeVisible()
     await expect(page.getByText('CNY 快照合计')).toBeVisible()
     await expect(page.getByText('USD 快照合计')).toBeVisible()
@@ -310,14 +312,43 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await page.getByRole('checkbox', { name: /支付 · 合成交通商户/ }).check()
     await page.getByRole('checkbox', { name: /发票 · 合成住宿发票/ }).check()
     await page.getByRole('button', { name: '运行政策预检' }).click()
-    await expect(page.getByText('当前选择没有确定性政策提示。')).toBeVisible()
+    await expect(page.getByText('未发现政策提示，可以继续填写提交理由。')).toBeVisible()
     await expect(page.getByRole('checkbox', { name: /我已逐项核对/ })).toHaveCount(0)
     await page.getByLabel('提交理由').fill('无提示合成提交')
-    await expect(page.getByRole('button', { name: '提交不可变报销快照' })).toBeEnabled()
-    await page.getByRole('button', { name: '提交不可变报销快照' }).click()
+    await expect(page.getByRole('button', { name: '提交报销' })).toBeEnabled()
+    await page.getByRole('button', { name: '提交报销' }).click()
     await expect(page.locator('.notice-success')).toContainText('报销快照已提交')
     expect(submission?.acknowledged_finding_keys).toEqual([])
     expect(submission?.expected_snapshot_hash).toBe('c'.repeat(64))
+  })
+
+  test('详情加载失败即使没有详情也显示错误，刷新后可以恢复', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page, session('viewer', ['facts.read', 'reimbursements.read']))
+    await page.route(reimbursementsURL, (route) =>
+      fulfillJSON(route, { items: [summary(existingID, 'reimbursed', 2, 2, 0)] }),
+    )
+    let attempts = 0
+    await page.route(reimbursementDetailURL, async (route) => {
+      attempts += 1
+      if (attempts === 1) {
+        await fulfillError(route, 503, 'unavailable', '合成报销详情暂时不可用')
+        return
+      }
+      await fulfillJSON(route, reimbursementDetail(existingID, 'reimbursed', 2, 0))
+    })
+    await page.goto('/reimbursements')
+    const detail = page.locator('.reimbursement-detail')
+    await expect(detail.getByRole('alert')).toHaveText('合成报销详情暂时不可用')
+    await expect(detail.getByRole('heading', { name: '快照项目' })).toHaveCount(0)
+    await expect(detail.getByText('请选择一条报销记录')).toBeVisible()
+    await page.getByRole('button', { name: '刷新', exact: true }).click()
+    await expect(detail.getByRole('alert')).toHaveCount(0)
+    await expect(detail.getByRole('heading', { name: '快照项目' })).toBeVisible()
+    expect(attempts).toBe(2)
+    expect(pageErrors).toEqual([
+      'console: Failed to load resource: the server responded with a status of 503 (Service Unavailable)',
+    ])
   })
 
   test('加载失败可重试，空状态与离线门禁明确', async ({ page }) => {
@@ -343,7 +374,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await fulfillError(pendingRoute!, 503, 'unavailable', '合成服务暂不可用')
     await expect(page.getByRole('alert')).toContainText('合成服务暂不可用')
     await page.getByRole('button', { name: '重试' }).click()
-    await expect(page.getByText('还没有报销快照')).toBeVisible()
+    await expect(page.getByText('还没有报销记录')).toBeVisible()
     await expect(page.getByText('没有可用行程')).toBeVisible()
 
     await page.context().setOffline(true)

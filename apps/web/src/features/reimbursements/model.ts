@@ -16,7 +16,7 @@ export const reimbursementStatusLabels: Record<ReimbursementStatus, string> = {
 const findingLabels: Record<ReimbursementPolicyFinding['code'], string> = {
   missing_invoice: '所选支付缺少所选发票',
   amount_conflict: '所选支付与发票的分配金额不一致',
-  duplicate_reimbursement: '该 Fact 已出现在其他有效报销中',
+  duplicate_reimbursement: '该单据已出现在其他有效报销中',
 }
 
 export type RequestDecision<T> = { request?: T; error?: string }

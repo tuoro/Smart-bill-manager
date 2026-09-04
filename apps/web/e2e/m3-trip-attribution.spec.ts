@@ -5,6 +5,7 @@ import type {
   TripAssignmentRequest,
   TripAttributionCandidate,
 } from '../src/data/client'
+import { captureResponsiveReview } from './visual-review'
 
 const timestamp = '2026-08-31T08:00:00Z'
 const tripA = trip('00000000-0000-4000-8000-000000000901', '上海', '北京')
@@ -15,7 +16,9 @@ const oldAssignmentID = '00000000-0000-4000-8000-000000000921'
 const movedAssignmentID = '00000000-0000-4000-8000-000000000922'
 
 test.describe('M3 行程归属真实组件状态矩阵', () => {
-  test('Owner：建议分页、冲突重试、assign/move/unassign 与响应式可达', async ({ page }) => {
+  test('Owner：建议分页、冲突重试、assign/move/unassign 与响应式可达', async ({
+    page,
+  }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page, ownerSession())
     let payment = candidate({
@@ -134,7 +137,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
     })
 
     await page.goto('/trips')
-    await expect(page.getByRole('heading', { name: '行程与单据归属' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '行程归属', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /北京/ })).toHaveAttribute('aria-current', 'true')
     await expect(page.getByText('业务日期在行程区间内')).toBeVisible()
     await expect(page.getByText('关联支付或发票已归属本行程')).toBeVisible()
@@ -201,6 +204,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
     expect(idempotencyKeys[0]).toBe(idempotencyKeys[1])
     expect(new Set(idempotencyKeys).size).toBe(3)
     expect(idempotencyKeys.every((key) => /^[0-9a-f-]{36}$/.test(key))).toBe(true)
+    await captureResponsiveReview(page, testInfo, 'trips')
 
     for (const width of [768, 384]) {
       await page.setViewportSize({ width, height: 1000 })

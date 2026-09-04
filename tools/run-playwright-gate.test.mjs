@@ -3,11 +3,11 @@ import test from "node:test";
 
 import { parseArguments, summarizePlaywright } from "./run-playwright-gate.mjs";
 
-test("Playwright summary requires six files and at least 33 passing scenarios", () => {
+test("Playwright summary requires eight files and at least 73 passing scenarios", () => {
   const report = {
-    suites: Array.from({ length: 6 }, (_, fileIndex) => ({
+    suites: Array.from({ length: 8 }, (_, fileIndex) => ({
       file: `e2e/spec-${fileIndex}.spec.ts`,
-      specs: Array.from({ length: fileIndex < 3 ? 6 : 5 }, (_, testIndex) => ({
+      specs: Array.from({ length: fileIndex === 0 ? 10 : 9 }, (_, testIndex) => ({
         file: `e2e/spec-${fileIndex}.spec.ts`,
         tests: [{ results: [{ status: "passed", testIndex }] }],
       })),
@@ -15,8 +15,16 @@ test("Playwright summary requires six files and at least 33 passing scenarios", 
     errors: [],
   };
   const result = summarizePlaywright(report, 0);
-  assert.equal(result.passed_scenarios, 33);
+  assert.equal(result.passed_scenarios, 73);
   assert.equal(result.passed, true);
+  assert.equal(
+    summarizePlaywright({ ...report, suites: report.suites.slice(0, 6) }, 0).passed,
+    false,
+  );
+  assert.equal(
+    summarizePlaywright({ ...report, errors: ["synthetic runner error"] }, 0).passed,
+    false,
+  );
   report.suites[0].specs[0].tests[0].results[0].status = "skipped";
   assert.equal(summarizePlaywright(report, 0).passed, false);
 });

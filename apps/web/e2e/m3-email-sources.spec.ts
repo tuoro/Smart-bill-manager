@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import type { EmailMessage, EmailSource, Session } from '../src/data/client'
+import { captureResponsiveReview } from './visual-review'
 
 const timestamp = '2026-08-31T08:00:00Z'
 const sourcePending = emailSource(
@@ -16,7 +17,9 @@ const sourceActive = {
 } satisfies EmailSource
 
 test.describe('M3 邮箱来源真实组件状态矩阵', () => {
-  test('Owner：无凭据登记、混合附件、blocked、分页失败恢复与响应式可达', async ({ page }) => {
+  test('Owner：无凭据登记、混合附件、blocked、分页失败恢复与响应式可达', async ({
+    page,
+  }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page, ownerSession())
     let sources = [sourcePending, sourceActive]
@@ -92,6 +95,7 @@ test.describe('M3 邮箱来源真实组件状态矩阵', () => {
     await expect(page.locator('.status').filter({ hasText: '已阻断' })).toBeVisible()
     await expect(page.getByText('邮件 MIME 嵌套超过 10 层')).toBeVisible()
     await expect(more).toHaveCount(0)
+    await captureResponsiveReview(page, testInfo, 'email-sources')
 
     for (const width of [768, 384]) {
       await page.setViewportSize({ width, height: 1000 })
@@ -114,10 +118,10 @@ test.describe('M3 邮箱来源真实组件状态矩阵', () => {
     await expect(page.getByRole('button', { name: /同步|连接测试/ })).toHaveCount(0)
     await page.getByLabel('显示名称').fill('新增邮箱')
     await page.getByLabel('邮箱地址').fill('new@example.invalid')
-    await page.getByLabel('IMAP 主机').fill('imap.example.invalid')
+    await page.getByLabel('邮箱服务器（IMAP）').fill('imap.example.invalid')
     await page.getByLabel('IMAP 端口').fill('993')
-    await page.getByLabel('传输安全').selectOption('implicit_tls')
-    await page.getByRole('button', { name: '保存来源描述符' }).click()
+    await page.getByLabel('加密方式').selectOption('implicit_tls')
+    await page.getByRole('button', { name: '保存邮箱来源' }).click()
     await expect(page.getByText('新增邮箱').first()).toBeVisible()
     expect(submitted).toEqual({
       display_name: '新增邮箱',

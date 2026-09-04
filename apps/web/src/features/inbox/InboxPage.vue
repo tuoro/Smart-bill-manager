@@ -10,6 +10,7 @@ import {
   type BatchUploadItem,
 } from './batch'
 import { canCancel, canRetry, canReview, jobStatusMeta } from './status'
+import AppIcon from '../../components/AppIcon.vue'
 
 const jobs = ref<JobSummary[]>([])
 const loading = ref(true)
@@ -20,6 +21,7 @@ const actionJobId = ref('')
 const error = ref('')
 const offline = ref(!navigator.onLine)
 const filter = ref<'all' | 'attention' | 'active' | 'done'>('all')
+const fileInput = ref<HTMLInputElement | null>(null)
 let pollTimer: number | undefined
 
 const uploadSummary = computed(() => summarizeUploadBatch(uploadItems.value))
@@ -141,17 +143,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="page-stack">
+  <div class="page-stack inbox-page">
     <nav class="breadcrumb" aria-label="面包屑">
       <span>工作台</span><span aria-hidden="true">/</span><strong>AI 收件箱</strong>
     </nav>
     <header class="page-header">
       <div>
         <h1>AI 收件箱</h1>
-        <p>上传单据、跟踪提取状态，并处理需要人工判断的结果。</p>
+        <p>从一张单据开始，让 AI 整理，由你确认。</p>
       </div>
-      <label class="button button-primary upload-button" :aria-disabled="batchRunning || offline">
+      <label
+        class="button upload-button"
+        :class="{ 'button-primary': jobs.length > 0 || loading }"
+        :aria-disabled="batchRunning || offline"
+      >
         <input
+          ref="fileInput"
           class="visually-hidden"
           type="file"
           accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -159,7 +166,7 @@ onUnmounted(() => {
           :disabled="batchRunning || offline"
           @change="upload"
         />
-        <span aria-hidden="true">＋</span>
+        <AppIcon name="upload" />
         {{ batchRunning ? '正在逐项上传…' : '上传单据' }}
       </label>
     </header>
@@ -209,10 +216,7 @@ onUnmounted(() => {
       :aria-busy="loading || refreshing"
     >
       <div class="panel-heading queue-heading">
-        <div>
-          <h2 id="queue-title">处理队列</h2>
-          <p>{{ jobs.length }} 个任务<span v-if="refreshing"> · 正在同步</span></p>
-        </div>
+        <h2 id="queue-title" class="visually-hidden">处理队列</h2>
         <div class="segmented" aria-label="队列筛选">
           <button
             v-for="item in [
@@ -229,6 +233,9 @@ onUnmounted(() => {
             {{ item[1] }}
           </button>
         </div>
+        <span class="queue-count"
+          >{{ jobs.length }} 个任务<span v-if="refreshing"> · 正在同步</span></span
+        >
       </div>
 
       <div v-if="loading" class="state-layout" role="status">
@@ -237,12 +244,29 @@ onUnmounted(() => {
         <span>任务状态会在加载后自动刷新。</span>
       </div>
 
-      <div v-else-if="filteredJobs.length === 0" class="state-layout">
-        <span class="state-glyph" aria-hidden="true">收</span>
+      <div v-else-if="filteredJobs.length === 0" class="state-layout inbox-empty">
+        <span class="empty-icon"><AppIcon :name="jobs.length ? 'inbox' : 'document'" /></span>
         <strong>{{ jobs.length ? '当前筛选没有任务' : '收件箱还是空的' }}</strong>
         <span>{{
-          jobs.length ? '切换筛选查看其他状态。' : '上传一张支付截图或发票，开始第一条可信链路。'
+          jobs.length
+            ? '切换筛选查看其他状态。'
+            : '支付截图、发票或行程单，上传后会自动整理为待审核记录。'
         }}</span>
+        <button
+          v-if="jobs.length === 0"
+          class="button button-primary empty-upload"
+          type="button"
+          :disabled="batchRunning || offline"
+          @click="fileInput?.click()"
+        >
+          <AppIcon name="upload" />上传第一张单据
+        </button>
+        <button v-else class="text-button" type="button" @click="filter = 'all'">
+          查看全部任务
+        </button>
+        <small v-if="jobs.length === 0" class="upload-formats"
+          >支持 JPG、PNG、WebP、PDF · 单文件最大 20 MiB · 每批最多 20 个</small
+        >
       </div>
 
       <div v-else class="table-scroll">
@@ -320,5 +344,8 @@ onUnmounted(() => {
         </table>
       </div>
     </section>
+    <p class="inbox-footnote">
+      <AppIcon name="shield" />AI 只生成待审核结果，确认后才计入正式账单。
+    </p>
   </div>
 </template>

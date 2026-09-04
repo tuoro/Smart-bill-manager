@@ -51,7 +51,7 @@ test.describe.serial('M1 四个代表页面流程', () => {
     await login(page, password)
     const browserErrors = collectBrowserErrors(page)
     await page.getByRole('link', { name: 'AI 配置' }).click()
-    await expect(page.getByRole('heading', { name: 'AI Provider' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AI 配置', exact: true })).toBeVisible()
 
     await page.getByLabel('Base URL').fill(providerBaseURL)
     await page.getByLabel('Model').fill(providerModel)
@@ -61,9 +61,9 @@ test.describe.serial('M1 四个代表页面流程', () => {
     const provider = page.locator('.provider-list li').filter({ hasText: providerModel })
     await expect(provider).toBeVisible()
     await provider.getByRole('button', { name: '能力检测' }).click()
-    await expect(provider).toContainText('passed')
+    await expect(provider).toContainText('检测通过')
     await provider.getByRole('button', { name: '激活' }).click()
-    await expect(provider).toContainText('活动配置')
+    await expect(provider).toContainText('使用中')
 
     const secretRetention = await page.evaluate(
       ({ apiKey, loginPassword }) => {
@@ -102,12 +102,13 @@ test.describe.serial('M1 四个代表页面流程', () => {
     await login(page, password)
     const browserErrors = collectBrowserErrors(page)
     await page.goto(reviewPath)
-    await expect(page.getByRole('heading', { name: /审核 playwright-payment\.png/ })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: '审核单据' })).toBeVisible()
+    await expect(page.locator('.review-document-name')).toHaveText('playwright-payment.png')
     await expect(page.getByRole('heading', { name: '规则校验' })).toBeVisible()
     await expect(page.getByAltText('playwright-payment.png 的第 1 页规范化审核图')).toBeVisible()
 
     await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    const confirm = page.getByRole('button', { name: '确认并生成事实' })
+    const confirm = page.getByRole('button', { name: '确认并保存记录' })
     await expect(confirm).toBeEnabled()
     await confirm.click()
     await expect(page.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
@@ -115,7 +116,7 @@ test.describe.serial('M1 四个代表页面流程', () => {
       (
         await page
           .locator('.completion-details div')
-          .filter({ hasText: 'Fact ID' })
+          .filter({ hasText: '记录编号' })
           .locator('dd')
           .textContent()
       )?.trim() ?? ''
@@ -128,11 +129,11 @@ test.describe.serial('M1 四个代表页面流程', () => {
     await login(page, password)
     const browserErrors = collectBrowserErrors(page)
     await page.getByRole('link', { name: '支付管理' }).click()
-    await expect(page.getByRole('heading', { name: '账单列表' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '支付管理', exact: true })).toBeVisible()
     const paymentRow = page.locator('tbody tr').filter({ hasText: confirmedFactID })
     await expect(paymentRow).toContainText('Synthetic Memory Merchant')
     await expect(paymentRow).toContainText('123.45')
-    await expect(page.getByText('1 条未删除记录')).toBeVisible()
+    await expect(page.getByText('1 条记录')).toBeVisible()
 
     await page.getByRole('tab', { name: '发票' }).click()
     await expect(page.getByText('还没有正式发票')).toBeVisible()

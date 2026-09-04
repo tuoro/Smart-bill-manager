@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
 import type { InsightAggregate, InsightFact, InsightPage, Session, Trip } from '../src/data/client'
+import { captureResponsiveReview } from './visual-review'
 
 const trip: Trip = {
   id: '00000000-0000-4000-8000-000000001001',
@@ -37,7 +38,7 @@ const usdInvoice = insightFact(
 )
 
 test.describe('M4 数据洞察真实组件状态矩阵', () => {
-  test('Owner：分币种/类型汇总、稳定分页失败恢复和响应式可达', async ({ page }) => {
+  test('Owner：分币种/类型汇总、稳定分页失败恢复和响应式可达', async ({ page }, testInfo) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page, session('owner', ['facts.read', 'insights.read']))
     await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
@@ -63,7 +64,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     await expect(page.getByText('合成交通支付')).toBeVisible()
     await expect(page.getByText('合成住宿发票')).toBeVisible()
     await expect(page.getByText(/未分配 0 · 部分 1 · 已分配 0/)).toBeVisible()
-    await expect(page.getByText(/跨币种或支付\/发票合并总额/)).toBeVisible()
+    await expect(page.getByText('不同币种及支付、发票分别统计，不合并计算。')).toBeVisible()
 
     const more = page.getByRole('button', { name: '加载更多' })
     await more.click()
@@ -73,6 +74,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     await more.click()
     await expect(page.getByText('合成美元发票')).toBeVisible()
     await expect(page.getByText('已到达当前筛选结果末尾')).toBeVisible()
+    await captureResponsiveReview(page, testInfo, 'insights')
 
     for (const width of [768, 384]) {
       await page.setViewportSize({ width, height: 1100 })
@@ -81,7 +83,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
         ),
       ).toBe(true)
-      const factType = page.getByLabel('Fact 类型', { exact: true })
+      const factType = page.getByLabel('单据类型', { exact: true })
       await factType.focus()
       await expect(factType).toBeFocused()
       await expect(page.getByText('合成交通支付')).toBeVisible()
@@ -107,7 +109,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     })
 
     await page.goto('/insights')
-    await expect(page.getByText('当前筛选没有 Fact')).toBeVisible()
+    await expect(page.getByText('当前筛选没有单据')).toBeVisible()
     expect(requests).toHaveLength(1)
 
     await page.getByLabel('起始日期').fill('2026-08-01')
@@ -116,7 +118,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     expect(requests).toHaveLength(1)
 
     await page.getByLabel('结束日期').fill('2026-08-31')
-    await page.getByLabel('Fact 类型', { exact: true }).selectOption('payment')
+    await page.getByLabel('单据类型', { exact: true }).selectOption('payment')
     await page.getByLabel('币种', { exact: true }).selectOption('CNY')
     await page.getByLabel('分配状态', { exact: true }).selectOption('partial')
     await page.getByLabel('行程范围', { exact: true }).selectOption('assigned')
@@ -136,7 +138,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     })
 
     await page.getByRole('button', { name: '清除筛选' }).click()
-    await expect(page.getByLabel('Fact 类型', { exact: true })).toHaveValue('all')
+    await expect(page.getByLabel('单据类型', { exact: true })).toHaveValue('all')
     await expect(page.getByLabel('起始日期')).toHaveValue('')
     await expect(page.getByLabel('行程范围', { exact: true })).toHaveValue('all')
     expect(Object.fromEntries(requests.at(-1)?.entries() ?? [])).toMatchObject({
@@ -198,12 +200,12 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
       await fulfillJSON(route, insightPage([]))
     })
     await page.goto('/insights')
-    await expect(page.getByRole('status')).toContainText('正在读取当前 Fact')
+    await expect(page.getByRole('status')).toContainText('正在汇总单据')
     release()
     await expect(page.getByRole('alert')).toContainText('洞察服务暂时不可用')
     await page.getByRole('button', { name: '重试' }).click()
     await expect(page.getByText('当前筛选没有汇总')).toBeVisible()
-    await expect(page.getByText('当前筛选没有 Fact')).toBeVisible()
+    await expect(page.getByText('当前筛选没有单据')).toBeVisible()
 
     await context.setOffline(true)
     await page.evaluate(() => window.dispatchEvent(new Event('offline')))

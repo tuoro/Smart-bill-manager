@@ -75,7 +75,13 @@ ADR-0023 在同一 Compose 契约上增加引导式安装入口：PostgreSQL 与
 
 本版本只更新分发脚本、文档和 Bundle allowlist，应用镜像继续固定到已通过 M4 门禁的同一 manifest digest。脚本、成功/摘要失败、Compose 规范化、13 文件 Bundle、文档和资源清理证据见 `tests/evidence/m4/guided-installer-gate-summary.json`。
 
-## 范围与剩余门禁
+## v0.3.4 全站 UI 与常驻侧栏补丁
+
+当前 UI 补丁按 `docs/releases/v0.3.4.md` 独立验收。38 项 Web 单元、8 个 spec 的 73 项完整浏览器场景、四页各三次 Lighthouse（最低性能与可访问性均 100）、响应式 16 / 16、等效回流 16 / 16、键盘和深色主题全部通过；新镜像的精确资产、Compose 隔离、Owner 初始化、运行时认证与凭据门禁通过。安全聚合见 `tests/evidence/m4/ui-refresh-prerelease-gate-summary.json`。
+
+应用后端、API、Schema、AI 契约和持久化格式未变；当前新架构升级不清库。未重跑的 10,000 Fact、50 Job 内存和 1,000 Document 恢复仍使用上文历史身份，不宣称属于新镜像测量。三个验收临时项目和一次性凭据已清理，用户本地实例未改变。
+
+## 范围与剩余门禁（持续有效）
 
 本分发切片未调用真实 AI Provider、未发送真实图片、未连接真实邮箱、云服务、外部账号或远程 PostgreSQL，未执行正式模型正确率评测，也未部署生产服务器。经产品负责人明确授权，只创建公开 GHCR 版本化镜像、源码补丁 Tag/Release 和对应仓库更新；未发布 `latest`、未创建云运行资源。已披露的早期工具网络策略偏差继续保留在最终安全聚合中，不能改写为整个开发过程从未访问外网。
 

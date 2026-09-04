@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { sessionStore } from '../../app/session'
+import AppIcon from '../../components/AppIcon.vue'
 import {
   ApiError,
   api,
@@ -22,6 +24,13 @@ import {
 } from './model'
 
 type Attempt = { fingerprint: string; idempotencyKey: string }
+
+const decisionActionLabels = {
+  submit: '提交报销',
+  mark_reimbursed: '标记已报销',
+  reject: '退回报销',
+  reopen: '重新打开',
+} as const
 
 const reimbursements = ref<ReimbursementSummary[]>([])
 const reimbursementCursor = ref('')
@@ -346,7 +355,7 @@ function reimbursementFindingContext(finding: {
     finding.actual_minor !== undefined &&
     finding.currency
   ) {
-    return `Fact 金额 ${formatMinorUnits(finding.expected_minor, finding.currency)}，本次所选 Link 合计 ${formatMinorUnits(finding.actual_minor, finding.currency)}。`
+    return `单据金额 ${formatMinorUnits(finding.expected_minor, finding.currency)}，本次所选分配合计 ${formatMinorUnits(finding.actual_minor, finding.currency)}。`
   }
   if (finding.related_reimbursement_id) {
     const status = finding.related_status
@@ -399,12 +408,12 @@ onUnmounted(() => {
 <template>
   <div class="page-stack reimbursement-page">
     <nav class="breadcrumb" aria-label="面包屑">
-      <span>报销</span><span aria-hidden="true">/</span><strong>报销管理</strong>
+      <span>财务数据</span><span aria-hidden="true">/</span><strong>报销管理</strong>
     </nav>
     <header class="page-header">
       <div>
-        <h1>报销快照与状态历史</h1>
-        <p>从已确认且已归属的 Fact 明确选取项目，预检政策提示后提交不可变快照。</p>
+        <h1>报销管理</h1>
+        <p>选择行程单据、核对政策提示，提交报销并跟踪处理状态。</p>
       </div>
       <button v-if="canRead" class="button" type="button" :disabled="offline" @click="loadPage">
         刷新
@@ -412,13 +421,13 @@ onUnmounted(() => {
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
-      <span aria-hidden="true">!</span><span>当前离线。理由草稿会保留，恢复联网后可刷新。</span>
+      <AppIcon name="alert" /><span>当前离线。理由草稿会保留，恢复联网后可刷新。</span>
     </div>
     <div v-if="success" class="notice notice-success" role="status">
-      <span aria-hidden="true">✓</span><span>{{ success }}</span>
+      <AppIcon name="check" /><span>{{ success }}</span>
     </div>
     <div v-if="error" class="notice notice-danger" role="alert">
-      <span aria-hidden="true">!</span><span>{{ error }}</span>
+      <AppIcon name="alert" /><span>{{ error }}</span>
       <button class="text-button" type="button" :disabled="offline" @click="loadPage">重试</button>
     </div>
 
@@ -427,8 +436,8 @@ onUnmounted(() => {
       ><strong>正在读取报销工作台</strong>
     </div>
     <div v-else-if="forbidden" class="panel state-layout">
-      <span class="state-glyph" aria-hidden="true">锁</span><strong>没有查看报销的权限</strong>
-      <span>Reviewer 不能读取正式报销快照。</span>
+      <span class="state-glyph"><AppIcon name="lock" /></span><strong>没有查看报销的权限</strong>
+      <span>请联系管理员开通查看权限。</span>
     </div>
 
     <template v-else>
@@ -439,17 +448,15 @@ onUnmounted(() => {
       >
         <div class="panel-heading">
           <div>
-            <h2 id="reimbursement-create-title">新建报销快照</h2>
-            <p>项目不会默认勾选；预检不会写入数据库。</p>
+            <h2 id="reimbursement-create-title">新建报销</h2>
+            <p>请自行勾选需要报销的项目，预检完成后再确认提交。</p>
           </div>
-          <span class="status" data-tone="info"
-            ><span aria-hidden="true">●</span>reimbursement-policy/1</span
-          >
         </div>
 
         <div v-if="trips.length === 0" class="state-layout compact">
-          <span class="state-glyph" aria-hidden="true">行</span><strong>没有可用行程</strong>
-          <span>先确认 Trip，并在行程归属页明确归属 Payment 或 Invoice。</span>
+          <span class="state-glyph"><AppIcon name="trip" /></span><strong>没有可用行程</strong>
+          <span>先审核确认行程，并为它归属支付或发票。</span>
+          <RouterLink class="button" to="/trips">前往行程归属</RouterLink>
         </div>
         <template v-else>
           <div class="reimbursement-trip-picker">
@@ -480,18 +487,19 @@ onUnmounted(() => {
             class="notice notice-danger reimbursement-inline-notice"
             role="alert"
           >
-            <span aria-hidden="true">!</span><span>{{ workspaceError }}</span>
+            <AppIcon name="alert" /><span>{{ workspaceError }}</span>
           </div>
           <div v-if="loadingCandidates" class="state-layout compact" role="status">
             <span class="spinner" aria-hidden="true"></span><strong>正在读取已归属项目</strong>
           </div>
           <div v-else-if="candidates.length === 0" class="state-layout compact">
-            <span class="state-glyph" aria-hidden="true">∅</span
+            <span class="state-glyph"><AppIcon name="document" /></span
             ><strong>该行程没有已归属项目</strong>
-            <span>报销只接受当前活动的 TripFactAssignment。</span>
+            <span>先在行程归属页为该行程添加支付或发票。</span>
+            <RouterLink class="button" to="/trips">前往行程归属</RouterLink>
           </div>
           <fieldset v-else class="reimbursement-selection">
-            <legend>明确选择报销项目（已选 {{ selectedCount }} / {{ candidates.length }}）</legend>
+            <legend>选择报销项目（已选 {{ selectedCount }} / {{ candidates.length }}）</legend>
             <label
               v-for="candidate in candidates"
               :key="`${candidate.fact_type}:${candidate.fact_id}`"
@@ -506,7 +514,7 @@ onUnmounted(() => {
                 <strong
                   >{{ factTypeLabel(candidate.fact_type) }} · {{ candidate.display_name }}</strong
                 >
-                <small>{{ candidate.business_date }} · {{ candidate.fact_id }}</small>
+                <small>{{ candidate.business_date }} · 记录编号 {{ candidate.fact_id }}</small>
               </span>
               <strong class="numeric">{{
                 formatMinorUnits(candidate.amount_minor, candidate.currency)
@@ -525,7 +533,7 @@ onUnmounted(() => {
           </div>
 
           <div class="reimbursement-preview-action">
-            <span>预检使用当前活动 Link、既有有效报销与所选 Fact 的确定性快照。</span>
+            <span>检查发票缺失、金额冲突和重复报销；预检不会提交报销。</span>
             <button
               class="button"
               type="button"
@@ -553,7 +561,7 @@ onUnmounted(() => {
               </dl>
             </div>
             <div v-if="preview.findings.length > 0" class="reimbursement-findings">
-              <strong>{{ preview.findings.length }} 条确定性提示</strong>
+              <strong>{{ preview.findings.length }} 条政策提示</strong>
               <ul>
                 <li v-for="finding in preview.findings" :key="finding.finding_key">
                   <span class="status" data-tone="warning"
@@ -566,10 +574,11 @@ onUnmounted(() => {
               </ul>
               <label class="reimbursement-acknowledgement">
                 <input v-model="findingsAcknowledged" type="checkbox" />
-                <span>我已逐项核对并确认当前完整政策提示；提示不会自动拒绝提交。</span>
+                <span>我已逐项核对以上全部政策提示，确认继续提交。</span>
               </label>
             </div>
-            <p v-else class="quiet-block">当前选择没有确定性政策提示。</p>
+            <p v-else class="quiet-block">未发现政策提示，可以继续填写提交理由。</p>
+            <p class="quiet-block">提交后，所选项目、金额与政策提示会固定保存，不随原单据变动。</p>
             <div class="reimbursement-submit">
               <label class="field-stack">
                 <span>提交理由</span>
@@ -590,15 +599,15 @@ onUnmounted(() => {
                 :disabled="submitting || offline || !submissionDecision.request"
                 @click="submitReimbursement"
               >
-                {{ submitting ? '正在提交…' : '提交不可变报销快照' }}
+                {{ submitting ? '正在提交…' : '提交报销' }}
               </button>
             </div>
           </div>
         </template>
       </section>
       <div v-else class="notice" role="status">
-        <span aria-hidden="true">阅</span
-        ><span>当前账号为只读，可查看报销快照与完整状态历史。</span>
+        <AppIcon name="lock" />
+        <span>当前账号为只读，可查看报销快照与完整状态历史。</span>
       </div>
 
       <div class="reimbursement-history-layout">
@@ -610,7 +619,10 @@ onUnmounted(() => {
             </div>
           </div>
           <div v-if="reimbursements.length === 0" class="state-layout compact">
-            <span class="state-glyph" aria-hidden="true">报</span><strong>还没有报销快照</strong>
+            <span class="state-glyph"><AppIcon name="receipt" /></span
+            ><strong>还没有报销记录</strong>
+            <span v-if="canManage">完成上方项目选择与预检后，即可提交第一笔报销。</span>
+            <span v-else>已提交的报销会显示在这里。</span>
           </div>
           <ul v-else class="reimbursement-list">
             <li v-for="item in reimbursements" :key="item.id">
@@ -647,12 +659,23 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section class="panel reimbursement-detail" aria-labelledby="reimbursement-detail-title">
+        <section
+          class="panel reimbursement-detail"
+          :aria-labelledby="detail && !loadingDetail ? 'reimbursement-detail-title' : undefined"
+          :aria-label="!detail || loadingDetail ? '报销详情' : undefined"
+        >
+          <div
+            v-if="statusError && (!detail || !canManage)"
+            class="notice notice-danger reimbursement-inline-notice"
+            role="alert"
+          >
+            <AppIcon name="alert" /><span>{{ statusError }}</span>
+          </div>
           <div v-if="loadingDetail" class="state-layout" role="status">
             <span class="spinner" aria-hidden="true"></span><strong>正在读取报销详情</strong>
           </div>
           <div v-else-if="!detail" class="state-layout">
-            <span class="state-glyph" aria-hidden="true">报</span
+            <span class="state-glyph"><AppIcon name="receipt" /></span
             ><strong>请选择一条报销记录</strong>
           </div>
           <template v-else>
@@ -673,8 +696,8 @@ onUnmounted(() => {
               class="notice notice-warning reimbursement-inline-notice"
               role="status"
             >
-              <span aria-hidden="true">!</span
-              ><span>原 Trip 已删除；此处保留提交时快照用于审计。</span>
+              <AppIcon name="alert" />
+              <span>原行程已删除；此处保留提交时的记录用于审计。</span>
             </div>
             <dl class="reimbursement-totals">
               <div v-for="total in detail.totals_by_currency" :key="total.currency">
@@ -690,7 +713,7 @@ onUnmounted(() => {
                     <strong>{{ factTypeLabel(item.fact_type) }} · {{ item.display_name }}</strong>
                     <small
                       >{{ item.business_date
-                      }}<template v-if="item.source_deleted"> · 原 Fact 已删除</template></small
+                      }}<template v-if="item.source_deleted"> · 原单据已删除</template></small
                     >
                   </span>
                   <strong class="numeric">{{
@@ -710,10 +733,13 @@ onUnmounted(() => {
               </ul>
             </div>
             <div class="reimbursement-detail-section">
-              <h3>状态决定历史</h3>
+              <h3>处理历史</h3>
               <ol class="reimbursement-decisions">
                 <li v-for="decision in detail.decisions" :key="decision.id">
-                  <span>{{ decision.action }} · v{{ decision.result_version }}</span>
+                  <span
+                    >{{ decisionActionLabels[decision.action] }} · 版本
+                    {{ decision.result_version }}</span
+                  >
                   <strong>{{ reimbursementStatusLabels[decision.desired_status] }}</strong>
                   <p>{{ decision.reason }}</p>
                   <time>{{ displayTimestamp(decision.created_at) }}</time>

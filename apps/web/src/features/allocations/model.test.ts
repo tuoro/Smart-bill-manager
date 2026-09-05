@@ -69,6 +69,23 @@ describe('allocation adjustment model', () => {
       '500',
     )
   })
+
+  it('keeps the complete selected plan bounded even across candidate pages', () => {
+    const workspace = allocationWorkspace()
+    const base = createAllocationDraft(workspace)[1]!
+    const rows = Array.from({ length: 201 }, (_, index) => ({
+      ...base,
+      target: { ...base.target, id: `synthetic-target-${index}` },
+      selected: true,
+      amountText: '1',
+    }))
+    expect(
+      validateAllocationDraft(workspace, rows.slice(0, 200), '合成完整计划', false).request,
+    ).toBeDefined()
+    expect(validateAllocationDraft(workspace, rows, '合成超限计划', false).planError).toContain(
+      '200',
+    )
+  })
 })
 
 const paymentID = '10000000-0000-4000-8000-000000000001'

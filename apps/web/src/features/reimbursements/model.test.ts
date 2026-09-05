@@ -9,10 +9,13 @@ import {
 } from './model'
 
 const snapshot: ReimbursementPolicySnapshot = {
-  rule_version: 'reimbursement-policy/1',
+  rule_version: 'reimbursement-policy/2',
+  materials: [],
   trip: {
     id: '00000000-0000-4000-8000-000000000001',
-    destination: '北京',
+    name: '北京',
+    timezone: 'Asia/Shanghai',
+    version: 1,
     start_date: '2026-08-26',
     end_date: '2026-08-28',
   },
@@ -52,6 +55,8 @@ const snapshot: ReimbursementPolicySnapshot = {
 }
 
 const detail: ReimbursementDetail = {
+  materials_captured: true,
+  material_count: 0,
   id: '00000000-0000-4000-8000-000000000031',
   trip: snapshot.trip,
   trip_deleted: false,

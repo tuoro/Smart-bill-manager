@@ -6,6 +6,8 @@
 
 ## 唯一活动链路
 
+B1 人工入口增补见 [ADR-0025](decisions/0025-explicit-manual-review.md)：failed 且无 Claim 的合法原件可以由用户显式接管，形成来源标记为人工的 Claim 并进入同一校验/审核链。不调用模型，不修改下面 AI 提取契约，也不把人工完成记为模型成功；已通过本地验收。
+
 `Source -> Normalize -> BillExtractor -> Visible Text -> Claim Mapper -> Claim Validation -> Review -> Fact`
 
 - 视觉模型负责判断 `payment`、`invoice`、`trip` 或 `unknown`，选择约定业务字段，并逐字复制字段值及一基页码。

@@ -1,8 +1,6 @@
 package httpapi
 
 import (
-	"bytes"
-	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -10,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
@@ -23,44 +20,18 @@ func (s *Server) uploadDocumentHandler(response http.ResponseWriter, request *ht
 		writeError(response, request, domain.ErrUnauthenticated)
 		return
 	}
-	request.Body = http.MaxBytesReader(response, request.Body, multipartOverheadLimit)
-	reader, err := request.MultipartReader()
+	if err := tenantContext(principal).Require(domain.CapabilityDocumentsProcess); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	input, _, err := readDocumentMultipart(response, request)
 	if err != nil {
-		writeError(response, request, domain.NewRuleError("invalid_multipart", "上传请求格式不正确", domain.ErrInvalidInput))
+		writeError(response, request, err)
 		return
 	}
-	part, err := reader.NextPart()
-	if err != nil || part.FormName() != "file" || part.FileName() == "" {
-		writeError(response, request, domain.NewRuleError("document_required", "请选择一个文件", domain.ErrInvalidInput))
-		return
-	}
-	content, err := io.ReadAll(io.LimitReader(part, ports.MaxDocumentBytes+1))
-	part.Close()
-	if err != nil {
-		writeError(response, request, domain.NewRuleError("document_read_failed", "文件读取失败", domain.ErrInvalidInput))
-		return
-	}
-	if int64(len(content)) > ports.MaxDocumentBytes {
-		writeError(response, request, domain.NewRuleError("document_too_large", "文件不能超过 20 MiB", domain.ErrPayloadTooLarge))
-		return
-	}
-	if extra, extraErr := reader.NextPart(); extraErr == nil || (extra != nil && !errors.Is(extraErr, io.EOF)) {
-		if extra != nil {
-			extra.Close()
-		}
-		writeError(response, request, domain.NewRuleError("single_document_only", "每次只能上传一个文件", domain.ErrInvalidInput))
-		return
-	} else if !errors.Is(extraErr, io.EOF) {
-		writeError(response, request, domain.NewRuleError("invalid_multipart", "上传请求格式不正确", domain.ErrInvalidInput))
-		return
-	}
+	input.Tenant = tenantContext(principal)
 	started := time.Now()
-	result, err := s.upload.Execute(request.Context(), documents.UploadInput{
-		Tenant: tenantContext(principal),
-		Name:   part.FileName(),
-		MIME:   part.Header.Get("Content-Type"),
-		Source: bytes.NewReader(content),
-	})
+	result, err := s.upload.Execute(request.Context(), input)
 	response.Header().Set("Server-Timing", "document-create;dur="+strconv.FormatFloat(float64(time.Since(started))/float64(time.Millisecond), 'f', 3, 64))
 	if err != nil {
 		writeError(response, request, err)

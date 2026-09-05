@@ -36,6 +36,7 @@ type restoreOptions struct {
 	MasterKey       string
 	Offline         bool
 	publish         func(string, string) error
+	checkpoint      func(string) error
 }
 
 type operationResult struct {

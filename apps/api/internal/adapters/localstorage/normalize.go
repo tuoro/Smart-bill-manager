@@ -14,6 +14,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"golang.org/x/image/draw"
 
@@ -39,6 +41,9 @@ func NewNormalizer(store *Store, pdfToPPMPath string) (Normalizer, error) {
 }
 
 func (n Normalizer) Normalize(ctx context.Context, document ports.ProcessingDocument) ([]ports.NormalizedPage, error) {
+	if document.PageSetID != "" && (len(document.PageSetID) > 100 || strings.Trim(document.PageSetID, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != "") {
+		return nil, domain.ErrInvalidInput
+	}
 	location, err := n.store.objectPath(document.StorageKey)
 	if err != nil {
 		return nil, err
@@ -58,16 +63,24 @@ func (n Normalizer) Normalize(ctx context.Context, document ports.ProcessingDocu
 	for index, sourceFile := range sourceFiles {
 		page, err := n.normalizeImage(ctx, document, index+1, sourceFile)
 		if err != nil {
-			_ = n.DeleteNormalized(context.WithoutCancel(ctx), pages)
-			return nil, err
+			return n.compensateNormalization(ctx, pages, err)
 		}
 		pages = append(pages, page)
 	}
 	if len(pages) != document.PageCount {
-		_ = n.DeleteNormalized(context.WithoutCancel(ctx), pages)
-		return nil, domain.NewRuleError("pdf_page_count_changed", "PDF 渲染页数与上传检查不一致", domain.ErrInvalidInput)
+		return n.compensateNormalization(ctx, pages, domain.NewRuleError("pdf_page_count_changed", "PDF 渲染页数与上传检查不一致", domain.ErrInvalidInput))
 	}
 	return pages, nil
+}
+
+func (n Normalizer) compensateNormalization(ctx context.Context, pages []ports.NormalizedPage, cause error) ([]ports.NormalizedPage, error) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := n.DeleteNormalized(cleanupCtx, pages); err != nil {
+		// 保留本次精确对象清单，供人工审核用例核实引用后继续补偿。
+		return pages, errors.Join(cause, fmt.Errorf("clean normalized pages: %w", err))
+	}
+	return nil, cause
 }
 
 func (n Normalizer) DeleteNormalized(ctx context.Context, pages []ports.NormalizedPage) error {
@@ -117,16 +130,22 @@ func (n Normalizer) normalizeImage(
 		document.DocumentID,
 		pageNumber,
 	)
+	if document.PageSetID != "" {
+		storageKey = fmt.Sprintf("tenants/%s/documents/%s/pages/%s/%04d.png", document.TenantID, document.DocumentID, document.PageSetID, pageNumber)
+	}
 	if err := n.store.Commit(ctx, staged, storageKey); err != nil {
-		_ = n.store.Abort(context.WithoutCancel(ctx), staged)
-		return ports.NormalizedPage{}, err
+		return ports.NormalizedPage{}, errors.Join(err, n.store.Abort(context.WithoutCancel(ctx), staged))
 	}
 	hash := sha256.Sum256(encoded.Bytes())
+	var data []byte
+	if !document.MetadataOnly {
+		data = bytes.Clone(encoded.Bytes())
+	}
 	return ports.NormalizedPage{
 		PageImage: ports.PageImage{
 			PageNumber: pageNumber,
 			MIME:       "image/png",
-			Data:       bytes.Clone(encoded.Bytes()),
+			Data:       data,
 			SHA256:     hex.EncodeToString(hash[:]),
 		},
 		StorageKey:        storageKey,

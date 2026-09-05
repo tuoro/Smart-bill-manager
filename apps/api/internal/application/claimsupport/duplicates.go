@@ -3,6 +3,7 @@ package claimsupport
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -88,9 +89,18 @@ func BuildDuplicateCandidates(
 	ids ports.IDGenerator,
 	now time.Time,
 ) ([]ports.DuplicateCandidateRecord, bool, error) {
-	current, visualTargets, err := source.ListVisualDuplicateDocuments(ctx, tenantID, documentID)
+	specs, err := FindDuplicateCandidateSpecs(ctx, source, validated, tenantID, documentID, "")
 	if err != nil {
 		return nil, false, err
+	}
+	return BuildDuplicateCandidateRecords(specs, tenantID, claimSetID, ids, now)
+}
+
+// 正常审核与纠错共用检索和规则；纠错只排除其稳定 Fact 自身。
+func FindDuplicateCandidateSpecs(ctx context.Context, source duplicateCandidateSource, validated domain.ValidatedClaim, tenantID, documentID, excludedFactID string) ([]domain.DuplicateCandidateSpec, error) {
+	current, visualTargets, err := source.ListVisualDuplicateDocuments(ctx, tenantID, documentID)
+	if err != nil {
+		return nil, err
 	}
 	var fieldInput *domain.FieldDuplicateInput
 	var fieldTargets []domain.FieldDuplicateTarget
@@ -98,13 +108,14 @@ func BuildDuplicateCandidates(
 		fieldInput = &input
 		fieldTargets, err = source.ListFieldDuplicateTargets(ctx, tenantID, input)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
+		fieldTargets = slices.DeleteFunc(fieldTargets, func(target domain.FieldDuplicateTarget) bool { return target.ID == excludedFactID })
 	}
-	specs, err := domain.BuildDuplicateCandidateSpecs(current, visualTargets, fieldInput, fieldTargets)
-	if err != nil {
-		return nil, false, err
-	}
+	return domain.BuildDuplicateCandidateSpecs(current, visualTargets, fieldInput, fieldTargets)
+}
+
+func BuildDuplicateCandidateRecords(specs []domain.DuplicateCandidateSpec, tenantID, claimSetID string, ids ports.IDGenerator, now time.Time) ([]ports.DuplicateCandidateRecord, bool, error) {
 	if len(specs) > domain.MaxDuplicateCandidates {
 		return []ports.DuplicateCandidateRecord{}, true, nil
 	}

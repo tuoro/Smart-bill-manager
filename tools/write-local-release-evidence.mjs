@@ -3,6 +3,13 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { requiredImageFiles } from "./check-release-image.mjs";
+import { minimumLocalStaticCounts } from "./write-local-static-gates.mjs";
+import {
+  requiredPlaywrightSpecFiles,
+  minimumPlaywrightScenarios,
+} from "./run-playwright-gate.mjs";
+
 import {
   SafeToolError,
   parseStrictPairs,
@@ -25,6 +32,8 @@ const endpointNames = [
 const pageNames = ["login", "inbox", "review", "payments"];
 const entrypointCaseNames = [
   "valid_raw",
+  "valid_raw_lf",
+  "valid_raw_crlf",
   "empty",
   "too_large",
   "invalid_format",
@@ -127,11 +136,15 @@ export function buildSafeEvidence(reports, expected) {
   if (
     image.compose?.static_gate_count !== 13 ||
     image.image?.static_gate_count !== 12 ||
-    Object.keys(image.image?.required_assets ?? {}).length !== 17 ||
+    !sameMembers(
+      Object.keys(image.image?.required_assets ?? {}),
+      requiredImageFiles.map((path) => path.slice(1).replaceAll("/", "_")),
+    ) ||
     !Object.values(image.image.required_assets).every(Boolean) ||
     image.image.forbidden_assets_absent !== true ||
     image.image.toolchains_absent !== true ||
-    image.image.package_managers_absent !== true
+    image.image.package_managers_absent !== true ||
+    image.image.runtime_assets_readable !== true
   ) {
     invalid();
   }
@@ -208,6 +221,7 @@ export function buildSafeEvidence(reports, expected) {
       forbidden_assets_absent: image.image.forbidden_assets_absent,
       toolchains_absent: image.image.toolchains_absent,
       package_managers_absent: image.image.package_managers_absent,
+      runtime_assets_readable: image.image.runtime_assets_readable,
       entrypoint_failure_cases_passed: Object.keys(reports.entrypoint.cases)
         .length,
       bootstrap_owner_atomic: reports.bootstrap.passed,
@@ -284,7 +298,7 @@ export function buildSafeEvidence(reports, expected) {
       passed_scenarios: reports.playwright.passed_scenarios,
       failed_scenarios: 0,
       skipped_scenarios: 0,
-      minimum_passed_scenarios: 73,
+      minimum_passed_scenarios: minimumPlaywrightScenarios,
     },
     static_verification: {
       gates: reports.static.gates,
@@ -462,10 +476,10 @@ function validateResponsive(report) {
 
 function validatePlaywright(report) {
   if (
-    report.required_spec_files !== 8 ||
-    report.minimum_passed_scenarios !== 73 ||
-    report.spec_files !== 8 ||
-    report.passed_scenarios < 73 ||
+    report.required_spec_files !== requiredPlaywrightSpecFiles ||
+    report.minimum_passed_scenarios !== minimumPlaywrightScenarios ||
+    report.spec_files !== requiredPlaywrightSpecFiles ||
+    report.passed_scenarios < minimumPlaywrightScenarios ||
     report.total_scenarios !== report.passed_scenarios ||
     report.failed_scenarios !== 0 ||
     report.skipped_scenarios !== 0 ||
@@ -480,12 +494,13 @@ function validateStatic(report) {
   if (
     !sameMembers(Object.keys(report.gates ?? {}), staticGateNames) ||
     !Object.values(report.gates ?? {}).every((value) => value === true) ||
-    report.counts?.node_test_files < 13 ||
-    report.counts?.web_test_files < 9 ||
-    report.counts?.web_test_cases < 38 ||
+    report.counts?.node_test_files < minimumLocalStaticCounts.node_test_files ||
+    report.counts?.web_test_files < minimumLocalStaticCounts.web_test_files ||
+    report.counts?.web_test_cases < minimumLocalStaticCounts.web_test_cases ||
     report.counts?.critical_invariants_passed !==
       report.counts?.critical_invariants_total ||
-    report.counts?.critical_invariants_total < 140 ||
+    report.counts?.critical_invariants_total <
+      minimumLocalStaticCounts.critical_invariants_total ||
     report.coverage?.domain_application_percent < 85 ||
     report.coverage?.infrastructure_transport_percent < 70
   ) {

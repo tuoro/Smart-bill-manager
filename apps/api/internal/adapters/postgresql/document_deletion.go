@@ -15,10 +15,16 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 	ctx context.Context,
 	tenantID, documentID string,
 ) (ports.DocumentDeletionPlan, error) {
+	if err := ensureNoMaterialHistory(ctx, s.db, tenantID, documentID); err != nil {
+		return ports.DocumentDeletionPlan{}, err
+	}
 	var storageKey, originalHash, objectOwner string
+	var jobVersion int
 	err := s.db.QueryRowContext(ctx, `
-		SELECT storage_key, sha256, original_object_owner FROM documents WHERE tenant_id = ? AND id = ?
-	`, tenantID, documentID).Scan(&storageKey, &originalHash, &objectOwner)
+		SELECT d.storage_key, d.sha256, d.original_object_owner, j.version
+		FROM processing_jobs j JOIN documents d ON d.tenant_id = j.tenant_id AND d.id = j.document_id
+		WHERE j.tenant_id = ? AND j.document_id = ?
+	`, tenantID, documentID).Scan(&storageKey, &originalHash, &objectOwner, &jobVersion)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.DocumentDeletionPlan{}, domain.ErrNotFound
 	}
@@ -45,6 +51,7 @@ func (s *Store) PrepareUnconfirmedDocumentDeletion(
 	}
 	plan := ports.DocumentDeletionPlan{
 		DocumentID:     documentID,
+		JobVersion:     jobVersion,
 		StorageKeys:    []string{},
 		ObjectHashes:   []string{},
 		ResourceCounts: map[string]int{"documents": 1},
@@ -135,21 +142,36 @@ func (s *Store) DeletionTombstoneExists(ctx context.Context, tombstoneID string)
 }
 
 func (t transaction) DeleteDocumentAggregate(ctx context.Context, command ports.DocumentDeleteCommand) error {
-	var exists, hasFact bool
+	// 与人工接管共享聚合锁；预案生成后若审核状态变更，必须恢复暂存文件并重新准备。
+	var version int
+	err := t.tx.QueryRowContext(ctx, `
+		SELECT j.version FROM processing_jobs j
+		JOIN documents d ON d.tenant_id = j.tenant_id AND d.id = j.document_id
+		WHERE j.tenant_id = ? AND j.document_id = ? FOR UPDATE OF j, d
+	`, command.TenantID, command.DocumentID).Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock document deletion: %w", err)
+	}
+	if version != command.ExpectedJobVersion {
+		return domain.ErrVersionConflict
+	}
+	if err := ensureNoMaterialHistory(ctx, t.tx, command.TenantID, command.DocumentID); err != nil {
+		return err
+	}
+	var hasFact bool
 	if err := t.tx.QueryRowContext(ctx, `
 		SELECT
-			EXISTS(SELECT 1 FROM documents WHERE tenant_id = ? AND id = ?),
 			EXISTS(
 				SELECT 1
 				FROM claim_sets c
 				JOIN review_decisions r ON r.tenant_id = c.tenant_id AND r.claim_set_id = c.id
 				WHERE c.tenant_id = ? AND c.document_id = ? AND r.action = 'confirm'
 			)
-	`, command.TenantID, command.DocumentID, command.TenantID, command.DocumentID).Scan(&exists, &hasFact); err != nil {
+	`, command.TenantID, command.DocumentID).Scan(&hasFact); err != nil {
 		return fmt.Errorf("validate document deletion: %w", err)
-	}
-	if !exists {
-		return domain.ErrNotFound
 	}
 	if hasFact {
 		return domain.NewRuleError("document_has_fact", "已形成 Fact 的 Document 聚合不能物理删除", domain.ErrConflict)

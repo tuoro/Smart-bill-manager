@@ -9,6 +9,8 @@ export type EditableField = {
   presence: 'present' | 'absent'
   textValue: string
   evidenceIds: string[]
+  manualPage?: number
+  manualQuote?: string
   originalValue: unknown
   originalPresence: 'present' | 'absent'
 }
@@ -184,11 +186,39 @@ export function buildRevisionRequest(
   documentType: DocumentType,
   fields: EditableField[],
 ): { request?: RevisionRequest; errors: Record<string, string> } {
+  const encoded = buildFieldPayload(review, fields)
+  if (!encoded.fields) return { errors: encoded.errors }
+  return {
+    request: {
+      expected_revision: review.revision,
+      expected_optimistic_version: review.optimistic_version,
+      document_type: documentType,
+      fields: encoded.fields,
+    },
+    errors: encoded.errors,
+  }
+}
+
+// 字段编码共用；纠错能力不改变真实 AI / 人工根来源标识。
+export function buildFieldPayload(
+  review: Review,
+  fields: EditableField[],
+  correction = false,
+): { fields?: RevisionRequest['fields']; errors: Record<string, string> } {
   const errors: Record<string, string> = {}
   const payloadFields: RevisionRequest['fields'] = []
   for (const field of fields) {
     if (field.presence === 'absent') {
       payloadFields.push({ path: field.path, value_type: field.valueType, presence: 'absent' })
+      continue
+    }
+    if (
+      field.evidenceIds.some(
+        (id) =>
+          !review.fields.some((entry) => entry.evidence.some((evidence) => evidence.id === id)),
+      )
+    ) {
+      errors[field.path] = '部分证据已不在最新版本，请清空证据选择后重新核对'
       continue
     }
     let value: unknown
@@ -222,7 +252,26 @@ export function buildRevisionRequest(
     }
     const changed =
       field.originalPresence !== field.presence || !sameValue(field.originalValue, value)
-    if (changed && field.evidenceIds.length === 0 && fieldRequiresEvidence(field)) {
+    const manualEvidence = [] as NonNullable<RevisionRequest['fields'][number]['manual_evidence']>
+    if ((review.entry_mode === 'manual' || correction) && (field.manualQuote || field.manualPage)) {
+      if (
+        !field.manualQuote?.trim() ||
+        !Number.isInteger(field.manualPage) ||
+        field.manualPage! < 1 ||
+        field.manualPage! > review.page_count ||
+        Array.from(field.manualQuote).length > 500
+      ) {
+        errors[field.path] = '请填写有效页码和原件中的实际摘录'
+        continue
+      }
+      manualEvidence.push({ page: field.manualPage!, quote: field.manualQuote })
+    }
+    if (
+      changed &&
+      field.evidenceIds.length === 0 &&
+      manualEvidence.length === 0 &&
+      fieldRequiresEvidence(field)
+    ) {
       errors[field.path] = '新增或修改字段必须选择至少一条原始证据'
       continue
     }
@@ -232,18 +281,42 @@ export function buildRevisionRequest(
       presence: 'present',
       value,
       evidence_ids: field.evidenceIds,
+      ...(manualEvidence.length ? { manual_evidence: manualEvidence } : {}),
     })
   }
   if (Object.keys(errors).length) return { errors }
-  return {
-    request: {
-      expected_revision: review.revision,
-      expected_optimistic_version: review.optimistic_version,
-      document_type: documentType,
-      fields: payloadFields,
-    },
-    errors,
-  }
+  return { fields: payloadFields, errors }
+}
+
+// 刷新只更新版本基线与等价证据 ID，用户输入及无法匹配的选择保持原样供显式处理。
+export function refreshDraftFields(
+  previous: Review,
+  current: Review,
+  fields: EditableField[],
+): EditableField[] {
+  const oldEvidence = previous.fields.flatMap((field) => field.evidence)
+  const newEvidence = current.fields.flatMap((field) => field.evidence)
+  return fields.map((field) => {
+    const latest = current.fields.find((entry) => entry.path === field.path)
+    return {
+      ...field,
+      originalValue: latest?.value,
+      originalPresence: latest?.presence ?? 'absent',
+      evidenceIds: field.evidenceIds.map((id) => {
+        const old = oldEvidence.find((entry) => entry.id === id)
+        return (
+          newEvidence.find(
+            (entry) =>
+              entry.id === id ||
+              (old &&
+                entry.page === old.page &&
+                entry.quote === old.quote &&
+                JSON.stringify(entry.region) === JSON.stringify(old.region)),
+          )?.id ?? id
+        )
+      }),
+    }
+  })
 }
 
 export function fieldLabel(path: string): string {

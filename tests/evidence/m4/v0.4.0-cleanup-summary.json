@@ -1,0 +1,16 @@
+{
+  "report_kind": "v0.4.0-final-exercise-cleanup",
+  "temporary_projects": 5,
+  "remaining_exercise_containers_networks_volumes": 0,
+  "remaining_exercise_processes": 0,
+  "removed_files": 4073,
+  "removed_logical_bytes": 397997933,
+  "exercise_credentials_and_raw_reports_removed": true,
+  "failed_candidate_removed": true,
+  "original_local_tag_restored": true,
+  "user_instance_upgraded": false,
+  "release_input_sha256": "58d693a9f4aec8829ff9f754b951b7393293a7fa12be9267d3e1762fccd1ce72",
+  "reviewed_changed_files": 311,
+  "sensitive_findings": 0,
+  "passed": true
+}

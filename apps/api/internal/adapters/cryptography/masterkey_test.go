@@ -33,6 +33,22 @@ func TestLoadMasterKeyFileAcceptedEncodings(t *testing.T) {
 	}
 }
 
+func TestLoadMasterKeyPreservesEveryRawTerminalByte(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "master.key")
+	for last := 0; last <= 255; last++ {
+		key := bytes.Repeat([]byte{0x5a}, 32)
+		key[30], key[31] = '\r', byte(last)
+		if err := os.WriteFile(path, key, 0600); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadMasterKeyFile(path)
+		if err != nil || !bytes.Equal(loaded, key) {
+			t.Fatal("raw key was changed by text normalization")
+		}
+		clear(loaded)
+	}
+}
+
 func TestLoadMasterKeyFileRejectsUnsafeOrInvalidFiles(t *testing.T) {
 	root := t.TempDir()
 	if _, err := LoadMasterKeyFile(filepath.Join(root, "missing")); err == nil {

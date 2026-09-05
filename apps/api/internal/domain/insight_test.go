@@ -54,7 +54,7 @@ func TestCanonicalInsightFilterDefaultsAndIdentity(t *testing.T) {
 func TestBuildInsightPageFiltersAggregatesAndPaginatesWithoutMutation(t *testing.T) {
 	t.Parallel()
 
-	trip := &InsightTrip{ID: "trip-a", Destination: "合成行程", StartDate: "2026-08-01", EndDate: "2026-08-03"}
+	trip := &InsightTrip{ID: "trip-a", Name: "合成行程", StartDate: "2026-08-01", EndDate: "2026-08-03"}
 	facts := []InsightFact{
 		{FactType: DocumentInvoice, FactID: "invoice-a", BusinessDate: "2026-08-03", DisplayName: "合成销售方", AmountMinor: 100, AllocatedMinor: 40, Currency: CurrencyCNY, Trip: trip},
 		{FactType: DocumentPayment, FactID: "payment-b", BusinessDate: "2026-08-03", DisplayName: "合成商户乙", AmountMinor: 200, AllocatedMinor: 200, Currency: CurrencyCNY, Trip: trip},
@@ -124,7 +124,7 @@ func TestBuildInsightPageRejectsInvalidProjectionCursorAndOverflow(t *testing.T)
 		"duplicate identity": {base, base},
 		"invalid trip": {func() InsightFact {
 			item := base
-			item.Trip = &InsightTrip{ID: "trip", Destination: "合成", StartDate: "2026-08-02", EndDate: "2026-08-01"}
+			item.Trip = &InsightTrip{ID: "trip", Name: "合成", StartDate: "2026-08-02", EndDate: "2026-08-01"}
 			return item
 		}()},
 	} {

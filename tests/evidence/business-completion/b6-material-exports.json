@@ -1,0 +1,171 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B6-ADR-0030-material-delivery-packages",
+  "date": "2026-09-05",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 233,
+  "worktree_sha256": "c56cb2dfe6ac594e1e72d012a4b633cb2569e497bfa9cf014c5451b485a0a542",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024 and B1-B5 work",
+  "scope": {
+    "current_trip": "all active Payment/Invoice assignments, active TripEvidence links and active auxiliary material for included invoices; not management-page rows or inferred links",
+    "fixed_reimbursement": "immutable item, review and captured auxiliary-material snapshot; excludes current TripEvidence and later fact/material changes",
+    "fixed_reimbursement_version": 1,
+    "status_transitions_preserve_manifest_hash": true,
+    "legacy_uncaptured_snapshot_warning": true,
+    "new_database_migration": false
+  },
+  "database": {
+    "major": 17,
+    "source": "existing postgres:17; no pull or download",
+    "isolation": "dedicated internal network; no host database port; synthetic data only",
+    "tested": [
+      "201 active assigned Documents are returned completely beyond the management-page boundary",
+      "current Trip and fixed Reimbursement scopes do not mix; shared Documents are deduplicated without losing references",
+      "fixed snapshots survive status transition, correction, move, deletion and later material changes without hash drift",
+      "historical uncaptured material and Review identities remain explicitly null/warned and are never backfilled",
+      "Owner/Finance permission, Viewer/Reviewer rejection, tenant isolation and user/session binding",
+      "strict path/query/JSON/CSRF validation, preview conflict, missing/corrupt object whole-package failure and safe errors",
+      "one-time download, HEAD/Range rejection, cancellation, expiry, disconnect, service close and two-slot concurrency",
+      "full synthetic HTTP journey from failed AI/manual review through correction, Trip, auxiliary material, Reimbursement and exact ZIP bytes"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "test_command": "GOMAXPROCS=2 go test -count=1 -json -p 1 -parallel 2 -timeout 60s -covermode=atomic -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 625,
+    "failed": 0,
+    "skipped": 0,
+    "critical_invariants": { "passed": 227, "total": 227, "matrix": "tests/critical-invariants.tsv" },
+    "statement_coverage": {
+      "domain_application": { "covered": 4290, "total": 4977, "percent": 86.20, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 5345, "total": 7043, "percent": 75.89, "threshold": 70, "passed": true },
+      "method": "unique statement blocks with any positive atomic count; existing layer boundaries unchanged"
+    },
+    "vet_all_packages": "passed",
+    "build_all_packages": "passed",
+    "gofmt_unformatted_files": 0,
+    "native_backup_test_binary": "compiled with postgresql_tools and CGO_ENABLED=0"
+  },
+  "streaming_archive": {
+    "implementation": "ZIP Store, fixed 32 KiB copy buffer and unlinked owner-only file descriptor under export-spool",
+    "source_limit_mib": 512,
+    "zip_limit_mib": 520,
+    "reference_limit": 5000,
+    "file_limit": 1000,
+    "application_slots": 2,
+    "synthetic_stream_test_mib": 64,
+    "synthetic_stream_total_allocation_limit_mib": 8,
+    "synthetic_stream_test_passed": true,
+    "preparing_slot_cancellation_test_passed": true
+  },
+  "authenticated_restore": {
+    "native_postgresql_17_dump_restore": true,
+    "account_test": "TestAccountAuthenticatedRestorePreservesHistoryAndInvalidatesCredentials",
+    "account_test_seconds": 1.44,
+    "manual_trip_material_test": "TestManualTripAuthenticatedBackupRestore",
+    "manual_trip_material_test_seconds": 1.60,
+    "exact_database_and_object_inventory_preserved": true,
+    "export_spool_excluded_from_backup": true,
+    "restored_export_spool_exists_and_is_empty": true,
+    "sessions_invalidated": true,
+    "limit": "focused nonempty regression fixtures, not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests": 50,
+    "unit_test_files": 11,
+    "contract_typecheck_lint_format_production_build": "passed",
+    "browser_spec_files": 13,
+    "browser_passed": 112,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "browser_retries": 0,
+    "browser_flaky": 0,
+    "browser_duration_ms": 137358.547,
+    "responsive_widths_px": [384, 768, 1024, 1440],
+    "themes": ["light", "dark"],
+    "visual_review": "current Trip desktop/dark and fixed Reimbursement narrow/light panels inspected; responsive synthetic captures cover both scopes",
+    "covered": [
+      "201-file complete preview and native attachment download without Blob/arrayBuffer",
+      "native download expiry or authorization error remains explicit and the source page does not claim save success",
+      "historical warnings require acknowledgement",
+      "preview 409 and unavailable object never expose a download",
+      "prepare cancellation, late response isolation and failed cancel retry",
+      "scope switching, focus restoration, four-role capability hiding and responsive layout"
+    ],
+    "scope": "production-built components with synthetic Mock API plus separate actual PostgreSQL-backed HTTP tests; not a deployed runtime browser release gate"
+  },
+  "tools": {
+    "node_test_files_passed": 17,
+    "failed": 0,
+    "skipped": 0,
+    "entrypoint_shell_syntax": "passed"
+  },
+  "failure_history": [
+    {
+      "stage": "browser_native_download",
+      "cause": "new-window first navigation was not intercepted by the original Page route and a non-attachment response could be silently named as a file",
+      "resolution": "route the BrowserContext, retain server Content-Disposition, remove the client download attribute and verify success plus explicit error-window behavior"
+    },
+    {
+      "stage": "go_full",
+      "cause": "201 complete AI/manual workflow fixtures pushed the reviews package over its existing 60-second limit",
+      "resolution": "bulk-seed the same constrained PostgreSQL Document/Claim/Review/Fact/Assignment graph for this database-query boundary; final package and full suite pass without raising timeouts"
+    },
+    {
+      "stage": "coverage_collection",
+      "cause": "the first successful functional run omitted the required cross-package coverpkg instrumentation",
+      "resolution": "discard the invalid coverage values and rerun the complete uncached suite with the authoritative coverage command"
+    },
+    {
+      "stage": "native_restore",
+      "cause": "the stock PostgreSQL image exposes tools at different absolute paths than the application release image",
+      "resolution": "confirm PostgreSQL 17.11 command paths in the existing image and rerun both native tests successfully"
+    },
+    {
+      "stage": "final_read_only_review",
+      "cause": "path-ID contract constraints were weaker than the domain, download errors lacked an explicit browser case, and fixed Reimbursement manifests used the mutable status version",
+      "resolution": "align OpenAPI constraints, add the native error case and bind fixed manifests to submission snapshot version 1; all affected and complete gates pass"
+    },
+    {
+      "stage": "browser_collection",
+      "cause": "the deployed representative-flow specification correctly requires runtime credentials unavailable in this Mock API slice",
+      "resolution": "run all 13 credential-free Mock API specifications explicitly; do not claim the deployed representative-flow gate"
+    }
+  ],
+  "review": {
+    "git_diff_check": "passed",
+    "changed_files_over_1_mib": 0,
+    "binary_or_forbidden_artifacts": 0,
+    "known_credential_pattern_or_exact_exercise_secret_matches": 0,
+    "scan_limit": "known key/private-key patterns, exact exercise-secret comparison and scoped diff review; not universal secret detection",
+    "read_only_agents": "backend snapshot/security/resource review and frontend contract/download/accessibility review; main agent implemented and revalidated findings"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_available_host_memory_mib": 5233,
+    "available_after_cleanup_mib": 5612,
+    "swap": "pre-existing 3898 MiB used; no expanded limits or OOM retry",
+    "database_oom_killed": false,
+    "container_and_internal_network_removed": true,
+    "temporary_volume_count_after_cleanup": 0,
+    "browser_and_preview_stopped": true,
+    "temporary_credentials_data_reports_cache_and_build_removed": true,
+    "approximate_temporary_disk_mib_before_cleanup": 669,
+    "existing_user_instance": "not accessed, restarted or upgraded"
+  },
+  "plan_completion": {
+    "b1_through_b6_local_slices": "passed",
+    "explicitly_separate_decisions": ["30-day manual allocation boundary", "bad-debt/retention semantics", "real mailbox connector and synchronization"],
+    "statement": "B1-B6 business-completion plan is locally complete; this is not a claim that every separately excluded product capability is implemented"
+  },
+  "not_performed": [
+    "real Provider call, image transmission or formal model accuracy evaluation",
+    "real mailbox, external account or deployed representative-flow integration",
+    "new release-image runtime performance, Lighthouse or production deployment gates",
+    "Git commit, push, tag, deployment or release",
+    "user-instance upgrade or real-data migration"
+  ]
+}

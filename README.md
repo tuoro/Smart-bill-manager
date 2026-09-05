@@ -5,7 +5,7 @@
 Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作台。它把支付截图、发票和行程资料整理成可追溯候选；只有用户明确审核确认后，候选才会成为正式财务事实。
 
 > [!IMPORTANT]
-> `v0.3.4` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
+> `v0.4.0` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
 
 ## Docker 快速部署
 
@@ -16,7 +16,7 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 直接下载固定 Tag 安装器、校验同版本部署包并进入引导安装：
 
 ```bash
-version=v0.3.4; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+version=v0.4.0; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
 安装器会询问运行目录、PostgreSQL 数据目录、附件目录、备份目录、Owner 信息和本机端口；直接回车使用默认值。
@@ -62,7 +62,7 @@ docker run -d \
   -e SBM_COOKIE_SECURE=false \
   -e SBM_SESSION_TTL=168h \
   -e SBM_AI_CONCURRENCY=2 \
-  ghcr.io/tuoro/smart-bill-manager:v0.3.4
+  ghcr.io/tuoro/smart-bill-manager:v0.4.0
 docker network connect bridge smart-bill-manager
 ```
 
@@ -97,16 +97,19 @@ Clean Slate 只表示不读取旧架构和 SQLite 数据。从当前新架构开
 
 - 图片和 PDF 上传、批量逐项反馈与多页审核；
 - 最小中文多模态提取、本地确定性规范化和字段级校验；
-- Payment、Invoice、Trip 与完整 Source → Claim → Fact 追溯；
-- 重复候选、支付—发票金额分配及独立调整；
-- 邮件附件本地归档、行程归属和报销状态工作流；
+- 失败转人工审核、正式单据检索与可追溯纠错，不绕过 Source → Claim → Fact；
+- 手工创建行程、组合多张机票与其他单据、自动归属及辅助材料管理；
+- 重复候选、支付—发票分配、默认 30 天推荐与说明原因后的跨期手工分配；
+- 坏账标记/解除及相关行程删除保护，不自动核销金额；
+- 邮件附件本地归档、报销状态和材料 ZIP 导出；
+- 成员邀请、角色管理、自助改密与本地账号恢复；
 - 确定性数据洞察、租户隔离、审计、认证备份与完整恢复。
 
 ## 安全与数据边界
 
 ```text
 Source -> Claim -> Fact
-原始证据 -> AI 候选 -> 用户确认的数据
+原始证据 -> 可审核候选（AI 或显式人工来源）-> 用户确认的数据
 ```
 
 - 模型不能直接创建 Fact；Schema、本地业务规则、权限和人工审核缺一不可。
@@ -129,6 +132,8 @@ Source -> Claim -> Fact
 | --- | --- |
 | [部署指南](docs/deployment.md) | 安装、初始化、启动、停止和网络边界 |
 | [本地运维](docs/local-operations.md) | 健康检查、容量、诊断与升级边界 |
+| [成员与账号](docs/member-accounts.md) | 成员邀请、停用、自助改密与本地恢复说明 |
+| [材料包导出](docs/material-export.md) | 当前行程与固定报销快照 ZIP、文件范围和资源限制 |
 | [备份与恢复](docs/backup-restore.md) | 认证备份、验证和完整恢复 |
 | [产品与范围](docs/product.md) / [路线图](docs/roadmap.md) | 产品定位、已完成范围和后续门禁 |
 | [架构](docs/architecture.md) / [数据模型](docs/data-model.md) | Source、Claim、Fact 与 PostgreSQL 设计 |

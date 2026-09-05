@@ -9,9 +9,55 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
+
+func TestBackupRequiresFinishedMaterialPublicationJournal(t *testing.T) {
+	root := t.TempDir()
+	if _, err := localstorage.New(root); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateObjectStore(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "material-publications", "synthetic-pending.json"), []byte("synthetic pending intent"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateObjectStore(root); err == nil || !strings.Contains(err.Error(), "material-publications directory is not empty") {
+		t.Fatalf("backup accepted pending publication: %v", err)
+	}
+}
+
+func TestBackupExcludesAnonymousExportSpoolAndRejectsNamedResidue(t *testing.T) {
+	root := t.TempDir()
+	objects, err := localstorage.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := objects.InitializeExportSpool(); err != nil {
+		t.Fatal(err)
+	}
+	file, err := objects.CreateExportFile(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if _, err := file.Write([]byte("synthetic temporary ZIP")); err != nil {
+		t.Fatal(err)
+	}
+	actual, err := validateObjectStore(root)
+	if err != nil || actual != filepath.Join(root, "objects") {
+		t.Fatal("backup selected non-authoritative exports")
+	}
+	if err := os.WriteFile(filepath.Join(root, "export-spool", "unknown-package"), []byte("synthetic residual"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateObjectStore(root); err == nil {
+		t.Fatal("backup accepted unexpected named temporary package")
+	}
+}
 
 func TestPostgreSQLBackupManifestAuthenticationAndStrictShape(t *testing.T) {
 	root := t.TempDir()
@@ -108,6 +154,51 @@ func TestMigrationIdentityIncludesExactPostgreSQLContent(t *testing.T) {
 	}
 	if first == second {
 		t.Fatal("migration content change did not change identity")
+	}
+}
+
+func TestSchemaIdentityPreservesVisibleColumnOrderWithoutPhysicalGaps(t *testing.T) {
+	store := postgresqltest.Open(t)
+	ctx := context.Background()
+	execute := func(statement string) {
+		t.Helper()
+		if _, err := store.DB().ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	identity := func() string {
+		t.Helper()
+		tx, err := store.DB().BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		value, err := schemaIdentity(ctx, tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	execute(`CREATE TABLE synthetic_schema_columns (first_column text NOT NULL, removed_column boolean, last_column bigint DEFAULT 7);
+		ALTER TABLE synthetic_schema_columns DROP COLUMN removed_column`)
+	withGap := identity()
+	execute(`DROP TABLE synthetic_schema_columns;
+		CREATE TABLE synthetic_schema_columns (first_column text NOT NULL, last_column bigint DEFAULT 7)`)
+	if identity() != withGap {
+		t.Fatal("physical column gaps changed semantic schema identity")
+	}
+	for _, statement := range []string{
+		`CREATE TABLE synthetic_schema_columns (last_column bigint DEFAULT 7, first_column text NOT NULL)`,
+		`CREATE TABLE synthetic_schema_columns (first_column text NOT NULL, last_column integer DEFAULT 7)`,
+		`CREATE TABLE synthetic_schema_columns (first_column text, last_column bigint DEFAULT 7)`,
+		`CREATE TABLE synthetic_schema_columns (first_column text NOT NULL, last_column bigint DEFAULT 8)`,
+		`CREATE TABLE synthetic_schema_columns (renamed_column text NOT NULL, last_column bigint DEFAULT 7)`,
+	} {
+		execute(`DROP TABLE synthetic_schema_columns`)
+		execute(statement)
+		if identity() == withGap {
+			t.Fatal("visible schema drift was ignored")
+		}
 	}
 }
 

@@ -144,6 +144,18 @@ async function createCases(workspace) {
     });
   };
   await addFileCase("valid_raw", valid, 0o600, true);
+  await addFileCase(
+    "valid_raw_lf",
+    Buffer.concat([valid.subarray(0, 31), Buffer.from("\n")]),
+    0o600,
+    true,
+  );
+  await addFileCase(
+    "valid_raw_crlf",
+    Buffer.concat([valid.subarray(0, 30), Buffer.from("\r\n")]),
+    0o600,
+    true,
+  );
   await addFileCase("empty", Buffer.alloc(0), 0o600);
   await addFileCase("too_large", Buffer.alloc(129, 0x61), 0o600);
   await addFileCase("invalid_format", Buffer.from("not-a-key", "utf8"), 0o600);

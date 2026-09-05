@@ -60,6 +60,9 @@ func run() error {
 		return err
 	}
 	defer store.Close()
+	if err := store.CheckObjectRoot(ctx, os.Getenv("SBM_OBJECTS_PATH")); err != nil {
+		return err
+	}
 	service := bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{})
 	_, err = service.Execute(ctx, bootstrap.Input{
 		Email:           config.email,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/mail"
 	"strings"
 	"time"
 
@@ -103,10 +102,5 @@ func (s Service) Execute(ctx context.Context, input Input) (Result, error) {
 }
 
 func normalizeEmail(value string) (string, error) {
-	normalized := strings.ToLower(strings.TrimSpace(norm.NFKC.String(value)))
-	address, err := mail.ParseAddress(normalized)
-	if err != nil || address.Address != normalized || len(normalized) > 254 {
-		return "", domain.NewRuleError("invalid_email", "登录邮箱格式不正确", domain.ErrInvalidInput)
-	}
-	return normalized, nil
+	return domain.NormalizeLoginEmail(value)
 }

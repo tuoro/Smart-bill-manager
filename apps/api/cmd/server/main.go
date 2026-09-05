@@ -18,11 +18,14 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/accounts"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/invoicematerials"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/materialexports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
@@ -83,6 +86,9 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer store.Close()
+	if err := store.CheckObjectRoot(ctx, config.objectsPath); err != nil {
+		return err
+	}
 	hasher, err := cryptography.NewPasswordHasher(cryptography.DefaultArgon2Params)
 	if err != nil {
 		return err
@@ -102,6 +108,11 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	if err := objects.InitializeExportSpool(); err != nil {
+		return fmt.Errorf("initialize export spool: %w", err)
+	}
+	exportService := materialexports.NewService(store, objects, objects, system.IDGenerator{})
+	defer exportService.Close()
 	inspector, err := localstorage.NewInspector(objects, config.pdfInfoPath)
 	if err != nil {
 		return err
@@ -112,6 +123,10 @@ func run(logger *slog.Logger) error {
 	documentDeletions := documents.NewDeletionService(store, objects, store, system.IDGenerator{}, system.Clock{})
 	if err := documentDeletions.Reconcile(ctx); err != nil {
 		return fmt.Errorf("reconcile document deletions: %w", err)
+	}
+	invoiceMaterialService := invoicematerials.NewService(store, store, objects, objects, inspector, system.IDGenerator{}, system.Clock{})
+	if err := invoiceMaterialService.Reconcile(ctx); err != nil {
+		return fmt.Errorf("reconcile invoice material publications: %w", err)
 	}
 	masterKey, err := cryptography.LoadMasterKeyFile(config.masterKeyFile)
 	if err != nil {
@@ -159,7 +174,7 @@ func run(logger *slog.Logger) error {
 		system.IDGenerator{},
 		system.Clock{},
 	)
-	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{})
+	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{}).WithManualEntry(store, normalizer, objects)
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	emailService := applicationemails.NewService(
@@ -170,6 +185,7 @@ func run(logger *slog.Logger) error {
 	insightService := insights.NewService(store)
 	httpServer, err := httpapi.NewServer(
 		authService,
+		accounts.NewService(store, hasher, cryptography.TokenGenerator{}, system.IDGenerator{}, system.Clock{}),
 		uploadService,
 		documentQueries,
 		jobActions,
@@ -177,11 +193,13 @@ func run(logger *slog.Logger) error {
 		providerService,
 		reviewService,
 		factService,
+		invoiceMaterialService,
 		allocationService,
 		emailService,
 		tripService,
 		reimbursementService,
 		insightService,
+		exportService,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,

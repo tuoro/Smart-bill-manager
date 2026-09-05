@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/restorestate"
 	"golang.org/x/sys/unix"
 )
 
@@ -305,7 +306,24 @@ func validateObjectStore(root string) (string, error) {
 		return "", err
 	}
 	expected := map[string]bool{"objects": false, "staging": false, "trash": false}
+	if _, err := os.Lstat(filepath.Join(root, "export-spool")); err == nil {
+		expected["export-spool"] = false
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	// 旧版当前对象目录可能尚未由新服务打开；不存在即没有待收口意图。
+	if _, err := os.Lstat(filepath.Join(root, "material-publications")); err == nil {
+		expected["material-publications"] = false
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
 	for _, entry := range entries {
+		if entry.Name() == restorestate.FileName {
+			if _, err := restorestate.Read(root); err != nil {
+				return "", err
+			}
+			continue
+		}
 		if _, ok := expected[entry.Name()]; !ok || entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
 			return "", fmt.Errorf("object store contains unexpected top-level entry %q", entry.Name())
 		}
@@ -333,7 +351,7 @@ func createObjectStoreFromPackage(packageObjects, destination string) ([]fileRec
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range []string{"staging", "trash"} {
+	for _, name := range []string{"staging", "trash", "material-publications", "export-spool"} {
 		if err := os.Mkdir(filepath.Join(destination, name), 0o700); err != nil {
 			return nil, err
 		}

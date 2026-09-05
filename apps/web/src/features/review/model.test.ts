@@ -5,6 +5,7 @@ import {
   buildAssociationDecision,
   buildDuplicateResolutionDecision,
   buildRevisionRequest,
+  buildFieldPayload,
   editableFields,
   fieldPageNumbers,
   fieldVisibleOnPage,
@@ -12,12 +13,66 @@ import {
   itemPageLabel,
   newInvoiceItem,
   parseItemPath,
+  refreshDraftFields,
 } from './model'
 
 const evidenceId = '00000000-0000-4000-8000-000000000010'
 
+it('correction can annotate AI-origin fields without changing their genuine root identity', () => {
+  const review = reviewFixture({ entry_mode: 'ai' })
+  const fields = editableFields(review, 'payment')
+  const amount = fields.find((field) => field.path === 'amount_minor')!
+  amount.textValue = '5678'
+  amount.evidenceIds = []
+  amount.manualPage = 1
+  amount.manualQuote = '明确摘录'
+  expect(buildFieldPayload(review, fields).errors.amount_minor).toBeTruthy()
+  const encoded = buildFieldPayload(review, fields, true)
+  expect(encoded.fields?.find((field) => field.path === 'amount_minor')?.manual_evidence).toEqual([
+    { page: 1, quote: '明确摘录' },
+  ])
+  expect(review.entry_mode).toBe('ai')
+})
+
+it('refresh preserves manual draft and maps only equivalent evidence to the latest revision', () => {
+  const previous = reviewFixture()
+  const fields = editableFields(previous, 'payment')
+  const amount = fields.find((field) => field.path === 'amount_minor')!
+  amount.textValue = '5678'
+  amount.manualPage = 1
+  amount.manualQuote = '合成保留摘录'
+  amount.evidenceIds = [evidenceId]
+  const latest = {
+    ...previous,
+    revision: previous.revision + 1,
+    fields: previous.fields.map((field) => ({
+      ...field,
+      value: 9999,
+      evidence: field.evidence.map((entry) => ({ ...entry, id: 'refreshed-evidence' })),
+    })),
+  }
+  const refreshed = refreshDraftFields(previous, latest, fields)
+  expect(refreshed.find((field) => field.path === 'amount_minor')).toMatchObject({
+    textValue: '5678',
+    manualPage: 1,
+    manualQuote: '合成保留摘录',
+    originalValue: 9999,
+    evidenceIds: ['refreshed-evidence'],
+  })
+  expect(amount.evidenceIds).toEqual([evidenceId])
+  const changed = { ...latest, fields: latest.fields.map((field) => ({ ...field, evidence: [] })) }
+  const unresolved = refreshDraftFields(previous, changed, fields)
+  expect(unresolved.find((field) => field.path === 'amount_minor')!.evidenceIds).toEqual([
+    evidenceId,
+  ])
+  expect(buildRevisionRequest(changed, 'payment', unresolved).errors.amount_minor).toContain(
+    '证据已不在最新版本',
+  )
+})
+
 function reviewFixture(overrides: Partial<Review> = {}): Review {
   return {
+    entry_mode: 'ai',
     job: {
       id: '00000000-0000-4000-8000-000000000001',
       document_id: '00000000-0000-4000-8000-000000000002',
@@ -252,6 +307,33 @@ describe('review model', () => {
       value: [{ path: 'payment.discount', label: '优惠金额', value: '2.00' }],
       evidence_ids: [],
     })
+  })
+
+  it('accepts explicit manual page annotations but never invents quotes', () => {
+    const review = reviewFixture({ entry_mode: 'manual', fields: [] })
+    const fields = editableFields(review, 'payment')
+    const merchant = fields.find((field) => field.path === 'merchant')!
+    merchant.presence = 'present'
+    merchant.textValue = '人工商户'
+    expect(buildRevisionRequest(review, 'payment', fields).errors.merchant).toBeTruthy()
+    merchant.manualPage = 1
+    merchant.manualQuote = '用户核对的原文'
+    const built = buildRevisionRequest(review, 'payment', fields)
+    expect(built.errors).toEqual({})
+    expect(built.request?.fields.find((field) => field.path === 'merchant')).toMatchObject({
+      manual_evidence: [{ page: 1, quote: '用户核对的原文' }],
+    })
+    expect(
+      buildRevisionRequest({ ...review, entry_mode: 'ai' }, 'payment', fields).errors.merchant,
+    ).toBeTruthy()
+    merchant.manualPage = 2
+    expect(buildRevisionRequest(review, 'payment', fields).errors.merchant).toBeTruthy()
+    merchant.presence = 'absent'
+    expect(
+      buildRevisionRequest(review, 'payment', fields).request?.fields.find(
+        (field) => field.path === 'merchant',
+      ),
+    ).not.toHaveProperty('manual_evidence')
   })
 
   it('requires an explicit association decision', () => {

@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { sessionStore } from '../../app/session'
 import AppIcon from '../../components/AppIcon.vue'
+import MaterialExportPanel from './MaterialExportPanel.vue'
 import {
   ApiError,
   api,
@@ -60,6 +61,9 @@ const workspaceError = ref('')
 const statusError = ref('')
 const success = ref('')
 const attempts = new Map<string, Attempt>()
+let previewEpoch = 0,
+  detailEpoch = 0,
+  candidatesEpoch = 0
 
 const capabilities = computed(() => new Set(sessionStore.current.value?.capabilities ?? []))
 const canRead = computed(() => capabilities.value.has('reimbursements.read'))
@@ -76,6 +80,7 @@ const submissionDecision = computed(() =>
 )
 
 async function loadPage() {
+  if (submitting.value) return
   if (!canRead.value) {
     forbidden.value = true
     loading.value = false
@@ -142,6 +147,7 @@ async function changeTrip() {
 }
 
 async function loadCandidates(append: boolean) {
+  const ticket = ++candidatesEpoch
   const tripID = selectedTripID.value
   if (!tripID || offline.value || (append && !candidateCursor.value)) return
   if (append) loadingMoreCandidates.value = true
@@ -154,20 +160,23 @@ async function loadCandidates(append: boolean) {
       append ? candidateCursor.value : '',
       100,
     )
-    if (tripID !== selectedTripID.value) return
+    if (tripID !== selectedTripID.value || ticket !== candidatesEpoch) return
     candidates.value = append ? [...candidates.value, ...page.items] : page.items
     candidateCursor.value = page.next_cursor ?? ''
   } catch (caught) {
+    if (ticket !== candidatesEpoch) return
     workspaceError.value =
       caught instanceof ApiError ? caught.message : '已归属项目加载失败，请稍后重试'
   } finally {
-    loadingCandidates.value = false
-    loadingMoreCandidates.value = false
+    if (ticket === candidatesEpoch) {
+      loadingCandidates.value = false
+      loadingMoreCandidates.value = false
+    }
   }
 }
 
 function toggleAssignment(assignmentID: string) {
-  if (!assignmentID) return
+  if (!assignmentID || submitting.value) return
   const current = new Set(selectedAssignmentIDs.value)
   if (current.has(assignmentID)) current.delete(assignmentID)
   else {
@@ -182,6 +191,8 @@ function toggleAssignment(assignmentID: string) {
 }
 
 function invalidatePreview(clearSelection = true) {
+  previewEpoch++
+  previewing.value = false
   preview.value = undefined
   findingsAcknowledged.value = false
   if (clearSelection) selectedAssignmentIDs.value = []
@@ -190,7 +201,7 @@ function invalidatePreview(clearSelection = true) {
 }
 
 async function runPreview() {
-  if (!canManage.value || offline.value) return
+  if (!canManage.value || offline.value || submitting.value) return
   if (!selectedTripID.value || selectedAssignmentIDs.value.length === 0) {
     workspaceError.value = '请明确勾选至少一个已归属项目；系统不会默认选择。'
     return
@@ -199,24 +210,30 @@ async function runPreview() {
     workspaceError.value = '一次报销最多选择 200 个已归属项目。'
     return
   }
+  const ticket = ++previewEpoch
+  preview.value = undefined
   previewing.value = true
   workspaceError.value = ''
   success.value = ''
   try {
-    preview.value = await api.reimbursementPreview({
+    const result = await api.reimbursementPreview({
       trip_id: selectedTripID.value,
       assignment_ids: [...selectedAssignmentIDs.value].sort(),
     })
+    if (ticket !== previewEpoch) return
+    preview.value = result
     findingsAcknowledged.value = false
     attempts.delete('submission')
   } catch (caught) {
+    if (ticket !== previewEpoch) return
     workspaceError.value = caught instanceof ApiError ? caught.message : '政策预检失败，请稍后重试'
   } finally {
-    previewing.value = false
+    if (ticket === previewEpoch) previewing.value = false
   }
 }
 
 async function submitReimbursement() {
+  if (submitting.value) return
   const decision = submissionDecision.value
   if (!decision.request || offline.value) {
     workspaceError.value = decision.error ?? '当前离线，不能提交报销'
@@ -255,27 +272,35 @@ async function submitReimbursement() {
 }
 
 async function reloadReimbursements(preferredID = selectedReimbursementID.value) {
+  const selectedBefore = selectedReimbursementID.value
   const page = await api.reimbursements('', 50)
   reimbursements.value = page.items
   reimbursementCursor.value = page.next_cursor ?? ''
-  if (preferredID) await selectReimbursement(preferredID, true)
+  if (preferredID && selectedBefore === selectedReimbursementID.value)
+    await selectReimbursement(preferredID, true)
 }
 
 async function selectReimbursement(reimbursementID: string, preserveDraft = false) {
   if (!reimbursementID || offline.value) return
+  const ticket = ++detailEpoch
   selectedReimbursementID.value = reimbursementID
+  detail.value = undefined
   loadingDetail.value = true
   if (!preserveDraft) {
     statusReason.value = ''
     statusError.value = ''
   }
   try {
-    detail.value = await api.reimbursement(reimbursementID)
+    const result = await api.reimbursement(reimbursementID)
+    if (ticket !== detailEpoch) return
+    if (result.id !== reimbursementID) throw new Error('报销详情响应不一致')
+    detail.value = result
   } catch (caught) {
+    if (ticket !== detailEpoch) return
     detail.value = undefined
     statusError.value = caught instanceof ApiError ? caught.message : '报销详情加载失败'
   } finally {
-    loadingDetail.value = false
+    if (ticket === detailEpoch) loadingDetail.value = false
   }
 }
 
@@ -299,10 +324,12 @@ async function changeStatus(desiredStatus: ReimbursementStatus) {
       idempotencyKey(scope, fingerprint),
     )
     attempts.delete(scope)
+    if (selectedReimbursementID.value !== current.id) return
     statusReason.value = ''
     success.value = result.replayed ? '已返回同一状态决定结果。' : '报销状态已更新。'
     await reloadReimbursements(current.id)
   } catch (caught) {
+    if (selectedReimbursementID.value !== current.id) return
     statusError.value =
       caught instanceof ApiError && caught.status === 409
         ? '状态或版本已变化，已刷新详情并保留理由草稿。'
@@ -335,7 +362,7 @@ function isSelected(candidate: TripAttributionCandidate): boolean {
 
 function candidateSelectionDisabled(candidate: TripAttributionCandidate): boolean {
   const assignmentID = candidateAssignmentID(candidate)
-  return !assignmentID || (!isSelected(candidate) && selectedCount.value >= 200)
+  return submitting.value || !assignmentID || (!isSelected(candidate) && selectedCount.value >= 200)
 }
 
 function reimbursementFindingContext(finding: {
@@ -400,6 +427,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  previewEpoch++
+  detailEpoch++
+  candidatesEpoch++
   window.removeEventListener('online', setOnlineState)
   window.removeEventListener('offline', setOnlineState)
 })
@@ -415,7 +445,13 @@ onUnmounted(() => {
         <h1>报销管理</h1>
         <p>选择行程单据、核对政策提示，提交报销并跟踪处理状态。</p>
       </div>
-      <button v-if="canRead" class="button" type="button" :disabled="offline" @click="loadPage">
+      <button
+        v-if="canRead"
+        class="button"
+        type="button"
+        :disabled="offline || submitting"
+        @click="loadPage"
+      >
         刷新
       </button>
     </header>
@@ -455,7 +491,7 @@ onUnmounted(() => {
 
         <div v-if="trips.length === 0" class="state-layout compact">
           <span class="state-glyph"><AppIcon name="trip" /></span><strong>没有可用行程</strong>
-          <span>先审核确认行程，并为它归属支付或发票。</span>
+          <span>先创建行程，并为它归属支付或发票。</span>
           <RouterLink class="button" to="/trips">前往行程归属</RouterLink>
         </div>
         <template v-else>
@@ -465,16 +501,17 @@ onUnmounted(() => {
               <select
                 id="reimbursement-trip"
                 v-model="selectedTripID"
+                :disabled="submitting"
                 class="select"
                 @change="changeTrip"
               >
                 <option v-for="trip in trips" :key="trip.id" :value="trip.id">
-                  {{ trip.destination }} · {{ trip.start_date }} 至 {{ trip.end_date }}
+                  {{ trip.name }} · {{ trip.start_date }} 至 {{ trip.end_date }}
                 </option>
               </select>
             </label>
             <div v-if="selectedTrip" class="reimbursement-trip-summary">
-              <strong>{{ selectedTrip.destination }}</strong>
+              <strong>{{ selectedTrip.name }}</strong>
               <span
                 >支付 {{ selectedTrip.assigned_payment_count }} · 发票
                 {{ selectedTrip.assigned_invoice_count }}</span
@@ -537,7 +574,7 @@ onUnmounted(() => {
             <button
               class="button"
               type="button"
-              :disabled="previewing || selectedCount === 0 || offline"
+              :disabled="previewing || submitting || selectedCount === 0 || offline"
               @click="runPreview"
             >
               {{ previewing ? '正在预检…' : '运行政策预检' }}
@@ -573,17 +610,22 @@ onUnmounted(() => {
                 </li>
               </ul>
               <label class="reimbursement-acknowledgement">
-                <input v-model="findingsAcknowledged" type="checkbox" />
+                <input v-model="findingsAcknowledged" type="checkbox" :disabled="submitting" />
                 <span>我已逐项核对以上全部政策提示，确认继续提交。</span>
               </label>
             </div>
             <p v-else class="quiet-block">未发现政策提示，可以继续填写提交理由。</p>
-            <p class="quiet-block">提交后，所选项目、金额与政策提示会固定保存，不随原单据变动。</p>
+            <p class="quiet-block">
+              本次所选发票包含
+              {{ preview.materials.length }}
+              份辅助材料。提交后，所选项目、金额、政策提示与材料集合会固定保存，不随原单据变动。
+            </p>
             <div class="reimbursement-submit">
               <label class="field-stack">
                 <span>提交理由</span>
                 <textarea
                   v-model="submissionReason"
+                  :disabled="submitting"
                   class="textarea"
                   rows="3"
                   maxlength="500"
@@ -632,7 +674,7 @@ onUnmounted(() => {
                 @click="selectReimbursement(item.id)"
               >
                 <span>
-                  <strong>{{ item.trip.destination }}</strong>
+                  <strong>{{ item.trip.name }}</strong>
                   <small>{{ item.trip.start_date }} 至 {{ item.trip.end_date }}</small>
                 </span>
                 <span class="status" :data-tone="statusTone(item.status)"
@@ -681,7 +723,7 @@ onUnmounted(() => {
           <template v-else>
             <div class="panel-heading reimbursement-detail-heading">
               <div>
-                <h2 id="reimbursement-detail-title">{{ detail.trip.destination }}</h2>
+                <h2 id="reimbursement-detail-title">{{ detail.trip.name }}</h2>
                 <p>
                   {{ detail.trip.start_date }} 至 {{ detail.trip.end_date }} · v{{ detail.version }}
                 </p>
@@ -706,6 +748,23 @@ onUnmounted(() => {
               </div>
             </dl>
             <div class="reimbursement-detail-section">
+              <h3>辅助材料快照</h3>
+              <MaterialExportPanel
+                :key="detail.id"
+                :scope="{ kind: 'reimbursement', id: detail.id }"
+                :disabled="offline || !!changingStatus || submitting"
+              />
+              <p v-if="!detail.materials_captured" class="quiet">
+                历史记录未捕获辅助材料，不能用当前材料冒充提交时附件。
+              </p>
+              <p v-else-if="detail.material_count === null" class="quiet">
+                辅助材料集合已在提交时固定；当前账号无权查看数量和原件。
+              </p>
+              <p v-else class="quiet">
+                已固定 {{ detail.material_count }} 份辅助材料{{
+                  detail.material_count === 0 ? '（提交时为空）' : ''
+                }}；后续新增或解除关联不会改变此快照。
+              </p>
               <h3>快照项目</h3>
               <ul class="reimbursement-detail-items">
                 <li v-for="item in detail.items" :key="item.id">
@@ -713,7 +772,12 @@ onUnmounted(() => {
                     <strong>{{ factTypeLabel(item.fact_type) }} · {{ item.display_name }}</strong>
                     <small
                       >{{ item.business_date
-                      }}<template v-if="item.source_deleted"> · 原单据已删除</template></small
+                      }}<template v-if="item.source_deleted"> · 原单据已删除</template> ·
+                      {{
+                        item.fact_review_decision_id
+                          ? '已固定确认版本，后续纠错不改写此快照'
+                          : '历史快照（未记录字段修订身份）'
+                      }}</small
                     >
                   </span>
                   <strong class="numeric">{{

@@ -1,5 +1,21 @@
 # Clean Slate 架构基线
 
+B7/B8 结构增补见 ADR-0031/0032：目标查询使用 SQL 有界 keyset，提交重读显式目标；坏账为带不可变决定的业务元数据，Trip 删除保护从唯一活动关系图派生。
+
+B6 已验收增补：[ADR-0030](decisions/0030-material-delivery-packages.md) 将精确清单查询、ZIP 应用编排和磁盘临时文件分别置于 PostgreSQL port、应用层和本地存储 adapter。一次 RR 快照固定业务范围；有界匿名文件句柄支持准备/一次下载，既不是数据库导出任务也不是新的权威数据源。
+
+B5 增补（已本地验收、未发布）：[ADR-0029](decisions/0029-member-account-lifecycle.md) 复用全局 User、Membership、Session 与现有 Argon2/token；Tenant 锁保护最后 Owner，User 锁及已核验 hash 比较保护登录/改密。Owner 只管理本租户成员，受控本地恢复不是 Web 重置接口；client/session 统一认证代际，不建立第二身份源。
+
+B4 增补（已本地验收）：[ADR-0028](decisions/0028-invoice-supporting-materials.md) 用 InvoiceMaterial 关系复用不可变 Document；无 Job 的辅助上传不进入 AI 链。材料编辑按 Invoice/Document 锁和聚合版本原子提交，精确文件发布意图以同一 PostgreSQL 事务锁核对恢复；报销提交固定材料集。原件权限、物理删除和精确备份共同更新，不新增文件数据源。
+
+B3 增补（已本地验收）：[ADR-0027](decisions/0027-complete-fact-management.md) 用唯一有界分页链路替换固定 200 条列表。应用层规范筛选/校验作用域游标，PostgreSQL 按不可变入库时间/ID keyset 查询；详情以只读一致性快照组合当前 Fact、明细和关系，原件身份按独立来源权限输出。Web 不保存第二份全量账单；纠错、分配与软删除复用原用例。
+
+B2 增补（已本地验收）：[ADR-0026](decisions/0026-confirmed-fact-correction.md) 在现有审核应用层增加“读取当前 Fact/来源 → 校验预览 → 显式确认”的纠错用例；复用字段、Evidence、重复检测与唯一自动归属实现。纠错不重开 Worker/Job，不创建第二套长期草稿或字段仓库。PostgreSQL 单事务保存完整 Claim/Review、纠错决定、当前投影、字段来源及选定分配撤销；先比较关联快照再更新，不能只依赖 Fact.version。预览绑定重复目标当前 ReviewDecision；发票表头与当前明细共用只读 RepeatableRead，避免混用纠错前后版本。
+
+当前增补：B1 按 [ADR-0025](decisions/0025-explicit-manual-review.md) 已本地验收显式人工 Claim 入口；与 AI Claim 共享 Revision/Validation/Confirm，不创建平行 Fact 写入链。接管在 Job 锁与事务内协调页面准备和初始 Claim，幂等身份、真实来源和失败历史保留。
+
+当前行程扩展以 ADR-0024 为准：人工费用容器与审核 TripEvidence Fact 分离，模型不得创建容器；管理、确定性支付自动归属及材料关系沿用唯一 PostgreSQL 事务/权限/历史机制，不伪造 Source 或引入旧兼容链。下文 Trip Fact 历史描述只指凭证。
+
 状态：M0～M4 本地功能与本地发布准备已完成；PostgreSQL 17 是唯一关系数据源
 适用对象：Smart Bill Manager 新系统
 非适用对象：`backend-go/`、`frontend/` 和旧部署
@@ -184,19 +200,20 @@ flowchart LR
 
 M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 item 的不同字段可以引用相邻页面，本地从稳定 `item_key`、`sort_order` 与 Evidence 页码校验连续跨度和不倒退阅读顺序。分页计划只在读取时从 FieldClaim/Evidence/DocumentPage 派生；规范化单页通过显式 tenant 查询与原件相同的 reviewer 状态边界读取，不新增持久化页结论或第二模型调用。
 
-### M3 行程 Fact 与单据归属
+### 行程容器、凭证与单据归属（ADR-0024）
 
-1. Trip 单据与 Payment/Invoice 共用上传或邮件附件 Document、ProcessingJob、一次多模态请求、Claim revision、证据、校验和人工确认；不存在手工直建 Trip 或邮件专用 Trip 入口。
-2. 确认事务按 Claim 类型创建 Payment、Invoice 或 Trip。Payment/Invoice 继续提交金额分配计划；Trip 不提交该计划，但三类 Fact 都必须先完成疑似重复 resolution，且每个正式字段都写入 FactFieldOrigin。
+1. 人工 Trip 由 Owner/Finance 通过行程管理应用服务创建/编辑，不伪造 Source 或 Fact。Trip 单据仍与 Payment/Invoice 共用既有上传、Claim、证据、校验及确认链，审核只创建 TripEvidence。
+2. 确认事务按 Claim 类型创建 Payment、Invoice 或 TripEvidence。只有前两类提交金额分配计划；三类 Fact 都保留重复 resolution 与 FactFieldOrigin。材料 Link 独立关联凭证，一容器可容纳多张机票。
 3. 归属读取端从未删除 Trip、Payment、Invoice、活动 PaymentInvoiceLink 与活动 TripFactAssignment 派生 `trip-attribution/1` 建议；不读取 Source 内容或调用模型。
-4. 归属写端只接受单 Fact 的目标 Trip、期望当前 Assignment、理由与幂等键，并在 immediate 事务中重检租户、Fact/Trip 存活、活动唯一和期望快照。
+4. 归属写端接受单 Fact 的目标 Trip、期望当前 Assignment 与 Fact version、理由、幂等键，并在 PostgreSQL SERIALIZABLE 事务与行锁中重检角色、租户、Fact/Trip 存活、活动唯一和期望快照。
 5. assign 创建新 Link；move/unassign 先以一个决定终止旧 Link，move 再创建新 Link。Decision 和历史 Link 不可更新或删除，删除 Fact 使用删除 AuditEvent 终止活动 Link。
 6. 候选读取使用不透明游标，默认 50、最大 100；排序和建议原因固定在 ADR-0015。并发变化不会被写端信任，陈旧 Link 必须冲突并要求刷新。
+7. Payment 确认、行程日期/时区变更和恢复自动时，在同一事务中按精确交易时间与容器当地整日边界重算；SQL 条件限定受影响时间范围，100 个 ID 一批 keyset，不全量加载。唯一匹配才自动归入；重叠待人工；人工归属/禁止自动不被覆盖。
 
 ### M3 报销快照与确定性政策提示
 
 1. Reimbursement 是 `application/reimbursements` 独立用例，不进入 AI Worker、Claim Mapper 或 Review 确认事务，也不提供模型、邮件或测试 fixture 自动创建入口。
-2. 读取端口按显式 Trip 和 1～200 个活动 TripFactAssignment 加载未删除 Fact、选中范围内的活动 PaymentInvoiceLink，以及其他 submitted/reimbursed 报销成员；领域层唯一 `reimbursement-policy/1` 计算 Finding、按币种汇总和规范快照 hash。
+2. 读取端口按显式 Trip 和 1～200 个活动 TripFactAssignment 加载未删除 Fact、选中范围内的活动 PaymentInvoiceLink、所选 Invoice 的活动辅助材料 Link/Document 身份，以及其他 submitted/reimbursed 报销成员；领域层唯一 `reimbursement-policy/2` 计算 Finding、按币种汇总和规范快照 hash。历史 `/1` 仅作为已存快照读取，不保留旧预检运行分支。
 3. 预检只返回计算结果且不落库。提交端在 PostgreSQL `SERIALIZABLE` 事务内使用同一读取与领域算法重算，锁定受影响行，严格比较期望快照和完整 Finding key 确认，再原子写 Reimbursement、Item、Finding、Decision 和 AuditEvent。
 4. Item 冻结 Trip/Assignment/Fact 的历史显示与金额快照，不参与当前 Fact 查询、余额或归属计算。当前 Fact、PaymentInvoiceLink 和 TripFactAssignment 始终是提交前预检的唯一实时来源。
 5. 当前报销状态保存在 Reimbursement；每次合法变化必须与一个不可变 Decision 在同一事务内更新状态和版本。相同 Trip 同时最多一个 submitted，陈旧状态/版本或并发唯一冲突全部回滚。
@@ -204,9 +221,9 @@ M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 i
 
 ```mermaid
 flowchart LR
-    Trip[confirmed Trip] --> Assignment[活动 TripFactAssignment]
+    Trip[人工 Trip 容器] --> Assignment[活动 TripFactAssignment]
     Assignment --> Selection[用户显式选择]
-    Selection --> Policy[reimbursement-policy/1]
+    Selection --> Policy[reimbursement-policy/2]
     Policy --> Preview[不落库预检]
     Preview --> Confirm[完整 Finding 确认]
     Confirm --> Reimbursement[不可变报销快照]
@@ -242,8 +259,8 @@ flowchart LR
 2. 备份适配器从四个权威引用来源生成唯一对象集合：Document、DocumentPage、EmailMessage 原文与非空 EmailAttachment。共享对象按 key 去重并要求哈希/已知大小一致；该集合必须与 `objects/` 的普通文件精确相等，`staging/` 和 `trash/` 必须为空。
 3. 数据包只持有 PostgreSQL 自包含 dump、已提交对象和当前版本认证清单；主密钥仍在独立数据源，由操作者单独提供。清单使用主密钥域分离派生的 HMAC 认证并携带随机 `backup_set_id`，数据包本身没有伪造清单或集合身份的能力。
 4. 数据库检查同时覆盖固定服务端/工具 major、迁移文件集合、`schema_migrations`、PostgreSQL Schema 身份、全部表数量、约束身份和审计链；SQLite 清单、旧清单或旧数据库没有兼容读取路径。
-5. 恢复先在数据库、对象和密钥各自目标文件系统内 staging 并完成离线精确对账，再持久化 `restore-state=incomplete` 并发布。应用在运行锁前后拒绝 incomplete、未知、损坏、孤立状态；跨卷发布不是伪装的单文件原子 rename。
-6. 离线快照复核完成后，恢复命令删除全部 Session，再验证除 Session 归零之外的持久化状态未变。只有发布、同步和后检查都通过，才用已单独 `fsync` 的 complete 文件原子替换状态并同步父目录；complete 状态永久保留且必须与数据库成对。
+5. 按 ADR-0033，在 dump 写入前先在全新 PostgreSQL 目标内提交 `sbm_restore.state=incomplete`，与迁移共享事务 advisory lock。普通连接、迁移和各写入入口拒绝未激活副本；恢复只通过本轮专用控制器操作它，不恢复 SQLite 运行锁或设置绕过开关。
+6. 离线快照复核完成后失效 Session 与未消费邀请，再复核允许的增量。对象树携带无状态的恢复配对身份；对象和独立主密钥均发布、同步并后检后，最后以 PostgreSQL 事务把唯一状态改为 complete。启动时在创建对象目录之前校验数据库与对象身份。操作 Schema 和配对文件不进业务备份，每次新恢复重新建立，不把跨资源发布伪装为单文件 rename。
 7. M4 演练以恰好 1,000 个实际纯合成 Document 原件、2 个派生页、1,004 条对象引用、1,003 个唯一物理对象和 RPO 0 验证 30 分钟 RTO。备份边界必须从绑定 exercise/model/mode/instance 的挂起回环 Provider 精确观察 0→1 次提取；数据包创建后、首次独立 verify 前启动唯一时钟。恢复副本先证明原快照可查询下载，再继续租约和审核。既有行稳定摘要、旧 Session 清零、新 Session、目标租约接管、AiRun 终止与唯一闭合 Fact 链分别对账，不冒充原始清单逐字相等。
 
 完整恢复集合、CLI 安全输出、失败边界和演练数据见 `docs/decisions/0018-authenticated-offline-backup-and-recovery.md` 与 `docs/backup-restore.md`。

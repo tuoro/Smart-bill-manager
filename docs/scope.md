@@ -1,11 +1,31 @@
 # 范围与非目标
 
-状态：M0～M4 本地功能、本地发布准备和单机公开实测分发已完成；真实模型评测、真实外部联调和生产部署仍待单独授权
+B7/B8 已本地验收：按 ADR-0031/0032 实现跨 30 天的有理由手工分配，以及 Payment/Invoice 坏账标记和关联行程删除保护。此前关于这两项待决策的限制被本次明确授权替代；邮箱连接器仍在范围外。该切片验收当时未提交、发布或升级用户实例；后续分发以 v0.4.0 的明确授权为准。
+
+B6 已验收增补：[ADR-0030](decisions/0030-material-delivery-packages.md) 替代历史 M3 的业务导出排除，限定为当前行程完整活动材料或固定报销快照的 ZIP；不扩张为外部系统同步或备份。采用预览 hash、受限磁盘准备与原生下载，历史未捕获集合明确披露。
+
+B5 当前增补：[ADR-0029](decisions/0029-member-account-lifecycle.md) 授权实现本租户邀请/加入、四角色与停用/恢复、自助改密、多工作区登录和受控本地账号恢复；不增加公开注册、邮件、SSO 或 Owner 跨租户重置密码。`0007` 保留当前数据；已本地验收、未发布。
+
+状态：M0～M4 历史冻结范围及 B1～B8 已按 ADR-0025～0032 完成本地验收；真实模型评测、真实外部联调、单列待决策能力和生产部署仍不在本结论内
 适用范围：Clean Slate 新架构
 
-当前 `v0.3.4` UI 补丁发布范围与风险相称验收见 [发布范围](releases/v0.3.4.md)；不改变业务或存储契约，不把历史 M4 测量改写为新镜像结果。
+历史 `v0.3.4` UI 补丁发布范围与验收见 [发布记录](releases/v0.3.4.md)；当前发布范围与受影响门禁以 [v0.4.0](releases/v0.4.0.md) 为准，不把历史测量改写为新镜像结果。
+
+已验收断点：[ADR-0024](decisions/0024-manual-trip-workspace.md) 人工行程创建/编辑、多凭证、唯一时间自动归属与人工优先已通过本地验收；保留 v0.3.4 数据、人工决定和报销快照。尚未提交、发版或升级用户实例。
+
+当前断点：[业务能力补齐计划](functional-completion-plan.md) 的 B1～B6 已依次完成本地验收，报销材料 ZIP 按 ADR-0030 实现，不能理解为恢复旧导出模块。B7/B8 已单独授权并按 ADR-0031/0032 完成本地验收；邮箱采集仍单列待决策。
 
 ## 最高边界
+
+v0.4.0 发布阻断修复以 [ADR-0033](decisions/0033-postgresql-restore-activation.md) 为准：仅补齐恢复中断状态、数据库/对象配对、共享启动拒绝和真实验收证据。不改变业务范围或现有数据库前向保留规则，完成后继续既有发布授权。
+
+B4 已按 [ADR-0028](decisions/0028-invoice-supporting-materials.md) 完成发票辅助图片/PDF 的上传、共享关联、授权原件读取和移除；辅助 Document 不创建识别任务或 Fact。`0006`、数据/文件失败边界、精确恢复、材料历史及报销材料集合固定均已本地验收；B4 不含 GC 或后续 B6 ZIP 导出。
+
+B3 按 [ADR-0027](decisions/0027-complete-fact-management.md) 冻结支付/发票 keyset 分页、日期/已有名称和单号/分配状态筛选，以及有权限区分的完整详情；复用纠错、分配和 Fact 软删除。排序固定为不可变确认入库时间/ID，前向 `0005` 仅增加查询索引；不扩大 Viewer 原件权限、不建立全量内存列表。
+
+B2 按 [ADR-0026](decisions/0026-confirmed-fact-correction.md) 冻结范围：同类型、同 ID Fact 的有理由字段纠错、历史来源、显式保留/撤销分配、自动归属重算与报销快照保护；不重开 Job、不复制分配金额编辑器；跨期日期条件由后续 ADR-0031 替代，不支持确认后跨类型转换。完整本地验收见 `tests/evidence/business-completion/b2-fact-correction.json`；不代表发布或用户实例升级。
+
+B1 按 [ADR-0025](decisions/0025-explicit-manual-review.md) 已本地验收；其人工来源、页面准备、证据标注和 Job 转换增补优先于历史 M1 仅 AI 创建初始 Claim 的限定，其他校验、审核和租户边界保持。B2～B6 已按 ADR-0026～0030 本地验收；待决策项不包含在本轮完成范围内。
 
 Smart Bill Manager 是独立的新系统，不是旧版本的升级路径。
 
@@ -204,6 +224,8 @@ M1 已于 2026-08-30 完成。清晰、完整、无遮挡且关键字段可直�
 完整不变量、容量、失败补偿、API/UI 与验证要求见 `docs/decisions/0014-connector-neutral-email-archive.md` 和 `docs/acceptance.md`。
 
 ### 已完成的第二切片范围
+
+以下是 2026-08-31 已验收的历史范围。当前 ADR-0024 将原 Trip Fact 分离为 TripEvidence 与人工容器，恢复手工行程和唯一时间匹配自动归属；“不自动归属”的历史排除不再限制该新增切片。历史证据不作为新行为已通过的证明。
 
 - 将唯一活动模型链升级为 `bill-visible-text-cn/2 -> bill-visible-text/2 -> bill-visible-text-provider/2 -> claim-mapper/4 -> document-claim/3`，增加固定 Trip 区段；旧版本退出活动链路，不保留兼容解析；
 - Trip 单据继续经过既有 Document、AiRun、Claim、Validation 与人工 Review，只有确认后创建可追溯 Trip Fact；

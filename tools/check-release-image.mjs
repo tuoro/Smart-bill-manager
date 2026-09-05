@@ -31,15 +31,23 @@ const releaseFiles = [
   "tools/acceptance-start.sh",
   "tools/synthetic-provider.mjs",
 ];
-const requiredImageFiles = [
+export const requiredImageFiles = [
   "/app/server",
   "/app/bootstrap-owner",
+  "/app/recover-account",
   "/app/backup",
   "/app/migrate",
   "/app/provision-postgresql",
   "/app/run-as-sbm",
   "/app/web/index.html",
   "/app/migrations/0001_initial.sql",
+  "/app/migrations/0002_manual_trip_workspaces.sql",
+  "/app/migrations/0003_explicit_manual_review.sql",
+  "/app/migrations/0004_confirmed_fact_corrections.sql",
+  "/app/migrations/0005_fact_management_indexes.sql",
+  "/app/migrations/0006_invoice_supporting_materials.sql",
+  "/app/migrations/0007_member_account_lifecycle.sql",
+  "/app/migrations/0008_allocation_search_and_bad_debt.sql",
   "/app/contracts/bill-visible-text.schema.json",
   "/usr/local/bin/sbm-entrypoint",
   "/usr/local/bin/pg_dump",
@@ -200,6 +208,38 @@ async function main() {
       options.expectedHead,
       options.expectedReleaseInput,
     );
+    // 资产清单由 root 读取并不足够：服务器实际以 UID 10001 提供这些文件。
+    await run(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--network",
+        "none",
+        "--memory",
+        "64m",
+        "--pids-limit",
+        "32",
+        "--cpus",
+        "0.5",
+        "--read-only",
+        "--user",
+        "10001:10001",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--entrypoint",
+        "/bin/sh",
+        imageResult.image_id,
+        "-ec",
+        runtimeAssetReadCheck,
+      ],
+      options.repositoryRoot,
+    );
+    imageResult.runtime_assets_readable = true;
     const failedGates = [
       ...composeResult.failed_gates.map((gate) => `compose:${gate}`),
       ...imageResult.failed_gates.map((gate) => `image:${gate}`),
@@ -235,6 +275,9 @@ async function main() {
     await output.close();
   }
 }
+
+export const runtimeAssetReadCheck =
+  'set -e; for root in /app/web /opt/sbm-poppler; do files=$(find "$root" -type f); test -n "$files"; for file in $files; do test -r "$file"; done; done; /opt/sbm-poppler/bin/pdfinfo -v >/dev/null 2>&1; /opt/sbm-poppler/bin/pdftoppm -v >/dev/null 2>&1';
 
 function parseCheckArguments(argumentsList) {
   const values = parseStrictPairs(
@@ -274,15 +317,14 @@ function parseCheckArguments(argumentsList) {
     postgresAdminPasswordSource,
     postgresMigrationPasswordSource,
     postgresRuntimePasswordSource,
-  ] =
-    requireDistinctPaths([
-      values.get("master-key-source"),
-      values.get("owner-password-source"),
-      values.get("provider-key-source"),
-      values.get("postgres-admin-password-source"),
-      values.get("postgres-migration-password-source"),
-      values.get("postgres-runtime-password-source"),
-    ]);
+  ] = requireDistinctPaths([
+    values.get("master-key-source"),
+    values.get("owner-password-source"),
+    values.get("provider-key-source"),
+    values.get("postgres-admin-password-source"),
+    values.get("postgres-migration-password-source"),
+    values.get("postgres-runtime-password-source"),
+  ]);
   return {
     repositoryRoot: resolve(
       values.get("repository-root") ?? defaultRepositoryRoot,
@@ -321,12 +363,10 @@ function buildComposeEnvironment(options) {
     SBM_BUILD_SHA: options.expectedHead,
     SBM_RELEASE_INPUT_SHA256: options.expectedReleaseInput,
     SBM_MASTER_KEY_SOURCE: options.masterKeySource,
-    SBM_POSTGRES_ADMIN_PASSWORD_SOURCE:
-      options.postgresAdminPasswordSource,
+    SBM_POSTGRES_ADMIN_PASSWORD_SOURCE: options.postgresAdminPasswordSource,
     SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE:
       options.postgresMigrationPasswordSource,
-    SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE:
-      options.postgresRuntimePasswordSource,
+    SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE: options.postgresRuntimePasswordSource,
     SBM_DEPLOYMENT_MODE: "local",
     SBM_COOKIE_SECURE: "false",
     SBM_BIND_ADDRESS: "127.0.0.1",
@@ -517,7 +557,8 @@ export function validateCompose(base, acceptance, options, providerImageID) {
       app.environment.SBM_POSTGRES_PORT === "5432" &&
       app.environment.SBM_POSTGRES_DATABASE === "smart_bill_manager" &&
       app.environment.SBM_POSTGRES_USER === "sbm_runtime" &&
-      app.environment.SBM_POSTGRES_PASSWORD_FILE === "/run/sbm-secrets/postgres-runtime-password" &&
+      app.environment.SBM_POSTGRES_PASSWORD_FILE ===
+        "/run/sbm-secrets/postgres-runtime-password" &&
       app.environment.SBM_POSTGRES_SSL_MODE === "disable" &&
       app.environment.SBM_AI_CONCURRENCY === "2" &&
       app.environment.SBM_COOKIE_SECURE === "false" &&
@@ -544,10 +585,10 @@ export function validateCompose(base, acceptance, options, providerImageID) {
   gate(
     failed,
     "master_key_secret",
-    sameMembers((app?.secrets ?? []).map((secret) => secret.source), [
-      "sbm_master_key",
-      "sbm_postgres_runtime_password",
-    ]) &&
+    sameMembers(
+      (app?.secrets ?? []).map((secret) => secret.source),
+      ["sbm_master_key", "sbm_postgres_runtime_password"],
+    ) &&
       sameMembers(Object.keys(base.secrets ?? {}), [
         "sbm_master_key",
         "sbm_postgres_admin_password",
@@ -579,7 +620,8 @@ export function validateCompose(base, acceptance, options, providerImageID) {
       database?.networks?.database !== undefined &&
       base.networks?.database?.internal === true &&
       provision?.depends_on?.database?.condition === "service_healthy" &&
-      migrate?.depends_on?.provision?.condition === "service_completed_successfully" &&
+      migrate?.depends_on?.provision?.condition ===
+        "service_completed_successfully" &&
       app?.depends_on?.migrate?.condition === "service_completed_successfully",
   );
   const command = provider?.command ?? [];
@@ -647,7 +689,10 @@ export function validateCompose(base, acceptance, options, providerImageID) {
   gate(
     failed,
     "acceptance_network_isolation",
-    sameMembers(Object.keys(acceptance.networks ?? {}), ["default", "database"]) &&
+    sameMembers(Object.keys(acceptance.networks ?? {}), [
+      "default",
+      "database",
+    ]) &&
       acceptance.networks.default?.internal === true &&
       acceptance.networks.database?.internal === true,
   );
@@ -713,8 +758,7 @@ export function validateImage(
       /^\/app\/seed-performance(?:\/|$)/.test(path) ||
       /^\/app\/recovery-exercise(?:\/|$)/.test(path) ||
       /^\/app\/(?:tools|tests|docs|evidence)(?:\/|$)/.test(path) ||
-      (/^\/app\//.test(path) &&
-        /\.(?:go|ts|tsx|vue|map|db|log)$/.test(path)) ||
+      (/^\/app\//.test(path) && /\.(?:go|ts|tsx|vue|map|db|log)$/.test(path)) ||
       /^\/var\/lib\/sbm\/.*\.(?:db|log)$/.test(path) ||
       /(?:master-key|owner-password|provider-key)/i.test(path) ||
       path === "/usr/local/bin/node" ||
@@ -769,8 +813,14 @@ export function validateImage(
   gate(
     failed,
     "postgresql_tools",
-    commandsText.split("\n").some((entry) => /^pg_dump=pg_dump \(PostgreSQL\) 17\./.test(entry)) &&
-      commandsText.split("\n").some((entry) => /^pg_restore=pg_restore \(PostgreSQL\) 17\./.test(entry)),
+    commandsText
+      .split("\n")
+      .some((entry) => /^pg_dump=pg_dump \(PostgreSQL\) 17\./.test(entry)) &&
+      commandsText
+        .split("\n")
+        .some((entry) =>
+          /^pg_restore=pg_restore \(PostgreSQL\) 17\./.test(entry),
+        ),
   );
   gate(
     failed,
@@ -932,7 +982,10 @@ async function run(
   }
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (
+  process.argv[1] &&
+  pathToFileURL(process.argv[1]).href === import.meta.url
+) {
   main().catch((error) => {
     process.stderr.write(`release-image: ${safeErrorCode(error)}\n`);
     process.exitCode = 1;

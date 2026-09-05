@@ -60,7 +60,8 @@ func (s DeletionService) Delete(
 	resourceHash := sha256.Sum256([]byte(tenant.TenantID + "\x00" + documentID))
 	command := ports.DocumentDeleteCommand{
 		TenantID: tenant.TenantID, DocumentID: documentID, ActorUserID: tenant.UserID,
-		TombstoneID: tombstoneID, ResourceIDHash: hex.EncodeToString(resourceHash[:]),
+		ExpectedJobVersion: plan.JobVersion,
+		TombstoneID:        tombstoneID, ResourceIDHash: hex.EncodeToString(resourceHash[:]),
 		ObjectHashesJSON: string(objectHashesJSON), ResourceCountsJSON: string(resourceCountsJSON),
 		RequestID: requestID, DeletedAt: s.clock.Now(),
 	}

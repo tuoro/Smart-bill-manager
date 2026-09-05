@@ -19,7 +19,395 @@ tags:
   - name: insights
   - name: providers
   - name: email
+  - name: accounts
 paths:
+  /material-exports/preview:
+    post:
+      operationId: previewMaterialExport
+      tags: [reimbursements]
+      description: 完整读取显式当前行程或固定报销快照，要求 facts.read 和 review.source.read；报销另需 reimbursements.read。无文件内容或内部存储键。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExportScope" }
+      responses:
+        "200":
+          description: 有界完整清单，不能按管理页截断
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportManifest" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+  /material-exports:
+    post:
+      operationId: prepareMaterialExport
+      tags: [reimbursements]
+      description: 重新比较预览 hash，最长两分钟逐份校验并准备磁盘 ZIP；每进程最多两个在途包，成功后同会话五分钟内领取一次。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExportPrepareRequest" }
+      responses:
+        "201":
+          description: 完整 ZIP 已准备，尚未下载
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExportPrepared" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "503":
+          description: 并发名额已满、磁盘不可写或服务已关闭；不得认为已生成
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /material-exports/{export_id}/content:
+    get:
+      operationId: downloadMaterialExport
+      tags: [reimbursements]
+      description: 同一有效 tenant/user/session 一次性领取；不支持 HEAD、Range 或续传。客户端使用原生附件下载，不将 ZIP 读为 Blob。
+      parameters:
+        - { name: export_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' } }
+      responses:
+        "200":
+          description: 已完整校验的 ZIP；精确 Content-Length 和附件文件名
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "405": { description: HEAD 不消费临时包 }
+  /material-exports/{export_id}:
+    delete:
+      operationId: cancelMaterialExport
+      tags: [reimbursements]
+      description: 同一会话取消尚未领取的临时包；已领取的下载由浏览器取消，过期或已领取返回 404。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - { name: export_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' } }
+      responses:
+        "204": { description: 临时文件句柄已释放 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /session/workspaces:
+    post:
+      operationId: listLoginWorkspaces
+      tags: [session]
+      security: []
+      description: 只有密码验证成功后才返回 active 工作区，不产生 Session。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkspaceLoginRequest" }
+      responses:
+        "200":
+          description: 显式工作区选择
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkspaceChoices" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /members:
+    get:
+      operationId: listMembers
+      tags: [accounts]
+      description: 仅 Owner 读取本租户成员，包含 suspended；按入库时间和用户 ID 稳定分页。
+      parameters:
+        - $ref: "#/components/parameters/FactCursor"
+        - $ref: "#/components/parameters/FactLimit"
+      responses:
+        "200":
+          description: 本页成员
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /members/{user_id}:
+    get:
+      operationId: getMember
+      tags: [accounts]
+      description: 仅当前租户管理员按 ID 核对成员，冲突恢复不依赖其仍在当前分页。
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 当前成员版本
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Member" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: changeMember
+      tags: [accounts]
+      description: 仅改变本租户角色/状态并撤销其旧会话；不修改全局账号。
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MemberChange" }
+      responses:
+        "200":
+          description: 变更后的成员，版本递增
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Member" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /member-invitations:
+    get:
+      operationId: listMemberInvitations
+      tags: [accounts]
+      parameters:
+        - $ref: "#/components/parameters/FactCursor"
+        - $ref: "#/components/parameters/FactLimit"
+      responses:
+        "200":
+          description: Owner 查看邀请历史，不返回代码或 hash
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: createMemberInvitation
+      tags: [accounts]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationRequest" }
+      responses:
+        "200":
+          description: 48 小时邀请，代码只在首次成功响应返回；回放 code 为空字符串
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationCreated" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /member-invitations/{invitation_id}:
+    get:
+      operationId: getMemberInvitation
+      tags: [accounts]
+      description: 仅当前租户管理员按 ID 核对邀请，不返回代码或其散列。
+      parameters:
+        - name: invitation_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: 当前邀请版本
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invitation" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /member-invitations/{invitation_id}/revoke:
+    post:
+      operationId: revokeMemberInvitation
+      tags: [accounts]
+      parameters:
+        - name: invitation_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationRevocation" }
+      responses:
+        "200":
+          description: 已撤销的邀请
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invitation" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /invitations/check:
+    post:
+      operationId: checkInvitation
+      tags: [accounts]
+      security: []
+      description: 代码仅在请求体传输；无效、过期、撤销或已用统一拒绝。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationCode" }
+      responses:
+        "200":
+          description: 持有代码者核对工作区与身份模式
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvitationView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /invitations/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [accounts]
+      security: []
+      description: 新账号设置密码和姓名；已有账号必须验证旧密码，display_name 必须为空。成功不签发 Session。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationAcceptance" }
+      responses:
+        "204": { description: 已加入，请显式登录 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /account/password:
+    post:
+      operationId: changeOwnPassword
+      tags: [accounts]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordChange" }
+      responses:
+        "204": { description: 密码已修改，全部工作区会话已撤销，包括当前会话 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: unauthenticated 会话失效；invalid_credentials 当前密码不正确，不应清空表单 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /facts/{fact_type}/{fact_id}/correction:
+    parameters:
+      - $ref: "#/components/parameters/CorrectionFactType"
+      - $ref: "#/components/parameters/CorrectionFactId"
+    get:
+      operationId: getFactCorrection
+      tags: [facts]
+      description: Owner/Finance 读取未删除正式单据的当前字段与来源，不重开 Job。
+      responses:
+        "200":
+          description: 当前字段、分配和归属
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CorrectionWorkspace" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: confirmFactCorrection
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CorrectionConfirmRequest" }
+      responses:
+        "200":
+          description: 同 ID 原子纠错或同请求回放
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CorrectionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /facts/{fact_type}/{fact_id}/correction/preview:
+    parameters:
+      - $ref: "#/components/parameters/CorrectionFactType"
+      - $ref: "#/components/parameters/CorrectionFactId"
+    post:
+      operationId: previewFactCorrection
+      tags: [facts]
+      description: 校验完整字段、全部活动分配、重复和自动归属；不保存草稿。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CorrectionRequest" }
+      responses:
+        "200":
+          description: 内容绑定预览；can_confirm 为 false 时不得提交
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CorrectionPreview" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /facts/{fact_type}/{fact_id}/correction/history:
+    get:
+      operationId: getFactCorrectionHistory
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/CorrectionFactType"
+        - $ref: "#/components/parameters/CorrectionFactId"
+        - name: before_revision
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: 修订倒序 keyset 历史；首次确认也在其中
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CorrectionHistoryPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /health:
     get:
       operationId: getHealth
@@ -375,6 +763,35 @@ paths:
                 $ref: "#/components/schemas/JobSummary"
         "409":
           $ref: "#/components/responses/Conflict"
+  /jobs/{job_id}/manual-review:
+    post:
+      operationId: startManualReview
+      tags: [reviews]
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualReviewRequest"
+      responses:
+        "200":
+          description: 已显式建立人工审核，或同请求幂等重放；没有创建 Fact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualReviewResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
   /reviews/{job_id}:
     get:
       operationId: getReview
@@ -482,20 +899,42 @@ paths:
     get:
       operationId: listPayments
       tags: [facts]
+      description: 按不可变确认入库时间和 ID 倒序分页；日期用于筛选，不保证跨请求冻结集合。
+      parameters:
+        - $ref: "#/components/parameters/FactCursor"
+        - $ref: "#/components/parameters/FactLimit"
+        - $ref: "#/components/parameters/FactDateFrom"
+        - $ref: "#/components/parameters/FactDateTo"
+        - $ref: "#/components/parameters/FactSearch"
+        - $ref: "#/components/parameters/FactAllocationStatus"
       responses:
         "200":
-          description: 未删除 Payment
+          description: 当前页未删除 Payment
           content:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, next_cursor]
                 properties:
+                  next_cursor: { type: string, description: 末页为空字符串 }
                   items:
                     type: array
                     items:
                       $ref: "#/components/schemas/Payment"
   /payments/{payment_id}:
+    get:
+      operationId: getPayment
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      responses:
+        "200":
+          description: 当前支付、分配及获授权来源的一致性详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FactDetail" }
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       operationId: deletePayment
       tags: [facts]
@@ -511,20 +950,42 @@ paths:
     get:
       operationId: listInvoices
       tags: [facts]
+      description: 有界分页，仅返回当前明细数量；完整明细通过详情读取。
+      parameters:
+        - $ref: "#/components/parameters/FactCursor"
+        - $ref: "#/components/parameters/FactLimit"
+        - $ref: "#/components/parameters/FactDateFrom"
+        - $ref: "#/components/parameters/FactDateTo"
+        - $ref: "#/components/parameters/FactSearch"
+        - $ref: "#/components/parameters/FactAllocationStatus"
       responses:
         "200":
-          description: 未删除 Invoice
+          description: 当前页未删除 Invoice
           content:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, next_cursor]
                 properties:
+                  next_cursor: { type: string, description: 末页为空字符串 }
                   items:
                     type: array
                     items:
                       $ref: "#/components/schemas/Invoice"
   /invoices/{invoice_id}:
+    get:
+      operationId: getInvoice
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+      responses:
+        "200":
+          description: 当前发票、明细、分配及获授权来源的一致性详情
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FactDetail" }
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       operationId: deleteInvoice
       tags: [facts]
@@ -536,7 +997,148 @@ paths:
           description: Invoice 已标记删除，活动关联已在同一事务中终止
         "404":
           $ref: "#/components/responses/NotFound"
+  /invoices/{invoice_id}/materials:
+    get:
+      operationId: getInvoiceMaterials
+      tags: [facts]
+      description: Owner/Finance 获取当前辅助材料及 Invoice 聚合版本；与票面原件分开。
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+      responses:
+        "200":
+          description: 全部活动辅助材料，最多 100 份
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceMaterialWorkspace" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: addInvoiceMaterial
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceMaterialAddRequest" }
+      responses:
+        "200":
+          description: 关联成功或同请求幂等回放
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceMaterialResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /invoices/{invoice_id}/material-candidates:
+    get:
+      operationId: listInvoiceMaterialCandidates
+      tags: [facts]
+      description: 同租户原件的入库时间/ID keyset 分页；q 为文件名字面子串。未知或重复参数拒绝。
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - name: cursor
+          in: query
+          schema: { type: string, maxLength: 2048 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: 候选页；排除本发票原件和已关联材料
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceMaterialPage" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /invoices/{invoice_id}/materials/upload:
+    post:
+      operationId: uploadInvoiceMaterial
+      tags: [facts]
+      description: 只上传原件并关联，不创建 Job 或调用模型；同 SHA 复用同租户 Document。
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file, expected_version, reason, idempotency_key]
+              properties:
+                file: { type: string, format: binary, description: 单个 JPEG/PNG/WebP/PDF，最多 20 MiB、20 页 }
+                expected_version: { type: integer, minimum: 1 }
+                reason: { type: string, minLength: 1, maxLength: 500 }
+                idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        "200":
+          description: 上传关联成功或同请求幂等回放
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceMaterialResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "413":
+          description: 文件超过 20 MiB
+  /invoices/{invoice_id}/materials/{link_id}/remove:
+    post:
+      operationId: removeInvoiceMaterial
+      tags: [facts]
+      description: 仅解除关联，保留原件、决定及已提交报销材料快照。
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+        - $ref: "#/components/parameters/CsrfToken"
+        - name: link_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceMaterialRequest" }
+      responses:
+        "200":
+          description: 解除成功或同请求幂等回放
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceMaterialResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /trips:
+    post:
+      operationId: createTrip
+      tags: [trips]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TripManagementRequest" }
+      responses:
+        "201":
+          description: 手动行程已创建，唯一时间匹配的支付已归入
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripManagementResult" }
+        "200":
+          description: 重放既有创建决定
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripManagementResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
     get:
       operationId: listTrips
       tags: [trips]
@@ -557,19 +1159,134 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
   /trips/{trip_id}:
+    patch:
+      operationId: editTrip
+      tags: [trips]
+      parameters:
+        - $ref: "#/components/parameters/TripId"
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TripManagementRequest" }
+      responses:
+        "200":
+          description: 行程已编辑；日期或时区变化时仅重算允许自动归属的支付
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripManagementResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
     delete:
       operationId: deleteTrip
       tags: [trips]
       parameters:
         - $ref: "#/components/parameters/TripId"
         - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TripDeleteRequest" }
       responses:
-        "204":
-          description: Trip 已标记删除，相关活动归属已在同一事务中终止
+        "200":
+          description: 仅删除容器、结束归属；支付、发票、凭证和报销历史保留
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripManagementResult" }
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409": { $ref: "#/components/responses/Conflict" }
+  /trip-evidence:
+    get:
+      operationId: listTripEvidence
+      tags: [trips]
+      parameters:
+        - { name: trip_id, in: query, schema: { type: string, format: uuid } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 128 } }
+        - {
+            name: limit,
+            in: query,
+            schema: { type: integer, minimum: 1, maximum: 100, default: 50 },
+          }
+      responses:
+        "200":
+          description: 已审核凭证的独立分页列表，不产生费用容器
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripEvidencePage" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /trip-evidence/{evidence_id}:
+    delete:
+      operationId: deleteTripEvidence
+      tags: [trips]
+      parameters:
+        - {
+            name: evidence_id,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204": { description: 仅软删除凭证并结束材料关联，不删除行程或费用 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /trip-material-assignments:
+    post:
+      operationId: assignTripMaterial
+      tags: [trips]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TripMaterialRequest" }
+      responses:
+        "200":
+          description: 凭证关联已更新
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TripMaterialResult" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /payments/{payment_id}/trip-preference:
+    post:
+      operationId: changeTripPreference
+      tags: [trips]
+      parameters:
+        - {
+            name: payment_id,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mode, expected_version]
+              properties:
+                mode: { type: string, enum: [auto, blocked] }
+                expected_version: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: 偏好已记录，auto 会立即重新计算时间归属 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /trips/{trip_id}/attribution-candidates:
     get:
       operationId: listTripAttributionCandidates
@@ -811,6 +1528,30 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /facts/{fact_type}/{fact_id}/bad-debt:
+    post:
+      operationId: setFactBadDebt
+      tags: [facts]
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - { name: fact_type, in: path, required: true, schema: { $ref: "#/components/schemas/AllocationFactType" } }
+        - { name: fact_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BadDebtRequest" }
+      responses:
+        "200":
+          description: 坏账状态已变更或原请求重放
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BadDebtResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /allocations/{fact_type}/{fact_id}:
     get:
       operationId: getAllocationWorkspace
@@ -837,6 +1578,25 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+  /allocations/{fact_type}/{fact_id}/targets:
+    get:
+      operationId: searchAllocationTargets
+      tags: [allocations]
+      parameters:
+        - { name: fact_type, in: path, required: true, schema: { $ref: "#/components/schemas/AllocationFactType" } }
+        - { name: fact_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: view, in: query, schema: { type: string, enum: [recommended, all_dates], default: recommended } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 512 } }
+      responses:
+        "200":
+          description: 同币种可分配目标的有界页；全部日期包含超过 30 天的目标
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AllocationTargetPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /allocations/{fact_type}/{fact_id}/adjustments:
     post:
       operationId: adjustAllocation
@@ -976,6 +1736,41 @@ components:
       in: cookie
       name: sbm_session
   parameters:
+    FactCursor:
+      name: cursor
+      in: query
+      schema: { type: string, maxLength: 2048 }
+    FactLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    FactDateFrom:
+      name: date_from
+      in: query
+      schema: { type: string, format: date }
+    FactDateTo:
+      name: date_to
+      in: query
+      schema: { type: string, format: date }
+    FactSearch:
+      name: q
+      in: query
+      description: 折叠空白后的字面子串，搜索现有名称及单号。
+      schema: { type: string, maxLength: 200 }
+    FactAllocationStatus:
+      name: allocation_status
+      in: query
+      schema: { type: string, enum: [all, unallocated, partial, allocated], default: all }
+    CorrectionFactType:
+      name: fact_type
+      in: path
+      required: true
+      schema: { type: string, enum: [payment, invoice, trip] }
+    CorrectionFactId:
+      name: fact_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     CsrfToken:
       name: X-CSRF-Token
       in: header
@@ -1113,6 +1908,345 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
   schemas:
+    ExportScope:
+      type: object
+      additionalProperties: false
+      required: [kind, id]
+      properties:
+        kind: { type: string, enum: [trip, reimbursement] }
+        id: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+    ExportPrepareRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, id, expected_manifest_hash, acknowledged_warnings]
+      properties:
+        kind: { type: string, enum: [trip, reimbursement] }
+        id: { type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+        expected_manifest_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        acknowledged_warnings: { type: boolean }
+    ExportReference:
+      type: object
+      additionalProperties: false
+      required: [kind, relation_id, fact_type, fact_id, fact_version, review_decision_id, display_name, business_date, amount_minor, currency, document_id]
+      properties:
+        kind: { type: string, enum: [original, auxiliary] }
+        relation_id: { type: string }
+        fact_type: { type: string, enum: [payment, invoice, trip_evidence] }
+        fact_id: { type: string }
+        fact_version: { type: [integer, "null"], minimum: 1 }
+        review_decision_id: { type: [string, "null"] }
+        display_name: { type: string }
+        business_date: { type: string, format: date }
+        amount_minor: { type: [integer, "null"], minimum: 0, maximum: 9007199254740991 }
+        currency: { type: string }
+        document_id: { type: string }
+    ExportFile:
+      type: object
+      additionalProperties: false
+      required: [document_id, original_name, path, mime, size_bytes, sha256]
+      properties:
+        document_id: { type: string }
+        original_name: { type: string }
+        path: { type: string }
+        mime: { type: string, enum: [image/png, image/jpeg, image/webp, application/pdf] }
+        size_bytes: { type: integer, minimum: 1, maximum: 20971520 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+    ExportManifest:
+      type: object
+      additionalProperties: false
+      required: [schema_version, scope, name, version, trip, snapshot_hash, materials_captured, warnings, references, files, source_bytes, manifest_hash]
+      properties:
+        schema_version: { type: string, const: material-delivery/1 }
+        scope: { $ref: "#/components/schemas/ExportScope" }
+        name: { type: string }
+        version: { type: integer, minimum: 1 }
+        trip: { $ref: "#/components/schemas/ReimbursementTripSnapshot" }
+        snapshot_hash: { type: string }
+        materials_captured: { type: boolean }
+        warnings: { type: array, items: { type: string }, maxItems: 3 }
+        references: { type: array, items: { $ref: "#/components/schemas/ExportReference" }, maxItems: 5000 }
+        files: { type: array, items: { $ref: "#/components/schemas/ExportFile" }, maxItems: 1000 }
+        source_bytes: { type: integer, minimum: 1, maximum: 536870912 }
+        manifest_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+    ExportPrepared:
+      type: object
+      additionalProperties: false
+      required: [id, file_name, size_bytes, manifest_hash, expires_at]
+      properties:
+        id: { type: string }
+        file_name: { type: string }
+        size_bytes: { type: integer, minimum: 1, maximum: 545259520 }
+        manifest_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        expires_at: { type: string, format: date-time }
+    WorkspaceLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true }
+    WorkspaceChoices:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, name, role]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              role: { $ref: "#/components/schemas/Role" }
+    Member:
+      type: object
+      additionalProperties: false
+      required: [user_id, email, display_name, role, status, version, created_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        status: { type: string, enum: [active, suspended] }
+        version: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+    MemberPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, maxItems: 100, items: { $ref: "#/components/schemas/Member" } }
+        next_cursor: { type: string }
+    MemberChange:
+      type: object
+      additionalProperties: false
+      required: [role, status, expected_version, reason]
+      properties:
+        role: { $ref: "#/components/schemas/Role" }
+        status: { type: string, enum: [active, suspended] }
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    Invitation:
+      type: object
+      additionalProperties: false
+      required: [id, email, role, status, version, expires_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/Role" }
+        status: { type: string, enum: [pending, consumed, revoked, expired] }
+        version: { type: integer, minimum: 1, maximum: 2 }
+        expires_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+    InvitationPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, maxItems: 100, items: { $ref: "#/components/schemas/Invitation" } }
+        next_cursor: { type: string }
+    InvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role, reason, idempotency_key]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        role: { $ref: "#/components/schemas/Role" }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+    InvitationCreated:
+      type: object
+      additionalProperties: false
+      required: [invitation, code, replayed]
+      properties:
+        invitation: { $ref: "#/components/schemas/Invitation" }
+        code: { type: string, maxLength: 43, description: 只返回一次，回放为空；不得保存到 URL、storage 或日志 }
+        replayed: { type: boolean }
+    InvitationRevocation:
+      type: object
+      additionalProperties: false
+      required: [expected_version, reason]
+      properties:
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    InvitationCode:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: { type: string, minLength: 43, maxLength: 43, writeOnly: true }
+    InvitationView:
+      type: object
+      additionalProperties: false
+      required: [tenant_name, email, role, existing_account, expires_at]
+      properties:
+        tenant_name: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/Role" }
+        existing_account: { type: boolean }
+        expires_at: { type: string, format: date-time }
+    InvitationAcceptance:
+      type: object
+      additionalProperties: false
+      required: [code, display_name, password]
+      properties:
+        code: { type: string, minLength: 43, maxLength: 43, writeOnly: true }
+        display_name: { type: string, maxLength: 100 }
+        password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true }
+    PasswordChange:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true }
+        new_password: { type: string, minLength: 12, maxLength: 1024, writeOnly: true }
+    CorrectionRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, current_review_decision_id, fields, reason, withdraw_link_ids]
+      properties:
+        expected_version: { type: integer, minimum: 1 }
+        current_review_decision_id: { type: string, format: uuid }
+        fields:
+          $ref: "#/components/schemas/RevisionRequest/properties/fields"
+          description: 固定当前类型的完整快照；纠错允许在真实 AI 根上追加人工证据，不伪造根来源。
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        withdraw_link_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+    CorrectionConfirmRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, current_review_decision_id, fields, reason, withdraw_link_ids, preview_hash, acknowledged_duplicate_keys]
+      properties:
+        expected_version: { type: integer, minimum: 1 }
+        current_review_decision_id: { type: string, format: uuid }
+        fields: { $ref: "#/components/schemas/CorrectionRequest/properties/fields" }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        withdraw_link_ids: { $ref: "#/components/schemas/CorrectionRequest/properties/withdraw_link_ids" }
+        preview_hash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        acknowledged_duplicate_keys:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, pattern: "^[0-9a-f]{64}$" }
+    CorrectionLink:
+      type: object
+      additionalProperties: false
+      required: [id, target_id, allocated_minor, currency, target_currency, target_business_date, target_amount_minor, target_allocated_minor, target_version, target_available]
+      properties:
+        id: { type: string, format: uuid }
+        target_id: { type: string, format: uuid }
+        allocated_minor: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        currency: { type: string, enum: [CNY, USD, EUR, JPY] }
+        target_currency: { type: string, enum: [CNY, USD, EUR, JPY] }
+        target_business_date: { type: string, format: date }
+        target_amount_minor: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        target_allocated_minor: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        target_version: { type: integer, minimum: 1 }
+        target_available: { type: boolean }
+    CorrectionState:
+      type: object
+      additionalProperties: false
+      required: [fact_type, fact_id, version, current_review_decision_id, claim_set_id, document_id, links, attribution]
+      properties:
+        fact_type: { type: string, enum: [payment, invoice, trip] }
+        fact_id: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        current_review_decision_id: { type: string, format: uuid }
+        claim_set_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/CorrectionLink" }
+        attribution:
+          type: object
+          additionalProperties: false
+          required: [mode, assignment_id, current_trip_id, desired_trip_id, matching_trip_count, matching_trip_version]
+          properties:
+            mode: { type: string, enum: [auto, manual, blocked, preserve_material_links] }
+            assignment_id: { type: string }
+            current_trip_id: { type: string }
+            desired_trip_id: { type: string }
+            matching_trip_count: { type: integer, minimum: 0 }
+            matching_trip_version: { type: integer, minimum: 0 }
+    CorrectionWorkspace:
+      type: object
+      additionalProperties: false
+      required: [state, review]
+      properties:
+        state: { $ref: "#/components/schemas/CorrectionState" }
+        review: { $ref: "#/components/schemas/Review" }
+    CorrectionPreview:
+      type: object
+      additionalProperties: false
+      required: [state, issues, duplicates, withdraw_link_ids, preview_hash, can_confirm]
+      properties:
+        state: { $ref: "#/components/schemas/CorrectionState" }
+        withdraw_link_ids: { $ref: "#/components/schemas/CorrectionRequest/properties/withdraw_link_ids" }
+        preview_hash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        can_confirm: { type: boolean }
+        issues:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [code, message]
+            properties:
+              link_id: { type: string, format: uuid }
+              code: { type: string }
+              message: { type: string }
+        duplicates:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [key, kind, existing_document_id, existing_payment_id, existing_invoice_id, target_revision_id, reason_codes]
+            properties:
+              key: { type: string }
+              kind: { type: string, enum: [near_file, cross_page, field_combination] }
+              existing_document_id: { type: string }
+              existing_payment_id: { type: string }
+              existing_invoice_id: { type: string }
+              target_revision_id: { type: string }
+              reason_codes:
+                type: array
+                items: { type: string }
+    CorrectionResult:
+      type: object
+      additionalProperties: false
+      required: [fact_type, fact_id, review_decision_id, claim_set_id, version, replayed]
+      properties:
+        fact_type: { type: string, enum: [payment, invoice, trip] }
+        fact_id: { type: string, format: uuid }
+        review_decision_id: { type: string, format: uuid }
+        claim_set_id: { type: string, format: uuid }
+        version: { type: integer, minimum: 2 }
+        replayed: { type: boolean }
+    CorrectionHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_before_revision]
+      properties:
+        next_before_revision: { type: [integer, "null"], minimum: 1 }
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [review_decision_id, previous_review_decision_id, claim_set_id, revision, actor_user_id, reason, created_at]
+            properties:
+              review_decision_id: { type: string, format: uuid }
+              previous_review_decision_id: { type: string }
+              claim_set_id: { type: string, format: uuid }
+              revision: { type: integer, minimum: 1 }
+              actor_user_id: { type: string, format: uuid }
+              reason: { type: string }
+              created_at: { type: string, format: date-time }
     Health:
       type: object
       additionalProperties: false
@@ -1556,6 +2690,7 @@ components:
       required:
         [
           job,
+          entry_mode,
           claim_set_id,
           document_type,
           revision,
@@ -1571,6 +2706,7 @@ components:
         ]
       properties:
         job: { $ref: "#/components/schemas/JobSummary" }
+        entry_mode: { type: string, enum: [ai, manual], readOnly: true }
         claim_set_id: { type: string, format: uuid }
         document_type: { type: string, enum: [payment, invoice, trip, unknown] }
         revision: { type: integer, minimum: 1 }
@@ -1611,6 +2747,22 @@ components:
           type: array
           maxItems: 50
           items: { $ref: "#/components/schemas/DuplicateCandidate" }
+    ManualReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_job_version, document_type, reason]
+      properties:
+        expected_job_version: { type: integer, minimum: 1 }
+        document_type: { type: string, enum: [payment, invoice, trip] }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    ManualReviewResult:
+      type: object
+      additionalProperties: false
+      required: [job_id, claim_set_id, replayed]
+      properties:
+        job_id: { type: string, format: uuid }
+        claim_set_id: { type: string, format: uuid }
+        replayed: { type: boolean }
     RevisionRequest:
       type: object
       additionalProperties: false
@@ -1634,6 +2786,17 @@ components:
               evidence_ids:
                 type: array
                 items: { type: string, format: uuid }
+              manual_evidence:
+                type: array
+                maxItems: 8
+                description: 仅人工来源审核可提交；用户显式标注，不能由字段值自动生成摘录
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [page, quote]
+                  properties:
+                    page: { type: integer, minimum: 1, maximum: 20 }
+                    quote: { type: string, minLength: 1, maxLength: 500 }
     ConfirmRequest:
       type: object
       additionalProperties: false
@@ -1711,10 +2874,10 @@ components:
     InsightTrip:
       type: object
       additionalProperties: false
-      required: [id, destination, start_date, end_date]
+      required: [id, name, start_date, end_date]
       properties:
         id: { type: string, format: uuid }
-        destination: { type: string, minLength: 1, maxLength: 500 }
+        name: { type: string, minLength: 1, maxLength: 500 }
         start_date: { type: string, format: date }
         end_date: { type: string, format: date }
     InsightFact:
@@ -1956,7 +3119,7 @@ components:
         business_date: { type: string, format: date }
         display_name: { type: string }
         name_exact: { type: boolean }
-        date_distance_days: { type: integer, minimum: 0, maximum: 30 }
+        date_distance_days: { type: integer, minimum: 0, maximum: 3652058 }
         current_link_id: { type: string, format: uuid }
         current_allocated_minor:
           {
@@ -1984,9 +3147,20 @@ components:
           items: { $ref: "#/components/schemas/AllocationWorkspaceLink" }
         targets:
           type: array
-          maxItems: 200
+          maxItems: 250
           items: { $ref: "#/components/schemas/AllocationTarget" }
+        next_cursor: { type: string, maxLength: 512 }
         plan_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+    AllocationTargetPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/AllocationTarget" }
+        next_cursor: { type: string, maxLength: 512 }
     DesiredAllocation:
       type: object
       additionalProperties: false
@@ -2037,12 +3211,58 @@ components:
           items: { type: string, format: uuid }
         plan_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
         replayed: { type: boolean }
+    FactSource:
+      type: object
+      additionalProperties: false
+      required: [document_id, claim_set_id, review_decision_id, revision, origin_kind, original_name, page_count]
+      properties:
+        document_id: { type: string, format: uuid }
+        claim_set_id: { type: string, format: uuid }
+        review_decision_id: { type: string, format: uuid }
+        revision: { type: integer, minimum: 1 }
+        origin_kind: { type: string, enum: [ai, manual] }
+        original_name: { type: string }
+        page_count: { type: integer, minimum: 1, maximum: 20 }
+    BadDebtRequest:
+      type: object
+      additionalProperties: false
+      required: [marked, expected_version, reason]
+      properties:
+        marked: { type: boolean }
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    BadDebtResult:
+      type: object
+      additionalProperties: false
+      required: [decision_id, marked, version, replayed]
+      properties:
+        decision_id: { type: string, format: uuid }
+        marked: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        replayed: { type: boolean }
+    FactDetail:
+      type: object
+      additionalProperties: false
+      required: [fact_type, version, links]
+      properties:
+        fact_type: { type: string, enum: [payment, invoice] }
+        version: { type: integer, minimum: 1 }
+        payment: { $ref: "#/components/schemas/Payment" }
+        invoice: { $ref: "#/components/schemas/Invoice" }
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/CorrectionLink" }
+        trip: { $ref: "#/components/schemas/InsightTrip" }
+        source:
+          description: 仅向具备 review.source.read 权限的用户返回；原件/审核沿用既有鉴权。
+          $ref: "#/components/schemas/FactSource"
     Payment:
       type: object
       additionalProperties: false
       required:
         [
           id,
+          bad_debt,
           amount_minor,
           allocated_minor,
           remaining_minor,
@@ -2051,9 +3271,11 @@ components:
           merchant,
           transaction_time,
           source_timezone,
+          business_date,
           created_at,
         ]
       properties:
+        bad_debt: { type: boolean }
         id: { type: string, format: uuid }
         amount_minor:
           {
@@ -2082,6 +3304,7 @@ components:
         merchant: { type: string }
         transaction_time: { type: string, format: date-time }
         source_timezone: { type: string }
+        business_date: { type: string, format: date }
         payment_method: { type: string }
         order_number: { type: string }
         category: { type: string }
@@ -2092,6 +3315,7 @@ components:
       required:
         [
           id,
+          bad_debt,
           invoice_number,
           invoice_date,
           total_minor,
@@ -2101,10 +3325,11 @@ components:
           currency,
           seller_name,
           buyer_name,
-          items,
+          item_count,
           created_at,
         ]
       properties:
+        bad_debt: { type: boolean }
         id: { type: string, format: uuid }
         invoice_number: { type: string }
         invoice_date: { type: string, format: date }
@@ -2141,6 +3366,7 @@ components:
         currency: { $ref: "#/components/schemas/Currency" }
         seller_name: { type: string }
         buyer_name: { type: string }
+        item_count: { type: integer, minimum: 0 }
         items:
           type: array
           items:
@@ -2180,25 +3406,121 @@ components:
       required:
         [
           id,
-          destination,
+          bad_debt_locked,
+          name,
           start_date,
           end_date,
+          timezone,
+          notes,
+          version,
+          origin_kind,
           assigned_payment_count,
           assigned_invoice_count,
+          material_count,
           created_at,
         ]
       properties:
+        bad_debt_locked: { type: boolean }
         id: { type: string, format: uuid }
-        origin: { type: string, minLength: 1, maxLength: 500 }
-        destination: { type: string, minLength: 1, maxLength: 500 }
+        name: { type: string, minLength: 1, maxLength: 500 }
         start_date: { type: string, format: date }
         end_date: { type: string, format: date }
-        traveler_name: { type: string, minLength: 1, maxLength: 500 }
-        transport_type: { type: string, minLength: 1, maxLength: 500 }
-        booking_reference: { type: string, minLength: 1, maxLength: 500 }
+        timezone: { type: [string, "null"] }
+        notes: { type: string, maxLength: 2000 }
+        version: { type: integer, minimum: 1 }
+        origin_kind: { type: string, enum: [manual, migrated_review] }
         assigned_payment_count: { type: integer, minimum: 0 }
         assigned_invoice_count: { type: integer, minimum: 0 }
+        material_count: { type: integer, minimum: 0 }
         created_at: { type: string, format: date-time }
+    TripManagementRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [name, start_date, end_date, timezone, notes, expected_version, reason]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 500 }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        timezone:
+          {
+            type: string,
+            minLength: 1,
+            description: IANA 时区；日期涵盖当地整天,
+          }
+        notes: { type: string, maxLength: 2000 }
+        expected_version:
+          {
+            type: integer,
+            minimum: 0,
+            description: 新建必须为 0，编辑必须为当前版本,
+          }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    TripDeleteRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, reason]
+      properties:
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    TripManagementResult:
+      type: object
+      additionalProperties: false
+      required: [trip_id, version, replayed]
+      properties:
+        trip_id: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        replayed: { type: boolean }
+    TripEvidence:
+      type: object
+      additionalProperties: false
+      required: [id, document_id, destination, start_date, end_date, version]
+      properties:
+        id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        destination: { type: string }
+        origin: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        transport_type: { type: string }
+        booking_reference: { type: string }
+        version: { type: integer, minimum: 1 }
+        current_link_id: { type: string, format: uuid }
+        current_trip_id: { type: string, format: uuid }
+        current_trip_name: { type: string }
+    TripEvidencePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          { type: array, items: { $ref: "#/components/schemas/TripEvidence" } }
+        next_cursor: { type: string, maxLength: 128 }
+    TripMaterialRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          evidence_id,
+          desired_trip_id,
+          expected_link_id,
+          expected_version,
+          reason,
+        ]
+      properties:
+        evidence_id: { type: string, format: uuid }
+        desired_trip_id: { type: [string, "null"], format: uuid }
+        expected_link_id: { type: [string, "null"], format: uuid }
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    TripMaterialResult:
+      type: object
+      additionalProperties: false
+      required: [version, replayed]
+      properties:
+        link_id: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        replayed: { type: boolean }
     TripAttributionView:
       type: string
       enum: [all, suggested, assigned]
@@ -2215,6 +3537,10 @@ components:
           currency,
           suggested,
           reason_codes,
+          fact_version,
+          assignment_mode,
+          assignment_state,
+          match_count,
         ]
       properties:
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
@@ -2231,7 +3557,24 @@ components:
         currency: { $ref: "#/components/schemas/Currency" }
         current_assignment_id: { type: string, format: uuid }
         current_trip_id: { type: string, format: uuid }
-        current_trip_destination: { type: string }
+        current_trip_name: { type: string }
+        fact_version: { type: integer, minimum: 1 }
+        assignment_mode: { type: string, enum: [auto, manual, blocked] }
+        assignment_state:
+          {
+            type: string,
+            enum:
+              [
+                automatic,
+                manual,
+                blocked,
+                manual_unassigned,
+                overlap,
+                no_match,
+                pending,
+              ],
+          }
+        match_count: { type: integer, minimum: 0 }
         suggested: { type: boolean }
         reason_codes:
           type: array
@@ -2262,10 +3605,18 @@ components:
       type: object
       additionalProperties: false
       required:
-        [fact_type, fact_id, desired_trip_id, expected_assignment_id, reason]
+        [
+          fact_type,
+          fact_id,
+          desired_trip_id,
+          expected_assignment_id,
+          expected_fact_version,
+          reason,
+        ]
       properties:
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
         fact_id: { type: string, format: uuid }
+        expected_fact_version: { type: integer, minimum: 1 }
         desired_trip_id:
           oneOf:
             - { type: string, format: uuid }
@@ -2280,6 +3631,7 @@ components:
       additionalProperties: false
       required: [decision_id, action, replayed]
       properties:
+        fact_version: { type: integer, minimum: 1 }
         decision_id: { type: string, format: uuid }
         action: { type: string, enum: [assign, move, unassign] }
         previous_assignment_id: { type: string, format: uuid }
@@ -2291,12 +3643,14 @@ components:
     ReimbursementTripSnapshot:
       type: object
       additionalProperties: false
-      required: [id, destination, start_date, end_date]
+      required: [id, name, start_date, end_date, timezone, version]
       properties:
         id: { type: string, format: uuid }
-        destination: { type: string, minLength: 1, maxLength: 500 }
+        name: { type: string, minLength: 1, maxLength: 500 }
         start_date: { type: string, format: date }
         end_date: { type: string, format: date }
+        timezone: { type: [string, "null"] }
+        version: { type: [integer, "null"], minimum: 1 }
     ReimbursementPolicyItem:
       type: object
       additionalProperties: false
@@ -2311,6 +3665,7 @@ components:
           currency,
         ]
       properties:
+        fact_review_decision_id: { type: string, format: uuid }
         assignment_id: { type: string, format: uuid }
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
         fact_id: { type: string, format: uuid }
@@ -2368,13 +3723,85 @@ components:
         currency: { $ref: "#/components/schemas/Currency" }
         related_reimbursement_id: { type: string, format: uuid }
         related_status: { $ref: "#/components/schemas/ReimbursementStatus" }
+    InvoiceMaterial:
+      type: object
+      additionalProperties: false
+      required: [id, document_id, original_name, mime, size_bytes, page_count, created_at]
+      properties:
+        id: { type: string, format: uuid, description: 活动列表为 Link ID，候选列表为 Document ID }
+        document_id: { type: string, format: uuid }
+        original_name: { type: string }
+        mime: { type: string, enum: [image/jpeg, image/png, image/webp, application/pdf] }
+        size_bytes: { type: integer, minimum: 1, maximum: 20971520 }
+        page_count: { type: integer, minimum: 1, maximum: 20 }
+        created_at: { type: string, format: date-time }
+    InvoiceMaterialWorkspace:
+      type: object
+      additionalProperties: false
+      required: [invoice_id, version, items]
+      properties:
+        invoice_id: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/InvoiceMaterial" }
+    InvoiceMaterialPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        next_cursor: { type: string }
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/InvoiceMaterial" }
+    InvoiceMaterialRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, reason, idempotency_key]
+      properties:
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+    InvoiceMaterialAddRequest:
+      type: object
+      additionalProperties: false
+      required: [document_id, expected_version, reason, idempotency_key]
+      properties:
+        document_id: { type: string, format: uuid }
+        expected_version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        idempotency_key: { type: string, minLength: 8, maxLength: 128 }
+    InvoiceMaterialResult:
+      type: object
+      additionalProperties: false
+      required: [invoice_id, link_id, document_id, version, replayed]
+      properties:
+        invoice_id: { type: string, format: uuid }
+        link_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        replayed: { type: boolean }
+    ReimbursementMaterial:
+      type: object
+      additionalProperties: false
+      required: [invoice_id, link_id, document_id]
+      properties:
+        invoice_id: { type: string, format: uuid }
+        link_id: { type: string, format: uuid }
+        document_id: { type: string, format: uuid }
     ReimbursementPolicySnapshot:
       type: object
       additionalProperties: false
       required:
-        [rule_version, trip, items, findings, totals_by_currency, snapshot_hash]
+        [rule_version, trip, items, findings, totals_by_currency, snapshot_hash, materials]
       properties:
-        rule_version: { const: reimbursement-policy/1 }
+        rule_version: { const: reimbursement-policy/2 }
+        materials:
+          type: array
+          maxItems: 20000
+          items: { $ref: "#/components/schemas/ReimbursementMaterial" }
         trip: { $ref: "#/components/schemas/ReimbursementTripSnapshot" }
         items:
           type: array
@@ -2479,6 +3906,7 @@ components:
           sort_order,
         ]
       properties:
+        fact_review_decision_id: { type: [string, "null"], format: uuid }
         id: { type: string, format: uuid }
         assignment_id: { type: string, format: uuid }
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
@@ -2572,6 +4000,8 @@ components:
           items,
           findings,
           decisions,
+          materials_captured,
+          material_count,
         ]
       properties:
         id: { type: string, format: uuid }
@@ -2583,7 +4013,9 @@ components:
         finding_count: { type: integer, minimum: 0, maximum: 1000 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
-        rule_version: { const: reimbursement-policy/1 }
+        rule_version: { type: string, enum: [reimbursement-policy/1, reimbursement-policy/2] }
+        materials_captured: { type: boolean }
+        material_count: { type: [integer, "null"], minimum: 0, maximum: 20000 }
         snapshot_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
         totals_by_currency:
           type: array

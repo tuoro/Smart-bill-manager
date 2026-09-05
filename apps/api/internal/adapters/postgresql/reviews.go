@@ -21,7 +21,7 @@ func (s *Store) GetReview(ctx context.Context, tenantID, jobID string) (ports.Re
 		SELECT j.id, j.document_id, d.original_name, d.detected_mime, j.status,
 		       j.attempt_count, coalesce(j.error_code, ''), coalesce(j.safe_error_message, ''),
 		       j.created_at, j.version, d.page_count,
-		       c.id, c.origin_ai_run_id, c.document_type, c.revision,
+		       c.id, coalesce(c.origin_ai_run_id, ''), c.document_type, c.revision,
 		       c.optimistic_version, c.status
 		FROM processing_jobs j
 		JOIN documents d ON d.tenant_id = j.tenant_id AND d.id = j.document_id
@@ -55,6 +55,10 @@ func (s *Store) GetReview(ctx context.Context, tenantID, jobID string) (ports.Re
 		return ports.ReviewSnapshot{}, fmt.Errorf("read review: %w", err)
 	}
 	result.DocumentID = result.Job.DocumentID
+	result.DocumentPageIDs, err = s.reviewDocumentPageIDs(ctx, tenantID, result.DocumentID)
+	if err != nil {
+		return ports.ReviewSnapshot{}, err
+	}
 	result.Job.CreatedAt, err = time.Parse(time.RFC3339Nano, jobCreatedAt)
 	if err != nil {
 		return ports.ReviewSnapshot{}, fmt.Errorf("parse review job time: %w", err)
@@ -85,7 +89,7 @@ func (s *Store) GetClaimSet(ctx context.Context, tenantID, claimSetID string) (p
 		SELECT j.id, j.document_id, d.original_name, d.detected_mime, j.status,
 		       j.attempt_count, coalesce(j.error_code, ''), coalesce(j.safe_error_message, ''),
 		       j.created_at, j.version, d.page_count,
-		       c.id, c.origin_ai_run_id, c.document_type, c.revision,
+		       c.id, coalesce(c.origin_ai_run_id, ''), c.document_type, c.revision,
 		       c.optimistic_version, c.status
 		FROM claim_sets c
 		JOIN documents d ON d.tenant_id = c.tenant_id AND d.id = c.document_id
@@ -117,6 +121,10 @@ func (s *Store) GetClaimSet(ctx context.Context, tenantID, claimSetID string) (p
 		return ports.ReviewSnapshot{}, fmt.Errorf("read claim set: %w", err)
 	}
 	result.DocumentID = result.Job.DocumentID
+	result.DocumentPageIDs, err = s.reviewDocumentPageIDs(ctx, tenantID, result.DocumentID)
+	if err != nil {
+		return ports.ReviewSnapshot{}, err
+	}
 	result.Job.CreatedAt, err = time.Parse(time.RFC3339Nano, jobCreatedAt)
 	if err != nil {
 		return ports.ReviewSnapshot{}, fmt.Errorf("parse claim job time: %w", err)
@@ -138,6 +146,24 @@ func (s *Store) GetClaimSet(ctx context.Context, tenantID, claimSetID string) (p
 		return ports.ReviewSnapshot{}, err
 	}
 	return result, nil
+}
+
+func (s *Store) reviewDocumentPageIDs(ctx context.Context, tenantID, documentID string) (map[int]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT page_number, id FROM document_pages WHERE tenant_id = ? AND document_id = ? ORDER BY page_number`, tenantID, documentID)
+	if err != nil {
+		return nil, fmt.Errorf("read review page identities: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[int]string)
+	for rows.Next() {
+		var number int
+		var id string
+		if err := rows.Scan(&number, &id); err != nil {
+			return nil, err
+		}
+		result[number] = id
+	}
+	return result, rows.Err()
 }
 
 func (s *Store) listReviewFields(ctx context.Context, tenantID, claimSetID string) ([]ports.ReviewField, error) {
@@ -351,7 +377,7 @@ func (s *Store) GetConfirmReplay(
 	err := s.db.QueryRowContext(ctx, `
 		SELECT r.id, j.id, c.id, r.expected_revision, coalesce(r.association_mode, ''),
 		       coalesce(r.association_plan_hash, ''), r.duplicate_plan_hash, c.document_type,
-		       coalesce(p.id, i.id, trip.id),
+		       coalesce(p.id, i.id, trip.id, ''),
 		       coalesce((SELECT json_agg(link_id ORDER BY sort_key) FROM (
 		           SELECT l.id AS link_id, d.candidate_id AS sort_key
 		           FROM payment_invoice_link_decisions d
@@ -365,7 +391,7 @@ func (s *Store) GetConfirmReplay(
 		JOIN processing_jobs j ON j.tenant_id = c.tenant_id AND j.document_id = c.document_id
 		LEFT JOIN payments p ON p.tenant_id = r.tenant_id AND p.source_review_decision_id = r.id
 		LEFT JOIN invoices i ON i.tenant_id = r.tenant_id AND i.source_review_decision_id = r.id
-		LEFT JOIN trips trip ON trip.tenant_id = r.tenant_id AND trip.source_review_decision_id = r.id
+		LEFT JOIN trip_evidence_facts trip ON trip.tenant_id = r.tenant_id AND trip.source_review_decision_id = r.id
 		WHERE r.tenant_id = ? AND r.idempotency_key = ? AND r.action = 'confirm'
 	`, tenantID, idempotencyKey).Scan(
 		&replay.Result.ReviewDecisionID,
@@ -385,7 +411,7 @@ func (s *Store) GetConfirmReplay(
 	if err != nil {
 		return ports.ConfirmReplay{}, fmt.Errorf("read confirm replay: %w", err)
 	}
-	if recordedJobID != jobID {
+	if recordedJobID != jobID || replay.Result.FactID == "" {
 		return ports.ConfirmReplay{}, domain.NewRuleError("idempotency_key_conflict", "幂等键已用于其他请求", domain.ErrConflict)
 	}
 	if err := json.Unmarshal([]byte(linkIDsJSON), &replay.Result.LinkIDs); err != nil {

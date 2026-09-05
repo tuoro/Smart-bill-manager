@@ -7,6 +7,7 @@ import (
 	"errors"
 	"image"
 	"image/jpeg"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -428,6 +429,79 @@ func TestNormalizerProducesEightBitProviderPNGForJPEG(t *testing.T) {
 	}
 	if bitDepth := pages[0].Data[24]; bitDepth != 8 {
 		t.Fatalf("normalized PNG bit depth = %d, want 8", bitDepth)
+	}
+}
+
+func TestManualPagePreparationUsesIsolatedMetadataOnlyObjects(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original bytes.Buffer
+	if err := png.Encode(&original, image.NewRGBA(image.Rect(0, 0, 8, 8))); err != nil {
+		t.Fatal(err)
+	}
+	staged, err := store.Stage(context.Background(), bytes.NewReader(original.Bytes()), 1024*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := "tenants/t1/documents/d1/original"
+	if err := store.Commit(context.Background(), staged, key); err != nil {
+		t.Fatal(err)
+	}
+	normalizer, err := NewNormalizer(store, "/bin/false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := ports.ProcessingDocument{TenantID: "t1", DocumentID: "d1", StorageKey: key, MIME: "image/png", PageCount: 1, PageSetID: "manual-attempt", MetadataOnly: true}
+	pages, err := normalizer.Normalize(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pages) != 1 || len(pages[0].Data) != 0 || pages[0].StorageKey != "tenants/t1/documents/d1/pages/manual-attempt/0001.png" {
+		t.Fatal("manual pages retained image data or shared worker path")
+	}
+	if err := normalizer.DeleteNormalized(context.Background(), pages); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := store.Open(context.Background(), key)
+	if err != nil {
+		t.Fatal("compensation removed original")
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNormalizationCompensationRetainsFailedCleanupIdentity(t *testing.T) {
+	store, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalizer, err := NewNormalizer(store, "/bin/false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := "tenants/t1/documents/d1/pages/manual-attempt/0001.png"
+	location, err := store.objectPath(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 非空目录模拟无法删除的本轮对象；错误时不得丢失补偿清单。
+	if err := os.MkdirAll(filepath.Join(location, "occupied"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("synthetic_normalization_failure")
+	pages, err := normalizer.compensateNormalization(context.Background(), []ports.NormalizedPage{{StorageKey: key}}, cause)
+	if len(pages) != 1 || pages[0].StorageKey != key || !errors.Is(err, cause) || err == cause {
+		t.Fatal("cleanup failure or ownership was hidden")
+	}
+	if err := os.Remove(filepath.Join(location, "occupied")); err != nil {
+		t.Fatal(err)
+	}
+	pages, err = normalizer.compensateNormalization(context.Background(), pages, cause)
+	if len(pages) != 0 || err != cause {
+		t.Fatal("successful compensation retained pending objects")
 	}
 }
 

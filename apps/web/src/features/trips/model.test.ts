@@ -14,6 +14,10 @@ const candidate: TripAttributionCandidate = {
   business_date: '2026-08-27',
   amount_minor: 12345,
   currency: 'CNY',
+  fact_version: 1,
+  assignment_mode: 'manual',
+  assignment_state: 'manual_unassigned',
+  match_count: 0,
   suggested: true,
   reason_codes: ['date_inside_trip'],
 }
@@ -27,6 +31,7 @@ describe('Trip attribution model', () => {
         fact_id: candidate.fact_id,
         desired_trip_id: tripID,
         expected_assignment_id: null,
+        expected_fact_version: 1,
         reason: '日期命中',
       },
     })

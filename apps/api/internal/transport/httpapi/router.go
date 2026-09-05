@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/accounts"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/invoicematerials"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/materialexports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
@@ -43,29 +46,33 @@ type Config struct {
 }
 
 type Server struct {
-	auth           auth.Service
-	health         HealthChecker
-	readiness      ReadinessChecker
-	ids            system.IDGenerator
-	logger         *slog.Logger
-	config         Config
-	upload         documents.UploadService
-	documents      documents.QueryService
-	jobActions     documents.ActionService
-	deletions      documents.DeletionService
-	providers      providers.Service
-	reviews        reviews.Service
-	facts          reviews.FactService
-	allocations    allocations.Service
-	emails         applicationemails.Service
-	trips          trips.Service
-	reimbursements reimbursements.Service
-	insights       insights.Service
-	spa            http.Handler
+	accounts         accounts.Service
+	auth             auth.Service
+	health           HealthChecker
+	readiness        ReadinessChecker
+	ids              system.IDGenerator
+	logger           *slog.Logger
+	config           Config
+	upload           documents.UploadService
+	documents        documents.QueryService
+	jobActions       documents.ActionService
+	deletions        documents.DeletionService
+	providers        providers.Service
+	reviews          reviews.Service
+	facts            reviews.FactService
+	invoiceMaterials invoicematerials.Service
+	allocations      allocations.Service
+	emails           applicationemails.Service
+	trips            trips.Service
+	reimbursements   reimbursements.Service
+	insights         insights.Service
+	exports          *materialexports.Service
+	spa              http.Handler
 }
 
 func NewServer(
 	authService auth.Service,
+	accountService accounts.Service,
 	uploadService documents.UploadService,
 	documentQueries documents.QueryService,
 	jobActions documents.ActionService,
@@ -73,11 +80,13 @@ func NewServer(
 	providerService providers.Service,
 	reviewService reviews.Service,
 	factService reviews.FactService,
+	invoiceMaterialService invoicematerials.Service,
 	allocationService allocations.Service,
 	emailService applicationemails.Service,
 	tripService trips.Service,
 	reimbursementService reimbursements.Service,
 	insightService insights.Service,
+	exportService *materialexports.Service,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -88,25 +97,28 @@ func NewServer(
 		return nil, fmt.Errorf("configure web application: %w", err)
 	}
 	return &Server{
-		auth:           authService,
-		upload:         uploadService,
-		documents:      documentQueries,
-		jobActions:     jobActions,
-		deletions:      documentDeletions,
-		providers:      providerService,
-		reviews:        reviewService,
-		facts:          factService,
-		allocations:    allocationService,
-		emails:         emailService,
-		trips:          tripService,
-		reimbursements: reimbursementService,
-		insights:       insightService,
-		health:         health,
-		readiness:      readiness,
-		ids:            system.IDGenerator{},
-		logger:         logger,
-		config:         config,
-		spa:            spa,
+		accounts:         accountService,
+		auth:             authService,
+		upload:           uploadService,
+		documents:        documentQueries,
+		jobActions:       jobActions,
+		deletions:        documentDeletions,
+		providers:        providerService,
+		reviews:          reviewService,
+		facts:            factService,
+		invoiceMaterials: invoiceMaterialService,
+		allocations:      allocationService,
+		emails:           emailService,
+		trips:            tripService,
+		reimbursements:   reimbursementService,
+		insights:         insightService,
+		exports:          exportService,
+		health:           health,
+		readiness:        readiness,
+		ids:              system.IDGenerator{},
+		logger:           logger,
+		config:           config,
+		spa:              spa,
 	}, nil
 }
 
@@ -115,6 +127,17 @@ func (s *Server) Handler() http.Handler {
 	router.HandleFunc("GET /api/v1/health", s.healthHandler)
 	router.HandleFunc("GET /api/v1/ready", s.readinessHandler)
 	router.HandleFunc("POST /api/v1/session/login", s.loginHandler)
+	router.HandleFunc("POST /api/v1/session/workspaces", s.workspaceChoicesHandler)
+	router.HandleFunc("POST /api/v1/invitations/check", s.checkInvitationHandler)
+	router.HandleFunc("POST /api/v1/invitations/accept", s.acceptInvitationHandler)
+	router.Handle("GET /api/v1/members", s.requireSession(http.HandlerFunc(s.membersHandler)))
+	router.Handle("PATCH /api/v1/members/{user_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.changeMemberHandler))))
+	router.Handle("GET /api/v1/member-invitations", s.requireSession(http.HandlerFunc(s.invitationsHandler)))
+	router.Handle("GET /api/v1/members/{user_id}", s.requireSession(http.HandlerFunc(s.memberHandler)))
+	router.Handle("GET /api/v1/member-invitations/{invitation_id}", s.requireSession(http.HandlerFunc(s.invitationHandler)))
+	router.Handle("POST /api/v1/member-invitations", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createInvitationHandler))))
+	router.Handle("POST /api/v1/member-invitations/{invitation_id}/revoke", s.requireSession(s.requireCSRF(http.HandlerFunc(s.revokeInvitationHandler))))
+	router.Handle("POST /api/v1/account/password", s.requireSession(s.requireCSRF(http.HandlerFunc(s.changePasswordHandler))))
 	router.Handle("GET /api/v1/session", s.requireSession(http.HandlerFunc(s.sessionHandler)))
 	router.Handle("DELETE /api/v1/session", s.requireSession(s.requireCSRF(http.HandlerFunc(s.logoutHandler))))
 	router.Handle("POST /api/v1/documents", s.requireSession(s.requireCSRF(http.HandlerFunc(s.uploadDocumentHandler))))
@@ -131,16 +154,34 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("GET /api/v1/jobs/{job_id}", s.requireSession(http.HandlerFunc(s.getJobHandler)))
 	router.Handle("POST /api/v1/jobs/{job_id}/cancel", s.requireSession(s.requireCSRF(http.HandlerFunc(s.cancelJobHandler))))
 	router.Handle("POST /api/v1/jobs/{job_id}/retry", s.requireSession(s.requireCSRF(http.HandlerFunc(s.retryJobHandler))))
+	router.Handle("POST /api/v1/jobs/{job_id}/manual-review", s.requireSession(s.requireCSRF(http.HandlerFunc(s.startManualReviewHandler))))
 	router.Handle("GET /api/v1/reviews/{job_id}", s.requireSession(http.HandlerFunc(s.getReviewHandler)))
 	router.Handle("GET /api/v1/claim-sets/{claim_set_id}", s.requireSession(http.HandlerFunc(s.getClaimSetHandler)))
 	router.Handle("POST /api/v1/reviews/{job_id}/revisions", s.requireSession(s.requireCSRF(http.HandlerFunc(s.reviseReviewHandler))))
 	router.Handle("POST /api/v1/reviews/{job_id}/confirm", s.requireSession(s.requireCSRF(http.HandlerFunc(s.confirmReviewHandler))))
 	router.Handle("POST /api/v1/reviews/{job_id}/reject", s.requireSession(s.requireCSRF(http.HandlerFunc(s.rejectReviewHandler))))
 	router.Handle("GET /api/v1/payments", s.requireSession(http.HandlerFunc(s.listPaymentsHandler)))
+	router.Handle("GET /api/v1/payments/{payment_id}", s.requireSession(http.HandlerFunc(s.getPaymentHandler)))
+	router.Handle("GET /api/v1/facts/{fact_type}/{fact_id}/correction", s.requireSession(http.HandlerFunc(s.getFactCorrectionHandler)))
+	router.Handle("GET /api/v1/facts/{fact_type}/{fact_id}/correction/history", s.requireSession(http.HandlerFunc(s.getFactCorrectionHistoryHandler)))
+	router.Handle("POST /api/v1/facts/{fact_type}/{fact_id}/correction/preview", s.requireSession(s.requireCSRF(http.HandlerFunc(s.previewFactCorrectionHandler))))
+	router.Handle("POST /api/v1/facts/{fact_type}/{fact_id}/correction", s.requireSession(s.requireCSRF(http.HandlerFunc(s.confirmFactCorrectionHandler))))
 	router.Handle("DELETE /api/v1/payments/{payment_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deletePaymentHandler))))
 	router.Handle("GET /api/v1/invoices", s.requireSession(http.HandlerFunc(s.listInvoicesHandler)))
+	router.Handle("GET /api/v1/invoices/{invoice_id}", s.requireSession(http.HandlerFunc(s.getInvoiceHandler)))
+	router.Handle("GET /api/v1/invoices/{invoice_id}/materials", s.requireSession(http.HandlerFunc(s.getInvoiceMaterialsHandler)))
+	router.Handle("GET /api/v1/invoices/{invoice_id}/material-candidates", s.requireSession(http.HandlerFunc(s.listMaterialCandidatesHandler)))
+	router.Handle("POST /api/v1/invoices/{invoice_id}/materials", s.requireSession(s.requireCSRF(http.HandlerFunc(s.addInvoiceMaterialHandler))))
+	router.Handle("POST /api/v1/invoices/{invoice_id}/materials/upload", s.requireSession(s.requireCSRF(http.HandlerFunc(s.uploadInvoiceMaterialHandler))))
+	router.Handle("POST /api/v1/invoices/{invoice_id}/materials/{link_id}/remove", s.requireSession(s.requireCSRF(http.HandlerFunc(s.removeInvoiceMaterialHandler))))
 	router.Handle("DELETE /api/v1/invoices/{invoice_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteInvoiceHandler))))
 	router.Handle("GET /api/v1/trips", s.requireSession(http.HandlerFunc(s.listTripsHandler)))
+	router.Handle("POST /api/v1/trips", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createTripHandler))))
+	router.Handle("PATCH /api/v1/trips/{trip_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.editTripHandler))))
+	router.Handle("GET /api/v1/trip-evidence", s.requireSession(http.HandlerFunc(s.listTripEvidenceHandler)))
+	router.Handle("DELETE /api/v1/trip-evidence/{evidence_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteTripEvidenceHandler))))
+	router.Handle("POST /api/v1/trip-material-assignments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.assignTripMaterialHandler))))
+	router.Handle("POST /api/v1/payments/{payment_id}/trip-preference", s.requireSession(s.requireCSRF(http.HandlerFunc(s.tripPreferenceHandler))))
 	router.Handle("DELETE /api/v1/trips/{trip_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteTripHandler))))
 	router.Handle("GET /api/v1/trips/{trip_id}/attribution-candidates", s.requireSession(http.HandlerFunc(s.listTripAttributionCandidatesHandler)))
 	router.Handle("POST /api/v1/trip-assignments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.assignTripFactHandler))))
@@ -150,7 +191,13 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("GET /api/v1/reimbursements/{reimbursement_id}", s.requireSession(http.HandlerFunc(s.getReimbursementHandler)))
 	router.Handle("POST /api/v1/reimbursements/{reimbursement_id}/status-decisions", s.requireSession(s.requireCSRF(http.HandlerFunc(s.changeReimbursementStatusHandler))))
 	router.Handle("GET /api/v1/insights", s.requireSession(http.HandlerFunc(s.queryInsightsHandler)))
+	router.Handle("POST /api/v1/material-exports/preview", s.requireSession(s.requireCSRF(http.HandlerFunc(s.previewMaterialExportHandler))))
+	router.Handle("POST /api/v1/material-exports", s.requireSession(s.requireCSRF(http.HandlerFunc(s.prepareMaterialExportHandler))))
+	router.Handle("GET /api/v1/material-exports/{export_id}/content", s.requireSession(http.HandlerFunc(s.downloadMaterialExportHandler)))
+	router.Handle("DELETE /api/v1/material-exports/{export_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.cancelMaterialExportHandler))))
 	router.Handle("GET /api/v1/allocations/{fact_type}/{fact_id}", s.requireSession(http.HandlerFunc(s.getAllocationWorkspaceHandler)))
+	router.Handle("POST /api/v1/facts/{fact_type}/{fact_id}/bad-debt", s.requireSession(s.requireCSRF(http.HandlerFunc(s.setBadDebtHandler))))
+	router.Handle("GET /api/v1/allocations/{fact_type}/{fact_id}/targets", s.requireSession(http.HandlerFunc(s.searchAllocationTargetsHandler)))
 	router.Handle("POST /api/v1/allocations/{fact_type}/{fact_id}/adjustments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.adjustAllocationHandler))))
 	router.Handle("GET /api/v1/provider-configs", s.requireSession(http.HandlerFunc(s.listProviderConfigsHandler)))
 	router.Handle("POST /api/v1/provider-configs", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createProviderConfigHandler))))

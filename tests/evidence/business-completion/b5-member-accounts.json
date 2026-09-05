@@ -1,0 +1,111 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B5-ADR-0029-member-account-lifecycle",
+  "date": "2026-09-05",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 217,
+  "worktree_sha256": "4eb54460a346dbf10cbde9d65b68d7838e39470325b6cc8a0204f35150d6aa37",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024 and B1-B4 work",
+  "database": {
+    "major": 17,
+    "source": "existing postgres:17; no download",
+    "isolation": "dedicated internal network; no host database ports; synthetic accounts only",
+    "tested": [
+      "second member joins through invitation; existing global identity name and password cannot be replaced",
+      "new and existing accounts, suspended memberships in another tenant, password-protected workspace selection",
+      "tenant-scoped member changes, last active Owner concurrency, direct database Owner constraint",
+      "all role and state changes revoke tenant sessions; restore does not revive old sessions",
+      "global password changes and local operator recovery revoke all user sessions and append immutable audit",
+      "verified login hash and membership version close concurrent password or role changes",
+      "single-consumption invitation, expiry rechecked after password work and database locks, revoked and replayed codes rejected",
+      "202 members and 201 invitation history rows paginate completely; precise target GET works off-page and rejects cross-tenant reads",
+      "active invitation capacity, strict JSON/query inputs, CSRF and four-role boundaries",
+      "audit failure rolls back password and session changes",
+      "0007 forward upgrade, repeated migration and injected rollback preserve existing identity, sessions and business history"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "passed_test_events_including_subtests": 590,
+    "failed": 0,
+    "skipped": 0,
+    "command_policy": "uncached all packages; GOMAXPROCS=2, -p 1, -parallel 2, -timeout 60s; atomic coverage",
+    "critical_invariants": { "passed": 211, "total": 211, "matrix": "tests/critical-invariants.tsv" },
+    "statement_coverage": {
+      "domain_application": { "covered": 4043, "total": 4697, "percent": 86.08, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 5184, "total": 6833, "percent": 75.87, "threshold": 70, "passed": true },
+      "method": "unique statement blocks with any positive atomic count; layer boundaries unchanged"
+    },
+    "vet_all_packages": "passed",
+    "build_all_packages": "passed",
+    "native_backup_test_binary": "compiled with postgresql_tools and CGO_ENABLED=0"
+  },
+  "authenticated_restore": {
+    "native_postgresql_17_dump_restore": true,
+    "account_test": "TestAccountAuthenticatedRestorePreservesHistoryAndInvalidatesCredentials",
+    "account_test_seconds": 1.25,
+    "account_test_passed": true,
+    "invitation_states_preserved": ["pending then explicitly revoked by restore", "consumed", "revoked"],
+    "invitation_rows": 3,
+    "global_password_audit_rows": 1,
+    "sessions_invalidated": 2,
+    "new_password_login_verified": true,
+    "original_authenticated_snapshot_verified_before_credential_invalidation": true,
+    "existing_manual_trip_material_test": "TestManualTripAuthenticatedBackupRestore",
+    "existing_manual_trip_material_test_seconds": 1.42,
+    "existing_manual_claim_correction_material_and_exact_object_regression_passed": true,
+    "limit": "focused nonempty regression fixtures, not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests": 50,
+    "unit_test_files": 11,
+    "contract_typecheck_lint_format_production_build": "passed",
+    "browser_spec_files": 12,
+    "browser_passed": 104,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "browser_retries": 0,
+    "browser_flaky": 0,
+    "browser_duration_ms": 110981.981,
+    "after_layout_fix_b5_browser_passed": 7,
+    "after_layout_fix_duration_ms": 12884.261,
+    "responsive_widths_px": [384, 768, 1024, 1440],
+    "themes": ["light", "dark"],
+    "visual_review": "member list narrow/light and desktop/dark, account desktop/dark, corrected join narrow/light inspected",
+    "covered": ["invitation once-only code and copy fallback", "uncertain retry preserves request key", "off-page version conflict preserves draft and requires recheck", "member and invitation pagination", "new/existing account join", "multi-workspace selection", "all four role navigation", "self password and current-password failure", "expired versus uncertain logout", "late session responses and ordered cookie mutations", "notice layout, keyboard and responsive behavior"],
+    "scope": "production-built components with synthetic Mock API plus separate actual PostgreSQL-backed HTTP tests; not a deployed runtime browser release gate"
+  },
+  "tools": { "node_tests_passed": 62, "failed": 0, "skipped": 0, "entrypoint_shell_syntax": "passed" },
+  "failure_history": [
+    { "stage": "native_restore", "cause": "stock PostgreSQL image does not expose tools at the configured release-image absolute path", "resolution": "use command -v paths within the existing PostgreSQL 17 container; both native tests pass" },
+    { "stage": "b5_browser", "cause": "initial unauthenticated probe overwrote login redirect and pagination assertion read prior page", "resolution": "invalidate navigation only for a matched protected route; wait for expected first-row identity; tests pass" },
+    { "stage": "browser_collection", "cause": "runtime-specific representative-flow spec requires a deployed API and synthetic provider setup absent from this Mock API run", "resolution": "run all 12 Mock API specs explicitly; no claim that deployed representative-flow spec ran" },
+    { "stage": "browser_full", "cause": "legacy navigation expectations omitted newly added members/account entries", "resolution": "update permission-specific expectations without removing keyboard, alignment or collapse assertions; 104 tests pass" },
+    { "stage": "visual_review", "cause": "existing icon notice style constrained multi-paragraph join notice heading to a narrow column", "resolution": "opt-in shared stacked notice layout for new multi-paragraph notices; rebuild, recheck all Web gates and rerun all 7 B5 browser tests" }
+  ],
+  "review": {
+    "git_diff_check": "passed",
+    "changed_files_over_1_mib": 0,
+    "binary_or_forbidden_artifacts": 0,
+    "known_credential_pattern_or_exact_exercise_secret_matches": 0,
+    "scan_limit": "targeted patterns, exact exercise-secret comparison and scoped diff review; not universal secret detection",
+    "read_only_agents": "backend concurrency/identity and frontend permission/request-race review; main agent implemented changes"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_available_host_memory_mib": 5880,
+    "available_after_cleanup_mib": 7026,
+    "swap": "pre-existing 3898 MiB used; no expanded limits or OOM retry",
+    "database_oom_killed": false,
+    "container_and_internal_network_removed": true,
+    "no_anonymous_volume_created": true,
+    "browser_and_preview_stopped": true,
+    "temporary_credentials_data_reports_cache_and_build_removed": true,
+    "approximate_temporary_disk_mib_before_cleanup": 533,
+    "existing_user_instance": "not accessed, restarted or upgraded"
+  },
+  "not_performed": ["B6 implementation", "real Provider/mailbox/account integration or model accuracy evaluation", "new release-image runtime performance or Lighthouse gates", "commit, push, tag, deployment or release"]
+}

@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	ReimbursementPolicyVersion = "reimbursement-policy/1"
+	ReimbursementPolicyVersion = "reimbursement-policy/2"
 	MaxReimbursementItems      = 200
 	MaxReimbursementFindings   = 1000
 )
@@ -27,20 +27,23 @@ const (
 )
 
 type ReimbursementTripSnapshot struct {
-	ID          string `json:"id"`
-	Destination string `json:"destination"`
-	StartDate   string `json:"start_date"`
-	EndDate     string `json:"end_date"`
+	Timezone  *string `json:"timezone"`
+	Version   *int    `json:"version"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	StartDate string  `json:"start_date"`
+	EndDate   string  `json:"end_date"`
 }
 
 type ReimbursementPolicyItem struct {
-	AssignmentID string       `json:"assignment_id"`
-	FactType     DocumentType `json:"fact_type"`
-	FactID       string       `json:"fact_id"`
-	DisplayName  string       `json:"display_name"`
-	BusinessDate string       `json:"business_date"`
-	AmountMinor  int64        `json:"amount_minor"`
-	Currency     Currency     `json:"currency"`
+	FactReviewDecisionID string       `json:"fact_review_decision_id"`
+	AssignmentID         string       `json:"assignment_id"`
+	FactType             DocumentType `json:"fact_type"`
+	FactID               string       `json:"fact_id"`
+	DisplayName          string       `json:"display_name"`
+	BusinessDate         string       `json:"business_date"`
+	AmountMinor          int64        `json:"amount_minor"`
+	Currency             Currency     `json:"currency"`
 }
 
 type ReimbursementPolicyLink struct {
@@ -77,6 +80,7 @@ type ReimbursementPolicyFinding struct {
 }
 
 type ReimbursementPolicySnapshot struct {
+	Materials    []ReimbursementMaterial      `json:"materials"`
 	RuleVersion  string                       `json:"rule_version"`
 	Trip         ReimbursementTripSnapshot    `json:"trip"`
 	Items        []ReimbursementPolicyItem    `json:"items"`
@@ -86,6 +90,7 @@ type ReimbursementPolicySnapshot struct {
 }
 
 type ReimbursementPolicyInput struct {
+	Materials []ReimbursementMaterial
 	Trip      ReimbursementTripSnapshot
 	Items     []ReimbursementPolicyItem
 	Links     []ReimbursementPolicyLink
@@ -117,6 +122,10 @@ func EvaluateReimbursementPolicy(input ReimbursementPolicyInput) (ReimbursementP
 		return ReimbursementPolicySnapshot{}, err
 	}
 	items, itemByFact, err := canonicalReimbursementItems(input.Items)
+	if err != nil {
+		return ReimbursementPolicySnapshot{}, err
+	}
+	materials, err := canonicalReimbursementMaterials(input.Materials, itemByFact)
 	if err != nil {
 		return ReimbursementPolicySnapshot{}, err
 	}
@@ -191,6 +200,7 @@ func EvaluateReimbursementPolicy(input ReimbursementPolicyInput) (ReimbursementP
 		return ReimbursementPolicySnapshot{}, err
 	}
 	hash, err := hashJSON(struct {
+		Materials []ReimbursementMaterial      `json:"materials"`
 		Version   string                       `json:"version"`
 		Trip      ReimbursementTripSnapshot    `json:"trip"`
 		Items     []ReimbursementPolicyItem    `json:"items"`
@@ -198,13 +208,15 @@ func EvaluateReimbursementPolicy(input ReimbursementPolicyInput) (ReimbursementP
 		PriorUses []ReimbursementPriorUse      `json:"prior_uses"`
 		Findings  []ReimbursementPolicyFinding `json:"findings"`
 	}{
-		Version: ReimbursementPolicyVersion, Trip: input.Trip,
+		Materials: materials,
+		Version:   ReimbursementPolicyVersion, Trip: input.Trip,
 		Items: items, Links: links, PriorUses: priorUses, Findings: findings,
 	})
 	if err != nil {
 		return ReimbursementPolicySnapshot{}, err
 	}
 	return ReimbursementPolicySnapshot{
+		Materials:   materials,
 		RuleVersion: ReimbursementPolicyVersion,
 		Trip:        input.Trip, Items: items, Findings: findings, Totals: totals, SnapshotHash: hash,
 	}, nil
@@ -312,7 +324,7 @@ func (status ReimbursementStatus) Valid() bool {
 
 func validateReimbursementTrip(trip ReimbursementTripSnapshot) error {
 	if trip.ID == "" || strings.TrimSpace(trip.ID) != trip.ID ||
-		trip.Destination == "" || strings.TrimSpace(trip.Destination) != trip.Destination {
+		trip.Name == "" || strings.TrimSpace(trip.Name) != trip.Name {
 		return NewRuleError("invalid_reimbursement_trip", "报销 Trip 快照不合法", ErrInvalidInput)
 	}
 	start, startErr := time.Parse("2006-01-02", trip.StartDate)

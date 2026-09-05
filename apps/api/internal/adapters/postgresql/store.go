@@ -48,6 +48,11 @@ func Open(ctx context.Context, config Config) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	// 最后检查：不能在读到空目标后等恢复提交，再仅凭完整迁移打开副本。
+	if _, err := readRestoreState(ctx, db, false); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &Store{db: db}, nil
 }
 

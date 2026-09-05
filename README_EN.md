@@ -5,7 +5,7 @@
 Smart Bill Manager is a self-hosted AI workspace for financial documents. It turns payment screenshots, invoices, and trip material into traceable candidates; a candidate becomes formal financial data only after explicit human review and confirmation.
 
 > [!IMPORTANT]
-> `v0.3.4` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
+> `v0.4.0` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
 
 ## Docker quick deployment
 
@@ -16,7 +16,7 @@ Requires `linux/amd64`, Docker Engine, Docker Compose 2.24.4 or newer, `curl`, `
 Download the installer from an immutable tag, verify the matching deployment bundle, and enter guided setup:
 
 ```bash
-version=v0.3.4; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+version=v0.4.0; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
 The installer asks for runtime, PostgreSQL data, object, and backup directories, Owner details, and the local port. Press Enter to accept defaults.
@@ -62,7 +62,7 @@ docker run -d \
   -e SBM_COOKIE_SECURE=false \
   -e SBM_SESSION_TTL=168h \
   -e SBM_AI_CONCURRENCY=2 \
-  ghcr.io/tuoro/smart-bill-manager:v0.3.4
+  ghcr.io/tuoro/smart-bill-manager:v0.4.0
 docker network connect bridge smart-bill-manager
 ```
 
@@ -97,16 +97,19 @@ After creating and independently verifying a backup, update with the new deploym
 
 - image and PDF upload, per-item batch feedback, and multi-page review;
 - minimal Chinese multimodal extraction, deterministic local normalization, and field-level validation;
-- Payment, Invoice, and Trip workflows with complete Source → Claim → Fact provenance;
-- duplicate candidates, payment-to-invoice allocation, and independent allocation adjustment;
-- local email-attachment archives, trip attribution, and reimbursement status workflow;
+- explicit manual review after extraction failure, full fact search, and traceable corrections preserving Source → Claim → Fact provenance;
+- manually created trips combining multiple tickets and other documents, automatic attribution, and supporting materials;
+- duplicate candidates, payment-to-invoice allocation, a default 30-day recommendation window, and reasoned cross-period manual allocation;
+- bad-debt marking and reversal with related trip deletion protection, without automatic financial write-off;
+- local email-attachment archives, reimbursement workflow, and material ZIP exports;
+- member invitations, role management, password changes, and local account recovery;
 - deterministic insights, tenant isolation, audit, authenticated backup, and complete recovery.
 
 ## Security and data boundaries
 
 ```text
 Source -> Claim -> Fact
-original evidence -> AI candidate -> user-confirmed data
+original evidence -> reviewable candidate (AI or explicit manual origin) -> user-confirmed data
 ```
 
 - The model cannot create a Fact directly. Schema validation, deterministic business rules, authorization, and human review are mandatory.
@@ -129,6 +132,8 @@ original evidence -> AI candidate -> user-confirmed data
 | --- | --- |
 | [Deployment](docs/deployment.md) | Installation, bootstrap, lifecycle, and network boundary |
 | [Local operations](docs/local-operations.md) | Health, capacity, diagnostics, and upgrade boundary |
+| [Members and accounts](docs/member-accounts.md) | Invitations, deactivation, password changes, and local recovery |
+| [Material exports](docs/material-export.md) | Current trip and fixed reimbursement snapshot ZIPs, file scope, and resource limits |
 | [Backup and recovery](docs/backup-restore.md) | Authenticated backup, verification, and complete recovery |
 | [Product and scope](docs/product.md) / [Roadmap](docs/roadmap.md) | Positioning, completed scope, and remaining gates |
 | [Architecture](docs/architecture.md) / [Data model](docs/data-model.md) | Source, Claim, Fact, and PostgreSQL design |

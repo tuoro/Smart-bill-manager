@@ -20,6 +20,8 @@ const expectedFiles = [
   "docs/backup-restore.md",
   "docs/deployment.md",
   "docs/local-operations.md",
+  "docs/member-accounts.md",
+  "docs/material-export.md",
   "infra/compose/compose.bootstrap.yaml",
   "infra/compose/compose.release.yaml",
   "infra/compose/compose.yaml",
@@ -79,7 +81,7 @@ test("self-hosted bundle generation is deterministic", async () => {
 test("README exposes one-command, Compose, and bounded Docker CLI deployment forms", async () => {
   for (const name of ["README.md", "README_EN.md"]) {
     const readme = await readFile(join(dirname(toolsDirectory), name), "utf8");
-    assert.match(readme, /version=v0\.3\.4; curl .*--release-version "\$version"/);
+    assert.match(readme, /version=v0\.4\.0; curl .*--release-version "\$version"/);
     assert.match(readme, /docker compose --project-name smart-bill-manager/);
     assert.match(readme, /docker run -d \\/);
     assert.match(readme, /--network smart-bill-manager_database/);

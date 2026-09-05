@@ -174,11 +174,12 @@ func verifyAppliedMigrations(ctx context.Context, transaction *sql.Tx, expected 
 }
 
 func schemaIdentity(ctx context.Context, transaction *sql.Tx) (string, error) {
+	// pg_dump 重建会压紧删列留下的 attnum 空位；身份保留可见列顺序，不依赖不可恢复的物理槽号。
 	rows, err := transaction.QueryContext(ctx, `
 		SELECT object_kind, object_identity, definition
 		FROM (
 			SELECT 'column' AS object_kind,
-			       table_name || '.' || lpad(ordinal_position::text, 4, '0') AS object_identity,
+			       table_name || '.' || lpad((row_number() OVER (PARTITION BY table_name ORDER BY ordinal_position))::text, 4, '0') AS object_identity,
 			       concat_ws('|', column_name, data_type, udt_name, is_nullable, coalesce(column_default, '')) AS definition
 			FROM information_schema.columns WHERE table_schema = 'public'
 			UNION ALL
@@ -286,6 +287,28 @@ func auditChainHash(ctx context.Context, transaction *sql.Tx) (string, error) {
 	if err := rows.Err(); err != nil {
 		return "", err
 	}
+	if err := rows.Close(); err != nil {
+		return "", err
+	}
+	accountRows, err := transaction.QueryContext(ctx, `SELECT id, user_id, actor_kind, action, reason, created_at::text FROM account_events ORDER BY user_id, created_at, id`)
+	if err != nil {
+		return "", err
+	}
+	defer accountRows.Close()
+	for accountRows.Next() {
+		var id, userID, actorKind, action, reason, created string
+		if err := accountRows.Scan(&id, &userID, &actorKind, &action, &reason, &created); err != nil {
+			return "", err
+		}
+		encoded, err := json.Marshal([]string{"global_account_event", id, userID, actorKind, action, reason, created})
+		if err != nil {
+			return "", err
+		}
+		writeFramed(hash, encoded)
+	}
+	if err := accountRows.Err(); err != nil {
+		return "", err
+	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
@@ -351,8 +374,13 @@ func verifyObjectReferences(ctx context.Context, transaction *sql.Tx, committedR
 	return objectSummary{ReferenceCount: referenceCount, Objects: actual}, nil
 }
 
-func invalidateSessions(ctx context.Context, database *sql.DB) (int64, error) {
-	result, err := database.ExecContext(ctx, "DELETE FROM sessions")
+func invalidateRestoredCredentials(ctx context.Context, database *sql.DB) (int64, error) {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, "DELETE FROM sessions")
 	if err != nil {
 		return 0, fmt.Errorf("invalidate restored sessions: %w", err)
 	}
@@ -360,7 +388,11 @@ func invalidateSessions(ctx context.Context, database *sql.DB) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	return count, nil
+	if _, err := tx.ExecContext(ctx, `UPDATE member_invitations SET version = 2, revoked_at = clock_timestamp(),
+		revoke_reason = 'restore', revoked_by_user_id = NULL WHERE version = 1`); err != nil {
+		return 0, fmt.Errorf("invalidate restored invitations: %w", err)
+	}
+	return count, tx.Commit()
 }
 
 func databaseStateEqual(actual, expected databaseRecord, expectedCounts map[string]int64) bool {

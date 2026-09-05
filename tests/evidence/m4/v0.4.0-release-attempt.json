@@ -1,0 +1,119 @@
+{
+  "report_kind": "prerelease-attempt-checkpoint",
+  "version": "v0.4.0",
+  "recorded_date": "2026-09-05",
+  "status": "blocked_before_distribution",
+  "passed": false,
+  "build_identity": {
+    "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+    "release_input_sha256": "887c98abc1c8e1e28ecc32f135f2f6ac7306a85f2c51b72530744e83db4e7f6a",
+    "candidate_image_id": "sha256:ca6b8b18fea7ceb266d2d008801ac6687b8299a24465818ad654d3285adba4bf",
+    "candidate_images_removed_after_pause": true,
+    "release_input_rechecked_before_cleanup": true
+  },
+  "completed_candidate_checks": {
+    "offline_build": true,
+    "build_artifact_files": 354,
+    "required_runtime_assets": 25,
+    "image_and_compose_policy": true,
+    "entrypoint_boundary_cases": 7,
+    "owner_first_bootstrap": true,
+    "owner_repeat_rejected": true,
+    "runtime_authentication_and_permissions": true,
+    "runtime_secret_checks": true,
+    "memory": {
+      "warmup_jobs": 10,
+      "measured_jobs": 50,
+      "first_10_median_rss_bytes": 153960448,
+      "last_10_median_rss_bytes": 21870592,
+      "last_to_first_median_ratio": 0.1421,
+      "linear_regression_slope_mib_per_job": -3.1708,
+      "orphan_processing_jobs": 0,
+      "passed": true
+    }
+  },
+  "release_tool_regression": {
+    "node_test_files": 18,
+    "passed_tests": 65,
+    "failed_tests": 0,
+    "skipped_tests": 0,
+    "test_concurrency": 1,
+    "seed_performance_go_package_passed_tests": 6,
+    "seed_performance_go_vet_and_build": true,
+    "full_go_and_web_prior_slice_evidence": "tests/evidence/business-completion/b7-b8-allocation-bad-debt.json",
+    "prior_evidence_rebound_to_candidate": false
+  },
+  "performance": {
+    "full_gate_passed": false,
+    "seed_facts": 10000,
+    "seed_source_claim_chains": 10220,
+    "six_query_thresholds_passed_in_both_incomplete_attempts": true,
+    "last_attempt_maximum_query_p95_ms": 195.6,
+    "query_threshold_ms": 300,
+    "upload_and_confirmation_gate_complete": false,
+    "final_cleanup_barrier_end_to_end_verified": false
+  },
+  "blocking_findings": [
+    {
+      "code": "restore_activation_guard_missing",
+      "verification": "independent read-only source and startup-path review; no crash injection run in this attempt",
+      "risk": "restored database may be reachable before session invalidation or exact object/key publication; no durable incomplete/complete state checked by server or bootstrap-owner",
+      "required_next": "shared restore activation and identity boundary plus deterministic failure-window tests"
+    },
+    {
+      "code": "restore_evidence_hardcoded_success",
+      "verification": "write-backup-evidence.mjs sets crash_safe_restore_state to true without a failure-injection input",
+      "historical_report_rewritten": false,
+      "claim_accepted_as_current_pass": false
+    }
+  ],
+  "resolved_or_pending_tool_failures": [
+    "Artifact path validator rejected a valid leading-underscore Vite chunk; path regression added and final artifacts rebuilt successfully.",
+    "Performance seeder lacked current Review/Fact/InvoiceItem revision identities; fixed with six passing Go tests and full PostgreSQL constraint-backed data creation.",
+    "Temporary helper execution and manifest storage issues were corrected without disabling constraints or reducing the dataset.",
+    "Performance cleanup reproduced HTTP 409 while racing Worker version CAS; a terminal barrier was added without altering measured timing, load or thresholds.",
+    "First barrier expected missing Provider but the seeder has a synthetic active Provider with deliberately stale capability identity; expectation corrected from the seeder/Worker source and covered by three Node tests. Final full performance rerun remains pending."
+  ],
+  "not_run_for_final_candidate": [
+    "120-case browser gate",
+    "Lighthouse and responsive accessibility gates",
+    "1000-Document authenticated restore exercise",
+    "public v0.3.4 forward-upgrade and recover-account CLI smoke",
+    "crash-safe restore fault injection",
+    "final deterministic distribution bundle and remote readback"
+  ],
+  "cleanup": {
+    "passed": true,
+    "temporary_projects_checked": 5,
+    "remaining_temporary_containers_networks_volumes": 0,
+    "one_use_credentials_destroyed": true,
+    "raw_reports_and_temporary_data_destroyed": true,
+    "candidate_images_removed": 2,
+    "temporary_files_removed": 4169,
+    "temporary_logical_bytes_removed": 548708531,
+    "original_local_image_tag_restored": true,
+    "user_runtime_identity_unchanged": true,
+    "user_runtime_running_healthy": true,
+    "available_memory_mib_before_final_directory_removal": 8493,
+    "swap_used_mib_at_cleanup": 3888,
+    "observed_oom": false,
+    "unrelated_processes_terminated": false
+  },
+  "audit_before_checkpoint_documents": {
+    "candidate_files_checked": 284,
+    "temporary_credential_hits": 0,
+    "candidate_files_over_1_mib": 0,
+    "diff_check": true,
+    "independent_asset_and_sensitive_review": "no private or unclassified candidate asset found",
+    "limits": "file-scope and signature review cannot guarantee detection of arbitrary secrets"
+  },
+  "distribution": {
+    "committed": false,
+    "pushed": false,
+    "tag_created": false,
+    "github_release_created": false,
+    "ghcr_pushed": false,
+    "latest_changed": false,
+    "user_instance_upgraded": false
+  }
+}

@@ -28,29 +28,23 @@ func (t transaction) FindDocumentIDBySHA(ctx context.Context, tenantID, sha256 s
 	return id, nil
 }
 
-func (t transaction) InsertDocument(ctx context.Context, document ports.Document) error {
-	_, err := t.tx.ExecContext(ctx, `
+const insertDocumentSQL = `
 		INSERT INTO documents (
 			id, tenant_id, storage_key, original_name, declared_mime, detected_mime,
 			size_bytes, sha256, page_count, status, ingestion_kind, original_object_owner,
 			created_by_user_id, created_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`,
-		document.ID,
-		document.TenantID,
-		document.StorageKey,
-		document.OriginalName,
-		document.DeclaredMIME,
-		document.DetectedMIME,
-		document.SizeBytes,
-		document.SHA256,
-		document.PageCount,
-		document.Status,
-		document.IngestionKind,
-		document.OriginalObjectOwner,
-		document.CreatedByUserID,
-		document.CreatedAt.UTC().Format(time.RFC3339Nano),
-	)
+	`
+
+func documentArguments(document ports.Document) []any {
+	return []any{document.ID, document.TenantID, document.StorageKey, document.OriginalName,
+		document.DeclaredMIME, document.DetectedMIME, document.SizeBytes, document.SHA256,
+		document.PageCount, document.Status, document.IngestionKind, document.OriginalObjectOwner,
+		document.CreatedByUserID, document.CreatedAt.UTC().Format(time.RFC3339Nano)}
+}
+
+func (t transaction) InsertDocument(ctx context.Context, document ports.Document) error {
+	_, err := t.tx.ExecContext(ctx, insertDocumentSQL, documentArguments(document)...)
 	if err != nil {
 		return fmt.Errorf("insert document: %w", err)
 	}
@@ -82,6 +76,7 @@ func (t transaction) DeleteUnconfirmedDocument(ctx context.Context, tenantID, do
 	result, err := t.tx.ExecContext(ctx, `
 		DELETE FROM documents
 		WHERE tenant_id = ? AND id = ?
+		  AND NOT EXISTS (SELECT 1 FROM invoice_material_links m WHERE m.tenant_id = documents.tenant_id AND m.document_id = documents.id)
 		  AND NOT EXISTS (
 		      SELECT 1
 		      FROM claim_sets c
@@ -188,9 +183,9 @@ func (s *Store) GetDocument(ctx context.Context, tenantID, documentID string) (p
 func (s *Store) GetDocumentObject(ctx context.Context, tenantID, documentID string) (ports.DocumentObject, error) {
 	var object ports.DocumentObject
 	err := s.db.QueryRowContext(ctx, `
-		SELECT d.storage_key, d.original_name, d.detected_mime, j.status
+		SELECT d.storage_key, d.original_name, d.detected_mime, coalesce(j.status, '')
 		FROM documents d
-		JOIN processing_jobs j ON j.tenant_id = d.tenant_id AND j.document_id = d.id
+		LEFT JOIN processing_jobs j ON j.tenant_id = d.tenant_id AND j.document_id = d.id
 		WHERE d.tenant_id = ? AND d.id = ?
 	`, tenantID, documentID).Scan(&object.StorageKey, &object.Name, &object.MIME, &object.ReviewState)
 	if errors.Is(err, sql.ErrNoRows) {

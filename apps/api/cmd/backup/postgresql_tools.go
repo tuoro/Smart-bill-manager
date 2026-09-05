@@ -129,6 +129,7 @@ func createPostgresDump(ctx context.Context, config postgresqladapter.Config, de
 		"--compress=none",
 		"--no-owner",
 		"--no-privileges",
+		"--exclude-schema="+postgresqladapter.RestoreSchema,
 		"--serializable-deferrable",
 		"--lock-wait-timeout=5000",
 		"--file="+destination,
@@ -154,6 +155,9 @@ func verifyPostgresDump(ctx context.Context, location string) error {
 	if !bytes.Contains(output, []byte("TABLE DATA public documents")) ||
 		!bytes.Contains(output, []byte("TABLE DATA public schema_migrations")) {
 		return errors.New("PostgreSQL custom dump inventory is incomplete")
+	}
+	if bytes.Contains(output, []byte(postgresqladapter.RestoreSchema)) {
+		return errors.New("PostgreSQL dump contains forbidden restore activation state")
 	}
 	return nil
 }

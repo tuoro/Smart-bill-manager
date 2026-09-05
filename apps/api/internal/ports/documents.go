@@ -54,6 +54,9 @@ type ProcessingDocument struct {
 	StorageKey string
 	MIME       string
 	PageCount  int
+	// 人工页准备使用独立对象命名空间，避免失败补偿删除已存在的页。
+	PageSetID    string
+	MetadataOnly bool
 }
 
 type NormalizedPage struct {
@@ -113,6 +116,10 @@ type JobSummary struct {
 }
 
 type Transaction interface {
+	BadDebtTransaction
+	InvoiceMaterialTransaction
+	FactCorrectionTransaction
+	ManualReviewTransaction
 	ProcessingTransaction
 	ReviewTransaction
 	AllocationTransaction
@@ -175,6 +182,7 @@ type DocumentPageObject struct {
 
 type DocumentDeletionPlan struct {
 	DocumentID     string
+	JobVersion     int
 	StorageKeys    []string
 	ObjectHashes   []string
 	ResourceCounts map[string]int
@@ -183,6 +191,7 @@ type DocumentDeletionPlan struct {
 type DocumentDeleteCommand struct {
 	TenantID           string
 	DocumentID         string
+	ExpectedJobVersion int
 	ActorUserID        string
 	TombstoneID        string
 	ResourceIDHash     string

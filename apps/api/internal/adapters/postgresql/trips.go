@@ -26,19 +26,25 @@ func (s *Store) ListTripAttributionCandidates(
 		    SELECT 'payment' AS fact_type, payment.id AS fact_id,
 		           payment.merchant AS display_name,
 		           payment.business_date AS business_date,
-		           payment.amount_minor AS amount_minor, payment.currency AS currency
+		           payment.amount_minor AS amount_minor, payment.currency AS currency,
+		           payment.version AS fact_version, payment.trip_assignment_mode AS assignment_mode,
+		           payment.transaction_time, payment.tenant_id
 		    FROM payments payment
 		    WHERE payment.tenant_id = ? AND payment.deleted_at IS NULL
 		    UNION ALL
 		    SELECT 'invoice', invoice.id, invoice.seller_name, invoice.invoice_date,
-		           invoice.total_minor, invoice.currency
+		           invoice.total_minor, invoice.currency, invoice.version, 'manual', NULL::timestamptz, invoice.tenant_id
 		    FROM invoices invoice
 		    WHERE invoice.tenant_id = ? AND invoice.deleted_at IS NULL
 		), signals AS (
 		    SELECT fact.*,
 		           coalesce(assignment.id, '') AS current_assignment_id,
 		           coalesce(assignment.trip_id, '') AS current_trip_id,
-		           coalesce(current_trip.destination, '') AS current_trip_destination,
+		           coalesce(current_trip.name, '') AS current_trip_name,
+		           (SELECT count(*) FROM trips matched WHERE matched.tenant_id = fact.tenant_id
+		             AND fact.fact_type = 'payment' AND matched.deleted_at IS NULL AND matched.timezone IS NOT NULL
+		             AND fact.transaction_time >= (matched.start_date::timestamp AT TIME ZONE matched.timezone)
+		             AND fact.transaction_time < ((matched.end_date + 1)::timestamp AT TIME ZONE matched.timezone)) AS match_count,
 		           fact.business_date BETWEEN ? AND ? AS inside_trip,
 		           fact.business_date >= (?::date - INTERVAL '3 days') AND fact.business_date < ? AS near_before,
 		           fact.business_date > ? AND fact.business_date <= (?::date + INTERVAL '3 days') AS near_after,
@@ -75,7 +81,7 @@ func (s *Store) ListTripAttributionCandidates(
 		    FROM signals
 		)
 		SELECT fact_type, fact_id, display_name, business_date::text, amount_minor, currency,
-		       current_assignment_id, current_trip_id, current_trip_destination,
+		       current_assignment_id, current_trip_id, current_trip_name, fact_version, assignment_mode, match_count,
 		       inside_trip, near_before, near_after, linked_to_trip, suggested, rank
 		FROM ranked
 		WHERE (? = 'all' OR (? = 'suggested' AND suggested) OR (? = 'assigned' AND current_trip_id = ?))
@@ -124,7 +130,7 @@ func (s *Store) ListTripAttributionCandidates(
 			&item.Currency,
 			&item.CurrentAssignmentID,
 			&item.CurrentTripID,
-			&item.CurrentTripDestination,
+			&item.CurrentTripName, &item.FactVersion, &item.AssignmentMode, &item.MatchCount,
 			&inside,
 			&before,
 			&after,
@@ -135,6 +141,7 @@ func (s *Store) ListTripAttributionCandidates(
 			return ports.TripAttributionPage{}, fmt.Errorf("scan trip attribution candidate: %w", err)
 		}
 		item.ReasonCodes = make([]string, 0, 5)
+		item.AssignmentState = tripAssignmentState(item)
 		if item.CurrentTripID == query.TripID {
 			item.ReasonCodes = append(item.ReasonCodes, "currently_assigned")
 		}
@@ -167,35 +174,54 @@ func (s *Store) ListTripAttributionCandidates(
 	return result, nil
 }
 
+func tripAssignmentState(item ports.TripAttributionCandidate) string {
+	if item.CurrentAssignmentID != "" {
+		if item.AssignmentMode == "auto" {
+			return "automatic"
+		}
+		return "manual"
+	}
+	if item.AssignmentMode == "blocked" {
+		return "blocked"
+	}
+	if item.AssignmentMode == "manual" {
+		return "manual_unassigned"
+	}
+	if item.MatchCount > 1 {
+		return "overlap"
+	}
+	if item.MatchCount == 1 {
+		return "pending"
+	}
+	return "no_match"
+}
+
 func (s *Store) getTripSummary(ctx context.Context, tenantID, tripID string) (ports.Trip, error) {
+	return scanTripSummary(s.db.QueryRowContext(ctx, tripSummarySelect+` WHERE trip.tenant_id = ? AND trip.id = ? AND trip.deleted_at IS NULL`, tenantID, tripID))
+}
+
+const tripSummarySelect = `SELECT trip.id, trip.name, trip.start_date::text, trip.end_date::text,
+    trip.timezone, trip.notes, trip.version, trip.origin_kind,
+    (SELECT count(*) FROM trip_fact_assignments a WHERE a.tenant_id = trip.tenant_id AND a.trip_id = trip.id AND a.ended_at IS NULL AND a.payment_id IS NOT NULL),
+    (SELECT count(*) FROM trip_fact_assignments a WHERE a.tenant_id = trip.tenant_id AND a.trip_id = trip.id AND a.ended_at IS NULL AND a.invoice_id IS NOT NULL),
+    (SELECT count(*) FROM trip_material_links m WHERE m.tenant_id = trip.tenant_id AND m.trip_id = trip.id AND m.ended_at IS NULL),
+    trip.created_at, sbm_trip_bad_debt_locked(trip.tenant_id,trip.id) FROM trips trip`
+
+func scanTripSummary(row interface{ Scan(...any) error }) (ports.Trip, error) {
 	var result ports.Trip
-	var origin, travelerName, transportType, bookingReference sql.NullString
+	var timezone sql.NullString
 	var createdAt string
-	err := s.db.QueryRowContext(ctx, `
-		SELECT trip.id, trip.origin, trip.destination, trip.start_date::text, trip.end_date::text,
-		       trip.traveler_name, trip.transport_type, trip.booking_reference,
-		       coalesce(sum(CASE WHEN assignment.payment_id IS NOT NULL THEN 1 ELSE 0 END), 0),
-		       coalesce(sum(CASE WHEN assignment.invoice_id IS NOT NULL THEN 1 ELSE 0 END), 0),
-		       trip.created_at
-		FROM trips trip
-		LEFT JOIN trip_fact_assignments assignment
-		  ON assignment.tenant_id = trip.tenant_id
-		 AND assignment.trip_id = trip.id
-		 AND assignment.ended_at IS NULL
-		WHERE trip.tenant_id = ? AND trip.id = ? AND trip.deleted_at IS NULL
-		GROUP BY trip.tenant_id, trip.id
-	`, tenantID, tripID).Scan(
+	err := row.Scan(
 		&result.ID,
-		&origin,
-		&result.Destination,
+		&result.Name,
 		&result.StartDate,
 		&result.EndDate,
-		&travelerName,
-		&transportType,
-		&bookingReference,
+		&timezone, &result.Notes, &result.Version, &result.OriginKind,
 		&result.AssignedPaymentCount,
 		&result.AssignedInvoiceCount,
+		&result.MaterialCount,
 		&createdAt,
+		&result.BadDebtLocked,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.Trip{}, domain.ErrNotFound
@@ -203,10 +229,7 @@ func (s *Store) getTripSummary(ctx context.Context, tenantID, tripID string) (po
 	if err != nil {
 		return ports.Trip{}, fmt.Errorf("read trip: %w", err)
 	}
-	result.Origin = nullableString(origin)
-	result.TravelerName = nullableString(travelerName)
-	result.TransportType = nullableString(transportType)
-	result.BookingReference = nullableString(bookingReference)
+	result.Timezone = nullableString(timezone)
 	result.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
 	if err != nil {
 		return ports.Trip{}, fmt.Errorf("parse trip created_at: %w", err)
@@ -221,7 +244,7 @@ func (s *Store) GetTripAssignmentReplay(
 	var replay ports.TripAssignmentReplay
 	err := s.db.QueryRowContext(ctx, `
 		SELECT decision.request_hash, decision.id, decision.action,
-		       coalesce(decision.previous_assignment_id, ''), coalesce(created.id, '')
+		       coalesce(decision.previous_assignment_id, ''), coalesce(created.id, ''), coalesce(nullif(decision.expected_fact_version, 0) + 1, 0)
 		FROM trip_fact_assignment_decisions decision
 		LEFT JOIN trip_fact_assignments created
 		  ON created.tenant_id = decision.tenant_id
@@ -233,6 +256,7 @@ func (s *Store) GetTripAssignmentReplay(
 		&replay.Result.Action,
 		&replay.Result.PreviousAssignmentID,
 		&replay.Result.AssignmentID,
+		&replay.Result.FactVersion,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.TripAssignmentReplay{}, domain.ErrNotFound
@@ -248,6 +272,11 @@ func (t transaction) ApplyTripAssignment(
 	ctx context.Context,
 	command ports.TripAssignmentCommand,
 ) (ports.TripAssignmentResult, error) {
+	if command.DecisionSource == "manual" {
+		if err := t.requireTripManager(ctx, command.TenantID, command.ActorUserID); err != nil {
+			return ports.TripAssignmentResult{}, err
+		}
+	}
 	if replay, exists, err := t.tripAssignmentReplay(ctx, command.TenantID, command.IdempotencyKey); err != nil {
 		return ports.TripAssignmentResult{}, err
 	} else if exists {
@@ -259,12 +288,13 @@ func (t transaction) ApplyTripAssignment(
 	if !domain.ValidTripAssignmentFactType(command.FactType) {
 		return ports.TripAssignmentResult{}, domain.ErrInvalidInput
 	}
-	available, err := t.tripAssignmentFactAvailable(ctx, command.TenantID, command.FactType, command.FactID)
+	version, mode, err := t.lockTripAssignmentFact(ctx, command.TenantID, command.FactType, command.FactID)
 	if err != nil {
 		return ports.TripAssignmentResult{}, err
 	}
-	if !available {
-		return ports.TripAssignmentResult{}, domain.ErrNotFound
+	if version != command.ExpectedFactVersion || (command.DecisionSource != "manual" && command.DecisionSource != "automatic") ||
+		(command.DecisionSource == "automatic" && (command.FactType != domain.DocumentPayment || mode != "auto")) {
+		return ports.TripAssignmentResult{}, tripStale()
 	}
 	if command.DesiredTripID != "" {
 		var tripAvailable bool
@@ -295,7 +325,7 @@ func (t transaction) ApplyTripAssignment(
 		return ports.TripAssignmentResult{}, domain.NewRuleError("trip_assignment_no_change", "该 Fact 已归属于目标行程", domain.ErrConflict)
 	}
 	createdAt := command.CreatedAt.UTC().Format(time.RFC3339Nano)
-	metadata, _ := json.Marshal(map[string]string{"action": action, "fact_type": string(command.FactType)})
+	metadata, _ := json.Marshal(map[string]string{"action": action, "fact_type": string(command.FactType), "source": command.DecisionSource})
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO audit_events (
 			id, tenant_id, actor_user_id, action, resource_type, resource_id,
@@ -319,12 +349,16 @@ func (t transaction) ApplyTripAssignment(
 	} else {
 		invoiceID = command.FactID
 	}
+	var ruleVersion any
+	if command.DecisionSource == "automatic" {
+		ruleVersion = domain.TripTimeAttributionVersion
+	}
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO trip_fact_assignment_decisions (
 			id, tenant_id, actor_user_id, fact_type, payment_id, invoice_id,
 			previous_assignment_id, desired_trip_id, action, idempotency_key,
-			request_hash, reason, audit_event_id, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?)
+			request_hash, reason, audit_event_id, created_at, decision_source, expected_fact_version, rule_version
+		) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		command.DecisionID,
 		command.TenantID,
@@ -340,6 +374,7 @@ func (t transaction) ApplyTripAssignment(
 		command.Reason,
 		command.AuditEventID,
 		createdAt,
+		command.DecisionSource, command.ExpectedFactVersion, ruleVersion,
 	); err != nil {
 		return ports.TripAssignmentResult{}, tripAssignmentWriteError("insert trip assignment decision", err)
 	}
@@ -357,7 +392,7 @@ func (t transaction) ApplyTripAssignment(
 		}
 	}
 	result := ports.TripAssignmentResult{
-		DecisionID: command.DecisionID, Action: action, PreviousAssignmentID: currentID,
+		DecisionID: command.DecisionID, Action: action, PreviousAssignmentID: currentID, FactVersion: version + 1,
 	}
 	if action != "unassign" {
 		if _, err := t.tx.ExecContext(ctx, `
@@ -378,30 +413,48 @@ func (t transaction) ApplyTripAssignment(
 		}
 		result.AssignmentID = command.AssignmentID
 	}
+	if command.FactType == domain.DocumentPayment {
+		if command.DecisionSource == "manual" {
+			mode = "manual"
+			if action == "unassign" {
+				mode = "blocked"
+			}
+		}
+		_, err = t.tx.ExecContext(ctx, `UPDATE payments SET version = version + 1, trip_assignment_mode = ? WHERE tenant_id = ? AND id = ?`, mode, command.TenantID, command.FactID)
+	} else {
+		_, err = t.tx.ExecContext(ctx, `UPDATE invoices SET version = version + 1 WHERE tenant_id = ? AND id = ?`, command.TenantID, command.FactID)
+	}
+	if err != nil {
+		return ports.TripAssignmentResult{}, fmt.Errorf("advance trip assignment version: %w", err)
+	}
 	return result, nil
 }
 
-func (t transaction) tripAssignmentFactAvailable(
+func (t transaction) lockTripAssignmentFact(
 	ctx context.Context,
 	tenantID string,
 	factType domain.DocumentType,
 	factID string,
-) (bool, error) {
-	var available bool
+) (int, string, error) {
+	var version int
+	mode := "manual"
 	var err error
 	if factType == domain.DocumentPayment {
 		err = t.tx.QueryRowContext(ctx, `
-			SELECT EXISTS(SELECT 1 FROM payments WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL)
-		`, tenantID, factID).Scan(&available)
+			SELECT version, trip_assignment_mode FROM payments WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL FOR UPDATE
+		`, tenantID, factID).Scan(&version, &mode)
 	} else {
 		err = t.tx.QueryRowContext(ctx, `
-			SELECT EXISTS(SELECT 1 FROM invoices WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL)
-		`, tenantID, factID).Scan(&available)
+			SELECT version FROM invoices WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL FOR UPDATE
+		`, tenantID, factID).Scan(&version)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", domain.ErrNotFound
 	}
 	if err != nil {
-		return false, fmt.Errorf("check trip assignment fact: %w", err)
+		return 0, "", fmt.Errorf("lock trip assignment fact: %w", err)
 	}
-	return available, nil
+	return version, mode, nil
 }
 
 func (t transaction) currentTripAssignment(
@@ -433,7 +486,7 @@ func (t transaction) tripAssignmentReplay(
 	var replay ports.TripAssignmentReplay
 	err := t.tx.QueryRowContext(ctx, `
 		SELECT decision.request_hash, decision.id, decision.action,
-		       coalesce(decision.previous_assignment_id, ''), coalesce(created.id, '')
+		       coalesce(decision.previous_assignment_id, ''), coalesce(created.id, ''), coalesce(nullif(decision.expected_fact_version, 0) + 1, 0)
 		FROM trip_fact_assignment_decisions decision
 		LEFT JOIN trip_fact_assignments created
 		  ON created.tenant_id = decision.tenant_id
@@ -445,6 +498,7 @@ func (t transaction) tripAssignmentReplay(
 		&replay.Result.Action,
 		&replay.Result.PreviousAssignmentID,
 		&replay.Result.AssignmentID,
+		&replay.Result.FactVersion,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.TripAssignmentReplay{}, false, nil

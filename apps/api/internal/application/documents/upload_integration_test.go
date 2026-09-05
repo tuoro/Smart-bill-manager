@@ -219,11 +219,11 @@ func TestUploadRejectsUnauthorizedMissingAndUnsafeInputs(t *testing.T) {
 		t.Fatalf("missing document error = %v", err)
 	}
 	for _, value := range []string{"", ".", "bad\x00name.png", strings.Repeat("a", 201)} {
-		if _, err := safeDocumentName(value); err == nil {
+		if _, err := NormalizeDocumentName(value); err == nil {
 			t.Fatalf("unsafe document name accepted: %q", value)
 		}
 	}
-	if value, err := safeDocumentName(" /tmp/receipt.png "); err != nil || value != "receipt.png" {
+	if value, err := NormalizeDocumentName(" /tmp/receipt.png "); err != nil || value != "receipt.png" {
 		t.Fatalf("safe document name = %q, error=%v", value, err)
 	}
 }

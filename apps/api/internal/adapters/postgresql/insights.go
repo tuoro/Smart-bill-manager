@@ -30,7 +30,7 @@ const insightFactRowsCTE = `
 	),
 	current_assignments AS (
 		SELECT assignment.tenant_id, assignment.payment_id, assignment.invoice_id,
-		       trip.id AS trip_id, trip.destination AS trip_destination,
+		       trip.id AS trip_id, trip.name AS trip_name,
 		       trip.start_date AS trip_start_date, trip.end_date AS trip_end_date
 		FROM trip_fact_assignments assignment
 		JOIN trips trip
@@ -45,7 +45,7 @@ const insightFactRowsCTE = `
 		       payment.amount_minor,
 		       coalesce(allocation.allocated_minor, 0)::bigint AS allocated_minor,
 		       payment.currency,
-		       assignment.trip_id, assignment.trip_destination,
+		       assignment.trip_id, assignment.trip_name,
 		       assignment.trip_start_date, assignment.trip_end_date
 		FROM payments payment
 		LEFT JOIN payment_allocations allocation
@@ -63,7 +63,7 @@ const insightFactRowsCTE = `
 		       invoice.total_minor AS amount_minor,
 		       coalesce(allocation.allocated_minor, 0)::bigint AS allocated_minor,
 		       invoice.currency,
-		       assignment.trip_id, assignment.trip_destination,
+		       assignment.trip_id, assignment.trip_name,
 		       assignment.trip_start_date, assignment.trip_end_date
 		FROM invoices invoice
 		LEFT JOIN invoice_allocations allocation
@@ -199,7 +199,7 @@ func queryInsightProjection(
 		),
 		paged_facts AS (
 			SELECT fact_type, fact_id, business_date, display_name, amount_minor,
-		       allocated_minor, currency, trip_id, trip_destination,
+		       allocated_minor, currency, trip_id, trip_name,
 		       trip_start_date, trip_end_date
 			FROM scoped_facts
 			WHERE ` + insightAllocationPredicate + `
@@ -224,7 +224,7 @@ func queryInsightProjection(
 		       ''::text AS item_business_date, ''::text AS item_display_name,
 		       0::bigint AS item_amount_minor, 0::bigint AS item_allocated_minor,
 		       ''::text AS item_currency, NULL::text AS item_trip_id,
-		       NULL::text AS item_trip_destination, NULL::text AS item_trip_start_date,
+		       NULL::text AS item_trip_name, NULL::text AS item_trip_start_date,
 		       NULL::text AS item_trip_end_date
 			FROM grouped_facts
 
@@ -243,7 +243,7 @@ func queryInsightProjection(
 			SELECT 2, '', '', 0, '0', '0', '0', '0', '0', '0', 0, 0, 0, 0,
 		       fact_type, fact_id, business_date::text, display_name,
 		       amount_minor, allocated_minor, currency,
-		       trip_id, trip_destination, trip_start_date::text, trip_end_date::text
+		       trip_id, trip_name, trip_start_date::text, trip_end_date::text
 			FROM paged_facts
 		)
 		SELECT row_kind,
@@ -254,7 +254,7 @@ func queryInsightProjection(
 		       unallocated_count, partial_count, allocated_count, invalid_projection,
 		       item_fact_type, item_fact_id, item_business_date, item_display_name,
 		       item_amount_minor, item_allocated_minor, item_currency,
-		       item_trip_id, item_trip_destination, item_trip_start_date, item_trip_end_date
+		       item_trip_id, item_trip_name, item_trip_start_date, item_trip_end_date
 		FROM projection_rows
 		ORDER BY row_kind, group_currency, group_fact_type DESC,
 		         item_business_date DESC, item_fact_type DESC, item_fact_id DESC
@@ -328,7 +328,7 @@ func queryDefaultInsightProjection(
 		paged_facts AS (
 			SELECT fact.fact_type, fact.fact_id, fact.business_date, fact.display_name,
 		       fact.amount_minor, fact.allocated_minor, fact.currency,
-		       fact.trip_id, fact.trip_destination, fact.trip_start_date, fact.trip_end_date
+		       fact.trip_id, fact.trip_name, fact.trip_start_date, fact.trip_end_date
 			FROM paged_keys key
 			JOIN scoped_facts fact
 			  ON fact.fact_type = key.fact_type AND fact.fact_id = key.fact_id
@@ -345,7 +345,7 @@ func queryDefaultInsightProjection(
 		       ''::text AS item_business_date, ''::text AS item_display_name,
 		       0::bigint AS item_amount_minor, 0::bigint AS item_allocated_minor,
 		       ''::text AS item_currency, NULL::text AS item_trip_id,
-		       NULL::text AS item_trip_destination, NULL::text AS item_trip_start_date,
+		       NULL::text AS item_trip_name, NULL::text AS item_trip_start_date,
 		       NULL::text AS item_trip_end_date
 			FROM grouped_facts
 
@@ -364,7 +364,7 @@ func queryDefaultInsightProjection(
 			SELECT 2, '', '', 0, '0', '0', '0', '0', '0', '0', 0, 0, 0, 0,
 		       fact_type, fact_id, business_date::text, display_name,
 		       amount_minor, allocated_minor, currency,
-		       trip_id, trip_destination, trip_start_date::text, trip_end_date::text
+		       trip_id, trip_name, trip_start_date::text, trip_end_date::text
 			FROM paged_facts
 		)
 		SELECT row_kind,
@@ -375,7 +375,7 @@ func queryDefaultInsightProjection(
 		       unallocated_count, partial_count, allocated_count, invalid_projection,
 		       item_fact_type, item_fact_id, item_business_date, item_display_name,
 		       item_amount_minor, item_allocated_minor, item_currency,
-		       item_trip_id, item_trip_destination, item_trip_start_date, item_trip_end_date
+		       item_trip_id, item_trip_name, item_trip_start_date, item_trip_end_date
 		FROM projection_rows
 		ORDER BY row_kind, group_currency, group_fact_type DESC,
 		         item_business_date DESC, item_fact_type DESC, item_fact_id DESC
@@ -407,7 +407,7 @@ func scanInsightProjection(rows *sql.Rows, limit int) ([]domain.InsightAggregate
 		var totalMajor, totalRemainder, allocatedMajor, allocatedRemainder string
 		var remainingMajor, remainingRemainder string
 		var item domain.InsightFact
-		var tripID, destination, startDate, endDate sql.NullString
+		var tripID, name, startDate, endDate sql.NullString
 		if err := rows.Scan(
 			&rowKind,
 			&group.Currency, &group.FactType, &group.Count,
@@ -416,7 +416,7 @@ func scanInsightProjection(rows *sql.Rows, limit int) ([]domain.InsightAggregate
 			&group.UnallocatedCount, &group.PartialCount, &group.AllocatedCount, &invalidProjection,
 			&item.FactType, &item.FactID, &item.BusinessDate, &item.DisplayName,
 			&item.AmountMinor, &item.AllocatedMinor, &item.Currency,
-			&tripID, &destination, &startDate, &endDate,
+			&tripID, &name, &startDate, &endDate,
 		); err != nil {
 			return nil, nil, false, fmt.Errorf("scan insight projection: %w", err)
 		}
@@ -448,10 +448,10 @@ func scanInsightProjection(rows *sql.Rows, limit int) ([]domain.InsightAggregate
 				return nil, nil, false, fmt.Errorf("scan insight projection: invalid item marker")
 			}
 			if tripID.Valid {
-				if !destination.Valid || !startDate.Valid || !endDate.Valid {
+				if !name.Valid || !startDate.Valid || !endDate.Valid {
 					return nil, nil, false, fmt.Errorf("scan insight projection: incomplete trip")
 				}
-				item.Trip = &domain.InsightTrip{ID: tripID.String, Destination: destination.String, StartDate: startDate.String, EndDate: endDate.String}
+				item.Trip = &domain.InsightTrip{ID: tripID.String, Name: name.String, StartDate: startDate.String, EndDate: endDate.String}
 			}
 			items = append(items, item)
 		default:

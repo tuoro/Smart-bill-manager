@@ -39,6 +39,9 @@ func New(root string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Join(absolute, "trash"), 0o700); err != nil {
 		return nil, fmt.Errorf("create deletion trash directory: %w", err)
 	}
+	if err := os.MkdirAll(filepath.Join(absolute, publicationDirectory), 0o700); err != nil {
+		return nil, fmt.Errorf("create material publication directory: %w", err)
+	}
 	return &Store{root: absolute, ids: system.IDGenerator{}}, nil
 }
 
@@ -108,11 +111,12 @@ func (s *Store) Commit(_ context.Context, staged ports.StagedObject, storageKey 
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("inspect object destination: %w", err)
 	}
+	// 先保护暂存文件，避免发布对象后再失败而丢失调用方的补偿身份。
+	if err := os.Chmod(source, 0o600); err != nil {
+		return fmt.Errorf("protect staged object: %w", err)
+	}
 	if err := os.Rename(source, destination); err != nil {
 		return fmt.Errorf("commit staged object: %w", err)
-	}
-	if err := os.Chmod(destination, 0o600); err != nil {
-		return fmt.Errorf("protect committed object: %w", err)
 	}
 	return nil
 }

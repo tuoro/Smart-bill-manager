@@ -71,6 +71,7 @@ type DuplicateCandidate struct {
 }
 
 type ReviewSnapshot struct {
+	DocumentPageIDs     map[int]string
 	Job                 JobSummary
 	DocumentID          string
 	PageCount           int
@@ -89,6 +90,7 @@ type ReviewSnapshot struct {
 }
 
 type ReviewRepository interface {
+	FactCorrectionRepository
 	GetReview(ctx context.Context, tenantID, jobID string) (ReviewSnapshot, error)
 	GetClaimSet(ctx context.Context, tenantID, claimSetID string) (ReviewSnapshot, error)
 	GetConfirmReplay(ctx context.Context, tenantID, jobID, idempotencyKey string) (ConfirmReplay, error)
@@ -273,6 +275,8 @@ type ReviewTransaction interface {
 }
 
 type Payment struct {
+	BadDebt          bool      `json:"bad_debt"`
+	BusinessDate     string    `json:"business_date"`
 	ID               string    `json:"id"`
 	AmountMinor      int64     `json:"amount_minor"`
 	AllocatedMinor   int64     `json:"allocated_minor"`
@@ -300,6 +304,7 @@ type InvoiceItem struct {
 }
 
 type Invoice struct {
+	BadDebt          bool          `json:"bad_debt"`
 	ID               string        `json:"id"`
 	InvoiceNumber    string        `json:"invoice_number"`
 	InvoiceDate      string        `json:"invoice_date"`
@@ -311,26 +316,23 @@ type Invoice struct {
 	Currency         string        `json:"currency"`
 	SellerName       string        `json:"seller_name"`
 	BuyerName        string        `json:"buyer_name"`
-	Items            []InvoiceItem `json:"items"`
+	Items            []InvoiceItem `json:"items,omitempty"`
+	ItemCount        int           `json:"item_count"`
 	CreatedAt        time.Time     `json:"created_at"`
 }
 
 type Trip struct {
+	BadDebtLocked        bool      `json:"bad_debt_locked"`
 	ID                   string    `json:"id"`
-	Origin               *string   `json:"origin,omitempty"`
-	Destination          string    `json:"destination"`
+	Name                 string    `json:"name"`
 	StartDate            string    `json:"start_date"`
 	EndDate              string    `json:"end_date"`
-	TravelerName         *string   `json:"traveler_name,omitempty"`
-	TransportType        *string   `json:"transport_type,omitempty"`
-	BookingReference     *string   `json:"booking_reference,omitempty"`
+	Timezone             *string   `json:"timezone"`
+	Notes                string    `json:"notes"`
+	Version              int       `json:"version"`
+	OriginKind           string    `json:"origin_kind"`
 	AssignedPaymentCount int       `json:"assigned_payment_count"`
 	AssignedInvoiceCount int       `json:"assigned_invoice_count"`
+	MaterialCount        int       `json:"material_count"`
 	CreatedAt            time.Time `json:"created_at"`
-}
-
-type FactRepository interface {
-	ListPayments(ctx context.Context, tenantID string) ([]Payment, error)
-	ListInvoices(ctx context.Context, tenantID string) ([]Invoice, error)
-	ListTrips(ctx context.Context, tenantID string) ([]Trip, error)
 }

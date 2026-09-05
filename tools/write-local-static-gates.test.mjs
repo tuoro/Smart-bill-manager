@@ -26,11 +26,11 @@ test("static gate report enforces coverage, counts, and every boolean", () => {
     imageID: `sha256:${"c".repeat(64)}`,
     baseComposeConfigSha256: "d".repeat(64),
     acceptanceComposeConfigSha256: "e".repeat(64),
-    nodeTestFiles: 13,
-    webTestFiles: 9,
-    webTestCases: 38,
-    criticalInvariantsPassed: 140,
-    criticalInvariantsTotal: 140,
+    nodeTestFiles: 19,
+    webTestFiles: 11,
+    webTestCases: 51,
+    criticalInvariantsPassed: 245,
+    criticalInvariantsTotal: 245,
     domainCoveragePercent: 85,
     transportCoveragePercent: 70,
     gates: Object.fromEntries(gateNames.map((name) => [name, true])),
@@ -39,7 +39,7 @@ test("static gate report enforces coverage, counts, and every boolean", () => {
   options.transportCoveragePercent = 69.99;
   assert.equal(buildReport(options).passed, false);
   options.transportCoveragePercent = 70;
-  options.criticalInvariantsTotal = 139;
-  options.criticalInvariantsPassed = 139;
+  options.criticalInvariantsTotal = 236;
+  options.criticalInvariantsPassed = 236;
   assert.equal(buildReport(options).passed, false);
 });

@@ -8,8 +8,8 @@ import type {
 import { captureResponsiveReview } from './visual-review'
 
 const timestamp = '2026-08-31T08:00:00Z'
-const tripA = trip('00000000-0000-4000-8000-000000000901', '上海', '北京')
-const tripB = trip('00000000-0000-4000-8000-000000000902', '杭州', '深圳')
+const tripA = trip('00000000-0000-4000-8000-000000000901', '北京')
+const tripB = trip('00000000-0000-4000-8000-000000000902', '深圳')
 const paymentID = '00000000-0000-4000-8000-000000000911'
 const invoiceID = '00000000-0000-4000-8000-000000000912'
 const oldAssignmentID = '00000000-0000-4000-8000-000000000921'
@@ -40,7 +40,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
       currency: 'CNY',
       current_assignment_id: oldAssignmentID,
       current_trip_id: tripB.id,
-      current_trip_destination: tripB.destination,
+      current_trip_name: tripB.name,
       suggested: true,
       reason_codes: ['linked_fact_assigned_to_trip'],
     })
@@ -103,7 +103,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
           ...payment,
           current_assignment_id: '00000000-0000-4000-8000-000000000923',
           current_trip_id: tripA.id,
-          current_trip_destination: tripA.destination,
+          current_trip_name: tripA.name,
           reason_codes: ['currently_assigned', 'date_inside_trip'],
         }
         await fulfillJSON(route, assignmentResult('assign', payment.current_assignment_id))
@@ -114,7 +114,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
           ...invoice,
           current_assignment_id: movedAssignmentID,
           current_trip_id: tripA.id,
-          current_trip_destination: tripA.destination,
+          current_trip_name: tripA.name,
           reason_codes: ['currently_assigned', 'linked_fact_assigned_to_trip'],
         }
         await fulfillJSON(route, {
@@ -127,7 +127,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         ...invoice,
         current_assignment_id: undefined,
         current_trip_id: undefined,
-        current_trip_destination: undefined,
+        current_trip_name: undefined,
         reason_codes: ['linked_fact_assigned_to_trip'],
       }
       await fulfillJSON(route, {
@@ -177,6 +177,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         fact_id: paymentID,
         desired_trip_id: tripA.id,
         expected_assignment_id: null,
+        expected_fact_version: 1,
         reason: '日期命中，人工确认',
       },
       {
@@ -184,6 +185,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         fact_id: paymentID,
         desired_trip_id: tripA.id,
         expected_assignment_id: null,
+        expected_fact_version: 1,
         reason: '日期命中，人工确认',
       },
       {
@@ -191,6 +193,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         fact_id: invoiceID,
         desired_trip_id: tripA.id,
         expected_assignment_id: oldAssignmentID,
+        expected_fact_version: 1,
         reason: '调整到北京行程',
       },
       {
@@ -198,6 +201,7 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         fact_id: invoiceID,
         desired_trip_id: null,
         expected_assignment_id: movedAssignmentID,
+        expected_fact_version: 1,
         reason: '撤销误归属',
       },
     ])
@@ -268,38 +272,52 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
     })
 
     await page.goto('/trips')
-    await expect(page.getByRole('status')).toContainText('正在读取行程')
+    await expect(page.getByRole('status').filter({ hasText: '正在读取行程' })).toBeVisible()
     release()
     await expect(page.getByRole('alert')).toContainText('行程列表暂时不可用')
     await page.getByRole('button', { name: '重试' }).click()
-    await expect(page.getByText('还没有正式行程')).toBeVisible()
+    await expect(page.getByText('还没有行程', { exact: true })).toBeVisible()
 
     await context.setOffline(true)
-    await expect(page.getByRole('status')).toContainText('当前离线')
-    await expect(page.getByRole('button', { name: '刷新' })).toBeDisabled()
+    await expect(page.getByRole('status').filter({ hasText: '当前离线' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '刷新凭证', exact: true })).toBeDisabled()
     await context.setOffline(false)
     await expect(page.getByText('当前离线')).toHaveCount(0)
   })
 })
 
-function trip(id: string, origin: string, destination: string): Trip {
+function trip(id: string, name: string): Trip {
   return {
+    bad_debt_locked: false,
     id,
-    origin,
-    destination,
+    name,
+    timezone: 'Asia/Shanghai',
+    version: 1,
+    notes: '',
+    origin_kind: 'manual',
+    material_count: 0,
     start_date: '2026-08-26',
     end_date: '2026-08-30',
-    traveler_name: '合成用户',
-    transport_type: 'train',
-    booking_reference: `SYN-${id.slice(-3)}`,
     assigned_payment_count: 0,
     assigned_invoice_count: 0,
     created_at: timestamp,
   }
 }
 
-function candidate(value: TripAttributionCandidate): TripAttributionCandidate {
-  return value
+function candidate(
+  value: Omit<
+    TripAttributionCandidate,
+    'fact_version' | 'assignment_mode' | 'assignment_state' | 'match_count'
+  >,
+): TripAttributionCandidate {
+  return {
+    ...value,
+    fact_version: 1,
+    assignment_mode: 'manual',
+    assignment_state: value.current_assignment_id ? 'manual' : 'manual_unassigned',
+    match_count: 0,
+  }
 }
 
 function readOnlyCandidate(): TripAttributionCandidate {
@@ -361,6 +379,10 @@ function session(role: Session['role'], capabilities: string[]): Session {
 }
 
 async function mockSession(page: Page, value: Session) {
+  await page.route(
+    (url) => url.pathname === '/api/v1/trip-evidence',
+    (route) => fulfillJSON(route, { items: [] }),
+  )
   await page.route(
     (url) => url.pathname === '/api/v1/session',
     (route) => fulfillJSON(route, value),

@@ -335,7 +335,7 @@ async function buildGo(options, output) {
     goImage,
     "sh",
     "-c",
-    'test "$(go env GOVERSION)" = "go1.26.7" && go mod verify && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/server ./cmd/server && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/bootstrap-owner ./cmd/bootstrap-owner && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/backup ./cmd/backup && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/provision-postgresql ./cmd/provision-postgresql && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/recovery-exercise ./cmd/recovery-exercise && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/run-as-sbm ./cmd/run-as-sbm',
+    'test "$(go env GOVERSION)" = "go1.26.7" && go mod verify && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/server ./cmd/server && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/bootstrap-owner ./cmd/bootstrap-owner && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/recover-account ./cmd/recover-account && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/backup ./cmd/backup && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/provision-postgresql ./cmd/provision-postgresql && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/recovery-exercise ./cmd/recovery-exercise && CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/run-as-sbm ./cmd/run-as-sbm',
   ];
   await run(
     "docker",
@@ -389,7 +389,7 @@ export function isSafeArtifactPath(path) {
       (segment) =>
         segment !== "." &&
         segment !== ".." &&
-        /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(segment),
+        /^[A-Za-z0-9_][A-Za-z0-9._+-]*$/.test(segment),
     );
 }
 
@@ -404,6 +404,7 @@ async function validateArtifactTree(output, expectedFiles) {
   const executables = new Set([
     "server",
     "bootstrap-owner",
+    "recover-account",
     "backup",
     "migrate",
     "provision-postgresql",
@@ -418,6 +419,7 @@ async function validateArtifactTree(output, expectedFiles) {
   for (const name of [
     "server",
     "bootstrap-owner",
+    "recover-account",
     "backup",
     "migrate",
     "provision-postgresql",

@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validateCompose, validateImage } from "./check-release-image.mjs";
+import {
+  runtimeAssetReadCheck,
+  validateCompose,
+  validateImage,
+} from "./check-release-image.mjs";
+
+test("运行用户检查遍历并读取所有公开资产，不只确认入口存在", () => {
+  assert.match(runtimeAssetReadCheck, /find .* -type f/);
+  assert.match(runtimeAssetReadCheck, /test -r/);
+  assert.match(runtimeAssetReadCheck, /pdfinfo -v/);
+  assert.match(runtimeAssetReadCheck, /pdftoppm -v/);
+});
 
 const head = "a".repeat(40);
 const releaseInput = "b".repeat(64);
@@ -252,12 +263,20 @@ test("image release policy requires runtime assets and excludes toolchains", () 
   const inventory = `${[
     "/app/server",
     "/app/bootstrap-owner",
+    "/app/recover-account",
     "/app/backup",
     "/app/migrate",
     "/app/provision-postgresql",
     "/app/run-as-sbm",
     "/app/web/index.html",
     "/app/migrations/0001_initial.sql",
+    "/app/migrations/0002_manual_trip_workspaces.sql",
+    "/app/migrations/0003_explicit_manual_review.sql",
+    "/app/migrations/0004_confirmed_fact_corrections.sql",
+    "/app/migrations/0005_fact_management_indexes.sql",
+    "/app/migrations/0006_invoice_supporting_materials.sql",
+    "/app/migrations/0007_member_account_lifecycle.sql",
+    "/app/migrations/0008_allocation_search_and_bad_debt.sql",
     "/app/contracts/bill-visible-text.schema.json",
     "/usr/local/bin/sbm-entrypoint",
     "/usr/local/bin/pg_dump",
@@ -273,6 +292,15 @@ test("image release policy requires runtime assets and excludes toolchains", () 
   assert.equal(
     validateImage(inspected, inventory, head, releaseInput).passed,
     true,
+  );
+  const missingAllocationMigration = inventory.replace(
+    "/app/migrations/0008_allocation_search_and_bad_debt.sql\n",
+    "",
+  );
+  assert.equal(
+    validateImage(inspected, missingAllocationMigration, head, releaseInput)
+      .passed,
+    false,
   );
   const contaminated = inventory.replace(
     "__SBM_COMMANDS__",

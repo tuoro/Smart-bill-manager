@@ -1,0 +1,102 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B2-ADR-0026-confirmed-fact-correction",
+  "date": "2026-09-04",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 128,
+  "worktree_sha256": "a5ad3a8237243e68e570e30196971f78fd73b83f682f460b7e412acb738c3b1a",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024 and B1 work",
+  "database": {
+    "major": 17,
+    "source": "existing postgres:17; no pull or download",
+    "isolation": "dedicated internal network, no host database port, synthetic data only",
+    "tested": [
+      "Payment, Invoice and TripEvidence: first and repeated correction, stable Fact identity, original confirmation replay, paginated immutable history and genuine AI/manual source preservation",
+      "invoice item replacement retains old item IDs/origins; current list reads only the current revision in a consistent database snapshot",
+      "valid links retained; lower amount, changed currency or dates beyond 30 days blocked unless the user explicitly withdraws conflicting links",
+      "final-write injection rolls back Claim, Review, Fact, Link, origins, audit and correction history",
+      "changed relationships invalidate preview; different-key concurrency has one winner; same-key replay produces one correction",
+      "self excluded from duplicates, changed duplicate target revision invalidates preview, exact invoice number conflict blocks",
+      "automatic attribution: unique, overlapping and unmatched intervals; manual and blocked preferences preserved; ticket correction does not move material links or rewrite trip containers",
+      "submitted, reimbursed and rejected snapshots/status history unchanged; new preview binds current field revision and stable Fact reuse policy",
+      "four-role and tenant boundaries, actual PostgreSQL-backed HTTP authentication, CSRF and strict request validation",
+      "0004 upgrade preserves three Fact types, source history and invoice items; injected migration failure rolls back data/schema/ledger; repeated migration and correction after upgrade pass"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "test_command": "GOMAXPROCS=2 go test -json -p 1 -parallel 2 -timeout 60s -count=1 -covermode=atomic -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 533,
+    "failed": 0,
+    "skipped_tests": 0,
+    "critical_invariants": { "matrix": "tests/critical-invariants.tsv", "passed": 173, "total": 173, "method": "all package/test identities matched uncached final pass events" },
+    "statement_coverage": {
+      "domain_application": { "covered": 3596, "total": 4174, "percent": 86.15, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 4331, "total": 5777, "percent": 74.97, "threshold": 70, "passed": true },
+      "method": "unique statement blocks with any positive atomic count; existing layer boundaries unchanged"
+    },
+    "vet": "all packages and postgresql_tools backup tests passed",
+    "build": "all packages and static postgresql_tools test binary passed"
+  },
+  "authenticated_restore": {
+    "test": "TestManualTripAuthenticatedBackupRestore",
+    "command": "CGO_ENABLED=0 go test -p 1 -tags postgresql_tools -c ./cmd/backup; run compiled test in existing postgres:17 with explicit SBM_PG_DUMP_PATH/SBM_PG_RESTORE_PATH and -test.timeout=60s",
+    "passed": true,
+    "native_pg_dump_pg_restore": true,
+    "file_only_database_authentication": true,
+    "nonempty_original_pages_manual_claim_revision_evidence_and_correction": true,
+    "exact_current_projection_historical_review_and_correction_decisions_preserved": true,
+    "authenticated_table_inventory_and_object_hashes_verified": true,
+    "limit": "focused regression fixture, not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests_passed": 41,
+    "unit_test_files": 9,
+    "contract_typecheck_lint_format_build": "passed",
+    "browser_command": "playwright test e2e/fact-corrections.spec.ts e2e/m1-state-matrix.spec.ts e2e/manual-trip-workspace.spec.ts --workers=1",
+    "browser_passed": 33,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "browser_retries": 0,
+    "b2_browser_scenarios": 8,
+    "scope": "real production-built components with synthetic mocked API plus separate database-backed HTTP integration; not a deployed runtime browser release gate",
+    "covered": ["all three Fact types correct with genuine source identity and history", "explicit conflicting link withdrawal", "409 refresh preserves draft and requires explicit recheck", "removed invoice item shows old values and deletion before confirmation", "late historical response cannot survive a workspace refresh", "Reviewer and Viewer denied correction"],
+    "responsive_capture_widths_px": [384, 768, 1024, 1440],
+    "themes": ["light", "dark"],
+    "visual_review": "384px light and 1440px dark captures inspected; responsive/contrast assertions passed"
+  },
+  "failure_history": [
+    { "stage": "Go_test_fixture", "cause": "trip fixture arguments and confirmation association mode did not match the TripEvidence contract", "resolution": "correct synthetic fixture; retain production boundary; rerun passed" },
+    { "stage": "review", "cause": "shared revision publishing would change completed Job, ordinary confirmation replay could consume a correction key, and duplicate target revision was not bound", "resolution": "separate Claim contents from Job publishing, enforce replay operation identity and bind current target ReviewDecision; regression tests pass" },
+    { "stage": "UI_review", "cause": "removed invoice item omitted from preview and historical loading state could survive refresh", "resolution": "show removed fields and invalidate pending history state; add and pass browser cases" },
+    { "stage": "browser_locator", "cause": "four tests matched both success and transient loading status nodes", "resolution": "scope success assertion by visible message; complete 33-test suite rerun twice without retries" },
+    { "stage": "restore_environment", "cause": "tool paths differed between application defaults and existing PostgreSQL image", "resolution": "verify actual PostgreSQL 17 executable paths, configure existing supported path settings and rerun real dump/restore; no fake dump" }
+  ],
+  "review": {
+    "git_diff_check": "passed",
+    "changed_files_over_1_mib": 0,
+    "targeted_known_secret_pattern_matches": 0,
+    "scan_limit": "known key/private-key patterns and scoped diff review, not universal secret detection",
+    "read_only_agents": "business/database concurrency and UI error/history behavior reviewed; main agent implemented and verified all edits",
+    "release_image_policy_tool_test": "passed"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "database_memory_mib": 1024,
+    "go_and_restore_tools_memory_mib_each": 2048,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_available_host_memory_mib": 5781,
+    "available_after_containers_stopped_mib": 6510,
+    "swap": "pre-existing 3898 MiB used; no expanded limits or OOM retry",
+    "database_oom_killed": false,
+    "credentials": "one-time synthetic, owner-only temporary files; never emitted or committed",
+    "containers_network_volume_removed": true,
+    "browser_and_preview_stopped": true,
+    "temporary_credentials_data_raw_reports_cache_and_build_removed": true,
+    "approximate_removed_temporary_host_disk_mib": 519,
+    "existing_user_instance": "not accessed, restarted or upgraded"
+  },
+  "not_performed": ["real Provider/mailbox/account integration or model correctness evaluation", "production release image/runtime performance/Lighthouse gates", "Git commit, push, tag, deployment or release", "B3 through B6 implementation"]
+}

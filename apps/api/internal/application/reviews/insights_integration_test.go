@@ -41,18 +41,12 @@ func TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	tripReview := seedAdditionalReview(t, fixture, tripEnvelope("上海", "北京", "2026-08-26", "2026-08-28"), "insight-trip")
-	trip, err := reviewService.Confirm(ctx, fixture.tenant, tripReview.Job.ID, ConfirmInput{
-		ExpectedRevision: tripReview.Revision,
-		IdempotencyKey:   "insight-trip-confirm",
-		RequestID:        "insight-trip-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tripID := trip.FactID
+	blockPaymentAuto(t, fixture, payment.FactID)
+	trip := seedManualTrip(t, fixture, "insight-trip", "北京", "2026-08-26", "2026-08-28")
+	tripID := trip.TripID
 	if _, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-		FactType: domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: &tripID,
+		ExpectedFactVersion: assignmentVersion(t, fixture, domain.DocumentPayment, payment.FactID),
+		FactType:            domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: &tripID,
 		Reason: "合成行程归属", IdempotencyKey: "insight-trip-assignment", RequestID: "insight-trip-assignment-request",
 	}); err != nil {
 		t.Fatal(err)
@@ -82,7 +76,7 @@ func TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot(t *testin
 	}
 
 	assigned, err := insightService.Query(ctx, fixture.tenant, insightapp.QueryInput{
-		Filter: domain.InsightFilter{TripScope: domain.InsightTripAssigned, TripID: trip.FactID}, Limit: 50,
+		Filter: domain.InsightFilter{TripScope: domain.InsightTripAssigned, TripID: trip.TripID}, Limit: 50,
 	})
 	if err != nil || len(assigned.Items) != 1 || assigned.Items[0].FactID != payment.FactID || assigned.Items[0].Trip == nil {
 		t.Fatalf("assigned insights = %#v / %v", assigned, err)
@@ -125,17 +119,9 @@ func TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot(t *testin
 	}
 
 	foreign := addTenantReviewFixture(t, fixture)
-	foreignTripReview := seedAdditionalReview(t, foreign, tripEnvelope("广州", "成都", "2026-09-01", "2026-09-03"), "foreign-insight-trip")
-	foreignTrip, err := reviewService.Confirm(ctx, foreign.tenant, foreignTripReview.Job.ID, ConfirmInput{
-		ExpectedRevision: foreignTripReview.Revision,
-		IdempotencyKey:   "foreign-insight-trip-confirm",
-		RequestID:        "foreign-insight-trip-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	foreignTrip := seedManualTrip(t, foreign, "foreign-insight-trip", "成都", "2026-09-01", "2026-09-03")
 	if _, err := insightService.Query(ctx, fixture.tenant, insightapp.QueryInput{
-		Filter: domain.InsightFilter{TripScope: domain.InsightTripAssigned, TripID: foreignTrip.FactID}, Limit: 50,
+		Filter: domain.InsightFilter{TripScope: domain.InsightTripAssigned, TripID: foreignTrip.TripID}, Limit: 50,
 	}); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross-tenant trip filter error = %v", err)
 	}
@@ -143,9 +129,7 @@ func TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot(t *testin
 	if err := factService.Delete(ctx, fixture.tenant, domain.DocumentInvoice, invoice.FactID, "delete-insight-invoice"); err != nil {
 		t.Fatal(err)
 	}
-	if err := factService.Delete(ctx, fixture.tenant, domain.DocumentTrip, trip.FactID, "delete-insight-trip"); err != nil {
-		t.Fatal(err)
-	}
+	deleteManualTrip(t, fixture, trip, "delete-insight-trip")
 	afterDeletion, err := insightService.Query(ctx, fixture.tenant, insightapp.QueryInput{Limit: 50})
 	if err != nil || len(afterDeletion.Items) != 1 || afterDeletion.Items[0].FactID != payment.FactID || afterDeletion.Items[0].Trip != nil {
 		t.Fatalf("insights after deletion = %#v / %v", afterDeletion, err)

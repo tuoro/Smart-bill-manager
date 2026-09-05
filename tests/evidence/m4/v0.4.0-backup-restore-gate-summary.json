@@ -1,0 +1,190 @@
+{
+  "report_kind": "m4-backup-restore-gate-summary",
+  "evidence_version": "M4-BACKUP-RESTORE-POSTGRESQL-ADR0033",
+  "recorded_date": "2026-09-05",
+  "workspace": {
+    "branch": "codex/m1-ai-inbox",
+    "base_sha": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+    "recorded_from_uncommitted_worktree": true,
+    "local_slice_commit_authorized": true,
+    "pushed": false
+  },
+  "stage": {
+    "authenticated_backup_restore_slice": "complete",
+    "remaining_release_gates": "separately_required",
+    "model_accuracy_gate": "pending_explicit_authorization"
+  },
+  "protocol": {
+    "manifest_kind": "smart-bill-manager-backup",
+    "manifest_version": 3,
+    "authenticated_manifest": "hmac_sha256_domain_separated_from_master_key",
+    "data_package_contains_master_key": false,
+    "old_manifest_compatibility": false,
+    "exact_committed_object_inventory": true,
+    "postgresql_server_major_17": true,
+    "postgresql_custom_dump_verified": true,
+    "postgresql_constraints_and_foreign_keys_verified": true,
+    "migration_and_schema_identity_checks": true,
+    "crash_safe_restore_state": true,
+    "existing_targets_overwritten": false,
+    "restored_sessions_invalidated_before_activation": true,
+    "same_authenticated_backup_set_across_operations": true,
+    "stable_preexisting_database_state_digest": true
+  },
+  "synthetic_dataset": {
+    "document_count": 1000,
+    "failed_provider_boundary_job_count": 998,
+    "fact_count_before_backup": 1,
+    "email_message_count": 1,
+    "email_attachment_count": 1,
+    "document_page_count": 2,
+    "object_reference_count": 1004,
+    "unique_object_count": 1003,
+    "physical_objects_required": true,
+    "source_staging_empty": true,
+    "source_trash_empty": true
+  },
+  "offline_operations": {
+    "backup": {
+      "passed": true,
+      "elapsed_ms": 939
+    },
+    "independent_verify": {
+      "passed": true,
+      "package_elapsed_ms": 154,
+      "scratch_restore_elapsed_ms": 1937
+    },
+    "restore": {
+      "passed": true,
+      "elapsed_ms": 1912,
+      "invalidated_session_count": 3
+    },
+    "authenticated_manifest_equal_across_operations": true,
+    "operation_sequence_bound_to_recovery_clock": true,
+    "preactivation_database_and_object_equality": true,
+    "post_session_invalidation_allowed_difference_only": true
+  },
+  "recovered_runtime": {
+    "ready_verified": true,
+    "old_session_rejected": true,
+    "new_login_succeeded": true,
+    "restored_snapshot_verified_before_continuation": true,
+    "new_session_count": 1,
+    "historical_session_count": 0,
+    "api_job_window_count": 200,
+    "document_queries_verified": 3,
+    "authenticated_downloads_verified": 5,
+    "payment_count": 2,
+    "fact_count_after_recovery": 2,
+    "email_message_count": 1,
+    "processing_attempt_delta": 1,
+    "original_running_ai_run_closed_as_lease_expired": true,
+    "lease_expired_ai_run_count": 1,
+    "running_ai_run_count": 0,
+    "unleased_processing_job_count": 0,
+    "confirmed_fact_preserved": true,
+    "exactly_one_recovered_fact": true,
+    "all_jobs_terminal": true,
+    "stable_state_preserved": true,
+    "append_only_changes_scoped": true,
+    "rto_elapsed_ms": 133979,
+    "rto_limit_ms": 1800000,
+    "rto_passed": true
+  },
+  "build_identity": {
+    "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+    "release_input_sha256": "58d693a9f4aec8829ff9f754b951b7393293a7fa12be9267d3e1762fccd1ce72",
+    "image_id": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385"
+  },
+  "execution_binding": {
+    "report_kind": "m4-recovery-execution-binding",
+    "protocol_version": 1,
+    "build_identity": {
+      "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+      "release_input_sha256": "58d693a9f4aec8829ff9f754b951b7393293a7fa12be9267d3e1762fccd1ce72",
+      "image_id": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385"
+    },
+    "executed_images": {
+      "snapshot": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "backup": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "verify": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "scratchRestore": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "restore": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "api": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "database": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385"
+    },
+    "report_sha256": {
+      "backup": "cae918b16a53c93123b14ad1ec6cbd370513d9ea655bf08d09c14f6108522cb4",
+      "verify": "a2a45c7b940d275ecec2504b55e980165691498465137749070ad9e521c47c8a",
+      "scratchRestore": "0c1ec4a6415f42211b897e243b1f2b812c1785f6c10813f93b0cfada5cd88922",
+      "restore": "70f2789abb7fb394dddc03c058e52b5560d80866e5a6a66fa328ead609529d04",
+      "snapshot": "0a8f6ce39f5e9a4a70df00df13cc5e3cc2d83b71a2a341f2144f6206d82f3ff6",
+      "api": "3a12ea2967978329e64a556d8415017cae9f670794908c46c706a349edc61fc1",
+      "database": "449713c81c4dd6885cf24b037c139633603a90dc65685fd1b5ece7fed2afe5bc"
+    },
+    "passed": true
+  },
+  "activation_cases": {
+    "database_restored_failure_blocks_runtime": true,
+    "key_publication_failure_blocks_runtime": true,
+    "before_activation_failure_blocks_runtime": true,
+    "restore_state_malformed_or_mismatched_blocked": true,
+    "paired_complete_and_rebackup_passed": true,
+    "ordinary_bootstrap_and_upgrade_preserved": true,
+    "runtime_cannot_mutate_state": true,
+    "server_and_account_cli_fail_closed": true,
+    "concurrent_migration_restore_boundary_passed": true
+  },
+  "gates": {
+    "go_test": true,
+    "go_vet": true,
+    "go_build": true,
+    "web_check": true,
+    "node_tests": true,
+    "critical_invariants": true,
+    "coverage": {
+      "domain_application_percent": 86.2,
+      "infrastructure_transport_percent": 76.2,
+      "domain_application_threshold_percent": 85,
+      "infrastructure_transport_threshold_percent": 70
+    },
+    "diff_check": true,
+    "sensitive_audit": true,
+    "large_file_audit": true,
+    "temporary_audit": true,
+    "process_audit": true,
+    "release_input_recheck": true,
+    "counts": {
+      "node_test_files": 19,
+      "web_test_files": 11,
+      "web_test_cases": 51,
+      "critical_invariants_passed": 245,
+      "critical_invariants_total": 245
+    },
+    "browser_acceptance": "separate_required_gate"
+  },
+  "excluded": {
+    "formal_real_model_accuracy_evaluation": "not_run",
+    "real_provider_calls": "not_run",
+    "real_images": "not_sent",
+    "real_mailbox_or_external_account_integration": "not_run",
+    "persistent_or_production_credentials": "not_created_or_changed",
+    "local_ocr": "not_installed_or_used",
+    "new_dependencies": "not_downloaded",
+    "legacy_compatibility": "not_added",
+    "deployment_release_or_remote_resources": "not_run",
+    "nonzero_rpo_deletion_and_revocation_replay": "deferred_to_production_release_gate"
+  },
+  "repository_actions": {
+    "at_gate_recording": {
+      "committed": false,
+      "pushed": false,
+      "deployed": false
+    },
+    "checkpoint": {
+      "local_commit_authorized": true,
+      "distribution": "separate_release_workflow"
+    }
+  },
+  "overall_status": "passed"
+}

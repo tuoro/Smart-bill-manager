@@ -51,6 +51,7 @@ export function buildTripAssignmentDecision(
     request: {
       fact_type: candidate.fact_type,
       fact_id: candidate.fact_id,
+      expected_fact_version: candidate.fact_version,
       desired_trip_id: candidate.current_trip_id === selectedTripID ? null : selectedTripID,
       expected_assignment_id: candidate.current_assignment_id ?? null,
       reason: normalizedReason,
@@ -60,4 +61,14 @@ export function buildTripAssignmentDecision(
 
 export function assignmentFingerprint(request: TripAssignmentRequest): string {
   return JSON.stringify(request)
+}
+
+export const tripAssignmentStates: Record<TripAttributionCandidate['assignment_state'], string> = {
+  automatic: '按时间自动归属',
+  manual: '人工归属',
+  blocked: '人工保持无归属',
+  manual_unassigned: '等待人工归属',
+  overlap: '命中多个行程，需人工选择',
+  no_match: '没有时间匹配的行程',
+  pending: '等待重新计算',
 }

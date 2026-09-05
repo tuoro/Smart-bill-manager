@@ -29,10 +29,10 @@ type InsightFilter struct {
 }
 
 type InsightTrip struct {
-	ID          string `json:"id"`
-	Destination string `json:"destination"`
-	StartDate   string `json:"start_date"`
-	EndDate     string `json:"end_date"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
 }
 
 type InsightFact struct {
@@ -342,7 +342,7 @@ func normalizeInsightFact(item *InsightFact) error {
 	}
 	if item.Trip != nil {
 		if item.Trip.ID == "" || strings.TrimSpace(item.Trip.ID) != item.Trip.ID ||
-			item.Trip.Destination == "" || strings.TrimSpace(item.Trip.Destination) != item.Trip.Destination {
+			item.Trip.Name == "" || strings.TrimSpace(item.Trip.Name) != item.Trip.Name {
 			return invalidInsightProjection()
 		}
 		start, startErr := parseInsightDate(item.Trip.StartDate)

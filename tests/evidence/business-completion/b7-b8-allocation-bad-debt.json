@@ -1,0 +1,163 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B7-B8-ADR-0031-0032-allocation-bad-debt",
+  "date": "2026-09-05",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 259,
+  "worktree_sha256": "1f7e273b21d4b02676b417826b657ee02725cf386990b903940e16bf6109598a",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024 and B1-B6 work",
+  "scope": {
+    "manual_allocation": "30 calendar days remains the initial-review/default recommendation window; explicit confirmed-Fact allocation may search all dates with a mandatory reason",
+    "target_search": "same tenant/current confirmed opposite type/currency/available balance, literal field search, ID keyset, 50 per page; current targets retained separately",
+    "bounds": {
+      "target_page": 50,
+      "workspace_targets_maximum": 250,
+      "complete_desired_plan": 200,
+      "active_links_per_fact_at_either_end": 200
+    },
+    "correction": "date-only changes do not invalidate cross-period links; currency, amount, current relationships and rollback checks remain",
+    "bad_debt": "Owner/Finance reasoned mark/unmark of active Payment/Invoice, exact version CAS, stable idempotency and append-only decision/audit",
+    "single_state_source": "latest fact_bad_debt_decisions entry; no duplicated Payment/Invoice flag or Trip lock column",
+    "trip_protection": "derived from direct active bad-debt Payment/Invoice assignments and active bad-debt Invoice allocations to an assigned Payment; prevents Trip deletion",
+    "not_accounting_writeoff": true,
+    "does_not_change_amounts_allocations_or_reimbursement_eligibility": true,
+    "soft_delete": "existing Fact soft-delete/relationship-end semantics retained; history and fixed Reimbursement snapshots are preserved"
+  },
+  "database": {
+    "major": 17,
+    "migration": "0008_allocation_search_and_bad_debt.sql",
+    "forward_upgrade_preservation_and_injected_failure_rollback": "passed",
+    "existing_data_over_active_link_cap": "upgrade fails atomically without deleting or truncating data",
+    "concurrency_and_transaction_boundaries": "passed",
+    "real_database_http_permissions_csrf_versions_idempotency_tenant_isolation": "passed"
+  },
+  "go": {
+    "version": "1.26.7",
+    "test_command": "GOMAXPROCS=2 GOMEMLIMIT=1500MiB go test -json -count=1 -p 1 -parallel 2 -timeout 60s -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 639,
+    "passed_top_level_tests": 361,
+    "failed": 0,
+    "skipped": 0,
+    "reviews_package_seconds": 53.764,
+    "critical_invariants": {
+      "passed": 237,
+      "total": 237,
+      "matrix": "tests/critical-invariants.tsv",
+      "method": "every mapped package/test matched a passing event in the uncached complete Go run; no test-only rerun or skipped mapping counted"
+    },
+    "statement_coverage": {
+      "domain_application": {
+        "covered": 4341,
+        "total": 5036,
+        "percent": 86.2,
+        "threshold": 85,
+        "passed": true
+      },
+      "infrastructure_transport": {
+        "covered": 5487,
+        "total": 7180,
+        "percent": 76.42,
+        "threshold": 70,
+        "passed": true
+      },
+      "mode": "set",
+      "method": "unique statement blocks with any positive count across all package profiles; existing layer boundaries unchanged"
+    },
+    "vet_all_packages": "passed",
+    "build_all_packages": "passed",
+    "gofmt_unformatted_files": 0
+  },
+  "authenticated_restore": {
+    "native_postgresql_17_dump_restore": true,
+    "account_test": "TestAccountAuthenticatedRestorePreservesHistoryAndInvalidatesCredentials",
+    "account_seconds": 1.48,
+    "manual_trip_fact_material_test": "TestManualTripAuthenticatedBackupRestore",
+    "manual_trip_seconds": 1.69,
+    "nonempty_bad_debt_decisions": 2,
+    "payment_and_invoice_state_preserved": true,
+    "exact_history_versions_trip_projection_and_object_inventory_preserved": true,
+    "sessions_and_account_recovery_boundaries": "passed",
+    "limit": "focused nonempty regression fixtures; not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests": 51,
+    "unit_test_files": 11,
+    "contract_typecheck_lint_format_production_build": "passed",
+    "browser_spec_files": 14,
+    "browser_passed": 116,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "browser_flaky": 0,
+    "browser_retries": 0,
+    "browser_duration_ms": 146319,
+    "browser_mode": "Mock API component/browser regression, independently complemented by real PostgreSQL HTTP integration",
+    "new_workflow_scenarios": 4,
+    "visual_review": {
+      "images": 32,
+      "widths": [
+        384,
+        768,
+        1024,
+        1440
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "root_overflow_and_action_contrast": "passed",
+      "keyboard_focus_reason_preservation_and_permission_controls": "passed",
+      "manual_image_inspection": "allocation narrow light, Payment desktop dark and protected Trip narrow light; unchanged build in final rerun",
+      "images_sha256": "21837d1098813579fbbcfac53450874e52ea6944a0f5c1be109aeb67df9daf93",
+      "raw_images_retained": false
+    }
+  },
+  "resolved_gate_failures": [
+    "Old manual cross-30-day rejection assertions were replaced by explicit allowance/default recommendation assertions under ADR-0031; currency, balance, permissions and rollback tests retained.",
+    "Full reviews package exceeded 60 seconds: pagination fixture retained 201 rows, all traversal/deletion/correction assertions and full source workflows for correction targets, while batching query-only records through real PostgreSQL constraints; no timeout or threshold increase.",
+    "Browser fixture route/capability mismatches corrected; the first full 116-case run was 115 pass/1 obsolete copy assertion fail, then the complete final run passed 116/116 without retries."
+  ],
+  "review": {
+    "independent_read_only_review": "no remaining blocking B7/B8 defects found",
+    "diff_check": "passed",
+    "structured_credential_signature_findings": 0,
+    "changed_files_over_5_mib": 0,
+    "scope": "B7/B8 implementation/contract/migration/tests reviewed; prior user-owned ADR-0024 and B1-B6 changes preserved",
+    "scan_limit": "signature and file-scope review is not a guarantee that arbitrary secrets can be detected"
+  },
+  "resources": {
+    "heavy_gates": "strictly serial",
+    "go_and_restore_container_limit_mib": 2048,
+    "database_container_limit_mib": 1024,
+    "maximum_concurrent_exercise_container_config_mib": 3072,
+    "postgres_host_port_published": false,
+    "network": "dedicated internal Docker network",
+    "downloads": false,
+    "credentials": "one-use synthetic file-only credentials under new owner-only /tmp; never emitted in argv, environment, repository, reports or responses",
+    "memory": {
+      "available_before_final_cleanup_mib": 8073,
+      "available_after_cleanup_mib": 8643,
+      "swap_used_after_cleanup_mib": 3054,
+      "oom_observed": false,
+      "limits_increased": false,
+      "unrelated_processes_terminated": false
+    },
+    "cleanup": {
+      "temporary_credentials_data_raw_reports_and_build_cache_removed": true,
+      "temporary_containers_and_internal_network_removed": true,
+      "volumes_created": false,
+      "preview_listener_closed": true,
+      "web_build_artifacts_removed": true,
+      "removed_logical_bytes": 578399831,
+      "user_application_and_database": "untouched and healthy"
+    }
+  },
+  "not_performed": [
+    "real Provider or mailbox calls",
+    "formal model accuracy evaluation",
+    "new dependency/image/model downloads",
+    "new 1000-Document release exercise or deployed API/browser joint gate",
+    "commit, push, publish or running-user-instance upgrade"
+  ]
+}

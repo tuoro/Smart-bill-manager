@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ApiError, api, type JobSummary } from '../../data/client'
 import {
@@ -11,6 +11,25 @@ import {
 } from './batch'
 import { canCancel, canRetry, canReview, jobStatusMeta } from './status'
 import AppIcon from '../../components/AppIcon.vue'
+import ManualReviewStart from './ManualReviewStart.vue'
+import { sessionStore } from '../../app/session'
+
+const manualJob = ref<JobSummary | null>(null)
+let manualTrigger: HTMLElement | null = null
+const canStartManual = computed(() =>
+  sessionStore.current.value?.capabilities.includes('claims.review'),
+)
+
+function openManual(job: JobSummary, event: Event) {
+  manualTrigger = event.currentTarget as HTMLElement
+  manualJob.value = job
+}
+
+async function closeManual() {
+  manualJob.value = null
+  await nextTick()
+  manualTrigger?.focus()
+}
 
 const jobs = ref<JobSummary[]>([])
 const loading = ref(true)
@@ -144,6 +163,13 @@ onUnmounted(() => {
 
 <template>
   <div class="page-stack inbox-page">
+    <ManualReviewStart
+      v-if="manualJob"
+      :key="manualJob.id"
+      :job="manualJob"
+      :offline="offline"
+      @close="closeManual"
+    />
     <nav class="breadcrumb" aria-label="面包屑">
       <span>工作台</span><span aria-hidden="true">/</span><strong>AI 收件箱</strong>
     </nav>
@@ -319,10 +345,19 @@ onUnmounted(() => {
                   v-if="canRetry(job.status)"
                   class="button button-small"
                   type="button"
-                  :disabled="actionJobId === job.id"
+                  :disabled="Boolean(actionJobId) || Boolean(manualJob) || offline"
                   @click="retry(job)"
                 >
                   重试
+                </button>
+                <button
+                  v-if="job.status === 'failed' && canStartManual"
+                  class="button button-small"
+                  type="button"
+                  :disabled="Boolean(actionJobId) || Boolean(manualJob) || offline"
+                  @click="openManual(job, $event)"
+                >
+                  转人工录入
                 </button>
                 <button
                   v-if="canCancel(job.status)"

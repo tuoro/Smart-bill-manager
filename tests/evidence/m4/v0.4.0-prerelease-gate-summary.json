@@ -1,0 +1,104 @@
+{
+  "report_kind": "v0.4.0-prerelease-local-gate-summary",
+  "version": "v0.4.0",
+  "recorded_date": "2026-09-05",
+  "status": "passed_local_before_distribution",
+  "build_identity": {
+    "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+    "release_input_sha256": "58d693a9f4aec8829ff9f754b951b7393293a7fa12be9267d3e1762fccd1ce72",
+    "image_id": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385"
+  },
+  "go": {
+    "report_kind": "v040-restore-full-go-local-result",
+    "package_count": 37,
+    "top_level_tests": 370,
+    "test_events": 658,
+    "failed_tests": 0,
+    "skipped_tests": 0,
+    "review_batches": 5,
+    "review_top_level_tests": 95,
+    "critical_invariants": 245,
+    "coverage": {
+      "domain_application": {
+        "covered": 4341,
+        "total": 5036,
+        "threshold_percent": 85,
+        "percent": 86.2
+      },
+      "infrastructure_transport": {
+        "covered": 5586,
+        "total": 7331,
+        "threshold_percent": 70,
+        "percent": 76.2
+      }
+    },
+    "passed": true,
+    "vet": true,
+    "build": true,
+    "identical_binaries_after_packaging_only_fix": 8
+  },
+  "node": {
+    "files": 19,
+    "cases": 72,
+    "failed": 0,
+    "skipped": 0
+  },
+  "web": {
+    "files": 11,
+    "cases": 51,
+    "check": true
+  },
+  "restore_activation_cases": 9,
+  "upgrade": {
+    "database": {
+      "source_version": "v0.3.4",
+      "source_image": "sha256:8d3fc8267170a94517ec911d4766f44468759dbdaaf88c6526d6f911e0370c9a",
+      "target_image": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+      "documents": 2,
+      "payment_facts": 1,
+      "trip_evidence_facts": 1,
+      "original_rows_preserved": true,
+      "exact_object_inventory_preserved": true,
+      "migrations": 8,
+      "old_backup_verified": true,
+      "old_scratch_restore_passed": true,
+      "passed": true
+    },
+    "api": {
+      "report_kind": "v0.4.0-upgrade-api",
+      "source_version": "v0.3.4",
+      "documents": 2,
+      "payment_preserved": true,
+      "trip_evidence_preserved": true,
+      "migrated_trip_container_preserved": true,
+      "original_bytes_preserved": true,
+      "passed": true
+    },
+    "old_version_backup_and_scratch_restore": true,
+    "candidate_rebackup_verified": true
+  },
+  "file_review": {
+    "changed_files": 308,
+    "largest_file_bytes": 150757,
+    "sensitive_findings": 0
+  },
+  "historical_failures_preserved": true,
+  "intermediate_failures": [
+    {
+      "candidate_image": "sha256:891c5aa2f6e062b85943a2c9259f90372e9f2143f85247244c76aa9959ac77f9",
+      "reason": "public_asset_directory_permissions",
+      "passed": false
+    },
+    {
+      "reason": "obsolete_browser_port_id_and_text_locators",
+      "passed": false
+    }
+  ],
+  "user_instance_upgraded": false,
+  "excluded_gates": {
+    "formal_real_model_accuracy": false,
+    "real_mailbox_or_provider_integration": false,
+    "production_deployment": false
+  },
+  "passed": true
+}

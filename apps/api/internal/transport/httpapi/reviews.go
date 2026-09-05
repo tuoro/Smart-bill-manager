@@ -55,11 +55,12 @@ func (s *Server) reviseReviewHandler(response http.ResponseWriter, request *http
 		ExpectedOptimisticVersion int                 `json:"expected_optimistic_version"`
 		DocumentType              domain.DocumentType `json:"document_type"`
 		Fields                    []struct {
-			Path        string          `json:"path"`
-			ValueType   string          `json:"value_type"`
-			Presence    string          `json:"presence"`
-			Value       json.RawMessage `json:"value"`
-			EvidenceIDs []string        `json:"evidence_ids"`
+			Path           string                       `json:"path"`
+			ValueType      string                       `json:"value_type"`
+			Presence       string                       `json:"presence"`
+			Value          json.RawMessage              `json:"value"`
+			EvidenceIDs    []string                     `json:"evidence_ids"`
+			ManualEvidence []domain.ManualEvidenceInput `json:"manual_evidence"`
 		} `json:"fields"`
 	}
 	if err := decodeJSON(response, request, &body); err != nil {
@@ -74,11 +75,12 @@ func (s *Server) reviseReviewHandler(response http.ResponseWriter, request *http
 	}
 	for _, field := range body.Fields {
 		input.Fields = append(input.Fields, reviews.RevisionFieldInput{
-			Path:        field.Path,
-			ValueType:   field.ValueType,
-			Presence:    field.Presence,
-			Value:       field.Value,
-			EvidenceIDs: field.EvidenceIDs,
+			Path:           field.Path,
+			ValueType:      field.ValueType,
+			Presence:       field.Presence,
+			Value:          field.Value,
+			EvidenceIDs:    field.EvidenceIDs,
+			ManualEvidence: field.ManualEvidence,
 		})
 	}
 	item, err := s.reviews.Revise(request.Context(), tenantContext(principal), request.PathValue("job_id"), input)
@@ -210,7 +212,12 @@ func (s *Server) rejectReviewHandler(response http.ResponseWriter, request *http
 }
 
 func reviewResponse(item ports.ReviewSnapshot) map[string]any {
+	entryMode := "ai"
+	if item.OriginAiRunID == "" {
+		entryMode = "manual"
+	}
 	return map[string]any{
+		"entry_mode":           entryMode,
 		"job":                  jobResponse(item.Job),
 		"claim_set_id":         item.ClaimSetID,
 		"document_type":        item.DocumentType,

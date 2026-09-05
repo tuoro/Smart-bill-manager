@@ -56,12 +56,14 @@ COPY --from=glibc-source /usr/lib/x86_64-linux-gnu/libpthread.so.0 /usr/lib/x86_
 COPY --from=glibc-source /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=artifact-validator --chmod=0755 /release/server /app/server
 COPY --from=artifact-validator --chmod=0755 /release/bootstrap-owner /app/bootstrap-owner
+COPY --from=artifact-validator --chmod=0755 /release/recover-account /app/recover-account
 COPY --from=artifact-validator --chmod=0755 /release/backup /app/backup
 COPY --from=artifact-validator --chmod=0755 /release/migrate /app/migrate
 COPY --from=artifact-validator --chmod=0755 /release/provision-postgresql /app/provision-postgresql
 COPY --from=artifact-validator --chmod=0755 /release/run-as-sbm /app/run-as-sbm
 COPY --from=artifact-validator /release/web /app/web
 COPY --from=artifact-validator /release/poppler /opt/sbm-poppler
+RUN find /app/web /opt/sbm-poppler -type d -exec chmod 0755 {} +
 COPY infra/migrations /app/migrations
 COPY contracts/schemas/bill-visible-text.schema.json /app/contracts/bill-visible-text.schema.json
 COPY --chmod=0755 infra/docker/entrypoint.sh /usr/local/bin/sbm-entrypoint

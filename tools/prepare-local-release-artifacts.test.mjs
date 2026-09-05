@@ -43,6 +43,22 @@ test("release artifact arguments and manifests are deterministic", () => {
     /invalid_arguments/,
   );
   assert.equal(isSafeArtifactPath("poppler/lib/libstdc++.so.6"), true);
+  assert.equal(
+    isSafeArtifactPath("web/assets/_plugin-vue_export-helper-BDNMzG2s.js"),
+    true,
+  );
   assert.equal(isSafeArtifactPath("../outside"), false);
   assert.equal(isSafeArtifactPath("poppler/lib/name with space"), false);
+  for (const path of [
+    "/absolute",
+    "web//empty",
+    "web/./same",
+    "web/../outside",
+    "web/-option",
+    "web/.hidden",
+    "web/line\nbreak",
+    "web/back\\slash",
+  ]) {
+    assert.equal(isSafeArtifactPath(path), false);
+  }
 });

@@ -5,10 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
-
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
@@ -73,21 +70,9 @@ func NewService(
 }
 
 func (s Service) Login(ctx context.Context, input LoginInput) (SessionView, error) {
-	email := strings.ToLower(strings.TrimSpace(norm.NFKC.String(input.Email)))
-	candidates, err := s.repository.FindLoginCandidates(ctx, email)
+	candidates, err := s.verifiedCandidates(ctx, input)
 	if err != nil {
 		return SessionView{}, err
-	}
-	if len(candidates) == 0 {
-		_, _ = s.hasher.Verify(input.Password, s.dummyHash)
-		return SessionView{}, domain.ErrUnauthenticated
-	}
-	passwordOK, err := s.hasher.Verify(input.Password, candidates[0].PasswordHash)
-	if err != nil {
-		return SessionView{}, fmt.Errorf("verify password: %w", err)
-	}
-	if !passwordOK {
-		return SessionView{}, domain.ErrUnauthenticated
 	}
 	candidate, err := selectCandidate(candidates, input.TenantID)
 	if err != nil {
@@ -108,18 +93,66 @@ func (s Service) Login(ctx context.Context, input LoginInput) (SessionView, erro
 	now := s.clock.Now()
 	expiresAt := now.Add(s.sessionTTL)
 	if err := s.repository.CreateSession(ctx, ports.SessionRecord{
-		ID:            sessionID,
-		TenantID:      candidate.TenantID,
-		UserID:        candidate.UserID,
-		TokenHash:     sessionHash,
-		CSRFTokenHash: csrfHash,
-		ExpiresAt:     expiresAt,
-		CreatedAt:     now,
-		LastSeenAt:    now,
+		VerifiedPasswordHash:      candidate.PasswordHash,
+		ExpectedMembershipVersion: candidate.MembershipVersion,
+		ID:                        sessionID,
+		TenantID:                  candidate.TenantID,
+		UserID:                    candidate.UserID,
+		TokenHash:                 sessionHash,
+		CSRFTokenHash:             csrfHash,
+		ExpiresAt:                 expiresAt,
+		CreatedAt:                 now,
+		LastSeenAt:                now,
 	}); err != nil {
 		return SessionView{}, err
 	}
 	return viewFromCandidate(candidate, sessionID, sessionToken, csrfToken, expiresAt), nil
+}
+
+type WorkspaceChoice struct {
+	ID   string      `json:"id"`
+	Name string      `json:"name"`
+	Role domain.Role `json:"role"`
+}
+
+func (s Service) Workspaces(ctx context.Context, input LoginInput) ([]WorkspaceChoice, error) {
+	candidates, err := s.verifiedCandidates(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	choices := make([]WorkspaceChoice, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Status == "active" {
+			choices = append(choices, WorkspaceChoice{ID: candidate.TenantID, Name: candidate.TenantName, Role: candidate.Role})
+		}
+	}
+	if len(choices) == 0 {
+		return nil, domain.InvalidCredentials()
+	}
+	return choices, nil
+}
+
+func (s Service) verifiedCandidates(ctx context.Context, input LoginInput) ([]ports.LoginCandidate, error) {
+	email, err := domain.NormalizeLoginEmail(input.Email)
+	if err != nil || len(input.Password) > 1024 {
+		return nil, domain.InvalidCredentials()
+	}
+	candidates, err := s.repository.FindLoginCandidates(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	hash := s.dummyHash
+	if len(candidates) > 0 {
+		hash = candidates[0].PasswordHash
+	}
+	valid, err := s.hasher.Verify(input.Password, hash)
+	if err != nil {
+		return nil, fmt.Errorf("verify password: %w", err)
+	}
+	if !valid || len(candidates) == 0 {
+		return nil, domain.InvalidCredentials()
+	}
+	return candidates, nil
 }
 
 func (s Service) Authenticate(ctx context.Context, rawToken string) (ports.SessionPrincipal, error) {

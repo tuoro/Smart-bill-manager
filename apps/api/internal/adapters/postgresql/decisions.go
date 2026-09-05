@@ -269,6 +269,11 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 	`, command.TenantID, documentID); err != nil {
 		return ports.ConfirmResult{}, fmt.Errorf("complete review document: %w", err)
 	}
+	if command.Payment != nil {
+		if err := t.reconcileTripPayments(ctx, command.TenantID, command.ActorUserID, command.RequestID, command.CreatedAt, result.FactID, nil); err != nil {
+			return ports.ConfirmResult{}, err
+		}
+	}
 	return result, nil
 }
 func (t transaction) RejectReview(ctx context.Context, command ports.RejectCommand) error {
@@ -449,6 +454,11 @@ func (t transaction) insertInvoice(
 	if err != nil {
 		return domain.NewRuleError("invoice_number_conflict", "同一工作区已存在相同规范化发票号码", domain.ErrConflict)
 	}
+	return t.insertInvoiceItems(ctx, command, itemIDs)
+}
+
+func (t transaction) insertInvoiceItems(ctx context.Context, command ports.ConfirmCommand, itemIDs map[string]string) error {
+	invoice := command.Invoice
 	for _, item := range invoice.Items {
 		if _, exists := itemIDs[item.ItemKey]; exists {
 			return domain.ErrInvalidInput
@@ -481,7 +491,7 @@ func (t transaction) insertInvoice(
 func (t transaction) insertTrip(ctx context.Context, command ports.ConfirmCommand, createdAt string) error {
 	trip := command.Trip
 	_, err := t.tx.ExecContext(ctx, `
-		INSERT INTO trips (
+		INSERT INTO trip_evidence_facts (
 			id, tenant_id, source_review_decision_id, origin, destination,
 			start_date, end_date, traveler_name, transport_type, booking_reference,
 			created_at, updated_at, version
@@ -799,7 +809,7 @@ func (t transaction) confirmReplay(
 		SELECT r.action, r.id, j.id, c.id, r.expected_revision,
 		       coalesce(r.association_mode, ''), coalesce(r.association_plan_hash, ''),
 		       coalesce(r.duplicate_plan_hash, ''),
-		       c.document_type, coalesce(p.id, i.id, trip.id),
+		       c.document_type, coalesce(p.id, i.id, trip.id, ''),
 		       coalesce((SELECT json_agg(link_id ORDER BY sort_key) FROM (
 		           SELECT l.id AS link_id, d.candidate_id AS sort_key
 		           FROM payment_invoice_link_decisions d
@@ -813,7 +823,7 @@ func (t transaction) confirmReplay(
 		JOIN processing_jobs j ON j.tenant_id = c.tenant_id AND j.document_id = c.document_id
 		LEFT JOIN payments p ON p.tenant_id = r.tenant_id AND p.source_review_decision_id = r.id
 		LEFT JOIN invoices i ON i.tenant_id = r.tenant_id AND i.source_review_decision_id = r.id
-		LEFT JOIN trips trip ON trip.tenant_id = r.tenant_id AND trip.source_review_decision_id = r.id
+		LEFT JOIN trip_evidence_facts trip ON trip.tenant_id = r.tenant_id AND trip.source_review_decision_id = r.id
 		WHERE r.tenant_id = ? AND r.idempotency_key = ?
 	`, tenantID, idempotencyKey).Scan(
 		&action,
@@ -834,7 +844,7 @@ func (t transaction) confirmReplay(
 	if err != nil {
 		return confirmReplayRecord{}, false, fmt.Errorf("read confirm idempotency record: %w", err)
 	}
-	if action != "confirm" {
+	if action != "confirm" || result.value.Result.FactID == "" {
 		return confirmReplayRecord{}, false, domain.NewRuleError("idempotency_key_conflict", "幂等键已用于不同的请求", domain.ErrConflict)
 	}
 	if err := json.Unmarshal([]byte(linkIDsJSON), &result.value.Result.LinkIDs); err != nil {

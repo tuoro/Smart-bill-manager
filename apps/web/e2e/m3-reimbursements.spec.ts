@@ -386,14 +386,16 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
 
 function syntheticTrip(): Trip {
   return {
+    bad_debt_locked: false,
     id: tripID,
-    origin: '上海',
-    destination: '北京',
+    name: '北京',
+    timezone: 'Asia/Shanghai',
+    version: 1,
+    notes: '',
+    origin_kind: 'manual',
+    material_count: 0,
     start_date: '2026-08-26',
     end_date: '2026-08-28',
-    traveler_name: '合成用户',
-    transport_type: 'train',
-    booking_reference: 'SYN-REIMBURSEMENT',
     assigned_payment_count: 1,
     assigned_invoice_count: 1,
     created_at: timestamp,
@@ -411,7 +413,11 @@ function assignedCandidates(): TripAttributionCandidate[] {
       currency: 'CNY',
       current_assignment_id: paymentAssignmentID,
       current_trip_id: tripID,
-      current_trip_destination: '北京',
+      current_trip_name: '北京',
+      fact_version: 1,
+      assignment_mode: 'manual',
+      assignment_state: 'manual',
+      match_count: 1,
       suggested: true,
       reason_codes: ['currently_assigned'],
     },
@@ -424,18 +430,134 @@ function assignedCandidates(): TripAttributionCandidate[] {
       currency: 'CNY',
       current_assignment_id: invoiceAssignmentID,
       current_trip_id: tripID,
-      current_trip_destination: '北京',
+      current_trip_name: '北京',
+      fact_version: 1,
+      assignment_mode: 'manual',
+      assignment_state: 'manual',
+      match_count: 0,
       suggested: true,
       reason_codes: ['currently_assigned'],
     },
   ]
 }
 
+test('B4：迟到预检不覆盖新选择，材料冲突保留理由，提交期间锁定创建输入', async ({ page }) => {
+  await mockSession(page, ownerSession())
+  const trip = syntheticTrip()
+  await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
+  await page.route(tripCandidatesURL, (route) =>
+    fulfillJSON(route, { trip, rule_version: 'trip-attribution/1', items: assignedCandidates() }),
+  )
+  let releasePreview!: () => void, releaseSubmit!: () => void
+  const previewWait = new Promise<void>((resolve) => {
+    releasePreview = resolve
+  })
+  const submitWait = new Promise<void>((resolve) => {
+    releaseSubmit = resolve
+  })
+  let previews = 0,
+    submitted = false
+  await page.route(previewURL, async (route) => {
+    previews++
+    if (previews === 1) await previewWait
+    return fulfillJSON(route, {
+      ...reimbursementPreview(),
+      findings: [],
+      materials: [{ invoice_id: invoiceID, link_id: createdID, document_id: relatedID }],
+    })
+  })
+  await page.route(reimbursementsURL, async (route) => {
+    if (route.request().method() === 'GET') return fulfillJSON(route, { items: [] })
+    submitted = true
+    await submitWait
+    return fulfillError(route, 409, 'reimbursement_snapshot_stale', '材料集合已变化')
+  })
+  await page.goto('/reimbursements')
+  const payment = page.getByRole('checkbox', { name: /支付 · 合成交通商户/ })
+  const invoice = page.getByRole('checkbox', { name: /发票 · 合成住宿发票/ })
+  await payment.check()
+  await page.getByRole('button', { name: '运行政策预检' }).click()
+  await expect.poll(() => previews).toBe(1)
+  await invoice.check()
+  const finished = page.waitForResponse((response) => previewURL(new URL(response.url())))
+  releasePreview()
+  await finished
+  await expect(page.locator('.reimbursement-preview')).toHaveCount(0)
+  await page.getByRole('button', { name: '运行政策预检' }).click()
+  await expect(page.locator('.reimbursement-preview')).toContainText('1 份辅助材料')
+  await page.getByLabel('提交理由').fill('合成材料变更后保留的理由')
+  await page.getByRole('button', { name: '提交报销', exact: true }).click()
+  await expect.poll(() => submitted).toBe(true)
+  await expect(page.getByRole('combobox', { name: '行程', exact: true })).toBeDisabled()
+  await expect(payment).toBeDisabled()
+  await expect(invoice).toBeDisabled()
+  await expect(page.getByLabel('提交理由')).toBeDisabled()
+  await expect(page.getByRole('button', { name: '运行政策预检' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
+  releaseSubmit()
+  await expect(
+    page.getByText('报销输入或当前状态已变化，请重新预检；提交理由已保留。'),
+  ).toBeVisible()
+  await page.getByRole('button', { name: '运行政策预检' }).click()
+  await expect(page.getByLabel('提交理由')).toHaveValue('合成材料变更后保留的理由')
+})
+
+test('B4：迟到报销详情不能把辅助材料状态切回上一条', async ({ page }) => {
+  await mockSession(page, session('viewer', ['reimbursements.read']))
+  const a = {
+    ...reimbursementDetail(existingID, 'submitted', 1, 0),
+    trip: { ...reimbursementPreview().trip, name: '合成先选记录' },
+    materials_captured: true,
+    material_count: null,
+  }
+  const b = {
+    ...reimbursementDetail(relatedID, 'rejected', 2, 0),
+    trip: { ...reimbursementPreview().trip, name: '合成后选记录' },
+    materials_captured: false,
+    material_count: null,
+  }
+  await page.route(reimbursementsURL, (route) => fulfillJSON(route, { items: [a, b] }))
+  let release!: () => void,
+    requested = false
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.route(reimbursementDetailURL, async (route) => {
+    if (route.request().url().endsWith(relatedID)) {
+      requested = true
+      await pending
+      return fulfillJSON(route, b)
+    }
+    return fulfillJSON(route, a)
+  })
+  await page.goto('/reimbursements')
+  await expect(page.locator('.reimbursement-detail h2')).toHaveText('合成先选记录')
+  await page.locator('.reimbursement-list button').nth(1).click()
+  await expect.poll(() => requested).toBe(true)
+  await page.locator('.reimbursement-list button').nth(0).click()
+  await expect(page.locator('.reimbursement-detail h2')).toHaveText('合成先选记录')
+  const done = page.waitForResponse((response) => response.url().endsWith(relatedID))
+  release()
+  await done
+  await expect(page.locator('.reimbursement-detail h2')).toHaveText('合成先选记录')
+  await expect(
+    page.getByText('辅助材料集合已在提交时固定；当前账号无权查看数量和原件。'),
+  ).toBeVisible()
+})
+
 function reimbursementPreview(): ReimbursementPolicySnapshot {
   const [payment, invoice] = assignedCandidates()
   return {
-    rule_version: 'reimbursement-policy/1',
-    trip: { id: tripID, destination: '北京', start_date: '2026-08-26', end_date: '2026-08-28' },
+    rule_version: 'reimbursement-policy/2',
+    materials: [],
+    trip: {
+      id: tripID,
+      name: '北京',
+      start_date: '2026-08-26',
+      end_date: '2026-08-28',
+      timezone: 'Asia/Shanghai',
+      version: 1,
+    },
     items: [
       {
         assignment_id: paymentAssignmentID,
@@ -501,7 +623,9 @@ function reimbursementDetail(
   const preview = reimbursementPreview()
   return {
     ...summary(id, status, version, 2, findingCount),
-    rule_version: 'reimbursement-policy/1',
+    rule_version: 'reimbursement-policy/2',
+    materials_captured: true,
+    material_count: 0,
     snapshot_hash: preview.snapshot_hash,
     totals_by_currency: preview.totals_by_currency,
     items: preview.items.map((item, index) => ({
@@ -536,6 +660,8 @@ function richReimbursementDetail(): ReimbursementDetail {
     ...summary(existingID, 'reimbursed', 2, 3, 3),
     trip_deleted: true,
     rule_version: 'reimbursement-policy/1',
+    materials_captured: false,
+    material_count: null,
     snapshot_hash: preview.snapshot_hash,
     totals_by_currency: [
       { currency: 'CNY', amount_minor: 24690 },

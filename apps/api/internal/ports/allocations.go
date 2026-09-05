@@ -44,10 +44,11 @@ type AllocationTarget struct {
 }
 
 type AllocationWorkspace struct {
-	Anchor   AllocationFactSummary     `json:"anchor"`
-	Links    []AllocationWorkspaceLink `json:"links"`
-	Targets  []AllocationTarget        `json:"targets"`
-	PlanHash string                    `json:"plan_hash"`
+	NextCursor string                    `json:"next_cursor,omitempty"`
+	Anchor     AllocationFactSummary     `json:"anchor"`
+	Links      []AllocationWorkspaceLink `json:"links"`
+	Targets    []AllocationTarget        `json:"targets"`
+	PlanHash   string                    `json:"plan_hash"`
 }
 
 type AllocationAdjustmentResult struct {
@@ -87,6 +88,7 @@ type AllocationAdjustmentCommand struct {
 }
 
 type AllocationRepository interface {
+	SearchAllocationTargets(ctx context.Context, tenantID string, anchorType domain.DocumentType, anchorID string, query AllocationTargetQuery) (AllocationTargetPage, error)
 	GetAllocationWorkspace(
 		ctx context.Context,
 		tenantID string,
@@ -97,6 +99,17 @@ type AllocationRepository interface {
 		ctx context.Context,
 		tenantID, idempotencyKey string,
 	) (AllocationAdjustmentReplay, error)
+}
+
+type AllocationTargetQuery struct {
+	Query    string
+	AllDates bool
+	AfterID  string
+}
+
+type AllocationTargetPage struct {
+	Items      []AllocationTarget `json:"items"`
+	NextCursor string             `json:"next_cursor,omitempty"`
 }
 
 type AllocationTransaction interface {

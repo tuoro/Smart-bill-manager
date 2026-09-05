@@ -40,6 +40,7 @@ type AttributionPage struct {
 }
 
 type AssignmentInput struct {
+	ExpectedFactVersion  int
 	FactType             domain.DocumentType
 	FactID               string
 	DesiredTripID        *string
@@ -112,7 +113,7 @@ func (s Service) Assign(
 	if err := domain.ValidateIdempotencyKey(input.IdempotencyKey); err != nil {
 		return ports.TripAssignmentResult{}, err
 	}
-	if input.RequestID == "" || !domain.ValidTripAssignmentFactType(input.FactType) || input.FactID == "" {
+	if input.RequestID == "" || !domain.ValidTripAssignmentFactType(input.FactType) || input.FactID == "" || input.ExpectedFactVersion < 1 {
 		return ports.TripAssignmentResult{}, domain.ErrInvalidInput
 	}
 	reason := strings.TrimSpace(input.Reason)
@@ -125,7 +126,7 @@ func (s Service) Assign(
 		(input.ExpectedAssignmentID != nil && expectedAssignmentID == "") {
 		return ports.TripAssignmentResult{}, domain.ErrInvalidInput
 	}
-	requestHash, err := assignmentRequestHash(input.FactType, input.FactID, desiredTripID, expectedAssignmentID, reason)
+	requestHash, err := assignmentRequestHash(input.FactType, input.FactID, desiredTripID, expectedAssignmentID, reason, input.ExpectedFactVersion)
 	if err != nil {
 		return ports.TripAssignmentResult{}, err
 	}
@@ -150,6 +151,8 @@ func (s Service) Assign(
 		return ports.TripAssignmentResult{}, err
 	}
 	command := ports.TripAssignmentCommand{
+		ExpectedFactVersion:  input.ExpectedFactVersion,
+		DecisionSource:       "manual",
 		TenantID:             tenant.TenantID,
 		ActorUserID:          tenant.UserID,
 		FactType:             input.FactType,
@@ -193,16 +196,19 @@ func stringValue(value *string) string {
 func assignmentRequestHash(
 	factType domain.DocumentType,
 	factID, desiredTripID, expectedAssignmentID, reason string,
+	expectedVersion int,
 ) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Version              string              `json:"version"`
+		ExpectedFactVersion  int                 `json:"expected_fact_version"`
 		FactType             domain.DocumentType `json:"fact_type"`
 		FactID               string              `json:"fact_id"`
 		DesiredTripID        string              `json:"desired_trip_id"`
 		ExpectedAssignmentID string              `json:"expected_assignment_id"`
 		Reason               string              `json:"reason"`
 	}{
-		Version:              domain.TripAttributionRuleVersion,
+		Version:              "trip-assignment-request/2",
+		ExpectedFactVersion:  expectedVersion,
 		FactType:             factType,
 		FactID:               factID,
 		DesiredTripID:        desiredTripID,

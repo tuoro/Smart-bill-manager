@@ -46,7 +46,7 @@ allocation-adjustment-lifecycle	补充、替换、单项撤销与全部撤销原
 allocation-adjustment-provenance	Adjustment、Audit 与 Link 创建/终止来源严格唯一且不可变，安全 metadata 不含金额或理由	./internal/application/reviews	TestConfirmedFactAllocationAdjustmentLifecycle
 allocation-adjustment-permission	owner/finance 可管理，reviewer/viewer 拒绝；跨租户、已删除、跨币种、超日期和超余额目标不可用	./internal/application/reviews	TestAllocationAdjustmentPermissionsAndTargetBoundaries
 allocation-adjustment-concurrency	两个事务争用最后目标余额最多一个成功；与 Fact 删除竞态后无活动孤链或部分审计	./internal/application/reviews	TestConcurrentAdjustmentsAndFactDeletionKeepBalancesAtomic
-allocation-target-limit	第 201 个合格目标使工作区显式失败而不静默截断	./internal/application/reviews	TestAllocationWorkspaceRejectsMoreThanTwoHundredTargetsWithoutTruncation
+allocation-target-limit	201 个候选跨页完整可达，双侧第 201 条活动 Link 整体拒绝	./internal/application/reviews	TestAllocationWorkspacePagesMoreThanTwoHundredTargetsWithoutTruncation
 allocation-http-boundary	非法路径、缺失完整数组、未知 JSON 字段、无 CSRF 与未变化计划经 HTTP 显式拒绝	./internal/transport/httpapi	TestHTTPWorkflowAndTenantIsolation
 money-integer-exponent	CNY、USD、EUR exponent 2 与 JPY exponent 0；超精度、溢出和 float 输入拒绝	./internal/domain	TestParseMoney
 money-integer-exponent	税额、价税合计与明细合计仅以整数校验，冲突进入 blocked	./internal/domain	TestInvoiceTaxAndItemPathFailures
@@ -139,3 +139,109 @@ performance-output-parent-safety	性能种子结果只允许位于 /tmp 的 owne
 performance-arguments-strict	性能种子命令拒绝未知、重复、缺失和位置参数，不允许别名覆盖已冻结路径	./cmd/seed-performance	TestPerformanceSeedArgumentsRejectDuplicatesAndUnknownFlags
 runtime-privilege-drop	运行助手必须先清空补充组，再按 GID、UID 顺序降到 10001，并以原始 argv/env 直接 exec	./cmd/run-as-sbm	TestRunDropsAllGroupsBeforeExecAndPreservesArguments
 runtime-privilege-fail-closed	缺少命令、非 root 或任一降权失败时不得执行应用	./cmd/run-as-sbm	TestRunFailsClosedBeforeExec
+manual-trip-multiple-evidence	手工行程可归集往返多张凭证，审核不创建容器，材料不计金额	./internal/application/reviews	TestManualTripContainsMultipleReviewedTicketsWithoutCreatingContainers
+manual-trip-time-priority	整日时间边界、重叠待处理、人工优先及显式恢复自动归属	./internal/application/reviews	TestTripTimeAttributionBoundariesOverlapsAndManualPriority
+manual-trip-keyset-recalculation	超过一批支付在行程创建与删除时不漏算、不重复关联	./internal/application/reviews	TestTripAutoRecalculationUsesMultipleKeysetBatches
+published-trip-upgrade	真实 0001 到 0002 升级保留来源、人工选择、三态报销和同 ID 删除隔离	./internal/application/reviews	TestPublishedTripUpgradePreservesEvidenceAssignmentsAndSnapshots
+manual-trip-dst	夏令时 23/25 小时自然日与仅改时区重算不得丢失或误归属支付	./internal/application/reviews	TestTripDSTAndTimezoneOnlyEdit
+manual-trip-concurrency	支付确认与容器并发重算、未归属 ABA 及人工优先保持一致	./internal/application/reviews	TestTripConcurrentRecalculationAndUnassignedVersion
+manual-trip-rollback	自动关联或材料移动失败时容器、原关系、版本和审计全部回滚	./internal/application/reviews	TestTripManagementAndMaterialFailuresRollback
+manual-trip-snapshot	容器编辑使报销旧预检过期，不改变已提交完整快照	./internal/application/reviews	TestTripEditInvalidatesPreviewButPreservesSubmittedSnapshot
+manual-trip-tenant	跨租户管理、凭证归集和自动偏好操作必须零写入	./internal/application/reviews	TestTripCrossTenantOperationsAreZeroWrite
+manual-trip-http-roles	无 Provider 或上传即可创建编辑，四角色边界及审核自动归属贯通	./internal/transport/httpapi	TestHTTPManualTripWorkspaceWorkflowAndRoles
+schema-restore-column-order	备份结构身份忽略删列物理空位，但保留可见列顺序、类型、非空、默认值和名称	./cmd/backup	TestSchemaIdentityPreservesVisibleColumnOrderWithoutPhysicalGaps
+manual-review-source-chain	三类失败单据经人工根、草稿修订和确认保留用户来源，不伪造 AiRun 或行程容器	./internal/application/reviews	TestManualReviewPostgreSQLThreeTypesPreserveUserSourceThroughConfirmation
+manual-review-concurrency	相同请求重放及不同请求并发接管只保留一个人工根和页面集合	./internal/application/reviews	TestManualReviewPostgreSQLCompetingRootsAndReplay
+manual-review-rollback	人工审计写入失败回滚页面、Claim、Job 状态及版本	./internal/application/reviews	TestManualReviewPostgreSQLAuditFailureRollsBackPagesAndClaim
+manual-review-delete-race	人工接管后旧删除预案冲突并恢复原件，保留新页面和审核链	./internal/application/reviews	TestManualReviewPostgreSQLStaleDeletionRestoresOriginalAndKeepsNewPages
+manual-review-origin-constraints	人工来源必填、身份不可变、父版本连续及幂等输入边界	./internal/application/reviews	TestManualReviewPostgreSQLSourceIdentityAndInputFailures
+manual-review-original-integrity	原件缺失或哈希改变不产生人工页面或审核记录	./internal/application/reviews	TestManualReviewPostgreSQLRejectsMissingAndChangedOriginalWithoutWrites
+manual-review-forward-upgrade	真实 0002 到 0003 升级保留 AI 根、修订、Fact 和来源，故障回滚 Schema 与账本	./internal/application/reviews	TestManualReviewUpgradePreservesAIHistoryAndRollsBackFailure
+manual-review-failed-worker	缺 Provider 和模型失败后不再次调用模型，原失败历史和已有页保持	./internal/application/processing	TestFailedWorkerCanEnterManualReviewWithoutCallingProviderAgain
+manual-review-late-worker	租约恢复后转人工，旧 Worker 迟到成功或失败不能覆盖人工审核	./internal/application/processing	TestLateWorkerCannotOverwriteManualReviewAfterLeaseRecovery
+manual-review-http	HTTP 人工录入、保存和确认贯通，认证、CSRF、租户、角色、严格输入及幂等边界保持	./internal/transport/httpapi	TestHTTPManualReviewWorkflowPermissionsAndStrictBoundary
+fact-correction-source	三类连续纠错保留同 ID、AI 根、用户来源、初始确认、完成任务和逐版明细	./internal/application/reviews	TestFactCorrectionThreeTypesPreserveIdentitySourceAndHistory
+fact-correction-links	降额、改币种冲突阻断，跨期合法保留与明确撤销原子提交，最终故障全回滚	./internal/application/reviews	TestFactCorrectionLinkedBoundariesExplicitWithdrawalAndRollback
+fact-correction-cas	角色租户、陈旧版本、同键并发以及普通确认和纠错键的跨入口冲突	./internal/application/reviews	TestFactCorrectionPermissionsStaleInputAndConcurrentReplay
+fact-correction-duplicates	自身排除、重复目标修订使预览失效、逐项确认和精确发票号冲突	./internal/application/reviews	TestFactCorrectionDuplicateTargetRevisionAndInvoiceNumberConflicts
+fact-correction-attribution	支付时间修订复用自动归属并记录最终版本，人工选择保持优先	./internal/application/reviews	TestFactCorrectionReconcilesAutomaticTripsButPreservesManualPreference
+fact-correction-reimbursement	三种报销历史不变，新预检绑定当前字段修订，旧预检失效	./internal/application/reviews	TestFactCorrectionPreservesEveryReimbursementStatusAndInvalidatesPreview
+fact-correction-upgrade	0003 到 0004 前向升级保留三类已确认数据和来源，故障全回滚，升级后可以纠错	./internal/application/reviews	TestFactCorrectionForwardUpgradePreservesThreeTypesAndRollback
+fact-correction-database-guard	正式字段不能无审核更新，首次身份及正常确认回放保留，不能伪造纠错历史	./internal/application/reviews	TestFactCorrectionFoundationPreservesInitialIdentityAndRejectsUnreviewedChanges
+fact-correction-http	HTTP 工作区、预览、确认、回放和历史，认证、角色、CSRF、严格输入拒绝	./internal/transport/httpapi	TestHTTPFactCorrectionWorkflowPermissionsAndStrictBoundary
+# B2 补充的明细、关系竞争和行程材料边界
+fact-correction	invoice-item-replacement-history	./internal/application/reviews	TestFactCorrectionInvoiceItemReplacementRetainsHistoricalOrigins
+fact-correction	relation-change-and-concurrent-winner	./internal/application/reviews	TestFactCorrectionRejectsChangedRelationsAndDifferentKeyConcurrency
+fact-correction	material-preservation-and-ambiguous-attribution	./internal/application/reviews	TestFactCorrectionTripMaterialAndAmbiguousAutomaticAttribution
+fact-management	canonical-filter-boundaries	./internal/domain	TestFactFilterCanonicalDatesLiteralTextAndBoundaries
+fact-management	immutable-cursor-key	./internal/domain	TestFactSortKeyUsesImmutableTimestampAndValidatedIdentity
+fact-management	201-row-keyset-with-deleted-anchor	./internal/application/reviews	TestFactManagementPagesTraverse201AndSurviveAnchorDeletion
+fact-management	filters-current-detail-and-source-permissions	./internal/application/reviews	TestFactManagementFiltersDetailsAndSourcePermissions
+fact-management	forward-index-upgrade-and-rollback	./internal/application/reviews	TestFactManagementIndexUpgradePreservesDataAndRollsBack
+fact-management	http-query-detail-role-boundary	./internal/transport/httpapi	TestHTTPFactManagementQueryDetailsAndSourceBoundary
+invoice-material	canonical-request-and-roles	./internal/domain	TestInvoiceMaterialRequestsBindActionVersionTargetAndReason
+invoice-material	selected-material-canonical-hash	./internal/domain	TestInvoiceMaterialPolicyCanonicalSelectionAndHash
+invoice-material	upload-reuse-and-immutable-history	./internal/application/reviews	TestInvoiceMaterialUploadReuseAndHistoryWithoutAI
+invoice-material	recognition-state-independent-sharing	./internal/application/reviews	TestInvoiceMaterialExistingDocumentsIgnoreRecognitionStatus
+invoice-material	stale-duplicate-original-role-tenant-boundaries	./internal/application/reviews	TestInvoiceMaterialRejectsStaleDuplicateOriginalRolesAndCrossTenant
+invoice-material	concurrent-sha-single-object	./internal/application/reviews	TestInvoiceMaterialSameSHAConcurrentInvoicesPreserveOneObject
+invoice-material	physical-and-fact-delete-history	./internal/application/reviews	TestInvoiceMaterialPhysicalDeleteAndFactDeleteKeepHistory
+invoice-material	changed-publication-object-fails-closed	./internal/application/reviews	TestInvoiceMaterialPublicationRecoveryRejectsChangedObject
+invoice-material	201-candidate-keyset-and-100-active-limit	./internal/application/reviews	TestInvoiceMaterialCandidateKeysetAndLimit
+invoice-material	reimbursement-three-statuses-and-aba	./internal/application/reviews	TestInvoiceMaterialReimbursementCaptureAndABAHistory
+invoice-material	publication-waits-for-final-commit	./internal/application/reviews	TestInvoiceMaterialPublicationWaitsForCommitAndPreservesAdoptedObject
+invoice-material	decision-must-commit-effect	./internal/application/reviews	TestInvoiceMaterialDecisionMustCommitItsRelationshipEffect
+invoice-material	forward-upgrade-history-and-rollback	./internal/application/reviews	TestInvoiceMaterialUpgradePreservesHistoricalSnapshotsAndRollsBack
+invoice-material	http-workflow-and-closed-input	./internal/transport/httpapi	TestHTTPInvoiceMaterialsWorkflowAndClosedBoundary
+invoice-material	backup-rejects-pending-publication	./cmd/backup	TestBackupRequiresFinishedMaterialPublicationJournal
+invoice-material	stale-deletion-restores-new-material-original	./internal/application/reviews	TestInvoiceMaterialCreatedAfterDeletionPlanRestoresOriginal
+invoice-material	publish-final-transaction-and-compensation-failures	./internal/application/reviews	TestInvoiceMaterialPublicationAndFinalTransactionFailureAreRecoverable
+accounts	invitation-identity-and-idempotency	./internal/application/accounts	TestInvitationCreatesSecondMemberWithoutReplacingIdentity
+accounts	last-owner-concurrency	./internal/application/accounts	TestConcurrentOwnersCannotLeaveWorkspaceOwnerless
+accounts	global-identity-password-boundary	./internal/application/accounts	TestSharedAccountJoinAndGlobalPasswordRevocation
+accounts	membership-session-revocation	./internal/application/accounts	TestMemberRoleSuspensionRestorationAndLastOwner
+accounts	verified-login-password-race	./internal/application/accounts	TestPasswordChangeClosesVerifiedLoginRace
+accounts	verified-login-member-race	./internal/application/accounts	TestMemberChangeClosesVerifiedLoginRace
+accounts	invitation-expiry-final-check	./internal/application/accounts	TestInvitationExpiryIsRecheckedAfterPasswordWork
+accounts	invitation-consumption-atomicity	./internal/application/accounts	TestConcurrentInvitationConsumptionCreatesExactlyOneMembership
+accounts	invitation-history-capacity-exact-scope	./internal/application/accounts	TestInvitationCapacityHistoryPaginationAndExactReads
+accounts	password-audit-rollback	./internal/application/accounts	TestAccountAuditFailureRollsBackPasswordAndSessionRevocation
+accounts	forward-upgrade-and-rollback	./internal/application/accounts	TestAccountUpgradePreservesIdentitiesAndSessionsAndRollsBack
+accounts	http-workflow-and-csrf	./internal/transport/httpapi	TestHTTPMemberInvitationLifecycleAndPassword
+accounts	http-closed-inputs-and-four-roles	./internal/transport/httpapi	TestHTTPAccountClosedInputsAndFourRoles
+accounts	local-recovery-command	./cmd/recover-account	TestRecoveryCommandAgainstIsolatedPostgreSQL
+accounts	private-recovery-input	./internal/adapters/cryptography	TestPrivateFileRejectsAliasesModesAndUnboundedInput
+material-export	canonical-hash-safe-paths-and-input-preservation	./internal/domain	TestExportManifestCanonicalIdentityAndSafePaths
+material-export	permissions-and-count-byte-bounds	./internal/domain	TestExportManifestLimitsAndPermissions
+material-export	complete-shared-ZIP-session-bound-once	./internal/application/materialexports	TestMaterialExportCompleteZIPAndOneTimeSessionBoundDownload
+material-export	two-slots-cancel-expiry-and-shutdown	./internal/application/materialexports	TestMaterialExportBoundsCancelExpiryAndShutdown
+material-export	stale-missing-corrupt-cancelled-no-success	./internal/application/materialexports	TestMaterialExportPreviewChangedMissingDamagedAndRejectedInputs
+material-export	concurrent-take-exactly-one-reader	./internal/application/materialexports	TestMaterialExportConcurrentTakeHasExactlyOneReader
+material-export	actual-ZIP-byte-writer-bound	./internal/application/materialexports	TestMaterialExportSpoolWriteLimitAndStorageErrors
+material-export	anonymous-owner-only-spool	./internal/adapters/localstorage	TestExportSpoolIsAnonymousAndDoesNotTouchObjects
+material-export	only-owned-empty-startup-residue-cleanup	./internal/adapters/localstorage	TestExportSpoolStartupOnlyRemovesOwnEmptyCreationResidue
+material-export	201-document-complete-database-snapshot	./internal/application/reviews	TestExportCurrentTripCompleteBeyondManagementPage
+material-export	fixed-snapshot-after-correction-move-delete-material-change	./internal/application/reviews	TestExportFixedReimbursementDoesNotMixCurrentFactsOrMaterials
+material-export	historical-uncaptured-fields-not-backfilled	./internal/application/reviews	TestInvoiceMaterialUpgradePreservesHistoricalSnapshotsAndRollsBack
+material-export	manual-correction-trip-material-reimbursement-HTTP-journey	./internal/transport/httpapi	TestHTTPExportManualCorrectionTripMaterialsReimbursementJourney
+material-export	backup-excludes-anonymous-files-rejects-named-residue	./cmd/backup	TestBackupExcludesAnonymousExportSpoolAndRejectsNamedResidue
+material-export	64MiB-package-heap-allocation-below-8MiB	./internal/application/materialexports	TestMaterialExport64MiBUsesBoundedHeapAndDiskSpool
+material-export	preparing-reserves-both-slots-and-cancels	./internal/application/materialexports	TestMaterialExportPreparingSlotsAndCancellationAreBounded
+manual-allocation-date	30-day-recommendation-31-day-explicit-choice-and-literal-search	./internal/application/reviews	TestManualAllocationCrossDateWindowSearchAndPreservation
+manual-allocation-date	full-supported-calendar-distance	./internal/adapters/postgresql	TestAllocationCalendarDistanceDoesNotOverflowDuration
+bad-debt	canonical-state-version-and-reason	./internal/domain	TestBadDebtCanonicalInputAndImmutableRequestIdentity
+bad-debt	direct-indirect-lock-unlink-soft-delete-history	./internal/application/reviews	TestBadDebtLifecycleProtectsDirectAndIndirectTrips
+bad-debt	replay-version-role-tenant-correction-preservation	./internal/application/reviews	TestBadDebtReplayVersionRoleTenantAndCorrection
+bad-debt	concurrent-mark-and-trip-delete	./internal/application/reviews	TestBadDebtConcurrentMarkDeleteHasSerializableOutcome
+bad-debt	decision-and-exact-committed-version-step	./internal/application/reviews	TestBadDebtDecisionRequiresExactCommittedVersionStep
+bad-debt	concurrent-idempotency-key-reuse-conflict	./internal/application/reviews	TestBadDebtConcurrentDifferentFactSameKeyConflicts
+bad-debt	forward-upgrade-preservation-and-rollback	./internal/application/reviews	TestBadDebtForwardUpgradePreservesDataAndRollsBack
+bad-debt	HTTP-permissions-CSRF-version-replay-and-trip-delete	./internal/transport/httpapi	TestHTTPBadDebtPermissionsVersionReplayAndTripProtection
+restore-activation	durable-incomplete-and-existing-target-rejection	./internal/adapters/postgresql	TestRestoreBeginPersistsBarrierAndRejectsExistingTargets
+restore-activation	non-table-catalog-target-rejection	./internal/adapters/postgresql	TestRestoreRejectsNonTableObjectsInTarget
+restore-activation	runtime-read-only-operation-state	./internal/adapters/postgresql	TestRestoreRuntimeRoleCannotMutateActivation
+restore-activation	migration-restore-serialization	./internal/adapters/postgresql	TestRestoreAndMigrationSerializeBeforeChoosingLifecycle
+restore-activation	exact-database-object-pair	./internal/adapters/restorestate	TestRestoreObjectIdentityRequiresExactPair
+restore-activation	corruption-permission-and-link-rejection	./internal/adapters/restorestate	TestRestoreObjectIdentityRejectsCorruptionAndUnsafeFiles
+restore-activation	ordinary-object-root-precondition	./internal/adapters/restorestate	TestOrdinaryObjectRootMustExistWithoutRestoreIdentity
+restore-activation	raw-master-key-terminal-byte-preservation	./internal/adapters/cryptography	TestLoadMasterKeyPreservesEveryRawTerminalByte

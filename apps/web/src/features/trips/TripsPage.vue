@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { sessionStore } from '../../app/session'
 import AppIcon from '../../components/AppIcon.vue'
 import {
@@ -12,17 +11,23 @@ import {
   type TripAttributionView,
 } from '../../data/client'
 import { formatMinorUnits } from '../facts/money'
+import TripEditor from './TripEditor.vue'
+import TripMaterialsPanel from './TripMaterialsPanel.vue'
+import MaterialExportPanel from '../reimbursements/MaterialExportPanel.vue'
 import {
   assignmentFingerprint,
   buildTripAssignmentDecision,
   tripAssignmentActionLabel,
   tripReasonLabel,
   tripViewLabels,
+  tripAssignmentStates,
 } from './model'
 
 type AssignmentAttempt = { fingerprint: string; idempotencyKey: string }
 
 const trips = ref<Trip[]>([])
+const editorOpen = ref(false)
+const editingTrip = ref<Trip>()
 const selectedTripID = ref('')
 const view = ref<TripAttributionView>('suggested')
 const candidates = ref<TripAttributionCandidate[]>([])
@@ -39,14 +44,62 @@ const reasonDrafts = ref<Record<string, string>>({})
 const rowErrors = ref<Record<string, string>>({})
 const attempts = new Map<string, AssignmentAttempt>()
 const tripViews: TripAttributionView[] = ['all', 'suggested', 'assigned']
+let tripLoadRevision = 0
+let candidateLoadRevision = 0
+let editorTrigger: HTMLElement | null = null
+const createButton = ref<HTMLButtonElement>()
 
 const canRead = computed(() => sessionStore.current.value?.capabilities.includes('facts.read'))
 const canManage = computed(() =>
   sessionStore.current.value?.capabilities.includes('trip_assignments.manage'),
 )
 const selectedTrip = computed(() => trips.value.find((trip) => trip.id === selectedTripID.value))
+const canDelete = computed(
+  () => sessionStore.current.value?.capabilities.includes('resources.delete') ?? false,
+)
+
+function openEditor(trip?: Trip) {
+  editorTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  editingTrip.value = trip
+  editorOpen.value = true
+}
+
+async function closeEditor() {
+  editorOpen.value = false
+  await nextTick()
+  if (editorTrigger?.isConnected) editorTrigger.focus()
+  else createButton.value?.focus()
+}
+
+async function savedTrip(id: string) {
+  editorOpen.value = false
+  success.value = id
+    ? '行程已保存，允许自动归属的支付已重新计算。'
+    : '行程已删除，费用、凭证与报销历史均已保留。'
+  await loadTrips(id)
+  await nextTick()
+  createButton.value?.focus()
+}
+
+async function changePreference(candidate: TripAttributionCandidate, mode: 'auto' | 'blocked') {
+  if (offline.value || changingFactID.value) return
+  changingFactID.value = candidate.fact_id
+  rowErrors.value[candidate.fact_id] = ''
+  try {
+    await api.tripPreference(candidate.fact_id, mode, candidate.fact_version)
+    success.value =
+      mode === 'auto' ? '已恢复自动归属并重新计算。' : '已保持无归属，后续自动重算不会覆盖该选择。'
+    await loadTrips()
+  } catch (caught) {
+    rowErrors.value[candidate.fact_id] =
+      caught instanceof ApiError ? caught.message : '偏好更新失败，请刷新后重试'
+  } finally {
+    changingFactID.value = ''
+  }
+}
 
 async function loadTrips(preferredTripID = selectedTripID.value) {
+  const revision = ++tripLoadRevision
   if (!canRead.value) {
     forbidden.value = true
     loading.value = false
@@ -56,7 +109,9 @@ async function loadTrips(preferredTripID = selectedTripID.value) {
   error.value = ''
   forbidden.value = false
   try {
-    trips.value = (await api.trips()).items
+    const page = await api.trips()
+    if (revision !== tripLoadRevision) return
+    trips.value = page.items
     selectedTripID.value = trips.value.some((trip) => trip.id === preferredTripID)
       ? preferredTripID
       : (trips.value[0]?.id ?? '')
@@ -64,6 +119,7 @@ async function loadTrips(preferredTripID = selectedTripID.value) {
     nextCursor.value = ''
     if (selectedTripID.value) await loadCandidates(false)
   } catch (caught) {
+    if (revision !== tripLoadRevision) return
     forbidden.value = caught instanceof ApiError && caught.status === 403
     error.value = forbidden.value
       ? ''
@@ -71,31 +127,41 @@ async function loadTrips(preferredTripID = selectedTripID.value) {
         ? caught.message
         : '行程列表加载失败，请稍后重试'
   } finally {
-    loading.value = false
+    if (revision === tripLoadRevision) loading.value = false
   }
 }
 
 async function loadCandidates(append: boolean) {
   const tripID = selectedTripID.value
   if (!tripID || offline.value || (append && !nextCursor.value)) return
+  const revision = ++candidateLoadRevision
+  const selectedView = view.value
   if (append) loadingMore.value = true
   else candidatesLoading.value = true
   error.value = ''
   try {
     const page = await api.tripAttributionCandidates(
       tripID,
-      view.value,
+      selectedView,
       append ? nextCursor.value : '',
       20,
     )
-    if (selectedTripID.value !== tripID) return
+    if (
+      selectedTripID.value !== tripID ||
+      view.value !== selectedView ||
+      revision !== candidateLoadRevision
+    )
+      return
     candidates.value = append ? [...candidates.value, ...page.items] : page.items
     nextCursor.value = page.next_cursor ?? ''
   } catch (caught) {
+    if (revision !== candidateLoadRevision) return
     error.value = caught instanceof ApiError ? caught.message : '行程归属候选加载失败，请稍后重试'
   } finally {
-    candidatesLoading.value = false
-    loadingMore.value = false
+    if (revision === candidateLoadRevision) {
+      candidatesLoading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
@@ -195,11 +261,29 @@ onUnmounted(() => {
     <header class="page-header">
       <div>
         <h1>行程归属</h1>
-        <p>整理行程中的支付与发票，参考日期建议后确认归属。</p>
+        <p>手动创建一趟出差，归集多张机票、行程凭证和相关费用。</p>
       </div>
-      <button v-if="canRead" class="button" type="button" :disabled="offline" @click="loadTrips()">
-        刷新
-      </button>
+      <div class="page-actions">
+        <button
+          v-if="canManage"
+          ref="createButton"
+          class="button button-primary"
+          type="button"
+          :disabled="offline || editorOpen"
+          @click="openEditor()"
+        >
+          新建行程
+        </button>
+        <button
+          v-if="canRead"
+          class="button"
+          type="button"
+          :disabled="offline || loading"
+          @click="loadTrips()"
+        >
+          刷新
+        </button>
+      </div>
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
@@ -215,18 +299,27 @@ onUnmounted(() => {
       </button>
     </div>
 
+    <TripEditor
+      v-if="editorOpen && canManage"
+      :key="editingTrip?.id ?? 'new'"
+      :trip="editingTrip"
+      :can-delete="canDelete"
+      :offline="offline"
+      @saved="savedTrip"
+      @cancel="closeEditor"
+    />
+
     <div v-if="loading" class="panel state-layout" role="status">
       <span class="spinner spinner-large" aria-hidden="true"></span><strong>正在读取行程</strong
-      ><span>正在整理已确认的行程与单据。</span>
+      ><span>正在整理行程与单据。</span>
     </div>
     <div v-else-if="forbidden" class="panel state-layout">
       <span class="state-glyph"><AppIcon name="lock" /></span><strong>没有查看行程的权限</strong
       ><span>请联系管理员开通查看权限。</span>
     </div>
     <div v-else-if="trips.length === 0" class="panel state-layout">
-      <span class="state-glyph"><AppIcon name="trip" /></span><strong>还没有正式行程</strong
-      ><span>上传行程单并完成审核后，即可在这里整理相关支付和发票。</span>
-      <RouterLink class="button" to="/inbox">前往收件箱</RouterLink>
+      <span class="state-glyph"><AppIcon name="trip" /></span><strong>还没有行程</strong
+      ><span>点击“新建行程”填写名称、日期与时区。凭证可以稍后上传，同一行程可关联多张机票。</span>
     </div>
 
     <div v-else class="trip-layout">
@@ -244,12 +337,15 @@ onUnmounted(() => {
               :aria-current="trip.id === selectedTripID ? 'true' : undefined"
               @click="selectTrip(trip.id)"
             >
-              <strong>{{ trip.destination }}</strong>
-              <span>{{ trip.origin ? `${trip.origin} → ` : '' }}{{ trip.destination }}</span>
+              <strong>{{ trip.name }}</strong>
+              <span v-if="trip.bad_debt_locked" class="status-pill status-warning"
+                >坏账删除保护</span
+              >
+              <span>{{ trip.timezone || '待确认时区' }}</span>
               <time>{{ trip.start_date }} 至 {{ trip.end_date }}</time>
               <small
-                >支付 {{ trip.assigned_payment_count }} · 发票
-                {{ trip.assigned_invoice_count }}</small
+                >支付 {{ trip.assigned_payment_count }} · 发票 {{ trip.assigned_invoice_count }} ·
+                凭证 {{ trip.material_count }}</small
               >
             </button>
           </li>
@@ -259,9 +355,21 @@ onUnmounted(() => {
       <section class="panel trip-workspace" aria-labelledby="trip-workspace-title">
         <div class="panel-heading trip-workspace-heading">
           <div>
-            <h2 id="trip-workspace-title">{{ selectedTrip?.destination }}</h2>
+            <h2 id="trip-workspace-title">{{ selectedTrip?.name }}</h2>
             <p>{{ selectedTrip?.start_date }} 至 {{ selectedTrip?.end_date }}</p>
+            <p v-if="selectedTrip?.notes">{{ selectedTrip.notes }}</p>
+            <p v-if="selectedTrip?.bad_debt_locked" class="notice notice-warning">
+              关联单据已标记坏账；处理坏账或调整关联前，不能删除此行程。
+            </p>
           </div>
+          <button
+            v-if="canManage"
+            class="button button-small"
+            :disabled="editorOpen || offline"
+            @click="openEditor(selectedTrip)"
+          >
+            编辑行程
+          </button>
           <div class="trip-view-switch" role="group" aria-label="归属候选筛选">
             <button
               v-for="labelView in tripViews"
@@ -275,6 +383,19 @@ onUnmounted(() => {
             </button>
           </div>
         </div>
+
+        <p v-if="selectedTrip && !selectedTrip.timezone" class="notice notice-warning">
+          此行程保留自之前版本，尚未确认时区。编辑并保存时区后才会参与自动归属；已有人工归属保持不变。
+        </p>
+        <MaterialExportPanel
+          v-if="selectedTrip"
+          :key="selectedTrip.id"
+          :scope="{ kind: 'trip', id: selectedTrip.id }"
+          :disabled="editorOpen || offline || !!changingFactID || candidatesLoading"
+        />
+        <p class="quiet-block">
+          支付按实际交易时间与行程时区自动匹配，重叠时由人工选择。下方日期与关联建议仅作参考，发票始终人工归属。
+        </p>
 
         <div v-if="candidatesLoading" class="state-layout" role="status">
           <span class="spinner" aria-hidden="true"></span><strong>正在计算归属候选</strong>
@@ -302,7 +423,8 @@ onUnmounted(() => {
                 }}</strong>
               </header>
               <p class="trip-current-assignment">
-                当前行程：{{ candidate.current_trip_destination || '未归属' }}
+                当前行程：{{ candidate.current_trip_name || '未归属' }} ·
+                {{ tripAssignmentStates[candidate.assignment_state] }}
               </p>
               <ul class="trip-reasons" aria-label="建议原因">
                 <li v-for="reason in candidate.reason_codes" :key="reason">
@@ -325,6 +447,26 @@ onUnmounted(() => {
                 ></textarea>
                 <div class="trip-assignment-actions">
                   <small>{{ [...(reasonDrafts[candidate.fact_id] ?? '')].length }} / 500</small>
+                  <button
+                    v-if="candidate.fact_type === 'payment' && candidate.assignment_mode !== 'auto'"
+                    class="button"
+                    :disabled="Boolean(changingFactID) || offline"
+                    @click="changePreference(candidate, 'auto')"
+                  >
+                    恢复自动归属
+                  </button>
+                  <button
+                    v-if="
+                      candidate.fact_type === 'payment' &&
+                      !candidate.current_assignment_id &&
+                      candidate.assignment_mode === 'auto'
+                    "
+                    class="button"
+                    :disabled="Boolean(changingFactID) || offline"
+                    @click="changePreference(candidate, 'blocked')"
+                  >
+                    保持无归属
+                  </button>
                   <button
                     class="button button-primary"
                     type="button"
@@ -364,5 +506,12 @@ onUnmounted(() => {
         <p v-else-if="candidates.length" class="trip-list-end">当前筛选已全部加载。</p>
       </section>
     </div>
+    <TripMaterialsPanel
+      v-if="canRead && !forbidden"
+      :trip="selectedTrip"
+      :can-manage="Boolean(canManage)"
+      :offline="offline"
+      @changed="loadTrips()"
+    />
   </div>
 </template>

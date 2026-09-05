@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/restorestate"
 )
 
 const restoredProcessingLeaseGrace = 2 * time.Minute
@@ -66,6 +67,9 @@ func createBackup(ctx context.Context, options backupOptions) (backupManifest, e
 		return backupManifest{}, err
 	}
 	defer store.Close()
+	if err := store.CheckObjectRoot(ctx, options.Objects); err != nil {
+		return backupManifest{}, err
+	}
 
 	staging, err := os.MkdirTemp(filepath.Dir(options.Output), ".sbm-backup-")
 	if err != nil {
@@ -256,34 +260,40 @@ func restoreBackup(ctx context.Context, options restoreOptions) (backupManifest,
 	if err := copyRegularFile(options.MasterKeySource, stagedKey); err != nil {
 		return backupManifest{}, 0, err
 	}
-	if err := restorePostgresDump(ctx, restoreConfig, filepath.Join(options.Backup, "database", "sbm.pgcustom")); err != nil {
-		return backupManifest{}, 0, err
-	}
-	if err := postgresqladapter.Migrate(ctx, restoreConfig); err != nil {
-		return backupManifest{}, 0, fmt.Errorf("verify restored migrations: %w", err)
-	}
-	store, err := postgresqladapter.Open(ctx, restoreConfig)
+	activation, err := postgresqladapter.BeginRestore(ctx, restoreConfig)
 	if err != nil {
 		return backupManifest{}, 0, err
 	}
-	defer store.Close()
-	if err := verifyRestoredState(ctx, store.DB(), objectStage, options.Migrations, manifest, manifest.Database.TableCounts); err != nil {
+	defer activation.Close()
+	if err := restorePostgresDump(ctx, restoreConfig, filepath.Join(options.Backup, "database", "sbm.pgcustom")); err != nil {
+		return backupManifest{}, 0, err
+	}
+	if err := activation.VerifyMigrations(ctx); err != nil {
+		return backupManifest{}, 0, fmt.Errorf("verify restored migrations: %w", err)
+	}
+	if err := restoreCheckpoint(options, "database_restored"); err != nil {
+		return backupManifest{}, 0, err
+	}
+	if err := verifyRestoredState(ctx, activation.DB(), objectStage, options.Migrations, manifest, manifest.Database.TableCounts); err != nil {
 		return backupManifest{}, 0, fmt.Errorf("verify restored PostgreSQL state: %w", err)
 	}
-	invalidatedSessions, err := invalidateSessions(ctx, store.DB())
+	invalidatedSessions, err := invalidateRestoredCredentials(ctx, activation.DB())
 	if err != nil {
 		return backupManifest{}, 0, err
 	}
 	if invalidatedSessions != manifest.Database.TableCounts["sessions"] {
 		return backupManifest{}, 0, errors.New("restored session invalidation count differs from manifest")
 	}
-	if err := deferRestoredProcessingLeases(ctx, store.DB(), time.Now().UTC()); err != nil {
+	if err := deferRestoredProcessingLeases(ctx, activation.DB(), time.Now().UTC()); err != nil {
 		return backupManifest{}, 0, err
 	}
 	expectedCounts := cloneCounts(manifest.Database.TableCounts)
 	expectedCounts["sessions"] = 0
-	if err := verifyRestoredState(ctx, store.DB(), objectStage, options.Migrations, manifest, expectedCounts); err != nil {
+	if err := verifyRestoredState(ctx, activation.DB(), objectStage, options.Migrations, manifest, expectedCounts); err != nil {
 		return backupManifest{}, 0, fmt.Errorf("verify activated PostgreSQL state: %w", err)
+	}
+	if err := restorestate.Write(objectStage, activation.Identity()); err != nil {
+		return backupManifest{}, 0, err
 	}
 	publish := options.publish
 	if publish == nil {
@@ -296,7 +306,37 @@ func restoreBackup(ctx context.Context, options restoreOptions) (backupManifest,
 			return backupManifest{}, 0, fmt.Errorf("publish restored %s: %w", item.label, err)
 		}
 	}
+	if err := verifyRestoredState(ctx, activation.DB(), options.Objects, options.Migrations, manifest, expectedCounts); err != nil {
+		return backupManifest{}, 0, err
+	}
+	sourceKey, err := loadMasterKey(options.MasterKeySource)
+	if err != nil {
+		return backupManifest{}, 0, err
+	}
+	defer clear(sourceKey)
+	publishedKey, err := loadMasterKey(options.MasterKey)
+	if err != nil {
+		return backupManifest{}, 0, err
+	}
+	defer clear(publishedKey)
+	if !reflect.DeepEqual(sourceKey, publishedKey) {
+		return backupManifest{}, 0, errors.New("restored master key differs from independent source")
+	}
+	if err := restoreCheckpoint(options, "before_activation"); err != nil {
+		return backupManifest{}, 0, err
+	}
+	if err := activation.Complete(ctx, options.Objects); err != nil {
+		return backupManifest{}, 0, err
+	}
 	return manifest, invalidatedSessions, nil
+}
+
+// 仅供同包测试注入确定性中断；不存在环境或 CLI 绕过入口。
+func restoreCheckpoint(options restoreOptions, phase string) error {
+	if options.checkpoint != nil {
+		return options.checkpoint(phase)
+	}
+	return nil
 }
 
 // deferRestoredProcessingLeases 保留恢复快照中的 attempt/version，同时给只读

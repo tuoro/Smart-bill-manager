@@ -80,3 +80,41 @@ func statusFor(cause error) int {
 	status, _, _ := errorDetails(cause)
 	return status
 }
+
+// 标量写契约只接受精确的一组字段，不采用重复键的末值或忽略缺失字段。
+func decodeScalarFields(response http.ResponseWriter, request *http.Request, fields map[string]any) error {
+	request.Body = http.MaxBytesReader(response, request.Body, 8192)
+	decoder := json.NewDecoder(request.Body)
+	first, err := decoder.Token()
+	if err != nil || first != json.Delim('{') {
+		return domain.ErrInvalidInput
+	}
+	seen := make(map[string]bool, len(fields))
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return domain.ErrInvalidInput
+		}
+		name, ok := token.(string)
+		target, known := fields[name]
+		if !ok || !known || seen[name] {
+			return domain.ErrInvalidInput
+		}
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); err != nil {
+			return domain.ErrInvalidInput
+		}
+		if string(raw) == "null" || json.Unmarshal(raw, target) != nil {
+			return domain.ErrInvalidInput
+		}
+		seen[name] = true
+	}
+	last, err := decoder.Token()
+	if err != nil || last != json.Delim('}') || len(seen) != len(fields) {
+		return domain.ErrInvalidInput
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return domain.ErrInvalidInput
+	}
+	return nil
+}

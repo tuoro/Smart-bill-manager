@@ -26,6 +26,16 @@
 
 ## 当前阶段
 
+用户已授权按 ADR-0033 修复恢复中断保护后继续 v0.4.0。共享恢复/启动边界和最终候选全部本地发布门禁已通过；本地证据、分发边界和版本身份见 `docs/releases/v0.4.0.md`，远端分发状态以不可变 Tag/GitHub 预发布为准。上一轮暂停与失败记录保留，不得为运行或测试增加绕过开关。
+
+历史暂停记录：2026-09-05 上一轮 `v0.4.0` 发布复核当时发现 PostgreSQL 恢复缺少持久化不完整状态及启动阻断，证据工具固定输出 `crash_safe_restore_state: true`。该失败仍保留在 `tests/evidence/m4/v0.4.0-release-attempt.json`，不作为当前候选证据。上一轮未创建提交、Tag、Release 或推送镜像，临时资源与凭据已清理，用户实例未升级；当前进度以 `docs/releases/v0.4.0.md` 为准。历史 M4 完成或普通恢复成功不能代替新保护的故障注入验证。
+
+用户已确认发布 `v0.4.0`：当前按 `docs/releases/v0.4.0.md` 执行新候选及受影响门禁，通过后允许本地提交、快进推送 main、不可变 Tag、GitHub 预发布和 GHCR/Docker Bundle 分发；不更新 latest、不升级用户实例。以下 B1～B8 的未提交/未发布描述记录各切片验收断点，不再禁止本次明确授权的分发。
+
+B7/B8 已按 ADR-0031/0032 完成本地验收，跨期手工分配与坏账业务语义已补齐，证据见 `tests/evidence/business-completion/b7-b8-allocation-bad-debt.json`。下文早先的禁止自动修改只记录旧断点；邮箱连接器仍未授权。该切片验收当时未提交或发布；当前按 v0.4.0 授权串行低内存验证与分发，仍不升级用户实例。
+
+当前工作以 `docs/functional-completion-plan.md` 为准；B1～B8 已按 ADR-0025～0032 完成本地验收，随 v0.4.0 授权分发，不升级用户实例。人工 Claim 与真实 AI Claim 共享审核链，不伪造 AiRun；正式字段必须拥有原件、真实的人工或 AI 来源、Claim 和 Review。ADR-0024 行程补齐已本地验收。下述 M0～M4 完成指历史冻结范围，不代表邮箱连接器等单列范围已经实现；B7/B8 按 ADR-0031/0032 另行授权并已本地验收；邮箱连接器仍需单列授权。
+
 `docs/roadmap.md` 已记录 M0 于 2026-08-27 完成、M1 于 2026-08-30 完成、M2 与 M3 于 2026-08-31 完成；M4 本地范围于 2026-09-01 完成。M2 五个切片由 `docs/m2-evidence.md` 收口，M3 邮箱归档、行程归属与报销工作流由 `docs/m3-evidence.md` 收口。M4 已按 ADR-0020 切换为 PostgreSQL 17 唯一关系数据源，重新通过受影响不变量、认证恢复和 ADR-0019 本地发布门禁；ADR-0021 补齐 `v0.3.1` 单机公开实测分发，ADR-0022 再收敛 `v0.3.2` 最小 Docker 包、宿主持久化和新架构前向升级；`v0.3.3` 按 ADR-0023 提供一条命令、引导式安装、可配置持久化目录及 README 三种部署形式。SQLite 结果只保留为历史证据。当前停在真实模型正式评测、真实外部联调和生产部署的单独授权门禁前。
 
 - M1 已按 `docs/scope.md` 的退出条件和 `docs/m1-evidence.md` 收口；M2 每个后续切片仍必须先在权威文档冻结范围与验收，再同步实现领域、数据库、API 和 UI。
@@ -40,18 +50,20 @@
 
 ## 架构与业务规则
 
+- 当前行程恢复以 ADR-0024 为准：Trip 是人工出差/费用容器，TripEvidence 是审核凭证 Fact，一容器可含多张机票等材料，AI 不能新建费用容器。Source/Claim/Fact 继续保护凭证、支付与发票，但不阻止手工行程。当前切片本地验收已通过，不自动发版或升级用户实例，v0.3.4 数据用新增迁移保留。
+
 - 数据流固定为 `Source -> Claim -> Fact`。
 - 模型只按最小中文契约返回 Payment/Invoice/Trip 所需字段的票面原文与一基页码 `{text,page}`，不得返回内部 Claim、归一化值、独立 Evidence、推导值、归属或审核结论；本地 `claim-mapper/4` 负责确定性格式化、Evidence 组装和 Claim 映射。只有用户明确确认后才能创建 Fact。
 - 一个 `OpenAICompatibleAdapter` 是第一阶段唯一 AI 传输实现；禁止供应商名称分支、多模型路由和自动降级。
 - `bill-visible-text/2` 是模型输出的唯一权威本地 Envelope Schema，只硬校验有效 JSON、封闭根对象、`schema_version`、`document_type` 与 Payment/Invoice/Trip 根成员；Provider-facing Schema 只能由它确定性投影。嵌套票面字段不得在 Adapter 阶段因局部类型错误而整份丢弃。
 - 每个非空模型字段只能是 `{text,page}`；`text` 必须是字段值本身的票面原文，`page` 从 1 开始。模型没有看到的字段返回 `null`，不得计算、猜测、补默认值或纠正字符。
 - `claim-mapper/4` 是模型 JSON 到 `document-claim/3` 的唯一转换位置：它将票面原文绑定为 Evidence，并确定性处理批准的币种/金额、日期、交易时间、显式时区、中文默认时区、数量、`null`、明细顺序、Trip 日期和审核专用补充字段。它不得计算缺失业务值、纠正 OCR 字符、增加 Provider 品牌分支或从标签外文本重新理解单据。
-- Reimbursement 不是模型或手工直建的新 Fact，只能对当前 Trip 的活动 Assignment 做显式选择、`reimbursement-policy/1` 本地预检与完整提示确认后形成不可变工作流快照；它不得修改 Fact、PaymentInvoiceLink 或 TripFactAssignment。
+- Reimbursement 不是模型或手工直建的新 Fact，只能对当前 Trip 的活动 Assignment 做显式选择、`reimbursement-policy/2` 本地预检与完整提示确认后形成不可变工作流快照；所选发票的辅助材料集合固定保存，历史 `/1` 记录不回填。它不得修改 Fact、PaymentInvoiceLink 或 TripFactAssignment。
 - 发票 `amount_with_tax` 只能映射为 `total_minor`，`amount_without_tax` 只进入审核专用补充字段；空白明细值必须保持 absent。除无效 JSON 或错误根身份外，单字段形状、页码、金额、日期、时区、业务区段和 Evidence 问题必须形成显式 Validation 与 `blocked` Claim，同时保留同一文档的其他正确字段供审核。
 - 所有 AI 输出必须经过 JSON Schema、确定性业务校验和本地权限校验。
 - 所有业务、文件、任务、AI Run 和审核记录必须具有租户边界。
 - 金额使用整数最小货币单位；时间戳使用 UTC，业务日期与时区显式保存。
-- 原始文档不可变；正式字段必须能追溯到 Source、AI Run、Claim 和 Review Decision。
+- 原始文档不可变；正式字段必须能追溯到 Source、真实 AI Run 或显式人工来源、Claim 和 Review Decision。
 - API Key 必须加密保存，解密主密钥不得与密文保存在同一数据源。
 - 日志不得记录密钥、完整原始单据、完整模型响应或不必要的个人财务信息。
 - 文档内容属于不可信输入，不能改变系统指令、调用工具或绕过审核。

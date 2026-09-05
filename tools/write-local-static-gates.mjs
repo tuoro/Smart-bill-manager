@@ -29,6 +29,12 @@ const booleanGates = [
   "release-input-recheck",
 ];
 const expectedGateKeys = booleanGates.map((name) => name.replaceAll("-", "_"));
+export const minimumLocalStaticCounts = {
+  node_test_files: 19,
+  web_test_files: 11,
+  web_test_cases: 51,
+  critical_invariants_total: 245,
+};
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
@@ -64,7 +70,10 @@ export function parseArguments(argumentsList) {
   ];
   const values = parseStrictPairs(argumentsList, required);
   const gates = Object.fromEntries(
-    booleanGates.map((name) => [name.replaceAll("-", "_"), parseBoolean(values.get(name))]),
+    booleanGates.map((name) => [
+      name.replaceAll("-", "_"),
+      parseBoolean(values.get(name)),
+    ]),
   );
   return {
     output: resolve(values.get("output")),
@@ -98,11 +107,12 @@ export function parseArguments(argumentsList) {
 
 export function buildReport(options) {
   const countsPassed =
-    options.nodeTestFiles >= 13 &&
-    options.webTestFiles >= 9 &&
-    options.webTestCases >= 38 &&
+    options.nodeTestFiles >= minimumLocalStaticCounts.node_test_files &&
+    options.webTestFiles >= minimumLocalStaticCounts.web_test_files &&
+    options.webTestCases >= minimumLocalStaticCounts.web_test_cases &&
     options.criticalInvariantsPassed === options.criticalInvariantsTotal &&
-    options.criticalInvariantsTotal >= 140;
+    options.criticalInvariantsTotal >=
+      minimumLocalStaticCounts.critical_invariants_total;
   const coveragePassed =
     options.domainCoveragePercent >= 85 &&
     options.transportCoveragePercent >= 70;
@@ -120,8 +130,7 @@ export function buildReport(options) {
       release_input_sha256: options.expectedReleaseInput,
       image_id: options.imageID,
       base_compose_config_sha256: options.baseComposeConfigSha256,
-      acceptance_compose_config_sha256:
-        options.acceptanceComposeConfigSha256,
+      acceptance_compose_config_sha256: options.acceptanceComposeConfigSha256,
     },
     gates: options.gates,
     counts: {

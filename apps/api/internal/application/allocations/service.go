@@ -54,6 +54,7 @@ func (s Service) GetWorkspace(
 	if workspace.Targets == nil {
 		workspace.Targets = []ports.AllocationTarget{}
 	}
+	workspace.NextCursor = encodeTargetCursor(workspace.NextCursor, targetScope(tenant.TenantID, anchorType, anchorID, "", "recommended"))
 	return workspace, nil
 }
 

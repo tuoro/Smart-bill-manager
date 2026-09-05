@@ -1,6 +1,6 @@
 # 本地运行与发布候选运维说明
 
-状态：M4 PostgreSQL 本地候选与 v0.3.3 Docker 单机公开实测分发已完成；v0.3.4 UI 补丁按独立发布范围验收，不代表生产部署
+状态：当前按 v0.4.0 业务工作流预发布范围验收与分发；支持单机公开实测，不代表生产部署。具体候选身份与验收结果以对应 Release 和安全聚合证据为准。
 
 普通使用者应先阅读 [Docker 单机自托管部署](deployment.md)。本文件保留候选构建、深度诊断、恢复和验收细节，不是首次安装的最短路径。
 
@@ -12,7 +12,7 @@
 2. 用 `node tools/check-release-image.mjs digest --repository-root <rebirth-absolute-path>` 计算发布输入摘要。摘要覆盖实际镜像输入，证据、文档和原始报告不进入该集合。
 3. 将 HEAD 与 64 位发布输入摘要分别写入仓库外的运行环境文件，字段为 `SBM_BUILD_SHA` 与 `SBM_RELEASE_INPUT_SHA256`。其他字段从 `infra/compose/.env.example` 复制后按本机情况填写；不得修改或提交示例文件来保存本地值。
 4. 用 `docker image inspect` 核对本机 `golang:1.26.7` 与 `golang:1.26.7-alpine3.23` 的固定 image ID；只能在 ID 精确匹配后，用本地 `docker tag` 将前者别名为 `smart-bill-manager:go-glibc-source-local`。不得 `pull`、解析新标签或从其他镜像替代。
-5. 在 owner-only `/tmp` 隔离父目录中运行 `node tools/prepare-local-release-artifacts.mjs --output-directory <new-artifact-dir> --expected-head <HEAD> --expected-release-input-sha256 <digest> --npm-cache <existing-npm-cache-root> --go-module-cache <existing-complete-pkg/mod> --poppler-bundle <existing-audited-poppler-bundle-root>`。准备器会在独立工作区执行固定 Node 24.19.0 的 `npm ci --offline` 和生产构建，在固定 Go 1.26.7 禁网容器中执行 `go mod verify` 与四个二进制构建，并校验 Poppler 26.05.0 manifest、来源 SHA 和逐文件 SHA-256；它不会复用现有 `node_modules`。将成功目录写入仓库外环境文件的 `SBM_RELEASE_ARTIFACTS_SOURCE`。
+5. 在 owner-only `/tmp` 隔离父目录中运行 `node tools/prepare-local-release-artifacts.mjs --output-directory <new-artifact-dir> --expected-head <HEAD> --expected-release-input-sha256 <digest> --npm-cache <existing-npm-cache-root> --go-module-cache <existing-complete-pkg/mod> --poppler-bundle <existing-audited-poppler-bundle-root>`。准备器会在独立工作区执行固定 Node 24.19.0 的 `npm ci --offline` 和生产构建，在固定 Go 1.26.7 禁网容器中执行 `go mod verify` 与八个二进制构建（七个运行 CLI，另一个 `recovery-exercise` 仅供演练，不进入发布镜像），并校验 Poppler 26.05.0 manifest、来源 SHA 和逐文件 SHA-256；它不会复用现有 `node_modules`。将成功目录写入仓库外环境文件的 `SBM_RELEASE_ARTIFACTS_SOURCE`。
 6. `SBM_MASTER_KEY_SOURCE` 必须指向仓库外、owner-only、单硬链接的普通文件。允许 32 字节原始值、64 位十六进制或 padded base64。Owner 密码与 synthetic Provider key 必须使用彼此独立的文件，不能复用主密钥或彼此复用。
 7. 当前验收只复用本机已有的固定镜像、Poppler bundle 和依赖缓存。Compose 构建网络为 `none`；IANA 时区库只从已固定 image ID 的 glibc 来源镜像复制，至少核验 `Asia/Shanghai` 与 `zone.tab`。Dockerfile 会复核运行 contract、产物身份、工具来源、精确文件清单、全部 SHA-256 和实际 PDF 工具版本；缓存或产物不完整时必须失败并另行申请下载授权，不能临时改成联网构建。
 
@@ -44,7 +44,7 @@
 2. `/api/v1/ready`：区分数据库不可用与 Job 调度器未就绪；
 3. 容器配置：核对镜像 ID、发布输入标签、只读根、capability、资源上限、tmpfs 和两个持久卷；
 4. 入口分类码：`master_key_source_invalid`、`master_key_source_permissions`、`master_key_format_invalid`、`master_key_target_*` 与 `data_directory_*` 必须按对应文件或挂载修复，不能复制宽权限密钥绕过；
-5. 数据库运行锁与 `.restore-state`：运行中的写者、`incomplete`、损坏或孤立恢复状态均应阻止启动；
+5. 数据库 `sbm_restore.state` 与对象根 `restore-identity.json`：阶段仅存数据库，身份文件只负责配对；`incomplete`、损坏、错配或孤立身份均阻止启动，不得手工删除/改写为 complete。失败恢复应保留离线诊断并使用全新目标重试；
 6. 最小化查看最近日志，只在交互终端中使用，不把完整日志持久化到仓库或验收证据。日志中发现凭据或真实财务字段时立即停止、隔离并按安全事件处理。
 
 Synthetic Provider 在 acceptance overlay 中与 app 共享网络命名空间，只监听 `127.0.0.1:19086`；其既有固定 Node 镜像必须通过不可变 image ID 门禁，该 overlay 的默认网络为 internal，不能访问外网。Provider 在 app 容器启动后立即启动，app 的 acceptance 启动屏障会在 Provider `/healthz` 可用后才执行 Server，避免恢复中的过期租约在本地 Provider 尚未就绪时消耗冻结的单次重试；30 秒内未就绪则明确启动失败。模型必须是 `synthetic-*`，exercise 必须为本轮 UUIDv4。任何真实 Provider、真实邮箱或真实图片发送仍需重新授权。
@@ -55,8 +55,10 @@ Linux Docker 的 internal bridge 不激活声明的宿主端口映射。正式�
 
 ## 容量、备份与升级
 
+本地 Go 回归使用低并发和每个测试进程 60 秒超时；审核模块增长后可按 `go test -list` 的完整顶层清单拆成最多 20 项的串行批次。必须核对全部测试恰好执行一次、不遗漏或跳过，并将所有批次的语句覆盖取并集后执行原 85% / 70% 门槛；不能通过延长卡住用例、减少断言或缩小数据集获得通过。
+
 - 新安装分别监控运行目录下的 `data/postgres`、`data/objects`、`backups` 和宿主可用空间；既有 `v0.3.1` named volume 部署继续监控对应数据库卷与对象卷。任一数据位置达到 80% 使用率时停止大批量导入并先扩容或清理已获批准的历史备份。不得从对象目录手工删除文件释放空间。
-- 升级前停止全部写入者，并使用镜像内 `/app/backup backup` 创建新的认证数据包；随后用独立主密钥副本执行 `/app/backup verify`。没有独立验证通过的数据包不得作为回滚点。
+- 升级前停止全部写入者，并使用镜像内 `/app/backup backup` 创建新的认证数据包；随后用独立主密钥副本执行 `/app/backup verify`，并用同版本 `backup restore` 在一次性空数据库、对象根及独立密钥目标完成语义恢复核对。只有包认证通过不等于独立验证完成，未完整验证的数据包不得作为回滚点。
 - 新架构版本升级默认保留数据库与对象；`upgrade --backup-confirmed` 只刷新角色、按版本顺序事务化执行尚未应用的 PostgreSQL migration，并在全部成功后启动 app。它不接受旧数据库、不复制对象、不删除当前数据，也不自动回退。
 - 数据库、对象和主密钥必须分别托管；备份包不含主密钥。ProviderConfig 删除后的旧密文备份最长保留 30 天。
 - 恢复只写全新目标，成功后全部旧 Session 失效。详见 `docs/backup-restore.md`，不得省略 HMAC、迁移、Schema、对象精确清单、完整性、外键和恢复状态检查。

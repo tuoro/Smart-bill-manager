@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -67,11 +68,11 @@ func TestTripConfirmationIsAtomicTraceableAndIdempotent(t *testing.T) {
 	if err := fixture.store.DB().QueryRowContext(context.Background(), `
 		SELECT trip.destination, trip.start_date::text, trip.end_date::text,
 		       decision.fact_type, decision.association_mode,
-		       (SELECT count(*) FROM trips WHERE tenant_id = ?),
+		       (SELECT count(*) FROM trip_evidence_facts WHERE tenant_id = ?),
 		       (SELECT count(*) FROM review_decisions WHERE tenant_id = ? AND action = 'confirm' AND fact_type = 'trip'),
 		       (SELECT count(*) FROM fact_field_origins WHERE tenant_id = ? AND trip_id = trip.id),
 		       (SELECT count(*) FROM audit_events WHERE tenant_id = ? AND action = 'fact_confirmed' AND resource_type = 'trip')
-		FROM trips trip
+		FROM trip_evidence_facts trip
 		JOIN review_decisions decision
 		  ON decision.tenant_id = trip.tenant_id
 		 AND decision.id = trip.source_review_decision_id
@@ -101,13 +102,16 @@ func TestTripConfirmationIsAtomicTraceableAndIdempotent(t *testing.T) {
 		t.Fatalf("Trip persistence = destination:%q dates:%s/%s type:%s mode:%v counts:%d/%d/%d/%d",
 			destination, startDate, endDate, factType, associationMode, trips, decisions, origins, audits)
 	}
+	var containers int
+	if err := fixture.store.DB().QueryRowContext(context.Background(), `SELECT count(*) FROM trips WHERE tenant_id = ?`, fixture.tenant.TenantID).Scan(&containers); err != nil || containers != 0 {
+		t.Fatalf("review must not create expense containers: count=%d error=%v", containers, err)
+	}
 }
 
 func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	fixture := newReviewFixture(t)
 	ctx := context.Background()
 	reviewService := NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(3 * time.Hour)})
-	factService := NewFactService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(8 * time.Hour)})
 	tripService := tripapp.NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(6 * time.Hour)})
 
 	paymentReview, err := reviewService.Get(ctx, fixture.tenant, fixture.jobID)
@@ -140,26 +144,11 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tripOneReview := seedAdditionalReview(t, fixture, tripEnvelope("上海", "北京", "2026-08-26", "2026-08-28"), "trip-one")
-	tripOne, err := reviewService.Confirm(ctx, fixture.tenant, tripOneReview.Job.ID, ConfirmInput{
-		ExpectedRevision: tripOneReview.Revision,
-		IdempotencyKey:   "trip-seed-one",
-		RequestID:        "trip-seed-one-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tripTwoReview := seedAdditionalReview(t, fixture, tripEnvelope("北京", "深圳", "2026-09-10", "2026-09-12"), "trip-two")
-	tripTwo, err := reviewService.Confirm(ctx, fixture.tenant, tripTwoReview.Job.ID, ConfirmInput{
-		ExpectedRevision: tripTwoReview.Revision,
-		IdempotencyKey:   "trip-seed-two",
-		RequestID:        "trip-seed-two-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	blockPaymentAuto(t, fixture, payment.FactID)
+	tripOne := seedManualTrip(t, fixture, "trip-one", "北京", "2026-08-26", "2026-08-28")
+	tripTwo := seedManualTrip(t, fixture, "trip-two", "深圳", "2026-09-10", "2026-09-12")
 
-	page, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.FactID, domain.TripAttributionViewSuggested, "", 1)
+	page, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.TripID, domain.TripAttributionViewSuggested, "", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,14 +156,14 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 		!page.Items[0].Suggested || !containsString(page.Items[0].ReasonCodes, "date_inside_trip") {
 		t.Fatalf("first Trip attribution page = %#v", page)
 	}
-	next, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.FactID, domain.TripAttributionViewSuggested, page.NextCursor, 1)
+	next, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.TripID, domain.TripAttributionViewSuggested, page.NextCursor, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(next.Items) != 1 || next.Items[0].FactID == page.Items[0].FactID {
 		t.Fatalf("second Trip attribution page = %#v", next)
 	}
-	if _, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripTwo.FactID, domain.TripAttributionViewSuggested, page.NextCursor, 1); !hasRuleCode(err, "invalid_cursor") {
+	if _, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripTwo.TripID, domain.TripAttributionViewSuggested, page.NextCursor, 1); !hasRuleCode(err, "invalid_cursor") {
 		t.Fatalf("cross-query cursor error = %v", err)
 	}
 	confirmPaymentAt := func(label, merchant, transactionTime string) string {
@@ -194,7 +183,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	beforeID := confirmPaymentAt("trip-near-before", "Before Merchant", "2026-08-23T12:00:00+08:00")
 	afterID := confirmPaymentAt("trip-near-after", "After Merchant", "2026-08-31T12:00:00+08:00")
 	outsideID := confirmPaymentAt("trip-outside-window", "Outside Merchant", "2026-08-22T12:00:00+08:00")
-	allCandidates, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.FactID, domain.TripAttributionViewAll, "", 100)
+	allCandidates, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.TripID, domain.TripAttributionViewAll, "", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,14 +191,15 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	assertTripCandidateReason(t, allCandidates.Items, afterID, true, "date_within_3_days_after")
 	assertTripCandidateReason(t, allCandidates.Items, outsideID, false, "")
 
-	desiredTripOne := tripOne.FactID
+	desiredTripOne := tripOne.TripID
 	assignInput := tripapp.AssignmentInput{
-		FactType:       domain.DocumentPayment,
-		FactID:         payment.FactID,
-		DesiredTripID:  &desiredTripOne,
-		Reason:         "支付发生在行程日期内",
-		IdempotencyKey: "trip-assign-payment-one",
-		RequestID:      "trip-assign-payment-one-request",
+		ExpectedFactVersion: assignmentVersion(t, fixture, domain.DocumentPayment, payment.FactID),
+		FactType:            domain.DocumentPayment,
+		FactID:              payment.FactID,
+		DesiredTripID:       &desiredTripOne,
+		Reason:              "支付发生在行程日期内",
+		IdempotencyKey:      "trip-assign-payment-one",
+		RequestID:           "trip-assign-payment-one-request",
 	}
 	assigned, err := tripService.Assign(ctx, fixture.tenant, assignInput)
 	if err != nil {
@@ -218,7 +208,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	if assigned.Action != "assign" || assigned.AssignmentID == "" || assigned.Replayed {
 		t.Fatalf("Trip assignment = %#v", assigned)
 	}
-	assignedPage, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.FactID, domain.TripAttributionViewAssigned, "", 50)
+	assignedPage, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.TripID, domain.TripAttributionViewAssigned, "", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,9 +229,10 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 		t.Fatalf("changed assignment replay error = %v", err)
 	}
 
-	desiredTripTwo := tripTwo.FactID
+	desiredTripTwo := tripTwo.TripID
 	expectedAssigned := assigned.AssignmentID
 	moved, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
+		ExpectedFactVersion:  assigned.FactVersion,
 		FactType:             domain.DocumentPayment,
 		FactID:               payment.FactID,
 		DesiredTripID:        &desiredTripTwo,
@@ -258,6 +249,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	}
 	expectedMoved := moved.AssignmentID
 	unassigned, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
+		ExpectedFactVersion:  moved.FactVersion,
 		FactType:             domain.DocumentPayment,
 		FactID:               payment.FactID,
 		ExpectedAssignmentID: &expectedMoved,
@@ -273,6 +265,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	}
 
 	if _, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
+		ExpectedFactVersion:  moved.FactVersion,
 		FactType:             domain.DocumentPayment,
 		FactID:               payment.FactID,
 		DesiredTripID:        &desiredTripOne,
@@ -286,7 +279,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 
 	viewer := fixture.tenant
 	viewer.Role = domain.RoleViewer
-	if _, err := tripService.AttributionCandidates(ctx, viewer, tripOne.FactID, domain.TripAttributionViewAll, "", 50); err != nil {
+	if _, err := tripService.AttributionCandidates(ctx, viewer, tripOne.TripID, domain.TripAttributionViewAll, "", 50); err != nil {
 		t.Fatalf("viewer Trip attribution read = %v", err)
 	}
 	if _, err := tripService.Assign(ctx, viewer, assignInput); !errors.Is(err, domain.ErrForbidden) {
@@ -294,65 +287,57 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	}
 	reviewer := fixture.tenant
 	reviewer.Role = domain.RoleReviewer
-	if _, err := tripService.AttributionCandidates(ctx, reviewer, tripOne.FactID, domain.TripAttributionViewAll, "", 50); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := tripService.AttributionCandidates(ctx, reviewer, tripOne.TripID, domain.TripAttributionViewAll, "", 50); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("reviewer Trip attribution error = %v", err)
 	}
 	foreign := addTenantReviewFixture(t, fixture)
-	foreignTripReview := seedAdditionalReview(t, foreign, tripEnvelope("广州", "成都", "2026-09-20", "2026-09-22"), "foreign-trip")
-	foreignTrip, err := reviewService.Confirm(ctx, foreign.tenant, foreignTripReview.Job.ID, ConfirmInput{
-		ExpectedRevision: foreignTripReview.Revision,
-		IdempotencyKey:   "foreign-trip-confirm",
-		RequestID:        "foreign-trip-confirm-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tripService.AttributionCandidates(ctx, fixture.tenant, foreignTrip.FactID, domain.TripAttributionViewAll, "", 50); !errors.Is(err, domain.ErrNotFound) {
+	foreignTrip := seedManualTrip(t, foreign, "foreign-trip", "成都", "2026-09-20", "2026-09-22")
+	if _, err := tripService.AttributionCandidates(ctx, fixture.tenant, foreignTrip.TripID, domain.TripAttributionViewAll, "", 50); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross-tenant Trip read error = %v", err)
 	}
-	foreignTripID := foreignTrip.FactID
+	foreignTripID := foreignTrip.TripID
 	if _, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-		FactType:       domain.DocumentPayment,
-		FactID:         payment.FactID,
-		DesiredTripID:  &foreignTripID,
-		Reason:         "跨租户目标必须拒绝",
-		IdempotencyKey: "trip-cross-tenant-target",
-		RequestID:      "trip-cross-tenant-target-request",
+		FactType:            domain.DocumentPayment,
+		FactID:              payment.FactID,
+		DesiredTripID:       &foreignTripID,
+		Reason:              "跨租户目标必须拒绝",
+		ExpectedFactVersion: unassigned.FactVersion,
+		IdempotencyKey:      "trip-cross-tenant-target",
+		RequestID:           "trip-cross-tenant-target-request",
 	}); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross-tenant Trip assignment error = %v", err)
 	}
 
-	desiredTripOne = tripOne.FactID
+	desiredTripOne = tripOne.TripID
 	finance := fixture.tenant
 	finance.Role = domain.RoleFinance
-	if _, err := tripService.AttributionCandidates(ctx, finance, tripOne.FactID, domain.TripAttributionViewAll, "", 50); err != nil {
+	if _, err := tripService.AttributionCandidates(ctx, finance, tripOne.TripID, domain.TripAttributionViewAll, "", 50); err != nil {
 		t.Fatalf("finance Trip attribution read = %v", err)
 	}
 	invoiceAssignment, err := tripService.Assign(ctx, finance, tripapp.AssignmentInput{
-		FactType:       domain.DocumentInvoice,
-		FactID:         invoice.FactID,
-		DesiredTripID:  &desiredTripOne,
-		Reason:         "发票属于当前行程",
-		IdempotencyKey: "trip-assign-invoice",
-		RequestID:      "trip-assign-invoice-request",
+		ExpectedFactVersion: assignmentVersion(t, fixture, domain.DocumentInvoice, invoice.FactID),
+		FactType:            domain.DocumentInvoice,
+		FactID:              invoice.FactID,
+		DesiredTripID:       &desiredTripOne,
+		Reason:              "发票属于当前行程",
+		IdempotencyKey:      "trip-assign-invoice",
+		RequestID:           "trip-assign-invoice-request",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	linkedPage, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.FactID, domain.TripAttributionViewAll, "", 100)
+	linkedPage, err := tripService.AttributionCandidates(ctx, fixture.tenant, tripOne.TripID, domain.TripAttributionViewAll, "", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertTripCandidateReason(t, linkedPage.Items, payment.FactID, true, "linked_fact_assigned_to_trip")
-	if err := factService.Delete(ctx, fixture.tenant, domain.DocumentTrip, tripOne.FactID, "delete-trip-request"); err != nil {
-		t.Fatal(err)
-	}
+	deleteManualTrip(t, fixture, tripOne, "delete-trip-request")
 
-	trips, err := factService.ListTrips(ctx, fixture.tenant)
+	trips, err := tripService.List(ctx, fixture.tenant)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(trips) != 1 || trips[0].ID != tripTwo.FactID {
+	if len(trips) != 1 || trips[0].ID != tripTwo.TripID {
 		t.Fatalf("Trips after deletion = %#v", trips)
 	}
 	var active, ended, decisions, audits int
@@ -427,23 +412,12 @@ func TestConcurrentTripAssignmentsAllowOneWinner(t *testing.T) {
 		t.Fatal(err)
 	}
 	tripIDs := make([]string, 0, 2)
+	blockPaymentAuto(t, fixture, payment.FactID)
 	for index, destination := range []string{"北京", "深圳"} {
-		review := seedAdditionalReview(
-			t,
-			fixture,
-			tripEnvelope("上海", destination, "2026-08-26", "2026-08-28"),
-			"trip-concurrent-"+string(rune('a'+index)),
-		)
-		confirmed, confirmErr := reviewService.Confirm(ctx, fixture.tenant, review.Job.ID, ConfirmInput{
-			ExpectedRevision: review.Revision,
-			IdempotencyKey:   "trip-concurrent-confirm-" + string(rune('a'+index)),
-			RequestID:        "trip-concurrent-confirm-request",
-		})
-		if confirmErr != nil {
-			t.Fatal(confirmErr)
-		}
-		tripIDs = append(tripIDs, confirmed.FactID)
+		trip := seedManualTrip(t, fixture, "trip-concurrent-"+string(rune('a'+index)), destination, "2026-08-26", "2026-08-28")
+		tripIDs = append(tripIDs, trip.TripID)
 	}
+	concurrentVersion := assignmentVersion(t, fixture, domain.DocumentPayment, payment.FactID)
 
 	type outcome struct {
 		resultTripID string
@@ -456,12 +430,13 @@ func TestConcurrentTripAssignmentsAllowOneWinner(t *testing.T) {
 		go func(index int, tripID string) {
 			defer wait.Done()
 			_, assignErr := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-				FactType:       domain.DocumentPayment,
-				FactID:         payment.FactID,
-				DesiredTripID:  &tripID,
-				Reason:         "并发归属到不同合成行程",
-				IdempotencyKey: "trip-concurrent-assign-" + string(rune('a'+index)),
-				RequestID:      "trip-concurrent-assign-request-" + string(rune('a'+index)),
+				ExpectedFactVersion: concurrentVersion,
+				FactType:            domain.DocumentPayment,
+				FactID:              payment.FactID,
+				DesiredTripID:       &tripID,
+				Reason:              "并发归属到不同合成行程",
+				IdempotencyKey:      "trip-concurrent-assign-" + string(rune('a'+index)),
+				RequestID:           "trip-concurrent-assign-request-" + string(rune('a'+index)),
 			})
 			outcomes <- outcome{resultTripID: tripID, err: assignErr}
 		}(index, tripID)
@@ -537,7 +512,7 @@ func paymentEnvelopeAt(merchant, transactionTime string) domain.ClaimEnvelope {
 	for index := range envelope.Fields {
 		switch envelope.Fields[index].Path {
 		case "merchant":
-			envelope.Fields[index].Value = json.RawMessage(`"` + merchant + `"`)
+			envelope.Fields[index].Value = json.RawMessage(strconv.Quote(merchant))
 			envelope.Fields[index].Evidence = []domain.CandidateEvidence{{Page: 1, Quote: merchant}}
 		case "transaction_time":
 			envelope.Fields[index].Value = json.RawMessage(`"` + transactionTime + `"`)

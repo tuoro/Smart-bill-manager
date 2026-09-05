@@ -1,9 +1,69 @@
 #!/usr/bin/env node
 
 import { constants } from "node:fs";
+import { createHash } from "node:crypto";
 import { open, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
+import { buildReport as buildStaticReport } from "./write-local-static-gates.mjs";
+
+export const activationCaseNames = [
+  "database_restored_failure_blocks_runtime",
+  "key_publication_failure_blocks_runtime",
+  "before_activation_failure_blocks_runtime",
+  "restore_state_malformed_or_mismatched_blocked",
+  "paired_complete_and_rebackup_passed",
+  "ordinary_bootstrap_and_upgrade_preserved",
+  "runtime_cannot_mutate_state",
+  "server_and_account_cli_fail_closed",
+  "concurrent_migration_restore_boundary_passed",
+];
+export const recoveryReportNames = [
+  "backup",
+  "verify",
+  "scratchRestore",
+  "restore",
+  "snapshot",
+  "api",
+  "database",
+];
+
+// 由实际执行控制器在核验每步容器 image ID 后调用；绑定该次原始结果，禁止换候选贴标。
+export function bindRecoveryExecution(inputs, identity, executedImages) {
+  assertExactKeys(
+    identity,
+    new Set(["baseline_head", "release_input_sha256", "image_id"]),
+    "recovery execution identity",
+  );
+  assertExactKeys(
+    executedImages,
+    new Set(recoveryReportNames),
+    "recovery executed images",
+  );
+  if (
+    !/^[0-9a-f]{40}$/.test(identity.baseline_head) ||
+    !/^[0-9a-f]{64}$/.test(identity.release_input_sha256) ||
+    !/^sha256:[0-9a-f]{64}$/.test(identity.image_id) ||
+    recoveryReportNames.some(
+      (name) => !inputs[name] || executedImages[name] !== identity.image_id,
+    )
+  )
+    throw new Error("recovery execution candidate differs");
+  return {
+    report_kind: "m4-recovery-execution-binding",
+    protocol_version: 1,
+    build_identity: identity,
+    executed_images: executedImages,
+    report_sha256: Object.fromEntries(
+      recoveryReportNames.map((name) => [
+        name,
+        createHash("sha256").update(JSON.stringify(inputs[name])).digest("hex"),
+      ]),
+    ),
+    passed: true,
+  };
+}
 
 const manifestKind = "smart-bill-manager-backup";
 const manifestVersion = 3;
@@ -37,6 +97,9 @@ async function main() {
     readProtectedJSON(options.apiResult),
     readProtectedJSON(options.databaseResult),
     readProtectedJSON(options.staticGates),
+    readProtectedJSON(options.activationResult),
+    readProtectedJSON(options.scratchRestoreResult),
+    readProtectedJSON(options.executionBinding),
   ]);
   const evidence = buildEvidence(
     {
@@ -47,6 +110,9 @@ async function main() {
       api: inputs[4],
       database: inputs[5],
       staticGates: inputs[6],
+      activation: inputs[7],
+      scratchRestore: inputs[8],
+      executionBinding: inputs[9],
     },
     options,
   );
@@ -60,11 +126,21 @@ async function main() {
 }
 
 function buildEvidence(inputs, metadata) {
-  const { backup, verify, restore, snapshot, api, database, staticGates } =
-    inputs;
+  const {
+    backup,
+    verify,
+    restore,
+    snapshot,
+    api,
+    database,
+    staticGates,
+    activation,
+    scratchRestore,
+  } = inputs;
   validateOperation(backup, "backup", false);
   validateOperation(verify, "verify", false);
   validateOperation(restore, "restore", true);
+  validateOperation(scratchRestore, "restore", true);
   const comparableOperationFields = [
     "manifest_kind",
     "manifest_version",
@@ -75,7 +151,11 @@ function buildEvidence(inputs, metadata) {
     "database_table_count",
   ];
   for (const field of comparableOperationFields) {
-    if (backup[field] !== verify[field] || backup[field] !== restore[field]) {
+    if (
+      backup[field] !== verify[field] ||
+      backup[field] !== restore[field] ||
+      backup[field] !== scratchRestore[field]
+    ) {
       throw new Error(`backup operations disagree on ${field}`);
     }
   }
@@ -83,7 +163,15 @@ function buildEvidence(inputs, metadata) {
   validateAPIResult(api);
   validateDatabaseResult(database, snapshot);
   validateStaticGates(staticGates);
-  validateRecoverySequence(backup, verify, restore, snapshot, api, database);
+  validateRecoverySequence(
+    backup,
+    verify,
+    scratchRestore,
+    restore,
+    snapshot,
+    api,
+    database,
+  );
   if (
     snapshot.exercise_id !== api.exercise_id ||
     snapshot.exercise_id !== database.exercise_id ||
@@ -93,7 +181,10 @@ function buildEvidence(inputs, metadata) {
   ) {
     throw new Error("recovery evidence identities do not form one exercise");
   }
-  if (restore.invalidated_session_count !== snapshot.session_count) {
+  if (
+    restore.invalidated_session_count !== snapshot.session_count ||
+    scratchRestore.invalidated_session_count !== snapshot.session_count
+  ) {
     throw new Error("restore invalidation count differs from the snapshot");
   }
   if (
@@ -109,9 +200,23 @@ function buildEvidence(inputs, metadata) {
     throw new Error("API and database attempt counts differ after recovery");
   }
   validateMetadata(metadata);
+  validateActivation(activation, metadata, staticGates);
+  if (
+    !isDeepStrictEqual(
+      inputs.executionBinding,
+      bindRecoveryExecution(
+        inputs,
+        activation.build_identity,
+        inputs.executionBinding?.executed_images,
+      ),
+    )
+  )
+    throw new Error(
+      "recovery execution reports or candidate differ from their invocation binding",
+    );
   return {
     report_kind: "m4-backup-restore-gate-summary",
-    evidence_version: "M4-BACKUP-RESTORE-POSTGRESQL-2026-09-01",
+    evidence_version: "M4-BACKUP-RESTORE-POSTGRESQL-ADR0033",
     recorded_date: metadata.recordedDate,
     workspace: {
       branch: metadata.branch,
@@ -121,13 +226,8 @@ function buildEvidence(inputs, metadata) {
       pushed: false,
     },
     stage: {
-      m0: "complete",
-      m1: "complete",
-      m2: "complete",
-      m3: "complete",
-      m4: "complete_local_only",
       authenticated_backup_restore_slice: "complete",
-      next_slice: "formal_real_model_accuracy_evaluation",
+      remaining_release_gates: "separately_required",
       model_accuracy_gate: "pending_explicit_authorization",
     },
     protocol: {
@@ -141,7 +241,7 @@ function buildEvidence(inputs, metadata) {
       postgresql_custom_dump_verified: true,
       postgresql_constraints_and_foreign_keys_verified: true,
       migration_and_schema_identity_checks: true,
-      crash_safe_restore_state: true,
+      crash_safe_restore_state: activation.passed,
       existing_targets_overwritten: false,
       restored_sessions_invalidated_before_activation: true,
       same_authenticated_backup_set_across_operations: true,
@@ -162,7 +262,11 @@ function buildEvidence(inputs, metadata) {
     },
     offline_operations: {
       backup: { passed: true, elapsed_ms: backup.elapsed_ms },
-      independent_verify: { passed: true, elapsed_ms: verify.elapsed_ms },
+      independent_verify: {
+        passed: true,
+        package_elapsed_ms: verify.elapsed_ms,
+        scratch_restore_elapsed_ms: scratchRestore.elapsed_ms,
+      },
       restore: {
         passed: true,
         elapsed_ms: restore.elapsed_ms,
@@ -202,26 +306,16 @@ function buildEvidence(inputs, metadata) {
       rto_limit_ms: api.rto_limit_ms,
       rto_passed: api.rto_elapsed_ms <= api.rto_limit_ms,
     },
+    build_identity: activation.build_identity,
+    execution_binding: inputs.executionBinding,
+    activation_cases: Object.fromEntries(
+      activationCaseNames.map((name) => [name, activation.cases[name]]),
+    ),
     gates: {
-      go_test_all: staticGates.go_test_all,
-      go_vet_all: staticGates.go_vet_all,
-      go_build_all_without_vcs_stamp:
-        staticGates.go_build_all_without_vcs_stamp,
-      web_check: staticGates.web_check,
-      recovery_controller_tests: staticGates.recovery_controller_tests,
-      critical_invariant_branches: staticGates.critical_invariant_branches,
-      domain_application_statement_coverage:
-        staticGates.domain_application_statement_coverage,
-      infrastructure_transport_statement_coverage:
-        staticGates.infrastructure_transport_statement_coverage,
-      git_diff_check: staticGates.git_diff_check,
-      credential_and_private_asset_scan:
-        staticGates.credential_and_private_asset_scan,
-      binary_and_large_file_check: staticGates.binary_and_large_file_check,
-      temporary_artifact_check: staticGates.temporary_artifact_check,
-      current_slice_process_residue_check:
-        staticGates.current_slice_process_residue_check,
-      browser_acceptance: "passed_in_final_local_release_gate",
+      ...staticGates.gates,
+      counts: staticGates.counts,
+      coverage: staticGates.coverage,
+      browser_acceptance: "separate_required_gate",
     },
     excluded: {
       formal_real_model_accuracy_evaluation: "not_run",
@@ -244,7 +338,7 @@ function buildEvidence(inputs, metadata) {
       },
       checkpoint: {
         local_commit_authorized: true,
-        push_forbidden: true,
+        distribution: "separate_release_workflow",
       },
     },
     overall_status: "passed",
@@ -500,83 +594,71 @@ function validateDatabaseResult(result, snapshot) {
   }
 }
 
-function validateStaticGates(gates) {
+function validateStaticGates(report) {
+  try {
+    const identity = report.build_identity;
+    const expected = buildStaticReport({
+      expectedHead: identity.baseline_head,
+      expectedReleaseInput: identity.release_input_sha256,
+      imageID: identity.image_id,
+      baseComposeConfigSha256: identity.base_compose_config_sha256,
+      acceptanceComposeConfigSha256: identity.acceptance_compose_config_sha256,
+      nodeTestFiles: report.counts.node_test_files,
+      webTestFiles: report.counts.web_test_files,
+      webTestCases: report.counts.web_test_cases,
+      criticalInvariantsPassed: report.counts.critical_invariants_passed,
+      criticalInvariantsTotal: report.counts.critical_invariants_total,
+      domainCoveragePercent: report.coverage.domain_application_percent,
+      transportCoveragePercent:
+        report.coverage.infrastructure_transport_percent,
+      gates: report.gates,
+    });
+    if (!expected.passed || !isDeepStrictEqual(expected, report))
+      throw new Error("shape");
+  } catch {
+    throw new Error(
+      "static gates have missing fields or fail current thresholds",
+    );
+  }
+}
+
+function validateActivation(report, metadata, staticGates) {
   assertExactKeys(
-    gates,
+    report,
     new Set([
-      "kind",
-      "version",
-      "go_test_all",
-      "go_vet_all",
-      "go_build_all_without_vcs_stamp",
-      "web_check",
-      "recovery_controller_tests",
-      "critical_invariant_branches",
-      "domain_application_statement_coverage",
-      "infrastructure_transport_statement_coverage",
-      "git_diff_check",
-      "credential_and_private_asset_scan",
-      "binary_and_large_file_check",
-      "temporary_artifact_check",
-      "current_slice_process_residue_check",
+      "report_kind",
+      "protocol_version",
+      "build_identity",
+      "cases",
+      "passed",
     ]),
-    "static gates",
+    "activation evidence",
   );
   assertExactKeys(
-    gates.recovery_controller_tests,
-    new Set(["passed", "failed", "total"]),
-    "recovery controller tests",
+    report.build_identity,
+    new Set(["baseline_head", "release_input_sha256", "image_id"]),
+    "activation identity",
   );
   assertExactKeys(
-    gates.critical_invariant_branches,
-    new Set(["passed", "total", "percentage"]),
-    "critical invariant branches",
+    report.cases,
+    new Set(activationCaseNames),
+    "activation cases",
   );
-  const coverageKeys = new Set([
-    "percentage",
-    "covered",
-    "total",
-    "required_percentage",
-    "passed",
-  ]);
-  assertExactKeys(
-    gates.domain_application_statement_coverage,
-    coverageKeys,
-    "domain application coverage",
-  );
-  assertExactKeys(
-    gates.infrastructure_transport_statement_coverage,
-    coverageKeys,
-    "infrastructure transport coverage",
-  );
+  const identity = report.build_identity;
   if (
-    gates.kind !== "m4-backup-static-gates" ||
-    gates.version !== 1 ||
-    gates.go_test_all !== "passed" ||
-    gates.go_vet_all !== "passed" ||
-    gates.go_build_all_without_vcs_stamp !== "passed" ||
-    gates.web_check !== "passed" ||
-    !Number.isSafeInteger(gates.recovery_controller_tests?.passed) ||
-    gates.recovery_controller_tests.passed < 14 ||
-    gates.recovery_controller_tests?.failed !== 0 ||
-    gates.recovery_controller_tests.passed !==
-      gates.recovery_controller_tests.total ||
-    gates.critical_invariant_branches?.passed !==
-      gates.critical_invariant_branches?.total ||
-    gates.critical_invariant_branches?.total < 136 ||
-    gates.critical_invariant_branches?.percentage !== 100 ||
-    gates.domain_application_statement_coverage?.passed !== true ||
-    !validCoverage(gates.domain_application_statement_coverage, 85) ||
-    gates.infrastructure_transport_statement_coverage?.passed !== true ||
-    !validCoverage(gates.infrastructure_transport_statement_coverage, 70) ||
-    gates.git_diff_check !== "passed" ||
-    gates.credential_and_private_asset_scan !== "passed" ||
-    gates.binary_and_large_file_check !== "passed" ||
-    gates.temporary_artifact_check !== "passed" ||
-    gates.current_slice_process_residue_check !== "passed"
+    report.report_kind !== "restore-activation-gate-result" ||
+    report.protocol_version !== 1 ||
+    report.passed !== true ||
+    activationCaseNames.some((name) => report.cases[name] !== true) ||
+    identity.baseline_head !== metadata.baseSHA ||
+    identity.release_input_sha256 !== metadata.releaseInputSHA256 ||
+    identity.image_id !== metadata.imageID ||
+    Object.keys(identity).some(
+      (key) => identity[key] !== staticGates.build_identity[key],
+    )
   ) {
     throw new Error(
-      "static gates are incomplete or below the frozen thresholds",
+      "activation evidence is incomplete or has mismatched build identity",
     );
   }
 }
@@ -584,6 +666,7 @@ function validateStaticGates(gates) {
 function validateRecoverySequence(
   backup,
   verify,
+  scratchRestore,
   restore,
   snapshot,
   api,
@@ -596,6 +679,8 @@ function validateRecoverySequence(
     backup.operation_finished_at_epoch_ms > api.recovery_started_at_epoch_ms ||
     verify.operation_started_at_epoch_ms < api.recovery_started_at_epoch_ms ||
     verify.operation_finished_at_epoch_ms >
+      scratchRestore.operation_started_at_epoch_ms ||
+    scratchRestore.operation_finished_at_epoch_ms >
       restore.operation_started_at_epoch_ms ||
     restore.operation_finished_at_epoch_ms > api.verified_at_epoch_ms ||
     databaseVerified < api.verified_at_epoch_ms
@@ -606,30 +691,12 @@ function validateRecoverySequence(
   }
 }
 
-function validCoverage(coverage, required) {
-  if (
-    !Number.isSafeInteger(coverage.covered) ||
-    !Number.isSafeInteger(coverage.total) ||
-    coverage.covered < 0 ||
-    coverage.total < 1 ||
-    coverage.covered > coverage.total ||
-    coverage.required_percentage !== required ||
-    typeof coverage.percentage !== "number" ||
-    !Number.isFinite(coverage.percentage)
-  ) {
-    return false;
-  }
-  const calculated = (coverage.covered * 100) / coverage.total;
-  return (
-    coverage.percentage >= required &&
-    Math.abs(coverage.percentage - calculated) < 0.005
-  );
-}
-
 function validateMetadata(metadata) {
   if (
     !/^[A-Za-z0-9._/-]+$/.test(metadata.branch) ||
     !/^[0-9a-f]{40}$/.test(metadata.baseSHA) ||
+    !/^[0-9a-f]{64}$/.test(metadata.releaseInputSHA256) ||
+    !/^sha256:[0-9a-f]{64}$/.test(metadata.imageID) ||
     !/^\d{4}-\d{2}-\d{2}$/.test(metadata.recordedDate)
   ) {
     throw new Error("evidence metadata is invalid");
@@ -748,6 +815,11 @@ function parseArguments(argumentsList) {
     "api-result",
     "database-result",
     "static-gates",
+    "activation-result",
+    "scratch-restore-result",
+    "execution-binding",
+    "release-input-sha256",
+    "image-id",
     "branch",
     "base-sha",
     "recorded-date",
@@ -767,6 +839,11 @@ function parseArguments(argumentsList) {
     apiResult: resolve(values.get("api-result")),
     databaseResult: resolve(values.get("database-result")),
     staticGates: resolve(values.get("static-gates")),
+    activationResult: resolve(values.get("activation-result")),
+    scratchRestoreResult: resolve(values.get("scratch-restore-result")),
+    executionBinding: resolve(values.get("execution-binding")),
+    releaseInputSHA256: values.get("release-input-sha256"),
+    imageID: values.get("image-id"),
     branch: values.get("branch"),
     baseSHA: values.get("base-sha"),
     recordedDate: values.get("recorded-date"),

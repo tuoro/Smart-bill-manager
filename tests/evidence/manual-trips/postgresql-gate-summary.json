@@ -1,0 +1,109 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "ADR-0024-manual-trip-workspace",
+  "date": "2026-09-04",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "changed_file_count_excluding_evidence": 72,
+  "worktree_sha256": "782533fab704838c97388d1513692e012b2ec6a0a42c2f2f0dfa29071c645dd1",
+  "fingerprint_method": "SHA-256 of sorted modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/manual-trips/",
+  "prior_static_stage": "tests/evidence/manual-trips/local-check-summary.json",
+  "database": {
+    "major": 17,
+    "source": "existing local postgres:17 image; no pull",
+    "network": "dedicated internal Docker network with no host database port",
+    "data": "synthetic only; no existing instance or data accessed",
+    "initial_migration_unchanged": true,
+    "upgrade": "actual 0001 fixture with active/deleted evidence, assignments, manual withdrawal and three reimbursement states; injected 0002 failure rolls back schema and ledger; normal and repeated upgrade preserve historical rows",
+    "coverage": [
+      "multiple reviewed tickets in one manually created workspace",
+      "no Provider, Document, Claim or Review required for manual create/edit",
+      "unique time match, overlap, manual priority, explicit restore-auto and blocked preference",
+      "full local day boundaries, 23-hour and 25-hour DST days, timezone-only edits",
+      "payment confirmation concurrent with create, overlapping creates, stale unassigned version and manual/recalculation competition",
+      "automatic link and material move failures roll back management, links, versions and audit",
+      "cross-tenant zero writes and real database-backed Owner/Finance/Reviewer/Viewer HTTP operations",
+      "container edits invalidate reimbursement preview but preserve submitted snapshots",
+      "same-ID historical evidence/container deletion isolation and keyset recalculation across 101 payments"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "final_test_command": "go test -json -p 1 -timeout 60s -count=1 -covermode=atomic -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 470,
+    "failed": 0,
+    "skipped": 0,
+    "critical_invariants": {
+      "matrix": "tests/critical-invariants.tsv",
+      "passed": 151,
+      "total": 151,
+      "method": "every matrix package/test identity matched a pass event from the final uncached full test run; no missing or skipped mapped tests"
+    },
+    "statement_coverage": {
+      "domain_application": { "covered": 3250, "total": 3795, "percent": 85.64, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 4004, "total": 5390, "percent": 74.29, "threshold": 70, "passed": true },
+      "method": "unique coverage blocks with any positive atomic count; existing package boundaries and thresholds unchanged"
+    },
+    "vet": "passed for all packages and postgresql_tools backup tests",
+    "build": "passed for all packages"
+  },
+  "authenticated_backup_restore": {
+    "test": "TestManualTripAuthenticatedBackupRestore",
+    "build_tag": "postgresql_tools",
+    "compile_command": "CGO_ENABLED=0 go test -p 1 -tags postgresql_tools -c -o <isolated-output>/backup-tools.test ./cmd/backup",
+    "run": "compiled test in existing PostgreSQL 17 image with explicit native pg_dump/pg_restore paths and file-only database authentication; -test.timeout=60s",
+    "passed": 1,
+    "failed_in_final_run": 0,
+    "real_tools": true,
+    "fresh_authenticated_manifest": true,
+    "table_inventory_and_audit_verified": true,
+    "nonempty_workspace_and_management_history_equal": true,
+    "limits": "evidence and material tables are empty in this restore fixture; their nonempty source/history preservation is covered by upgrade and application tests, not claimed as a full restore exercise",
+    "failure_history": [
+      { "stage": "initial_restore", "passed": false, "cause": "schema fingerprint used physical ordinal positions left sparse by dropped columns" },
+      { "stage": "diagnostic_restore", "passed": false, "schema_equal": false, "table_counts_equal": true, "audit_equal": true }
+    ],
+    "fix": "canonicalize visible column sequence while retaining existing column definitions and constraint/index/function/trigger checks; do not change an existing authenticated manifest",
+    "negative_regression": "column order, names, integer type, NOT NULL and DEFAULT changes still produce different identities"
+  },
+  "unchanged_web_from_prior_stage": {
+    "unit_tests_passed": 38,
+    "mock_browser_tests_passed": 14,
+    "typecheck_lint_format_openapi_build": "passed in prior static stage; Web implementation unchanged during database validation",
+    "release_policy_unit_tests_passed": 3,
+    "responsive_capture_widths_px": [1440, 1024, 768, 384],
+    "themes": ["light", "dark"],
+    "scope": "mocked API browser workflows plus separate real PostgreSQL-backed HTTP handler integration; not a deployed runtime browser gate"
+  },
+  "review": {
+    "git_diff_check": "passed",
+    "changed_or_untracked_files_over_1_mib": 0,
+    "targeted_secret_pattern_matches": 0,
+    "secret_scan_limit": "targeted known patterns and diff review, not universal secret detection",
+    "independent_read_only_reviews": "business constraints, new test assertions, restore root cause and evidence limitations reviewed; no concurrent file editing"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "go_maxprocs": 2,
+    "go_package_parallelism": 1,
+    "database_container_memory_mib": 1024,
+    "go_container_memory_mib": 2048,
+    "backup_tools_container_memory_mib": 512,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_host_available_memory_mib": 6575,
+    "swap": "pre-existing 3898 MiB used; no increase to resource limits or OOM retry",
+    "database_oom_killed": false,
+    "credentials": "new owner-only temporary password and random test master key; file-only use; never emitted",
+    "temporary_containers_network_volume_destroyed": true,
+    "temporary_credentials_data_reports_binaries_cache_destroyed": true,
+    "approximate_temporary_host_disk_removed_mib": 363,
+    "existing_user_app_and_database": "not changed or restarted"
+  },
+  "not_performed": [
+    "real Provider, real mailbox or external account integration",
+    "1,000 Document recovery exercise or full release performance/Lighthouse gates",
+    "new production image build, deployment or user instance upgrade",
+    "Git commit, push, tag or release"
+  ]
+}

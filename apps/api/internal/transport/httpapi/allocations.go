@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -24,6 +25,31 @@ func (s *Server) getAllocationWorkspaceHandler(response http.ResponseWriter, req
 		return
 	}
 	writeJSON(response, http.StatusOK, workspace)
+}
+
+func (s *Server) searchAllocationTargetsHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	values, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil {
+		writeError(response, request, domain.ErrInvalidInput)
+		return
+	}
+	for key, list := range values {
+		if len(list) != 1 || (key != "q" && key != "view" && key != "cursor") {
+			writeError(response, request, domain.ErrInvalidInput)
+			return
+		}
+	}
+	page, err := s.allocations.SearchTargets(request.Context(), tenantContext(principal), domain.DocumentType(request.PathValue("fact_type")), request.PathValue("fact_id"), allocations.TargetSearchInput{Query: values.Get("q"), View: values.Get("view"), Cursor: values.Get("cursor")})
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, page)
 }
 
 func (s *Server) adjustAllocationHandler(response http.ResponseWriter, request *http.Request) {

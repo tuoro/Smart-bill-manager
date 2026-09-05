@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import AppIcon from '../../components/AppIcon.vue'
+import { sessionStore } from '../../app/session'
 import {
   ApiError,
   api,
@@ -21,6 +22,7 @@ import {
   itemPageLabel,
   newInvoiceItem,
   parseItemPath,
+  refreshDraftFields,
   type AllocationEditor,
   type AssociationMode,
   type DocumentType,
@@ -38,6 +40,9 @@ const rejecting = ref(false)
 const error = ref('')
 const completed = ref<ConfirmResult | null>(null)
 const editing = ref(false)
+const needsRefresh = ref(false)
+const draftRefreshed = ref(false)
+const draftRechecked = ref(false)
 const documentType = ref<DocumentType>('unknown')
 const editors = ref<EditableField[]>([])
 const fieldErrors = ref<Record<string, string>>({})
@@ -126,6 +131,8 @@ const isTripReview = computed(() => review.value?.document_type === 'trip')
 const canConfirm = computed(() =>
   Boolean(
     review.value &&
+    !editing.value &&
+    !needsRefresh.value &&
     review.value.claim_status === 'ready_for_review' &&
     (isTripReview.value || associationDecision.value?.request) &&
     duplicateDecision.value?.request,
@@ -146,8 +153,20 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    review.value = await api.getReview(jobId.value)
-    resetEditor()
+    const latest = await api.getReview(jobId.value)
+    if (editing.value && review.value) {
+      editors.value = refreshDraftFields(review.value, latest, editors.value)
+      review.value = latest
+      needsRefresh.value = false
+      draftRefreshed.value = true
+      draftRechecked.value = false
+      associationMode.value = ''
+      allocationItems.value = allocationEditors(latest)
+      duplicateResolutionIds.value = []
+    } else {
+      review.value = latest
+      resetEditor()
+    }
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 404) {
       error.value = '该审核已结束或不存在，请返回收件箱查看最新状态。'
@@ -170,6 +189,9 @@ function resetEditor() {
   duplicateResolutionIds.value = []
   fieldErrors.value = {}
   editing.value = false
+  needsRefresh.value = false
+  draftRefreshed.value = false
+  draftRechecked.value = false
 }
 
 function startEditing() {
@@ -222,7 +244,7 @@ function toggleEvidence(evidenceId: string) {
 }
 
 async function saveRevision() {
-  if (!review.value) return
+  if (!review.value || needsRefresh.value || (draftRefreshed.value && !draftRechecked.value)) return
   const built = buildRevisionRequest(review.value, documentType.value, editors.value)
   fieldErrors.value = built.errors
   if (!built.request) {
@@ -298,6 +320,7 @@ function handleMutationError(caught: unknown) {
   if (caught instanceof ApiError && caught.code === 'duplicate_candidate_set_stale') {
     error.value = '疑似重复候选已变化。请保存当前字段为新版本后重新核对。'
   } else if (caught instanceof ApiError && caught.status === 409) {
+    needsRefresh.value = true
     error.value = '审核版本已变化。请刷新最新版本后重新核对。'
   } else {
     error.value = caught instanceof ApiError ? caught.message : '操作失败，请检查网络后重试'
@@ -350,8 +373,16 @@ onMounted(() => void load())
     <template v-else-if="completed">
       <section class="panel completion-state" aria-labelledby="completion-title">
         <span class="completion-mark"><AppIcon name="check" /></span>
-        <h1 id="completion-title">正式账单已创建</h1>
-        <p>审核已完成，字段来源与操作记录已一并保存。</p>
+        <h1 id="completion-title">
+          {{ completed.fact_type === 'trip' ? '行程凭证审核完成' : '正式账单已创建' }}
+        </h1>
+        <p>
+          {{
+            completed.fact_type === 'trip'
+              ? '凭证与审核来源已保存。可将多张机票等材料关联到同一趟行程，不会自动创建行程。'
+              : '审核已完成，字段来源与操作记录已一并保存。'
+          }}
+        </p>
         <dl class="completion-details">
           <div>
             <dt>记录类型</dt>
@@ -368,13 +399,14 @@ onMounted(() => void load())
         </dl>
         <div class="page-actions">
           <RouterLink
+            v-if="sessionStore.current.value?.capabilities.includes('facts.read')"
             class="button button-primary"
             :to="
               completed.fact_type === 'payment'
                 ? '/payments'
                 : completed.fact_type === 'invoice'
                   ? '/invoices'
-                  : '/trips'
+                  : '/trips#trip-materials'
             "
             >查看正式记录</RouterLink
           ><RouterLink class="button" to="/inbox">返回收件箱</RouterLink>
@@ -402,15 +434,46 @@ onMounted(() => void load())
 
       <ol class="review-steps" aria-label="处理进度">
         <li class="done"><span>1</span><strong>上传完成</strong></li>
-        <li class="done"><span>2</span><strong>AI 提取</strong></li>
+        <li class="done">
+          <span>2</span
+          ><strong>{{ review.entry_mode === 'manual' ? '已转人工' : 'AI 提取' }}</strong>
+        </li>
         <li class="current"><span>3</span><strong>人工审核</strong></li>
         <li><span>4</span><strong>保存记录</strong></li>
       </ol>
+
+      <p v-if="review.entry_mode === 'manual'" class="notice manual-source-notice">
+        此单据由用户显式接管，字段及证据由人工填写，不代表 AI 识别成功。原件与识别失败历史保留。
+        {{ review.job.safe_error_message ? `原失败：${review.job.safe_error_message}` : '' }}
+      </p>
 
       <div v-if="error" class="notice notice-danger" role="alert">
         <AppIcon name="alert" /><span>{{ error }}</span
         ><button class="text-button" type="button" @click="load">刷新最新版本</button>
       </div>
+
+      <section v-if="editing && draftRefreshed" class="panel page-stack" aria-label="修订冲突核对">
+        <p role="status">
+          最新版本已加载，当前草稿、页码和摘录已保留；不会自动提交。请比较最新内容后重新核对。
+        </p>
+        <details>
+          <summary>
+            查看服务器最新版本 {{ review.revision }} · {{ documentTypeLabel(review.document_type) }}
+          </summary>
+          <dl>
+            <template v-for="field in readFields" :key="field.path"
+              ><dt>{{ fieldLabel(field.path) }}</dt>
+              <dd>{{ displayValue(field.value) }}</dd></template
+            >
+          </dl>
+        </details>
+        <label
+          ><input
+            v-model="draftRechecked"
+            type="checkbox"
+          />我已比较最新版本，确认继续使用当前草稿</label
+        >
+      </section>
 
       <div class="review-grid">
         <section class="panel source-panel" aria-labelledby="source-title">
@@ -489,7 +552,7 @@ onMounted(() => void load())
               <p>
                 {{
                   editing
-                    ? `正在修订 · 当前第 ${activePage} 页`
+                    ? `尚未保存 · 离开或浏览器刷新会丢失草稿 · 当前第 ${activePage} 页`
                     : `核对字段与原件 · 当前第 ${activePage} 页`
                 }}
               </p>
@@ -575,7 +638,49 @@ onMounted(() => void load())
                   >
                     {{ fieldErrors[field.path] }}
                   </p>
-                  <p class="field-evidence-count">已选择 {{ field.evidenceIds.length }} 条证据</p>
+                  <fieldset
+                    v-if="review.entry_mode === 'manual' && field.presence === 'present'"
+                    class="page-stack manual-evidence-group"
+                  >
+                    <legend>人工标注原件来源</legend>
+                    <label
+                      >原件页码<input
+                        v-model.number="field.manualPage"
+                        class="input"
+                        type="number"
+                        min="1"
+                        :max="review.page_count"
+                        :aria-label="`${fieldLabel(field.path)} 来源页码`"
+                    /></label>
+                    <label
+                      >实际摘录<textarea
+                        v-model="field.manualQuote"
+                        class="textarea"
+                        rows="2"
+                        maxlength="500"
+                        :aria-label="`${fieldLabel(field.path)} 原件摘录`"
+                      ></textarea>
+                    </label>
+                    <small class="quiet"
+                      >请从原件标注；不会将填写值自动伪装成票面证据。也可选择已保存的证据。</small
+                    >
+                  </fieldset>
+                  <p class="field-evidence-count">
+                    已选择 {{ field.evidenceIds.length }} 条证据<span
+                      v-if="review.entry_mode === 'manual'"
+                    >
+                      · 人工录入</span
+                    >
+                  </p>
+                  <button
+                    v-if="field.evidenceIds.length"
+                    type="button"
+                    class="text-button"
+                    :aria-label="`${fieldLabel(field.path)} 清空证据选择`"
+                    @click="field.evidenceIds = []"
+                  >
+                    清空证据选择
+                  </button>
                 </div>
               </article>
             </template>
@@ -626,7 +731,7 @@ onMounted(() => void load())
             ><button
               class="button button-primary"
               type="button"
-              :disabled="saving"
+              :disabled="saving || needsRefresh || (draftRefreshed && !draftRechecked)"
               @click="saveRevision"
             >
               {{ saving ? '正在保存…' : '保存修订版本' }}
@@ -658,7 +763,13 @@ onMounted(() => void load())
                 ></label
               >
             </div>
-            <p v-else class="quiet-block">当前页没有可选择的证据，请切换页面或保持阻断。</p>
+            <p v-else class="quiet-block">
+              {{
+                review.entry_mode === 'manual'
+                  ? '当前页尚无已保存证据，请在字段下标注原件页码和实际摘录后保存。'
+                  : '当前页没有可选择的证据，请切换页面或保持阻断。'
+              }}
+            </p>
           </section>
 
           <section class="panel decision-panel" aria-labelledby="validation-title">
@@ -926,3 +1037,27 @@ onMounted(() => void load())
     </section>
   </div>
 </template>
+
+<style scoped>
+.manual-source-notice {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.manual-evidence-group {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 12px;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+.manual-evidence-group legend {
+  color: var(--text-secondary);
+  padding-inline: 4px;
+}
+.manual-evidence-group label {
+  display: grid;
+  gap: 6px;
+}
+</style>

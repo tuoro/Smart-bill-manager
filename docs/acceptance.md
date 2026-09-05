@@ -1,10 +1,22 @@
 # 验收标准
 
-状态：M0 已完成（2026-08-27）；M1 已完成（2026-08-30）；M2、M3 已完成（2026-08-31）
+B7/B8 当前门禁：以 ADR-0031/0032 的验收为准，重新覆盖有界目标查询、跨期分配/纠错、坏账版本/幂等/权限、关联行程事务删除保护、并发回滚、迁移与认证恢复及浏览器交互；不能借用 B1～B6 的结果宣称完成。
+
+B7/B8 验收结果（2026-09-05）：639 个 Go 测试事件、237/237 关键不变量、86.20% / 76.42% 两层覆盖率、全包静态检查和构建、非空 PostgreSQL 17 认证恢复、51 项 Web 单元及 116 项合成浏览器全部通过。此前仍断言人工 30 天硬限制的用例按 ADR-0031 改为跨期允许与推荐窗口验证，没有删除有效金额/权限/并发检查；最终全量复跑通过。安全聚合证据见 `tests/evidence/business-completion/b7-b8-allocation-bad-debt.json`。Mock API 浏览器与真实数据库 HTTP 为独立验收，不冒充部署环境联合发布或真实模型评测。
+
+B6 已按 [ADR-0030](decisions/0030-material-delivery-packages.md#恢复与验收) 完成本地验收：两种范围精确版本、超过一页不截断、共享对象去重、旧快照不补填、权限/会话隔离、预览冲突、缺件与损坏整包失败、各项容量与回收边界均已验证。Web 使用原生附件下载并通过完整合成业务旅程；旧 M3 的导出排除不再适用于该限定切片。证据见 `tests/evidence/business-completion/b6-material-exports.json`。
+
+B5 门禁以 [ADR-0029](decisions/0029-member-account-lifecycle.md#验收与退出) 为准：第二成员完整加入、全局已有身份保护、多工作区、最后 Owner 并发、改密/登录竞争、停用恢复不复活会话、邀请单次消费、受控恢复审计、前向升级与认证恢复。Web 另验迟到响应、401 失效、409 草稿及复制失败；原覆盖率门槛及本地验收已通过，证据见 `tests/evidence/business-completion/b5-member-accounts.json`；未发布。
+
+状态：M0～M4 历史冻结范围、人工行程及 B1～B8 已按 ADR-0025～0032 完成本地验收；补齐结果尚未发布
 硬边界：已达成共识
 量化指标：产品负责人已于 2026-08-27 批准当前数值
 
 ## 使用方式
+
+当前人工行程恢复按 [ADR-0024 的验收边界](decisions/0024-manual-trip-workspace.md#验收与失败边界) 增补门禁：无上传创建/编辑、多凭证关联、唯一时间自动归属/人工优先、已发布数据保留和同 ID 删除隔离均已通过本地验收，证据见 `tests/evidence/manual-trips/postgresql-gate-summary.json`。下文“Trip 只能由 Review 创建”只适用于行程凭证 Fact，不再约束人工容器；本次不包含发布或升级用户实例。
+
+按 [业务能力补齐计划](functional-completion-plan.md#实施顺序与切片验收) 逐切片冻结并验收 B1～B6。B1～B6 已分别按 ADR-0025～0030 通过本地验收；每项结论均使用本切片新证据，不借用历史测试结果。计划完成不自动改变文末单列待决策项，也不等于已发布。
 
 本文使用以下术语：
 
@@ -15,6 +27,14 @@
 验收不是任务清单。每个结论都必须附带可重复的命令、测试结果、截图、请求响应或数据库断言；“已实现”“看起来正常”和启动服务不构成证据。
 
 ## 一、全局完成定义
+
+B4 按 [ADR-0028](decisions/0028-invoice-supporting-materials.md#验收与退出) 已本地验收：无模型辅助上传、同 SHA 共享与精确补偿、并发删除/恢复、报销材料快照固定、非空认证恢复与 `0006` 前向升级全部通过；567 项 Go、196/196 不变量、覆盖率 86.18% / 75.62%、43 项 Web 单元及 96 项合成浏览器联跑通过，角色测试清理后追加 5 项通过。见 `tests/evidence/business-completion/b4-invoice-materials.json`；并非已部署 API 与浏览器联合发布门禁。
+
+B3 按 [ADR-0027](decisions/0027-complete-fact-management.md#本地验收) 冻结新增门禁：两类各 201 条全遍历、稳定排序/锚点删除/筛选边界、有界查询、完整详情/来源权限、前向索引升级，以及浏览器分页操作和失败恢复。B3 已本地验收：Go 541 项、关键不变量 179/179、覆盖率 86.28% / 75.45%、Web 43 项及 Mock API 浏览器 89 项通过；前向索引升级和 PostgreSQL 17 认证恢复通过。证据见 `tests/evidence/business-completion/b3-fact-management.json`，不是已部署运行时联合发布门禁。
+
+B2 以 [ADR-0026 的本地验收](decisions/0026-confirmed-fact-correction.md#本地验收) 为新增门禁：关联 Fact 必须能经明确保留/撤销决定完成纠错，历史来源、发票明细和报销快照不能改写；只完成无关联记录纠错不构成通过。B2 已本地验收：最终 Go 533 项、关键不变量 173/173、覆盖率 86.15% / 74.97%、Web 41 项及 Mock API 浏览器 33 项通过；前向升级与真实 PostgreSQL 工具恢复通过。证据见 `tests/evidence/business-completion/b2-fact-correction.json`，不是部署环境的联合发布门禁。
+
+B1 按 [ADR-0025](decisions/0025-explicit-manual-review.md#验收) 完成本地验收：无 Claim 的失败单据显式转人工、三类审核确认、数据库竞争/回滚/前向升级及真实工具恢复通过。Go 508 项、关键不变量 161/161、覆盖率 86.06% / 74.59%、Web 40 项、Mock API 浏览器 25 项通过。证据见 `tests/evidence/business-completion/b1-manual-review.json`，不代表部署发布门禁或真实模型正确率。
 
 任何里程碑必须同时满足：
 
@@ -288,16 +308,16 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 ### M2 第五切片：已确认 Fact 的独立分配调整
 
-本切片以 `docs/decisions/0013-confirmed-fact-allocation-adjustment.md` 为冻结决策。调整只作用于已确认 Fact 之间的活动 PaymentInvoiceLink，不修改 Source、Claim、ReviewDecision 或 Fact 字段。
+本切片原冻结决策为 `docs/decisions/0013-confirmed-fact-allocation-adjustment.md`；当前人工日期窗口、目标分页与排序由 ADR-0031 替代。调整只作用于已确认 Fact 之间的活动 PaymentInvoiceLink，不修改 Source、Claim、ReviewDecision 或 Fact 字段。下列要求已同步新规则，2026-08-31 的历史验收数字不作为 B7/B8 新证据。
 
-- `GET /allocations/{fact_type}/{fact_id}` 只接受 `payment` 或 `invoice`，返回同租户、未删除 anchor、当前活动 Link、合格目标及 `payment-invoice-allocation-plan/1` 的 `plan_hash`。合格目标必须类型相反、同币种、业务日期相差不超过 30 天，且有正数可分配余额或已与 anchor 存在活动 Link。
-- 工作区必须返回 anchor 和目标的总额、当前已分配、剩余、业务日期、显示名称；目标另返回与 anchor 当前 Link、当前对分配额和 `maximum_allocatable_minor`。排序为名称规范化完全一致优先、日期差升序、目标 ID 升序。所有金额均为整数最小单位，客户端数字不能替代事务校验。
-- 合格目标最多 200 个，查询第 201 个时返回 `allocation_target_limit_exceeded`；POST 完整期望计划最多 200 项。任何上限都不得静默截断、自动分页拼接或隐式排除当前活动目标。
+- `GET /allocations/{fact_type}/{fact_id}` 只接受 `payment` 或 `invoice`，返回同租户、未删除 anchor、当前活动 Link、合格目标及 `payment-invoice-allocation-plan/1` 的 `plan_hash`。合格目标必须类型相反、同币种，且有正数可分配余额或已与 anchor 存在活动 Link。ADR-0031 将 30 天改为默认推荐窗口；显式全部日期查询与有理由的手工分配允许跨期。
+- 工作区必须返回 anchor 和目标的总额、当前已分配、剩余、业务日期、显示名称；目标另返回与 anchor 当前 Link、当前对分配额和 `maximum_allocatable_minor`。ADR-0031 将目标页排序固定为 ID 升序，名称匹配与日期差仅作提示。所有金额均为整数最小单位，客户端数字不能替代事务校验。
+- 候选总数不设 200 个硬限制：每页 50 项，使用绑定搜索范围的 keyset 游标；工作区额外保留全部当前目标，最多 250 项。POST 完整期望计划及每个 Fact 两侧活动 Link 仍最多 200 项，第 201 条整体冲突。不得静默截断或隐式撤销当前目标。
 - POST 必须携带 8–128 字符且不含空白/控制字符的 `Idempotency-Key`、64 位小写十六进制 `expected_plan_hash`、显式 `desired_allocations` 数组和 trim 后 1–500 字符的 `reason`。未知 JSON 字段、缺失数组、重复目标、空目标 ID、零/负数、非整数或超过安全上限的金额必须拒绝。
 - `desired_allocations` 表示 anchor 的完整期望活动计划：新增且不改变现有项派生为 `supplement`；只移除并保持其余金额派生为 `withdraw`；改金额、替换目标或同时增删派生为 `replace`。完全相同计划返回 `allocation_plan_unchanged` 且零写入；空数组只表示明确撤销全部，不解释为“未提供”。
 - Web 必须以具名复选框和金额输入编辑完整计划，显示取消选择会撤销旧 Link，要求填写理由；当当前计划非空且期望计划为空时，还必须勾选“确认撤销全部”才能提交。该 UI 门禁不能替代服务端快照、权限和输入验证。
-- 事务必须先检查幂等重放，再在 immediate 写锁内重新计算当前计划 hash。首次请求 hash 陈旧返回 `allocation_plan_stale`；相同键和相同规范请求返回原 adjustment、终止/创建 Link ID 与结果 hash且 `replayed=true`，同键改变 anchor、hash、目标、金额或理由返回 `idempotency_key_conflict`。
-- anchor 与每个目标必须同租户、由确认 ReviewDecision 产生、未删除、类型相反、币种一致且在日期窗口内。跨租户 ID 与不存在 ID 对外同为未找到或不可用，不能泄露资源存在性。
+- 事务必须先检查幂等重放，再在 PostgreSQL serializable 事务与相关行锁内重新计算当前计划 hash。首次请求 hash 陈旧返回 `allocation_plan_stale`；相同键和相同规范请求返回原 adjustment、终止/创建 Link ID 与结果 hash且 `replayed=true`，同键改变 anchor、hash、目标、金额或理由返回 `idempotency_key_conflict`。
+- anchor 与每个目标必须同租户、由确认 ReviewDecision 产生、未删除、类型相反、币种一致，日期有效但不以 30 天作为手工分配硬限制。跨租户 ID 与不存在 ID 对外同为未找到或不可用，不能泄露资源存在性。
 - anchor 期望合计不得超过自身金额；每个目标金额不得超过该目标当前剩余金额加该对当前分配金额。两个请求争用最后余额、Fact 删除或其他调整导致状态变化时最多一个成功，失败请求不得自动缩减、保留部分终止或创建部分 Link。
 - 未变化 Link 必须保持原 ID、创建来源和时间。撤销或被替换的 Link 只允许设置一次 `ended_at + ended_by_adjustment_id`；新增或替换项必须创建新 ID 的不可变 Link。创建来源严格二选一为原审核 LinkDecision 或 AllocationAdjustment；终止来源严格二选一为 Fact 删除 AuditEvent 或 AllocationAdjustment。
 - `payment_invoice_allocation_adjustments` 必须保存 actor、anchor、派生模式、幂等请求身份、前后计划 hash、业务理由和 AuditEvent，且不可更新或删除。活动 Link 仍是双方 `allocated_minor`、`remaining_minor` 和状态的唯一数据源。
@@ -305,7 +325,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 - `allocations.manage` 只授予 `owner` 与 `finance`。`reviewer`、`viewer` 对工作区读取和调整提交均为 403；四角色每个允许/拒绝单元格必须有测试。列表只对有 capability 的用户显示“调整分配”。
 - 独立页面必须覆盖加载、无合格目标、有当前分配、校验失败、陈旧冲突、权限不足和成功刷新状态。错误需通过 `aria-describedby` 或等价关系关联；键盘、768px 与等效 200% 缩放不得产生横向不可达或丢失理由、撤销确认和提交动作。
 
-最小纯合成场景固定包含：空计划补充新对、保留现有项再补充、撤销一项、撤销全部、同对增额与减额替换、换目标、同时增删、完全相同计划零写入、重复目标、非法金额、超过 200 项与目标第 201 项、缺失/空白/过长理由、缺失数组、非法路径类型、陈旧 hash、幂等重放、同键改变请求、跨租户 anchor/目标、已删除目标、错误币种、日期超过 30 天、anchor 超额、目标超额、活动对唯一、两个事务争用最后余额、Fact 删除竞态、数据库来源二选一、Adjustment/Link 不可变、权限矩阵、Web 完整计划与撤销全部确认、键盘、768px 和 384px 等效 reflow。每个失败事务同时断言 Adjustment、AuditEvent、Link 创建/终止和双方余额均无部分变化。
+最小纯合成场景固定包含：空计划补充新对、保留现有项再补充、撤销一项、撤销全部、同对增额与减额替换、换目标、同时增删、完全相同计划零写入、重复目标、非法金额、完整计划超过 200 项拒绝、候选第 201 项跨页可达、缺失/空白/过长理由、缺失数组、非法路径类型、陈旧 hash、幂等重放、同键改变请求、跨租户 anchor/目标、已删除目标、错误币种拒绝、日期超过 30 天有理由分配成功、anchor 超额、目标超额、活动对唯一、两个事务争用最后余额、Fact 删除竞态、数据库来源二选一、Adjustment/Link 不可变、权限矩阵、Web 完整计划与撤销全部确认、键盘、768px 和 384px 等效 reflow。每个失败事务同时断言 Adjustment、AuditEvent、Link 创建/终止和双方余额均无部分变化。
 
 验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、OpenAPI 客户端生成、Web 完整检查、5 个 Vitest 文件共 21 项测试、18 / 18 浏览器组件场景、72 / 72 关键不变量及两层覆盖率门禁均通过；领域/应用层为 85.86%（2,216 / 2,581），基础设施/传输层为 73.01%（2,388 / 3,271）。可机读摘要见 `tests/evidence/m2/allocation-adjustment-gate-summary.json`，M2 收口摘要见 `tests/evidence/m2/m2-closure-gate-summary.json`。
 
@@ -332,6 +352,8 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 验收结果：2026-08-31 通过。后端全量测试、静态检查与构建、OpenAPI 客户端生成、Web 完整检查、6 个 Vitest 文件共 24 项测试、21 / 21 浏览器组件场景、83 / 83 关键不变量及两层覆盖率门禁均通过；领域/应用层为 85.61%（2,468 / 2,883），基础设施/传输层为 73.88%（2,798 / 3,787）。可机读摘要见 `tests/evidence/m3/email-archive-gate-summary.json`。
 
 ### M3 第二切片：行程 Fact 与确定性单据归属
+
+本节记录 2026-08-31 的历史门禁与结果。当前容器/凭证分离和自动时间归属由 ADR-0024 重新验收，不能复用以下通过结论。
 
 本切片以 `docs/decisions/0015-trip-fact-attribution.md` 为冻结决策。实现与验收只使用纯合成图片契约、Claim、Fact 和本地数据库数据；不得调用真实 Provider、执行正式正确率评测或连接外部系统。
 
@@ -467,6 +489,7 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 ### PostgreSQL 当前恢复口径
 
+- ADR-0033 增补：dump 写入前提交唯一数据库 incomplete 状态；server、bootstrap-owner 与 recover-account 共享拒绝该状态，完整激活后仍核对对象配对身份。必须以真实 PostgreSQL 确定性故障注入覆盖 dump 后/Session 失效前、对象发布后/密钥失败及激活前，验证旧会话不能经启动边界复活。状态损坏、空行、身份或对象文件不匹配均拒绝；runtime 不得修改操作状态。普通安装/前向升级、二次备份恢复必须通过。不得固定生成通过字段，详见 [ADR-0033](decisions/0033-postgresql-restore-activation.md)。
 - 保持停写、RPO 0、30 分钟 RTO、认证清单、独立主密钥、精确对象集合、会话失效、稳定行摘要和目标任务只续跑一次等业务边界；
 - 数据库载荷只接受固定 PostgreSQL 17 `pg_dump` 生成的自包含 dump；禁止复制数据目录、WAL 或 Docker volume，`pg_dump`/`pg_restore` 与服务端 major 必须一致并进入安全聚合身份；
 - 清单覆盖 dump 哈希、迁移身份、PostgreSQL Schema/约束身份、表数量、审计链和对象集合；数据库密码、DSN、路径和原始工具输出不得进入证据；

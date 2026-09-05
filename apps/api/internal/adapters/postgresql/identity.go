@@ -57,7 +57,7 @@ func (s *Store) FindLoginCandidates(ctx context.Context, normalizedEmail string)
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT u.id, u.email, u.display_name, u.password_hash,
 		       t.id, t.name, t.default_currency, t.timezone,
-		       m.role, m.status
+		       m.role, m.status, m.version
 		FROM users u
 		JOIN memberships m ON m.user_id = u.id
 		JOIN tenants t ON t.id = m.tenant_id
@@ -82,6 +82,7 @@ func (s *Store) FindLoginCandidates(ctx context.Context, normalizedEmail string)
 			&candidate.Timezone,
 			&candidate.Role,
 			&candidate.Status,
+			&candidate.MembershipVersion,
 		); err != nil {
 			return nil, fmt.Errorf("scan login candidate: %w", err)
 		}
@@ -94,7 +95,35 @@ func (s *Store) FindLoginCandidates(ctx context.Context, normalizedEmail string)
 }
 
 func (s *Store) CreateSession(ctx context.Context, session ports.SessionRecord) error {
-	_, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var passwordHash string
+	err = tx.QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id = ? FOR UPDATE`, session.UserID).Scan(&passwordHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrUnauthenticated
+	}
+	if err != nil {
+		return err
+	}
+	if session.VerifiedPasswordHash == "" || passwordHash != session.VerifiedPasswordHash {
+		return domain.ErrUnauthenticated
+	}
+	var version int
+	var status string
+	err = tx.QueryRowContext(ctx, `SELECT version, status FROM memberships WHERE tenant_id = ? AND user_id = ? FOR UPDATE`, session.TenantID, session.UserID).Scan(&version, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.ErrUnauthenticated
+	}
+	if err != nil {
+		return err
+	}
+	if status != "active" || version != session.ExpectedMembershipVersion {
+		return domain.ErrUnauthenticated
+	}
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO sessions (
 			id, tenant_id, user_id, token_hash, csrf_token_hash,
 			expires_at, created_at, last_seen_at
@@ -112,7 +141,7 @@ func (s *Store) CreateSession(ctx context.Context, session ports.SessionRecord) 
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *Store) FindSession(ctx context.Context, tokenHash string) (ports.SessionPrincipal, error) {

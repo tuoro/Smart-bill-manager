@@ -52,6 +52,7 @@ func (s *Server) assignTripFactHandler(response http.ResponseWriter, request *ht
 		return
 	}
 	var body struct {
+		ExpectedFactVersion  int                 `json:"expected_fact_version"`
 		FactType             domain.DocumentType `json:"fact_type"`
 		FactID               string              `json:"fact_id"`
 		DesiredTripID        json.RawMessage     `json:"desired_trip_id"`
@@ -73,6 +74,7 @@ func (s *Server) assignTripFactHandler(response http.ResponseWriter, request *ht
 		return
 	}
 	result, err := s.trips.Assign(request.Context(), tenantContext(principal), trips.AssignmentInput{
+		ExpectedFactVersion:  body.ExpectedFactVersion,
 		FactType:             body.FactType,
 		FactID:               body.FactID,
 		DesiredTripID:        desiredTripID,
@@ -90,14 +92,14 @@ func (s *Server) assignTripFactHandler(response http.ResponseWriter, request *ht
 
 func decodeRequiredNullableString(raw json.RawMessage) (*string, error) {
 	if len(raw) == 0 {
-		return nil, domain.NewRuleError("invalid_trip_assignment", "desired_trip_id 与 expected_assignment_id 必须显式提供字符串或 null", domain.ErrInvalidInput)
+		return nil, domain.NewRuleError("invalid_trip_assignment", "目标行程和预期关联必须显式提供字符串或 null", domain.ErrInvalidInput)
 	}
 	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return nil, nil
 	}
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return nil, domain.NewRuleError("invalid_trip_assignment", "desired_trip_id 与 expected_assignment_id 必须显式提供字符串或 null", domain.ErrInvalidInput)
+		return nil, domain.NewRuleError("invalid_trip_assignment", "目标行程和预期关联必须显式提供字符串或 null", domain.ErrInvalidInput)
 	}
 	return &value, nil
 }

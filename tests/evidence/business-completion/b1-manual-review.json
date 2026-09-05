@@ -1,0 +1,100 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B1-ADR-0025-explicit-manual-review",
+  "date": "2026-09-04",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 106,
+  "worktree_sha256": "ecd4b77b706d3c2975671ed6498e0c300a49e67d018f023ee94199d40bd4f8a5",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024 work",
+  "database": {
+    "major": 17,
+    "source": "existing postgres:17; no pull or download",
+    "isolation": "dedicated internal network, no host database port, synthetic data only",
+    "tested": [
+      "Payment, Invoice with stable items and TripEvidence: failed without Claim -> explicit manual root -> partial revision -> full revision -> confirmation and replay",
+      "no fabricated AiRun, explicit user provenance and exact failure history preservation",
+      "same-key replay and different-key concurrent roots, stale versions and immutable source identity",
+      "transaction/audit failure rollback including inserted pages; source absence or hash mismatch produces no Claim",
+      "stale deletion plan restores original and preserves new pages; late recovered Worker cannot overwrite manual review",
+      "0001/0002 AI history survives 0003 upgrade; injected failure rolls back schema and ledger; repeated migration unchanged",
+      "actual PostgreSQL-backed HTTP: session, CSRF, four-role behavior, strict input and tenant boundary"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "test_command": "GOMAXPROCS=2 go test -json -p 1 -parallel 2 -timeout 60s -count=1 -covermode=atomic -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 508,
+    "failed": 0,
+    "skipped_tests": 0,
+    "critical_invariants": { "matrix": "tests/critical-invariants.tsv", "passed": 161, "total": 161, "method": "all package/test identities matched uncached final pass events" },
+    "statement_coverage": {
+      "domain_application": { "covered": 3370, "total": 3916, "percent": 86.06, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 4083, "total": 5474, "percent": 74.59, "threshold": 70, "passed": true },
+      "method": "unique statement blocks with any positive atomic count; existing layer boundaries unchanged"
+    },
+    "vet": "all packages and postgresql_tools backup tests passed",
+    "build": "all packages and static postgresql_tools test binary passed"
+  },
+  "authenticated_restore": {
+    "test": "TestManualTripAuthenticatedBackupRestore",
+    "command": "CGO_ENABLED=0 go test -p 1 -tags postgresql_tools -c ./cmd/backup; run compiled test in existing PostgreSQL 17 tools image with -test.timeout=60s",
+    "passed": true,
+    "native_pg_dump_pg_restore": true,
+    "file_only_database_authentication": true,
+    "nonempty_original_pages_manual_claim_revision_evidence": true,
+    "exact_review_snapshot_and_trip_management_history_preserved": true,
+    "authenticated_table_inventory_and_object_hashes_verified": true,
+    "limit": "focused regression fixture, not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests_passed": 40,
+    "unit_test_files": 9,
+    "contract_typecheck_lint_format_build": "passed",
+    "browser_command": "playwright test e2e/m1-state-matrix.spec.ts e2e/manual-trip-workspace.spec.ts --workers=1",
+    "browser_passed": 25,
+    "browser_failed": 0,
+    "b1_browser_scenarios": 5,
+    "scope": "real production-built components with synthetic mocked API plus separate database-backed HTTP integration; not a deployed runtime browser release gate",
+    "covered": ["manual entry and explicit evidence -> save -> reload -> confirmation", "manual root version conflict preserves type and reason", "uncertain network response reuses identical idempotency key and payload", "revision conflict refresh preserves fields, page and quote; requires explicit comparison before saving", "forbidden entry hidden"],
+    "responsive_capture_widths_px": [384, 768, 1024, 1440],
+    "themes": ["light", "dark"],
+    "visual_review": "final 384px light and 1440px dark captures inspected; fixed manual notice child being styled as an icon; responsive assertions passed",
+    "draft_evidence": "equivalent evidence IDs remapped, unresolved choices produce an explicit field error and require user reselection; no silent discard"
+  },
+  "failure_history": [
+    { "stage": "environment_setup", "cause": "temporary PostgreSQL host HBA lacked dedicated internal subnet", "resolution": "allow only the current internal subnet with SCRAM; no host port" },
+    { "stage": "HTTP_test_fixture", "cause": "test expected Reviewer source read after confirmation contrary to existing RBAC", "resolution": "assert Reviewer read before confirmation and not-found after; Owner read retained; no production permission change" },
+    { "stage": "full_Go_run", "cause": "owner-only umask narrowed deliberately unsafe test fixture permission", "resolution": "explicit chmod establishes test precondition; unchanged runtime validation; full uncached suite rerun passed" },
+    { "stage": "browser_selector", "cause": "wrapped select accessible name required combobox role lookup", "resolution": "use observed role/name; no test retries" },
+    { "stage": "UI_review", "cause": "manual failure notice child inherited icon styling and revision refresh discarded drafts", "resolution": "correct notice structure; preserve and explicitly recheck draft; new unit and browser coverage" },
+    { "stage": "format_check", "cause": "client formatting differed from project Prettier", "resolution": "format changed client and rerun complete Web check" }
+  ],
+  "review": {
+    "git_diff_check": "passed",
+    "changed_files_over_1_mib": 0,
+    "targeted_known_secret_pattern_matches": 0,
+    "scan_limit": "known key/private-key patterns and scoped diff review, not universal secret detection",
+    "read_only_agents": "business/database boundaries and UI/API error recovery reviewed; changes integrated by main agent",
+    "release_image_policy_tool_test": "passed"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "database_memory_mib": 1024,
+    "go_memory_mib": 2048,
+    "restore_tools_memory_mib": 512,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_available_host_memory_mib": 6429,
+    "final_observed_available_host_memory_mib": 6752,
+    "swap": "pre-existing 3898 MiB used; no expanded limits or OOM retry",
+    "database_oom_killed": false,
+    "credentials": "one-time synthetic, owner-only temporary files; never emitted or committed",
+    "containers_network_volume_removed": true,
+    "browser_and_preview_stopped": true,
+    "temporary_credentials_data_raw_reports_cache_removed": true,
+    "approximate_removed_temporary_host_disk_mib": 383,
+    "existing_user_instance": "not accessed, restarted or upgraded"
+  },
+  "not_performed": ["real Provider/mailbox/account integration or model correctness evaluation", "production release image/runtime performance/Lighthouse gates", "Git commit, push, tag, deployment or release", "B2 through B6 implementation"]
+}

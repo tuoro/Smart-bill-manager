@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ApiError, api, type AllocationFactType, type AllocationWorkspace } from '../../data/client'
 import AppIcon from '../../components/AppIcon.vue'
@@ -25,6 +25,13 @@ const error = ref('')
 const conflict = ref('')
 const success = ref('')
 const attempted = ref(false)
+const query = ref('')
+const view = ref('recommended')
+const appliedSearch = ref({ q: '', view: 'recommended' })
+const nextCursor = ref('')
+const searching = ref(false)
+let generation = 0
+let submissionAttempt = { fingerprint: '', key: '' }
 
 const validation = computed(() =>
   workspace.value
@@ -42,6 +49,14 @@ const returnPath = computed(() => (factType.value === 'invoice' ? '/invoices' : 
 const returnLabel = computed(() => (factType.value === 'invoice' ? '返回发票列表' : '返回支付列表'))
 
 async function load() {
+  const currentGeneration = ++generation
+  workspace.value = null
+  rows.value = []
+  searching.value = false
+  submitting.value = false
+  forbidden.value = false
+  error.value = ''
+  success.value = ''
   if (!['payment', 'invoice'].includes(factType.value) || !factId.value) {
     loading.value = false
     error.value = '分配页面地址不合法'
@@ -50,8 +65,13 @@ async function load() {
   loading.value = true
   try {
     const latest = await api.allocationWorkspace(factType.value, factId.value)
+    if (currentGeneration !== generation) return
     workspace.value = latest
     rows.value = createAllocationDraft(latest)
+    query.value = ''
+    view.value = 'recommended'
+    appliedSearch.value = { q: '', view: 'recommended' }
+    nextCursor.value = latest.next_cursor ?? ''
     reason.value = ''
     withdrawAllConfirmed.value = false
     forbidden.value = false
@@ -59,14 +79,20 @@ async function load() {
     conflict.value = ''
     attempted.value = false
   } catch (caught) {
+    if (currentGeneration !== generation) return
     forbidden.value = caught instanceof ApiError && caught.status === 403
     error.value = caught instanceof ApiError ? caught.message : '分配工作区加载失败'
   } finally {
-    loading.value = false
+    if (currentGeneration === generation) loading.value = false
   }
 }
 
 function toggleRow(row: AllocationDraftRow) {
+  if (selectedCount.value > 200) {
+    row.selected = false
+    error.value = '一个分配计划最多选择 200 个目标'
+    return
+  }
   if (row.selected && !row.amountText) {
     row.amountText = row.target.current_link_id ? String(row.target.current_allocated_minor) : ''
   }
@@ -75,8 +101,43 @@ function toggleRow(row: AllocationDraftRow) {
   success.value = ''
 }
 
+async function searchTargets(next = false) {
+  if (searching.value || submitting.value || !workspace.value) return
+  const currentGeneration = generation
+  const filter = next ? appliedSearch.value : { q: query.value, view: view.value }
+  searching.value = true
+  try {
+    const page = await api.allocationTargets(
+      factType.value,
+      factId.value,
+      filter.q,
+      filter.view,
+      next ? nextCursor.value : '',
+    )
+    if (currentGeneration !== generation) return
+    const retained = rows.value.filter((row) => row.selected || row.target.current_link_id)
+    const ids = new Set(retained.map((row) => row.target.id))
+    rows.value = [
+      ...retained,
+      ...page.items
+        .filter((item) => !ids.has(item.id))
+        .map((target) => ({ target, selected: false, amountText: '' })),
+    ]
+    appliedSearch.value = filter
+    nextCursor.value = page.next_cursor ?? ''
+    error.value = ''
+  } catch (caught) {
+    if (currentGeneration === generation)
+      error.value =
+        caught instanceof ApiError ? caught.message : '查询失败，当前草稿和上一页结果已保留'
+  } finally {
+    if (currentGeneration === generation) searching.value = false
+  }
+}
+
 async function submit() {
-  if (!workspace.value || !validation.value) return
+  if (!workspace.value || !validation.value || submitting.value || searching.value) return
+  const currentGeneration = generation
   attempted.value = true
   conflict.value = ''
   error.value = ''
@@ -84,27 +145,43 @@ async function submit() {
   if (!validation.value.request) return
   submitting.value = true
   try {
+    const fingerprint = JSON.stringify({
+      type: factType.value,
+      id: factId.value,
+      request: validation.value.request,
+    })
+    if (submissionAttempt.fingerprint !== fingerprint)
+      submissionAttempt = { fingerprint, key: `allocation-${crypto.randomUUID()}` }
     const result = await api.adjustAllocation(
       factType.value,
       factId.value,
       validation.value.request,
-      `allocation-${crypto.randomUUID()}`,
+      submissionAttempt.key,
     )
-    success.value = `${result.mode === 'supplement' ? '补充' : result.mode === 'withdraw' ? '撤销' : '替换'}分配已保存`
-    await load()
-    success.value = `${result.mode === 'supplement' ? '补充' : result.mode === 'withdraw' ? '撤销' : '替换'}分配已保存，余额已刷新`
+    if (currentGeneration !== generation) return
+    const reload = load()
+    const reloadGeneration = generation
+    await reload
+    if (reloadGeneration === generation && workspace.value)
+      success.value = `${result.mode === 'supplement' ? '补充' : result.mode === 'withdraw' ? '撤销' : '替换'}分配已保存，余额已刷新`
   } catch (caught) {
+    if (currentGeneration !== generation) return
     if (caught instanceof ApiError && caught.status === 409) {
       conflict.value = `${caught.message}。当前草稿已保留，请刷新后重新确认。`
     } else {
       error.value = caught instanceof ApiError ? caught.message : '分配调整提交失败'
     }
   } finally {
-    submitting.value = false
+    if (currentGeneration === generation) submitting.value = false
   }
 }
 
-onMounted(() => void load())
+watch(
+  () => [factType.value, factId.value],
+  () => void load(),
+  { immediate: true },
+)
+onBeforeUnmount(() => generation++)
 </script>
 
 <template>
@@ -195,14 +272,58 @@ onMounted(() => void load())
           </div>
         </div>
 
+        <div class="allocation-search">
+          <label class="field-stack"
+            ><span>查找分配单据</span
+            ><input
+              v-model="query"
+              class="input"
+              maxlength="200"
+              placeholder="商户、购销方、单号或 ID"
+              @keydown.enter.prevent="searchTargets()"
+          /></label>
+          <label class="field-stack"
+            ><span>日期范围</span
+            ><select v-model="view" class="input">
+              <option value="recommended">30 天内推荐</option>
+              <option value="all_dates">全部日期（可跨期）</option>
+            </select></label
+          >
+          <button
+            class="button"
+            type="button"
+            :disabled="searching || submitting"
+            @click="searchTargets()"
+          >
+            查询单据
+          </button>
+          <button
+            v-if="nextCursor"
+            class="button"
+            type="button"
+            :disabled="searching || submitting"
+            @click="searchTargets(true)"
+          >
+            下一页候选
+          </button>
+        </div>
+        <p class="quiet allocation-search-note">
+          每页最多 50 个候选；已选和当前关联始终保留。查询范围：{{
+            appliedSearch.view === 'all_dates' ? '全部日期' : '30 天内推荐'
+          }}。
+        </p>
+        <p v-if="searching" class="allocation-search-note" role="status">正在查找单据</p>
+        <p
+          v-if="rows.some((row) => row.selected && row.target.date_distance_days > 30)"
+          class="notice notice-warning allocation-search-note"
+          role="status"
+        >
+          已选择超过 30 天的跨期单据，请在调整理由中说明关联依据。
+        </p>
         <div v-if="rows.length === 0" class="state-layout compact">
           <span class="state-glyph"><AppIcon name="receipt" /></span
           ><strong>没有可分配的单据</strong
-          ><span
-            >需要同币种且日期相差不超过 30 天的{{
-              factType === 'payment' ? '发票' : '支付记录'
-            }}。</span
-          >
+          ><span>可切换全部日期搜索同币种单据；跨期分配须填写理由。</span>
         </div>
         <ul v-else class="allocation-target-list">
           <li v-for="row in rows" :key="row.target.id" class="allocation-target-row">
@@ -211,6 +332,9 @@ onMounted(() => void load())
               <span>
                 <strong>{{ row.target.display_name }}</strong>
                 <small>
+                  <span v-if="row.target.date_distance_days > 30" class="status-pill status-warning"
+                    >跨期分配</span
+                  >
                   {{ row.target.business_date }} · 相差 {{ row.target.date_distance_days }} 天 ·
                   {{ row.target.name_exact ? '名称一致' : '名称不一致，仅作提示' }}
                 </small>
@@ -353,3 +477,26 @@ onMounted(() => void load())
     </template>
   </div>
 </template>
+
+<style scoped>
+.allocation-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 20px;
+}
+.allocation-search label:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.allocation-search-note {
+  margin: 0 20px 16px;
+}
+@media (max-width: 600px) {
+  .allocation-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

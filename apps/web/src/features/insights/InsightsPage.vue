@@ -254,7 +254,7 @@ onUnmounted(() => {
             <select id="insight-trip-id" v-model="draft.trip_id">
               <option value="">全部已归属行程</option>
               <option v-for="trip in trips" :key="trip.id" :value="trip.id">
-                {{ trip.destination }} · {{ trip.start_date }} 至 {{ trip.end_date }}
+                {{ trip.name }} · {{ trip.start_date }} 至 {{ trip.end_date }}
               </option>
             </select>
           </div>
@@ -375,7 +375,7 @@ onUnmounted(() => {
                   <dd>
                     {{
                       item.trip
-                        ? `${item.trip.destination} · ${item.trip.start_date} 至 ${item.trip.end_date}`
+                        ? `${item.trip.name} · ${item.trip.start_date} 至 ${item.trip.end_date}`
                         : '未归属'
                     }}
                   </dd>

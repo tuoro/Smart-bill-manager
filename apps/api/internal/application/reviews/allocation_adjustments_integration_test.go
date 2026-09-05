@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -340,7 +341,7 @@ func TestAllocationAdjustmentPermissionsAndTargetBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	invalidTargets := []string{wrongCurrency.FactID, outOfRange.FactID, deletedInvoice.FactID, foreignInvoice.FactID}
+	invalidTargets := []string{wrongCurrency.FactID, deletedInvoice.FactID, foreignInvoice.FactID}
 	for index, targetID := range invalidTargets {
 		_, err := service.Adjust(ctx, fixture.tenant, domain.DocumentPayment, payment.FactID, allocationapp.AdjustmentInput{
 			ExpectedPlanHash:   latest.PlanHash,
@@ -360,6 +361,9 @@ func TestAllocationAdjustmentPermissionsAndTargetBoundaries(t *testing.T) {
 		Reason:             "目标超额", IdempotencyKey: "boundary-target-overflow", RequestID: "boundary-target-overflow-request",
 	}); !hasRuleCode(err, "allocation_exceeds_target_balance") {
 		t.Fatalf("target overflow error = %v", err)
+	}
+	if _, err := service.Adjust(ctx, fixture.tenant, domain.DocumentPayment, payment.FactID, allocationapp.AdjustmentInput{ExpectedPlanHash: latest.PlanHash, DesiredAllocations: []domain.DesiredAllocation{{TargetFactID: outOfRange.FactID, AllocatedMinor: 1}}, Reason: "人工核对跨期目标", IdempotencyKey: "boundary-cross-date-allowed", RequestID: "boundary-cross-date-allowed"}); err != nil {
+		t.Fatalf("reasoned cross-date allocation rejected: %v", err)
 	}
 }
 
@@ -478,28 +482,62 @@ func TestConcurrentAdjustmentsAndFactDeletionKeepBalancesAtomic(t *testing.T) {
 	}
 }
 
-func TestAllocationWorkspaceRejectsMoreThanTwoHundredTargetsWithoutTruncation(t *testing.T) {
-	fixture := newReviewFixture(t)
+func TestAllocationWorkspacePagesMoreThanTwoHundredTargetsWithoutTruncation(t *testing.T) {
+	f := newReviewFixture(t)
 	ctx := context.Background()
-	reviewService := NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(time.Hour)})
-	paymentReview, err := reviewService.Get(ctx, fixture.tenant, fixture.jobID)
+	trip := seedManualTrip(t, f, "allocation-query-boundary", "合成分页行程", "2026-08-26", "2026-08-28")
+	seedAssignedPaymentsForExportBoundary(t, f, trip.TripID, 201)
+	reviews := NewService(f.store, f.store, system.IDGenerator{}, fixedClock{now: f.now})
+	invoice := confirmFactWithoutLinks(t, reviews, f.tenant, seedAdditionalReview(t, f, invoiceEnvelopeWithTotal("PAGE-BOUNDARY", 10000), "allocation-page-invoice"), "allocation-page-confirm")
+	service := allocationapp.NewService(f.store, f.store, system.IDGenerator{}, fixedClock{now: f.now})
+	workspace, err := service.GetWorkspace(ctx, f.tenant, domain.DocumentInvoice, invoice.FactID)
+	if err != nil || len(workspace.Targets) != 50 || workspace.NextCursor == "" {
+		t.Fatalf("first bounded workspace: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, item := range workspace.Targets {
+		seen[item.ID] = true
+	}
+	cursor := workspace.NextCursor
+	for cursor != "" {
+		page, err := service.SearchTargets(ctx, f.tenant, domain.DocumentInvoice, invoice.FactID, allocationapp.TargetSearchInput{Cursor: cursor})
+		if err != nil || len(page.Items) > 50 {
+			t.Fatalf("page: %v", err)
+		}
+		for _, item := range page.Items {
+			if seen[item.ID] {
+				t.Fatal("repeated target")
+			}
+			seen[item.ID] = true
+		}
+		cursor = page.NextCursor
+	}
+	if len(seen) != 201 {
+		t.Fatalf("truncated target collection: %d", len(seen))
+	}
+	desired := make([]domain.DesiredAllocation, 0, 200)
+	for index := 1; index <= 200; index++ {
+		desired = append(desired, domain.DesiredAllocation{TargetFactID: fmt.Sprintf("export-bulk-payment-%03d", index), AllocatedMinor: 1})
+	}
+	_, err = service.Adjust(ctx, f.tenant, domain.DocumentInvoice, invoice.FactID, allocationapp.AdjustmentInput{ExpectedPlanHash: workspace.PlanHash, DesiredAllocations: desired, Reason: "合成 200 条边界", IdempotencyKey: "allocation-limit-200", RequestID: "allocation-limit-200"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	payment := confirmFactWithoutLinks(t, reviewService, fixture.tenant, paymentReview, "target-limit-seed-payment")
-	for index := 0; index <= domain.MaxAllocationTargets; index++ {
-		label := "target-limit-invoice-" + strings.Repeat("0", 3-len(fmtInt(index))) + fmtInt(index)
-		review := seedAdditionalReview(
-			t,
-			fixture,
-			invoiceEnvelopeWithTotal("LIMIT-"+fmtInt(index), int64(1_000+index)),
-			label,
-		)
-		confirmFactWithoutLinks(t, reviewService, fixture.tenant, review, "target-limit-confirm-"+fmtInt(index))
+	extra, err := service.GetWorkspace(ctx, f.tenant, domain.DocumentPayment, "export-bulk-payment-201")
+	if err != nil {
+		t.Fatal(err)
 	}
-	service := allocationapp.NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(10 * time.Hour)})
-	if _, err := service.GetWorkspace(ctx, fixture.tenant, domain.DocumentPayment, payment.FactID); !hasRuleCode(err, "allocation_target_limit_exceeded") {
-		t.Fatalf("target limit error = %v", err)
+	_, err = service.Adjust(ctx, f.tenant, domain.DocumentPayment, "export-bulk-payment-201", allocationapp.AdjustmentInput{ExpectedPlanHash: extra.PlanHash, DesiredAllocations: []domain.DesiredAllocation{{TargetFactID: invoice.FactID, AllocatedMinor: 1}}, Reason: "不能绕过对端数量上限", IdempotencyKey: "allocation-limit-201", RequestID: "allocation-limit-201"})
+	if !hasRuleCode(err, "allocation_active_target_limit_exceeded") {
+		t.Fatalf("201st reverse link: %v", err)
+	}
+	var linkCount, adjustments int
+	if err := f.store.DB().QueryRow(`SELECT (SELECT count(*) FROM payment_invoice_links),(SELECT count(*) FROM payment_invoice_allocation_adjustments)`).Scan(&linkCount, &adjustments); err != nil || linkCount != 200 || adjustments != 1 {
+		t.Fatal("capacity rejection did not rollback")
+	}
+	_, err = service.SearchTargets(ctx, f.tenant, domain.DocumentInvoice, invoice.FactID, allocationapp.TargetSearchInput{Cursor: workspace.NextCursor, View: "all_dates"})
+	if !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatal("cursor reused across scope")
 	}
 }
 

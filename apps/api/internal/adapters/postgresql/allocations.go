@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
@@ -25,7 +27,12 @@ func (s *Store) GetAllocationWorkspace(
 	anchorType domain.DocumentType,
 	anchorID string,
 ) (ports.AllocationWorkspace, error) {
-	return loadAllocationWorkspace(ctx, s.db, tenantID, anchorType, anchorID)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return ports.AllocationWorkspace{}, err
+	}
+	defer tx.Rollback()
+	return loadAllocationWorkspace(ctx, tx, tenantID, anchorType, anchorID)
 }
 
 func (s *Store) GetAllocationAdjustmentReplay(
@@ -43,6 +50,17 @@ func (s *Store) GetAllocationAdjustmentReplay(
 }
 
 func loadAllocationWorkspace(
+	ctx context.Context, queryer allocationQueryer, tenantID string, anchorType domain.DocumentType, anchorID string,
+) (ports.AllocationWorkspace, error) {
+	workspace, err := loadAllocationState(ctx, queryer, tenantID, anchorType, anchorID)
+	if err != nil {
+		return workspace, err
+	}
+	workspace.Targets, workspace.NextCursor, err = loadAllocationTargets(ctx, queryer, tenantID, workspace.Anchor, workspace.Links)
+	return workspace, err
+}
+
+func loadAllocationState(
 	ctx context.Context,
 	queryer allocationQueryer,
 	tenantID string,
@@ -74,10 +92,6 @@ func loadAllocationWorkspace(
 		active = append(active, activeLinkFromWorkspace(anchorType, anchorID, link))
 	}
 	_, workspace.PlanHash, err = domain.CanonicalActiveAllocationPlan(anchorType, anchorID, active)
-	if err != nil {
-		return ports.AllocationWorkspace{}, err
-	}
-	workspace.Targets, err = loadAllocationTargets(ctx, queryer, tenantID, workspace.Anchor, workspace.Links)
 	if err != nil {
 		return ports.AllocationWorkspace{}, err
 	}
@@ -194,135 +208,128 @@ func loadActiveAllocationLinks(
 	return result, rows.Err()
 }
 
-func loadAllocationTargets(
-	ctx context.Context,
-	queryer allocationQueryer,
-	tenantID string,
-	anchor ports.AllocationFactSummary,
-	links []ports.AllocationWorkspaceLink,
-) ([]ports.AllocationTarget, error) {
+const allocationTargetPageSize = 50
+
+func (s *Store) SearchAllocationTargets(ctx context.Context, tenantID string, anchorType domain.DocumentType, anchorID string, query ports.AllocationTargetQuery) (ports.AllocationTargetPage, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return ports.AllocationTargetPage{}, err
+	}
+	defer tx.Rollback()
+	workspace, err := loadAllocationState(ctx, tx, tenantID, anchorType, anchorID)
+	if err != nil {
+		return ports.AllocationTargetPage{}, err
+	}
+	return queryAllocationTargets(ctx, tx, tenantID, workspace.Anchor, workspace.Links, query, nil)
+}
+
+func loadAllocationTargets(ctx context.Context, queryer allocationQueryer, tenantID string, anchor ports.AllocationFactSummary, links []ports.AllocationWorkspaceLink) ([]ports.AllocationTarget, string, error) {
+	page, err := queryAllocationTargets(ctx, queryer, tenantID, anchor, links, ports.AllocationTargetQuery{}, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	ids := make([]string, 0, len(links))
+	seen := make(map[string]bool, len(page.Items))
+	for _, item := range page.Items {
+		seen[item.ID] = true
+	}
+	for _, link := range links {
+		if !seen[link.TargetFactID] {
+			ids = append(ids, link.TargetFactID)
+		}
+	}
+	if len(ids) > 0 {
+		current, err := queryAllocationTargets(ctx, queryer, tenantID, anchor, links, ports.AllocationTargetQuery{AllDates: true}, ids)
+		if err != nil {
+			return nil, "", err
+		}
+		page.Items = append(page.Items, current.Items...)
+	}
+	return page.Items, page.NextCursor, nil
+}
+
+// SQL 只读取一页或显式目标，当前关联不会因日期或搜索而从期望计划中消失。
+func queryAllocationTargets(ctx context.Context, queryer allocationQueryer, tenantID string, anchor ports.AllocationFactSummary, links []ports.AllocationWorkspaceLink, query ports.AllocationTargetQuery, ids []string) (ports.AllocationTargetPage, error) {
+	table, column, amount, date, name, number := "invoices", "invoice_id", "total_minor", "invoice_date", "seller_name", "invoice_number"
+	targetType := domain.DocumentInvoice
+	if anchor.FactType == domain.DocumentInvoice {
+		table, column, amount, date, name, number = "payments", "payment_id", "amount_minor", "business_date", "merchant", "order_number"
+		targetType = domain.DocumentPayment
+	}
+	anchorColumn := "payment_id"
+	if anchor.FactType == domain.DocumentInvoice {
+		anchorColumn = "invoice_id"
+	}
+	statement := `SELECT f.id, f.` + amount + `, balances.allocated, f.currency, f.` + date + `::text, f.` + name + `
+ FROM ` + table + ` f
+ JOIN review_decisions reviewed ON reviewed.tenant_id=f.tenant_id AND reviewed.id=f.current_review_decision_id AND reviewed.action='confirm'
+ CROSS JOIN LATERAL (SELECT coalesce(sum(l.allocated_minor),0) allocated FROM payment_invoice_links l
+ WHERE l.tenant_id=f.tenant_id AND l.` + column + `=f.id AND l.ended_at IS NULL) balances
+ WHERE f.tenant_id=? AND f.deleted_at IS NULL AND f.currency=?
+ AND (f.` + amount + `>balances.allocated OR EXISTS(SELECT 1 FROM payment_invoice_links own
+ WHERE own.tenant_id=f.tenant_id AND own.` + column + `=f.id AND own.` + anchorColumn + `=? AND own.ended_at IS NULL))`
+	args := []any{tenantID, anchor.Currency, anchor.ID}
+	limit := allocationTargetPageSize
+	if ids != nil {
+		if len(ids) == 0 {
+			return ports.AllocationTargetPage{Items: []ports.AllocationTarget{}}, nil
+		}
+		if len(ids) > domain.MaxAllocationTargets {
+			return ports.AllocationTargetPage{}, domain.ErrInvalidInput
+		}
+		statement += " AND f.id = ANY(?::text[])"
+		args = append(args, ids)
+		limit = len(ids)
+	} else {
+		if !query.AllDates {
+			statement += " AND f." + date + " BETWEEN ?::date-30 AND ?::date+30"
+			args = append(args, anchor.BusinessDate, anchor.BusinessDate)
+		}
+		if query.Query != "" {
+			literal := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(query.Query) + "%"
+			statement += " AND (f." + name + ` ILIKE ? ESCAPE '\' OR coalesce(f.` + number + `,'') ILIKE ? ESCAPE '\' OR f.id=?`
+			args = append(args, literal, literal, query.Query)
+			if targetType == domain.DocumentInvoice {
+				statement += ` OR f.buyer_name ILIKE ? ESCAPE '\'`
+				args = append(args, literal)
+			}
+			statement += ")"
+		}
+		if query.AfterID != "" {
+			statement += " AND f.id>?"
+			args = append(args, query.AfterID)
+		}
+	}
+	statement += " ORDER BY f.id LIMIT ?"
+	args = append(args, limit+1)
+	rows, err := queryer.QueryContext(ctx, statement, args...)
+	if err != nil {
+		return ports.AllocationTargetPage{}, fmt.Errorf("query allocation targets: %w", err)
+	}
+	defer rows.Close()
+	result := ports.AllocationTargetPage{Items: []ports.AllocationTarget{}}
 	current := make(map[string]ports.AllocationWorkspaceLink, len(links))
 	for _, link := range links {
 		current[link.TargetFactID] = link
 	}
-	var targets []ports.AllocationTarget
-	var err error
-	if anchor.FactType == domain.DocumentPayment {
-		targets, err = loadInvoiceAllocationTargets(ctx, queryer, tenantID, anchor, current)
-	} else {
-		targets, err = loadPaymentAllocationTargets(ctx, queryer, tenantID, anchor, current)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if len(targets) > domain.MaxAllocationTargets {
-		return nil, domain.NewRuleError("allocation_target_limit_exceeded", "合格分配目标超过 200 项", domain.ErrConflict)
-	}
-	sort.Slice(targets, func(left, right int) bool {
-		if targets[left].NameExact != targets[right].NameExact {
-			return targets[left].NameExact
-		}
-		if targets[left].DateDistanceDays != targets[right].DateDistanceDays {
-			return targets[left].DateDistanceDays < targets[right].DateDistanceDays
-		}
-		return targets[left].ID < targets[right].ID
-	})
-	if targets == nil {
-		targets = []ports.AllocationTarget{}
-	}
-	return targets, nil
-}
-
-func loadInvoiceAllocationTargets(
-	ctx context.Context,
-	queryer allocationQueryer,
-	tenantID string,
-	anchor ports.AllocationFactSummary,
-	current map[string]ports.AllocationWorkspaceLink,
-) ([]ports.AllocationTarget, error) {
-	rows, err := queryer.QueryContext(ctx, `
-		SELECT i.id, i.total_minor,
-		       coalesce((SELECT sum(l.allocated_minor) FROM payment_invoice_links l
-		                 WHERE l.tenant_id = i.tenant_id AND l.invoice_id = i.id AND l.ended_at IS NULL), 0),
-		       i.currency, i.invoice_date::text, i.seller_name
-		FROM invoices i
-		JOIN review_decisions r ON r.tenant_id = i.tenant_id AND r.id = i.source_review_decision_id
-		WHERE i.tenant_id = ? AND i.deleted_at IS NULL AND i.currency = ? AND r.action = 'confirm'
-		ORDER BY i.id
-	`, tenantID, anchor.Currency)
-	if err != nil {
-		return nil, fmt.Errorf("load invoice allocation targets: %w", err)
-	}
-	defer rows.Close()
-	result := make([]ports.AllocationTarget, 0)
 	for rows.Next() {
-		var target ports.AllocationTarget
-		if err := rows.Scan(
-			&target.ID,
-			&target.AmountMinor,
-			&target.AllocatedMinor,
-			&target.Currency,
-			&target.BusinessDate,
-			&target.DisplayName,
-		); err != nil {
-			return nil, fmt.Errorf("scan invoice allocation target: %w", err)
+		target := ports.AllocationTarget{FactType: targetType}
+		if err := rows.Scan(&target.ID, &target.AmountMinor, &target.AllocatedMinor, &target.Currency, &target.BusinessDate, &target.DisplayName); err != nil {
+			return result, err
 		}
-		target.FactType = domain.DocumentInvoice
-		include, err := includeAllocationTarget(anchor, &target, current[target.ID])
-		if err != nil {
-			return nil, err
+		if _, err := includeAllocationTarget(anchor, &target, current[target.ID]); err != nil {
+			return result, err
 		}
-		if include {
-			result = append(result, target)
-		}
+		result.Items = append(result.Items, target)
 	}
-	return result, rows.Err()
-}
-
-func loadPaymentAllocationTargets(
-	ctx context.Context,
-	queryer allocationQueryer,
-	tenantID string,
-	anchor ports.AllocationFactSummary,
-	current map[string]ports.AllocationWorkspaceLink,
-) ([]ports.AllocationTarget, error) {
-	rows, err := queryer.QueryContext(ctx, `
-		SELECT p.id, p.amount_minor,
-		       coalesce((SELECT sum(l.allocated_minor) FROM payment_invoice_links l
-		                 WHERE l.tenant_id = p.tenant_id AND l.payment_id = p.id AND l.ended_at IS NULL), 0),
-		       p.currency, p.business_date::text, p.merchant
-		FROM payments p
-		JOIN review_decisions r ON r.tenant_id = p.tenant_id AND r.id = p.source_review_decision_id
-		WHERE p.tenant_id = ? AND p.deleted_at IS NULL AND p.currency = ? AND r.action = 'confirm'
-		ORDER BY p.id
-	`, tenantID, anchor.Currency)
-	if err != nil {
-		return nil, fmt.Errorf("load payment allocation targets: %w", err)
+	if err := rows.Err(); err != nil {
+		return result, err
 	}
-	defer rows.Close()
-	result := make([]ports.AllocationTarget, 0)
-	for rows.Next() {
-		var target ports.AllocationTarget
-		if err := rows.Scan(
-			&target.ID,
-			&target.AmountMinor,
-			&target.AllocatedMinor,
-			&target.Currency,
-			&target.BusinessDate,
-			&target.DisplayName,
-		); err != nil {
-			return nil, fmt.Errorf("scan payment allocation target: %w", err)
-		}
-		target.FactType = domain.DocumentPayment
-		include, err := includeAllocationTarget(anchor, &target, current[target.ID])
-		if err != nil {
-			return nil, err
-		}
-		if include {
-			result = append(result, target)
-		}
+	if len(result.Items) > limit {
+		result.Items = result.Items[:limit]
+		result.NextCursor = result.Items[limit-1].ID
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
 func includeAllocationTarget(
@@ -333,9 +340,6 @@ func includeAllocationTarget(
 	distance, err := allocationDateDistance(anchor.BusinessDate, target.BusinessDate)
 	if err != nil {
 		return false, fmt.Errorf("compare allocation business dates: %w", err)
-	}
-	if distance > 30 {
-		return false, nil
 	}
 	target.DateDistanceDays = distance
 	target.RemainingMinor = target.AmountMinor - target.AllocatedMinor
@@ -355,7 +359,7 @@ func allocationDateDistance(left, right string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	days := int(leftDate.Sub(rightDate).Hours() / 24)
+	days := int((leftDate.Unix() - rightDate.Unix()) / 86400)
 	if days < 0 {
 		days = -days
 	}
@@ -400,13 +404,25 @@ func (t transaction) ApplyAllocationAdjustment(
 	if err != nil {
 		return ports.AllocationAdjustmentResult{}, err
 	}
-	workspace, err := loadAllocationWorkspace(ctx, t.tx, command.TenantID, command.AnchorFactType, command.AnchorFactID)
+	if err := t.requireTripManager(ctx, command.TenantID, command.ActorUserID); err != nil {
+		return ports.AllocationAdjustmentResult{}, err
+	}
+	workspace, err := loadAllocationState(ctx, t.tx, command.TenantID, command.AnchorFactType, command.AnchorFactID)
 	if err != nil {
 		return ports.AllocationAdjustmentResult{}, err
 	}
 	if workspace.PlanHash != command.ExpectedPlanHash {
 		return ports.AllocationAdjustmentResult{}, domain.NewRuleError("allocation_plan_stale", "分配计划已变化，请刷新后重试", domain.ErrConflict)
 	}
+	ids := make([]string, 0, len(desired))
+	for _, item := range desired {
+		ids = append(ids, item.TargetFactID)
+	}
+	selected, err := queryAllocationTargets(ctx, t.tx, command.TenantID, workspace.Anchor, workspace.Links, ports.AllocationTargetQuery{AllDates: true}, ids)
+	if err != nil {
+		return ports.AllocationAdjustmentResult{}, err
+	}
+	workspace.Targets = selected.Items
 	targetBalances := make([]domain.AllocationTargetBalance, 0, len(workspace.Targets))
 	for _, target := range workspace.Targets {
 		targetBalances = append(targetBalances, domain.AllocationTargetBalance{
@@ -597,16 +613,20 @@ func (t transaction) persistAllocationAdjustment(
 }
 
 func allocationAdjustmentWriteError(operation string, err error) error {
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) && pgError.Code == "23505" {
+		return domain.NewRuleError("allocation_pair_conflict", "同一支付与发票已存在活动分配", domain.ErrConflict)
+	}
 	message := err.Error()
 	switch {
+	case strings.Contains(message, "allocation_active_target_limit_exceeded"):
+		return domain.NewRuleError("allocation_active_target_limit_exceeded", "单据最多保留 200 条活动分配，请先调整已有分配", domain.ErrConflict)
 	case strings.Contains(message, "payment_allocation_exceeded"),
 		strings.Contains(message, "invoice_allocation_exceeded"):
 		return domain.NewRuleError("allocation_balance_conflict", "分配余额已被其他操作占用，请刷新后重试", domain.ErrConflict)
 	case strings.Contains(message, "allocation_fact_unavailable"),
 		strings.Contains(message, "allocation_anchor_unavailable"):
 		return domain.NewRuleError("allocation_target_unavailable", "分配 Fact 已删除或状态已变化", domain.ErrConflict)
-	case strings.Contains(message, "UNIQUE constraint failed"):
-		return domain.NewRuleError("allocation_pair_conflict", "同一支付与发票已存在活动分配", domain.ErrConflict)
 	default:
 		return fmt.Errorf("%s: %w", operation, err)
 	}

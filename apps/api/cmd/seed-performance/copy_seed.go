@@ -122,10 +122,7 @@ func seedPerformanceData(ctx context.Context, tx pgx.Tx, tenantID, userID, provi
 		"id", "tenant_id", "document_id", "origin_ai_run_id", "produced_by_ai_run_id", "document_type",
 		"status", "revision", "optimistic_version", "created_at",
 	}, totalDocuments, func(index int) ([]any, error) {
-		documentType, status := "payment", "confirmed"
-		if index >= totalFacts/2 && index < totalFacts {
-			documentType = "invoice"
-		}
+		documentType, status := performanceDocumentType(index), "confirmed"
 		if index >= totalFacts {
 			status = "ready_for_review"
 		}
@@ -164,17 +161,17 @@ func seedPerformanceData(ctx context.Context, tx pgx.Tx, tenantID, userID, provi
 		return err
 	}
 	if err := copyGenerated(ctx, tx, "review_decisions", []string{
-		"id", "tenant_id", "claim_set_id", "actor_user_id", "action", "association_mode", "duplicate_plan_hash",
+		"id", "tenant_id", "claim_set_id", "actor_user_id", "action", "fact_type", "association_mode", "duplicate_plan_hash",
 		"idempotency_key", "expected_revision", "created_at",
 	}, totalFacts, func(index int) ([]any, error) {
-		return []any{makeID(0x50000001, index), tenantID, makeID(0x40000001, index), userID, "confirm", "no_candidate",
+		return []any{makeID(0x50000001, index), tenantID, makeID(0x40000001, index), userID, "confirm", performanceDocumentType(index), "no_candidate",
 			"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
 			fmt.Sprintf("performance-confirm-%05d", index), int64(1), now.Add(time.Duration(index) * time.Second)}, nil
 	}); err != nil {
 		return err
 	}
 	if err := copyGenerated(ctx, tx, "payments", []string{
-		"id", "tenant_id", "source_review_decision_id", "amount_minor", "currency", "merchant", "transaction_time",
+		"id", "tenant_id", "source_review_decision_id", "current_review_decision_id", "amount_minor", "currency", "merchant", "transaction_time",
 		"source_timezone", "business_date", "created_at", "updated_at", "version",
 	}, totalFacts/2, func(index int) ([]any, error) {
 		createdAt := now.Add(time.Duration(index) * time.Second)
@@ -187,20 +184,20 @@ func seedPerformanceData(ctx context.Context, tx pgx.Tx, tenantID, userID, provi
 		if err != nil {
 			return nil, err
 		}
-		return []any{makeID(0x60000001, index), tenantID, makeID(0x50000001, index), int64(10_000 + index), "CNY",
+		return []any{makeID(0x60000001, index), tenantID, makeID(0x50000001, index), makeID(0x50000001, index), int64(10_000 + index), "CNY",
 			fmt.Sprintf("Synthetic Merchant %05d", index), createdAt, "Asia/Shanghai", businessDay,
 			createdAt, createdAt, int64(1)}, nil
 	}); err != nil {
 		return err
 	}
 	if err := copyGenerated(ctx, tx, "invoices", []string{
-		"id", "tenant_id", "source_review_decision_id", "invoice_number", "normalized_invoice_number", "invoice_date",
+		"id", "tenant_id", "source_review_decision_id", "current_review_decision_id", "invoice_number", "normalized_invoice_number", "invoice_date",
 		"total_minor", "currency", "seller_name", "buyer_name", "created_at", "updated_at", "version",
 	}, totalFacts/2, func(offset int) ([]any, error) {
 		index := totalFacts/2 + offset
 		createdAt := now.Add(time.Duration(index) * time.Second)
 		invoiceNumber := fmt.Sprintf("PERF-INV-%05d", index)
-		return []any{makeID(0x60000001, index), tenantID, makeID(0x50000001, index), invoiceNumber,
+		return []any{makeID(0x60000001, index), tenantID, makeID(0x50000001, index), makeID(0x50000001, index), invoiceNumber,
 			strings.ToLower(invoiceNumber), createdAt, int64(10_000 + index), "CNY",
 			fmt.Sprintf("Synthetic Seller %05d", index), fmt.Sprintf("Synthetic Buyer %05d", index),
 			createdAt, createdAt, int64(1)}, nil
@@ -208,11 +205,11 @@ func seedPerformanceData(ctx context.Context, tx pgx.Tx, tenantID, userID, provi
 		return err
 	}
 	if err := copyGenerated(ctx, tx, "invoice_items", []string{
-		"id", "tenant_id", "invoice_id", "item_key", "name", "quantity", "unit", "unit_price_minor", "amount_minor", "sort_order",
+		"id", "tenant_id", "invoice_id", "review_decision_id", "item_key", "name", "quantity", "unit", "unit_price_minor", "amount_minor", "sort_order",
 	}, totalFacts/2, func(offset int) ([]any, error) {
 		index := totalFacts/2 + offset
 		amount := int64(10_000 + index)
-		return []any{makeID(0x90000001, index), tenantID, makeID(0x60000001, index), makeID(0xa0000001, index),
+		return []any{makeID(0x90000001, index), tenantID, makeID(0x60000001, index), makeID(0x50000001, index), makeID(0xa0000001, index),
 			"Synthetic performance item", "1", "item", amount, amount, int64(0)}, nil
 	}); err != nil {
 		return err
@@ -226,14 +223,18 @@ func seedPerformanceData(ctx context.Context, tx pgx.Tx, tenantID, userID, provi
 	return copyGenerated(ctx, tx, "audit_events", []string{
 		"id", "tenant_id", "actor_user_id", "action", "resource_type", "resource_id", "request_id", "safe_metadata_json", "created_at",
 	}, totalFacts, func(index int) ([]any, error) {
-		resourceType := "payment"
-		if index >= totalFacts/2 {
-			resourceType = "invoice"
-		}
+		resourceType := performanceDocumentType(index)
 		return []any{makeID(0xb0000001, index), tenantID, userID, "fact_confirmed", resourceType,
 			makeID(0x60000001, index), fmt.Sprintf("performance-request-%05d", index), "{}",
 			now.Add(time.Duration(index) * time.Second)}, nil
 	})
+}
+
+func performanceDocumentType(index int) string {
+	if index >= totalFacts/2 && index < totalFacts {
+		return "invoice"
+	}
+	return "payment"
 }
 
 func performanceFieldValues(index int, documentType string, createdAt time.Time) []performanceFieldValue {

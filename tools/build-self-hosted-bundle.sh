@@ -50,7 +50,7 @@ chmod 0755 "${bundle_root}/install.sh"
 for file in README.md README_EN.md LICENSE; do
   cp -- "${repository_root}/${file}" "${bundle_root}/${file}"
 done
-for file in deployment.md backup-restore.md local-operations.md; do
+for file in deployment.md backup-restore.md local-operations.md member-accounts.md material-export.md; do
   cp -- "${repository_root}/docs/${file}" "${bundle_root}/docs/${file}"
 done
 for file in compose.yaml compose.release.yaml compose.bootstrap.yaml release.env; do

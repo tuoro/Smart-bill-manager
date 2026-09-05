@@ -595,6 +595,28 @@ dialog.sidebar::backdrop {
   border-radius: 0;
 }
 
+/* 多段正文不是带前置图标的单行提示，不套用首子元素的圆形图标尺寸。 */
+.notice-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notice-stack > :first-child {
+  display: block;
+  flex: initial;
+  width: auto;
+  height: auto;
+  place-items: normal;
+  border: 0;
+  border-radius: 0;
+  font-weight: revert;
+}
+
+.notice-stack > p,
+.notice-stack > h2 {
+  margin: 0;
+}
+
 .notice .text-button {
   margin-left: auto;
 }

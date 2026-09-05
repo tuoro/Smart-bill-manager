@@ -1,0 +1,201 @@
+{
+  "evidence_kind": "m4-local-release-readiness-gate-summary",
+  "evidence_version": 1,
+  "status": "passed_local_only",
+  "build_identity": {
+    "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+    "release_input_sha256": "58d693a9f4aec8829ff9f754b951b7393293a7fa12be9267d3e1762fccd1ce72",
+    "image_id": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+    "base_compose_config_sha256": "ecd5ffc01831f7585162ab0cd0f0273ea6e683a797222bc4e56cb09e3b711c9a",
+    "acceptance_compose_config_sha256": "51a46479209a3a19617eddc2ce54c5648399b4906b67de1312d7d468b0fa12fc"
+  },
+  "release_artifact": {
+    "compose_static_gates": 13,
+    "image_static_gates": 12,
+    "required_assets_present": true,
+    "forbidden_assets_absent": true,
+    "toolchains_absent": true,
+    "package_managers_absent": true,
+    "runtime_assets_readable": true,
+    "entrypoint_failure_cases_passed": 9,
+    "bootstrap_owner_atomic": true,
+    "authenticated_runtime_ready": true,
+    "runtime_least_privilege": true,
+    "credential_material_hits": 0
+  },
+  "performance": {
+    "non_ai_json_api": {
+      "inbox_list": {
+        "warmups": 100,
+        "requests": 1000,
+        "concurrency": 10,
+        "p95_ms": 208.38,
+        "threshold_p95_ms": 300
+      },
+      "document_detail": {
+        "warmups": 100,
+        "requests": 1000,
+        "concurrency": 10,
+        "p95_ms": 35.74,
+        "threshold_p95_ms": 300
+      },
+      "claim_set_detail": {
+        "warmups": 100,
+        "requests": 1000,
+        "concurrency": 10,
+        "p95_ms": 53.13,
+        "threshold_p95_ms": 300
+      },
+      "payment_list": {
+        "warmups": 100,
+        "requests": 1000,
+        "concurrency": 10,
+        "p95_ms": 79.31,
+        "threshold_p95_ms": 300
+      },
+      "invoice_list": {
+        "warmups": 100,
+        "requests": 1000,
+        "concurrency": 10,
+        "p95_ms": 86.47,
+        "threshold_p95_ms": 300
+      },
+      "fact_insights": {
+        "warmups": 100,
+        "requests": 1000,
+        "concurrency": 10,
+        "p95_ms": 197.09,
+        "threshold_p95_ms": 300
+      }
+    },
+    "document_create": {
+      "warmups": 20,
+      "requests": 200,
+      "concurrency": 2,
+      "p95_ms": 11,
+      "threshold_p95_ms": 500
+    },
+    "review_confirm": {
+      "warmups": 20,
+      "requests": 200,
+      "concurrency": 2,
+      "p95_ms": 33.49,
+      "threshold_p95_ms": 500
+    }
+  },
+  "provider_latency_ms": {
+    "capability_probe": {
+      "samples": 1,
+      "p50": 2.494,
+      "p95": 2.494,
+      "max": 2.494
+    },
+    "extraction": {
+      "samples": 60,
+      "p50": 0.83,
+      "p95": 1.386,
+      "max": 2.164
+    }
+  },
+  "memory_stability": {
+    "warmup_jobs": 10,
+    "measured_jobs": 50,
+    "idle_after_terminal_ms": 2000,
+    "last_to_first_median_ratio": 0.1507,
+    "maximum_last_to_first_median_ratio": 1.2,
+    "linear_regression_slope_mib_per_job": -3.1671,
+    "maximum_slope_mib_per_job": 0.5,
+    "orphan_processing_or_cancel_requested_jobs": 0
+  },
+  "accessibility": {
+    "pages": {
+      "login": {
+        "runs": 3,
+        "minimum_performance": 100,
+        "performance_threshold": 85,
+        "minimum_accessibility": 100,
+        "accessibility_threshold": 95
+      },
+      "inbox": {
+        "runs": 3,
+        "minimum_performance": 100,
+        "performance_threshold": 85,
+        "minimum_accessibility": 100,
+        "accessibility_threshold": 95
+      },
+      "review": {
+        "runs": 3,
+        "minimum_performance": 100,
+        "performance_threshold": 85,
+        "minimum_accessibility": 100,
+        "accessibility_threshold": 95
+      },
+      "payments": {
+        "runs": 3,
+        "minimum_performance": 100,
+        "performance_threshold": 85,
+        "minimum_accessibility": 100,
+        "accessibility_threshold": 95
+      }
+    },
+    "formal_responsive_passed": 16,
+    "formal_responsive_total": 16,
+    "equivalent_reflow_passed": 16,
+    "equivalent_reflow_total": 16,
+    "keyboard_passed": true,
+    "dark_theme_passed": true
+  },
+  "browser_acceptance": {
+    "spec_files": 15,
+    "passed_scenarios": 120,
+    "failed_scenarios": 0,
+    "skipped_scenarios": 0,
+    "minimum_passed_scenarios": 120
+  },
+  "static_verification": {
+    "gates": {
+      "go_test": true,
+      "go_vet": true,
+      "go_build": true,
+      "web_check": true,
+      "node_tests": true,
+      "critical_invariants": true,
+      "coverage": true,
+      "diff_check": true,
+      "sensitive_audit": true,
+      "large_file_audit": true,
+      "temporary_audit": true,
+      "process_audit": true,
+      "release_input_recheck": true
+    },
+    "counts": {
+      "node_test_files": 19,
+      "web_test_files": 11,
+      "web_test_cases": 51,
+      "critical_invariants_passed": 245,
+      "critical_invariants_total": 245
+    },
+    "coverage": {
+      "domain_application_percent": 86.2,
+      "infrastructure_transport_percent": 76.2,
+      "domain_application_threshold_percent": 85,
+      "infrastructure_transport_threshold_percent": 70
+    }
+  },
+  "privacy_and_scope": {
+    "raw_reports_committed": false,
+    "credentials_committed": false,
+    "real_provider_called": false,
+    "real_email_connected": false,
+    "final_candidate_build_network_isolated": true,
+    "final_acceptance_network_isolated": true,
+    "prior_tooling_network_policy_incident_disclosed": true,
+    "deployed_or_published": false
+  },
+  "remaining_release_gates": [
+    "formal_real_model_evaluation",
+    "real_external_system_integration",
+    "production_deployment_and_release"
+  ],
+  "passed": true
+}

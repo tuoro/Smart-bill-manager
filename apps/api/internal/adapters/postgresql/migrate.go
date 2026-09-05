@@ -33,13 +33,16 @@ func migrate(ctx context.Context, db *sql.DB, migrationsDir, runtimeRole string)
 	if err != nil {
 		return err
 	}
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return fmt.Errorf("begin PostgreSQL migration: %w", err)
 	}
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", migrationLockID); err != nil {
 		return fmt.Errorf("lock PostgreSQL migrations: %w", err)
+	}
+	if _, err := readRestoreState(ctx, tx, false); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (

@@ -141,6 +141,9 @@ func (s Service) Get(
 	if detail.Totals == nil {
 		detail.Totals = []domain.ReimbursementCurrencyTotal{}
 	}
+	if domain.RequireInvoiceMaterials(tenant) != nil {
+		detail.MaterialCount = nil
+	}
 	return detail, nil
 }
 

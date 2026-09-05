@@ -15,7 +15,7 @@ target_file=${target_dir}/master-key
 needs_master=false
 needs_objects=false
 case "$1" in
-  /app/provision-postgresql|/app/migrate)
+  /app/provision-postgresql|/app/migrate|/app/recover-account)
     ;;
   /app/server|/app/bootstrap-owner|/app/backup)
     needs_master=true
@@ -77,7 +77,8 @@ esac
 
 normalized_count=$byte_count
 last_byte=$(od -An -tu1 -j $((byte_count - 1)) -N 1 "$candidate" | tr -d ' ')
-if [ "$last_byte" = "10" ]; then
+# 与 Go 读取器一致：恰好 32 字节时每一字节均为原始密钥，不截断 CR/LF。
+if [ "$byte_count" -ne 32 ] && [ "$last_byte" = "10" ]; then
   normalized_count=$((normalized_count - 1))
   if [ "$normalized_count" -gt 0 ]; then
     previous_byte=$(od -An -tu1 -j $((normalized_count - 1)) -N 1 "$candidate" | tr -d ' ')
@@ -111,10 +112,11 @@ candidate=
 trap - EXIT HUP INT TERM
 fi
 
-materialize_database_secret() {
+materialize_secret() {
   database_source=$1
   database_target=$2
   database_label=$3
+  database_maximum=${4:-1025}
 
   [ ! -L "$database_source" ] || fail "${database_label}_source_invalid"
   [ -f "$database_source" ] || fail "${database_label}_source_invalid"
@@ -127,12 +129,12 @@ materialize_database_secret() {
 
   database_candidate=$(mktemp "${target_dir}/${database_label}.tmp.XXXXXX") || fail "${database_label}_target_unavailable"
   chmod 0600 "$database_candidate" || fail "${database_label}_target_permissions"
-  dd if="$database_source" of="$database_candidate" bs=1026 count=1 2>/dev/null || fail "${database_label}_source_unreadable"
+  dd if="$database_source" of="$database_candidate" bs=$((database_maximum + 1)) count=1 2>/dev/null || fail "${database_label}_source_unreadable"
   database_byte_count=$(wc -c < "$database_candidate" | tr -d ' ')
   case "$database_byte_count" in
     ''|*[!0-9]*) fail "${database_label}_format_invalid" ;;
   esac
-  [ "$database_byte_count" -gt 0 ] && [ "$database_byte_count" -le 1025 ] || fail "${database_label}_format_invalid"
+  [ "$database_byte_count" -gt 0 ] && [ "$database_byte_count" -le "$database_maximum" ] || fail "${database_label}_format_invalid"
   chmod 0600 "$database_candidate" || fail "${database_label}_target_permissions"
   chown sbm:sbm "$database_candidate" || fail "${database_label}_target_permissions"
   mv -f "$database_candidate" "$database_target" || fail "${database_label}_target_unavailable"
@@ -141,24 +143,28 @@ materialize_database_secret() {
 
 case "$1" in
   /app/provision-postgresql)
-    materialize_database_secret /run/secrets/sbm_postgres_admin_password "${target_dir}/postgres-admin-password" postgres-admin-password
-    materialize_database_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
-    materialize_database_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
+    materialize_secret /run/secrets/sbm_postgres_admin_password "${target_dir}/postgres-admin-password" postgres-admin-password
+    materialize_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
+    materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
     ;;
   /app/migrate)
-    materialize_database_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
+    materialize_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
     ;;
-  /app/server|/app/bootstrap-owner)
-    materialize_database_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
+  /app/server|/app/bootstrap-owner|/app/recover-account)
+    materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
     ;;
   /app/backup)
-    materialize_database_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
-    materialize_database_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
+    materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
+    materialize_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
     ;;
   *)
-    materialize_database_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
+    materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
     ;;
 esac
+
+if [ "$1" = "/app/recover-account" ] && { [ -e /run/secrets/sbm_account_recovery_input ] || [ -L /run/secrets/sbm_account_recovery_input ]; }; then
+  materialize_secret /run/secrets/sbm_account_recovery_input "${target_dir}/account-recovery-input" account-recovery-input 8192
+fi
 
 if [ "$1" = "/app/bootstrap-owner" ]; then
   owner_source=/run/secrets/sbm_owner_password

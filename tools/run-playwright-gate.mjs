@@ -25,6 +25,8 @@ const playwrightExecutable = resolve(
   "node_modules/.bin/playwright",
 );
 const maximumReportBytes = 64 * 1024 * 1024;
+export const requiredPlaywrightSpecFiles = 15;
+export const minimumPlaywrightScenarios = 120;
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
@@ -72,8 +74,8 @@ async function main() {
         compose_config_sha256: options.composeConfigSha256,
         image_id: options.imageID,
       },
-      required_spec_files: 8,
-      minimum_passed_scenarios: 73,
+      required_spec_files: requiredPlaywrightSpecFiles,
+      minimum_passed_scenarios: minimumPlaywrightScenarios,
       network_policy: {
         loopback_origin_only: true,
         closed_loopback_proxy: true,
@@ -174,8 +176,10 @@ export function summarizePlaywright(report, exitCode) {
   const failed = statuses.length - passed - skipped;
   const failedGates = [];
   if (exitCode !== 0) failedGates.push("runner_exit");
-  if (specFiles.size !== 8) failedGates.push("spec_file_count");
-  if (passed < 73) failedGates.push("passed_scenario_count");
+  if (specFiles.size !== requiredPlaywrightSpecFiles)
+    failedGates.push("spec_file_count");
+  if (passed < minimumPlaywrightScenarios)
+    failedGates.push("passed_scenario_count");
   if (failed !== 0) failedGates.push("failed_scenarios");
   if (skipped !== 0) failedGates.push("skipped_scenarios");
   if ((report.errors ?? []).length !== 0) failedGates.push("top_level_errors");

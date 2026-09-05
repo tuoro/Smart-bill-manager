@@ -52,6 +52,13 @@ var appendOnlyRecoveryTables = []string{
 }
 
 var fullyStableRecoveryTables = []string{
+	"fact_bad_debt_decisions",
+	"account_events",
+	"member_invitations",
+	"invoice_material_decisions",
+	"invoice_material_links",
+	"reimbursement_material_snapshots",
+	"fact_corrections",
 	"schema_migrations",
 	"users",
 	"tenants",
@@ -64,6 +71,10 @@ var fullyStableRecoveryTables = []string{
 	"invoices",
 	"invoice_items",
 	"trips",
+	"trip_evidence_facts",
+	"trip_management_decisions",
+	"trip_material_decisions",
+	"trip_material_links",
 	"payment_invoice_link_decisions",
 	"payment_invoice_allocation_adjustments",
 	"payment_invoice_links",
@@ -158,7 +169,7 @@ func captureRecoverySnapshot(ctx context.Context, options snapshotOptions) (reco
 		SELECT (SELECT count(*) FROM documents),
 		       (SELECT count(*) FROM processing_jobs),
 		       (SELECT count(*) FROM processing_jobs WHERE status = 'failed'),
-		       (SELECT count(*) FROM payments) + (SELECT count(*) FROM invoices) + (SELECT count(*) FROM trips),
+		       (SELECT count(*) FROM payments) + (SELECT count(*) FROM invoices) + (SELECT count(*) FROM trip_evidence_facts),
 		       (SELECT count(*) FROM email_messages),
 		       (SELECT count(*) FROM email_attachments WHERE storage_key IS NOT NULL),
 		       (SELECT count(*) FROM document_pages),
@@ -317,7 +328,7 @@ func verifyRecoveryState(ctx context.Context, options verifyOptions) (recoveryVe
 	if err := database.QueryRowContext(ctx, `
 		SELECT (SELECT count(*) FROM documents),
 		       (SELECT count(*) FROM processing_jobs),
-		       (SELECT count(*) FROM payments) + (SELECT count(*) FROM invoices) + (SELECT count(*) FROM trips),
+		       (SELECT count(*) FROM payments) + (SELECT count(*) FROM invoices) + (SELECT count(*) FROM trip_evidence_facts),
 		       (SELECT count(*) FROM email_messages),
 		       (SELECT count(*) FROM email_attachments WHERE storage_key IS NOT NULL),
 		       (SELECT count(*) FROM document_pages),
@@ -791,7 +802,7 @@ func requireEmptyRuntimeDirectories(root string) error {
 	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
 		return errors.New("object store must be a real directory")
 	}
-	for _, name := range []string{"staging", "trash"} {
+	for _, name := range []string{"staging", "trash", "material-publications"} {
 		location := filepath.Join(root, name)
 		information, err := os.Lstat(location)
 		if err != nil || !information.IsDir() || information.Mode()&os.ModeSymlink != 0 {
@@ -804,6 +815,22 @@ func requireEmptyRuntimeDirectories(root string) error {
 		if len(entries) != 0 {
 			return fmt.Errorf("object store %s directory is not empty", name)
 		}
+	}
+	// 导出尚未启动的当前版本可以没有该非权威目录；一旦存在必须为空。
+	exports := filepath.Join(root, "export-spool")
+	if info, err := os.Lstat(exports); err == nil {
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("export spool must be a real directory")
+		}
+		entries, err := os.ReadDir(exports)
+		if err != nil {
+			return err
+		}
+		if len(entries) != 0 {
+			return errors.New("export spool directory is not empty")
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
 	return nil
 }

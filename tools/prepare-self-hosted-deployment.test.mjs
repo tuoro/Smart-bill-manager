@@ -280,7 +280,7 @@ test("release identity is separate from user deployment configuration", async ()
   const environment = await readFile(releaseEnvironment, "utf8");
   assert.match(
     environment,
-    /^SBM_IMAGE=ghcr\.io\/tuoro\/smart-bill-manager:v0\.3\.4@sha256:8d3fc8267170a94517ec911d4766f44468759dbdaaf88c6526d6f911e0370c9a$/m,
+    /^SBM_IMAGE=ghcr\.io\/tuoro\/smart-bill-manager:v0\.4\.0@sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385$/m,
   );
   assert.match(
     environment,

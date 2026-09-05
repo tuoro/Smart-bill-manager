@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
 )
@@ -51,10 +52,8 @@ func TestProtectedResultIsReservedBeforeExerciseMutation(t *testing.T) {
 func TestRecoverySnapshotAndExactPostRestoreIncrements(t *testing.T) {
 	root := t.TempDir()
 	objects := filepath.Join(root, "object-store")
-	for _, location := range []string{filepath.Join(objects, "objects"), filepath.Join(objects, "staging"), filepath.Join(objects, "trash")} {
-		if err := os.MkdirAll(location, 0o700); err != nil {
-			t.Fatal(err)
-		}
+	if _, err := localstorage.New(objects); err != nil {
+		t.Fatal(err)
 	}
 	config := postgresqltest.NewDatabase(t)
 	config.RuntimeRole = config.User

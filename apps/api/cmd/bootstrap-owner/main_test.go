@@ -90,6 +90,10 @@ func TestReadPasswordErrorsNeverWrapSecretContent(t *testing.T) {
 	if err := os.WriteFile(path, []byte(secret), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// 显式设置被拒绝的权限，避免 owner-only 测试环境的 umask 改变前置条件。
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	_, err := readPassword(path)
 	if err == nil {
 		t.Fatal("unsafe password source was accepted")

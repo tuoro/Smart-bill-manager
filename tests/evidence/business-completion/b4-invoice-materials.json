@@ -1,0 +1,110 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B4-ADR-0028-invoice-supporting-materials",
+  "date": "2026-09-04",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 175,
+  "worktree_sha256": "61e8a066d84f395600db61da058b2a0d3dde988f442135ce2c3fd2a5b17fbfb6",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024 and B1-B3 work",
+  "database": {
+    "major": 17,
+    "source": "existing postgres:17; no pull or download",
+    "isolation": "dedicated internal network, no host database port, synthetic data only",
+    "tested": [
+      "auxiliary upload has no Job/AiRun/Claim/Fact; exact SHA reuse shares immutable Document identity, name and object",
+      "201 existing candidates with literal special-character search and keyset pagination; all valid processing statuses remain eligible",
+      "100-active-material bound; duplicate, original-as-auxiliary, idempotency replay and changed-request conflicts",
+      "four roles and cross-tenant boundaries; strict JSON/multipart/query fields and authenticated original access",
+      "concurrent shared uploads, publication failure, final transaction rollback, failed compensation and startup reconciliation",
+      "publication reconciliation waits for the same lock before reading committed identity; changed objects fail closed",
+      "material history blocks physical document deletion; relation added after deletion plan restores quarantined original",
+      "invoice deletion ends active links without rewriting history; deferred decision-effect constraint rejects missing effects",
+      "selected invoice materials change preview hash including remove/re-add ABA; three reimbursement statuses retain immutable exact-count snapshots",
+      "old reimbursement snapshots retain hash/status, are explicitly uncaptured and receive no retroactive materials",
+      "0006 forward upgrade, repeated application and injected rollback preserve current architecture data"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "test_command": "GOMAXPROCS=2 go test -count=1 -json -p 1 -parallel 2 -timeout 60s -covermode=atomic -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 567,
+    "failed": 0,
+    "skipped_tests": 0,
+    "critical_invariants": { "matrix": "tests/critical-invariants.tsv", "passed": 196, "total": 196, "method": "all package/test identities matched uncached final pass events" },
+    "statement_coverage": {
+      "domain_application": { "covered": 3848, "total": 4465, "percent": 86.18, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 4786, "total": 6329, "percent": 75.62, "threshold": 70, "passed": true },
+      "method": "unique statement blocks with any positive atomic count; existing layer boundaries unchanged"
+    },
+    "vet": "all packages and postgresql_tools backup tests passed",
+    "build": "all packages and static postgresql_tools backup test binary passed"
+  },
+  "authenticated_restore": {
+    "test": "TestManualTripAuthenticatedBackupRestore",
+    "passed": true,
+    "native_pg_dump_pg_restore": true,
+    "file_only_database_authentication": true,
+    "final_duration_seconds": 1.37,
+    "nonempty_originals_shared_materials_and_fixed_removed_material": true,
+    "material_links": 2,
+    "material_decisions": 3,
+    "reimbursement_material_snapshots": 1,
+    "existing_manual_claim_correction_trip_history_and_exact_object_inventory_verified": true,
+    "limit": "focused regression fixture, not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests_passed": 43,
+    "unit_test_files": 10,
+    "contract_typecheck_lint_format_build": "passed",
+    "browser_spec_files": 11,
+    "browser_passed": 96,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "browser_retries": 0,
+    "additional_final_material_tests_passed": 5,
+    "scope": "production-built components with synthetic mocked API plus separate database-backed HTTP integration; not a deployed runtime browser release gate",
+    "covered": ["upload and authorized original links", "201 candidates with paging/search", "remove confirmation and cancel focus", "409 preserves file/reason and refreshes parent fields/version before explicit recheck", "uncertain network retry retains request key", "Viewer/Reviewer suppression", "late reimbursement preview/detail isolation", "pending submit freezes selected scope", "historical uncaptured and permission-hidden material counts"],
+    "responsive_capture_widths_px": [384, 768, 1024, 1440],
+    "themes": ["light", "dark"],
+    "visual_review": "384px light and 1440px dark material panels inspected; narrow header wrapping corrected and full browser run repeated",
+    "final_preview_unmocked_api_proxy_errors": 0
+  },
+  "failure_history": [
+    { "stage": "backend_review", "cause": "overrestrictive document status filter, unused object deletion without hash verification, and decision without deferred effect guard", "resolution": "remove status restriction, verify exact object before cleanup, add deferred effect constraint; direct and full regressions pass" },
+    { "stage": "upgrade_fixtures", "cause": "older migration tests assumed latest migration count and unchanged reimbursement column set", "resolution": "freeze prior migration scope and explicitly verify new historical false/null fields; no valid assertions removed" },
+    { "stage": "web_build", "cause": "formatted multiline inline candidate toggle was invalid Vue template syntax", "resolution": "use named handler; full check passes" },
+    { "stage": "ui_review", "cause": "material 409 did not refresh parent context; reimbursement selection remained mutable during pending submit", "resolution": "refresh parent without unmounting draft and freeze pending selection; browser tests pass" },
+    { "stage": "browser_full", "cause": "95 passed and one failed because a combobox locator did not match the nested label", "resolution": "use the actual accessible combobox role/name; all 96 pass without retries" },
+    { "stage": "go_full", "cause": "recovery fixture manually initialized only three object-store directories", "resolution": "reuse production localstorage initialization; uncached final 567 test events all pass" },
+    { "stage": "browser_cleanup", "cause": "role fixture removed route mocks while prior synthetic requests could still settle", "resolution": "use separate pages and close each with mocks retained; final 5 tests pass with no preview proxy errors" }
+  ],
+  "review": {
+    "git_diff_check": "passed",
+    "changed_files_over_1_mib": 0,
+    "targeted_known_secret_pattern_matches": 0,
+    "scan_limit": "known key/private-key patterns and scoped diff review, not universal secret detection",
+    "read_only_agents": "backend persistence/concurrency and UI request-race/permission review; main agent implemented and verified edits",
+    "tool_tests": "fact-pagination and release-image policy passed; model evaluation and performance tools syntax checked only"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "database_memory_mib": 1024,
+    "go_memory_mib": 2048,
+    "native_restore_tools_memory_mib": 1024,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_available_host_memory_mib": 5880,
+    "available_after_cleanup_mib": 7077,
+    "swap": "pre-existing 3898 MiB used; no expanded limits or OOM retry",
+    "database_oom_killed": false,
+    "credentials": "one-time synthetic, owner-only temporary files; never emitted or committed",
+    "containers_network_removed": true,
+    "image_created_unused_anonymous_volume_removed": true,
+    "browser_and_preview_stopped": true,
+    "temporary_credentials_data_raw_reports_cache_and_build_removed": true,
+    "approximate_temporary_host_disk_mib_before_cleanup": 535,
+    "existing_user_instance": "not accessed, restarted or upgraded"
+  },
+  "not_performed": ["real Provider/mailbox/account integration or model correctness evaluation", "production release image/runtime performance/Lighthouse gates", "Git commit, push, tag, deployment or release", "B5 and B6 implementation"]
+}

@@ -278,7 +278,7 @@ func createFactInsightProjectionSchema(tb testing.TB, database *sql.DB) {
 			allocated_minor BIGINT NOT NULL, ended_at TIMESTAMPTZ
 		);
 		CREATE TABLE trips (
-			id TEXT NOT NULL, tenant_id TEXT NOT NULL, destination TEXT NOT NULL,
+			id TEXT NOT NULL, tenant_id TEXT NOT NULL, name TEXT NOT NULL,
 			start_date DATE NOT NULL, end_date DATE NOT NULL, deleted_at TIMESTAMPTZ
 		);
 		CREATE TABLE trip_fact_assignments (

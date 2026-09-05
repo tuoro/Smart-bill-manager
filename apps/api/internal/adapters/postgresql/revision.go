@@ -61,12 +61,19 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 	if err := requireAffected(result); err != nil {
 		return domain.ErrVersionConflict
 	}
+	if err := t.insertRevisionIdentity(ctx, command); err != nil {
+		return err
+	}
+	return t.publishRevisionContents(ctx, command, []string{"needs_review", "blocked"})
+}
+
+func (t transaction) insertRevisionIdentity(ctx context.Context, command ports.RevisionCommand) error {
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO claim_sets (
 			id, tenant_id, document_id, origin_ai_run_id, produced_by_ai_run_id,
 			revised_by_user_id, document_type, status, revision,
 			supersedes_claim_set_id, optimistic_version, created_at
-		) VALUES (?, ?, ?, ?, NULL, ?, ?, 'draft', ?, ?, 1, ?)
+		) VALUES (?, ?, ?, NULLIF(?, ''), NULL, ?, ?, 'draft', ?, ?, 1, ?)
 	`,
 		command.ClaimSet.ID,
 		command.TenantID,
@@ -80,6 +87,19 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 	); err != nil {
 		return fmt.Errorf("insert claim revision: %w", err)
 	}
+	return nil
+}
+
+func (t transaction) publishRevisionContents(ctx context.Context, command ports.RevisionCommand, expectedJobStates []string) error {
+	status, err := t.persistRevisionContents(ctx, command, "")
+	if err != nil {
+		return err
+	}
+	return t.publishRevisionJob(ctx, command, expectedJobStates, status)
+}
+
+// Claim 内容与 Job 生命周期分开：纠错保留 completed Job 和原 confirmed Claim。
+func (t transaction) persistRevisionContents(ctx context.Context, command ports.RevisionCommand, excludedInvoiceID string) (domain.ClaimStatus, error) {
 	for _, field := range command.Fields {
 		if _, err := t.tx.ExecContext(ctx, `
 			INSERT INTO field_claims (
@@ -101,7 +121,7 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 			field.SupersedesFieldID,
 			field.CreatedAt.UTC().Format(time.RFC3339Nano),
 		); err != nil {
-			return fmt.Errorf("insert revision field %s: %w", field.FieldPath, err)
+			return "", fmt.Errorf("insert revision field %s: %w", field.FieldPath, err)
 		}
 	}
 	for _, evidence := range command.Evidence {
@@ -121,7 +141,7 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 			evidence.CopiedFromEvidenceID,
 			evidence.CreatedAt.UTC().Format(time.RFC3339Nano),
 		); err != nil {
-			return fmt.Errorf("insert revision evidence: %w", err)
+			return "", fmt.Errorf("insert revision evidence: %w", err)
 		}
 	}
 	status := command.ClaimSet.Status
@@ -131,10 +151,10 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 		if err := t.tx.QueryRowContext(ctx, `
 			SELECT EXISTS(
 				SELECT 1 FROM invoices
-				WHERE tenant_id = ? AND normalized_invoice_number = ? AND deleted_at IS NULL
+				WHERE tenant_id = ? AND normalized_invoice_number = ? AND deleted_at IS NULL AND id <> ?
 			)
-		`, command.TenantID, command.NormalizedInvoiceNumber).Scan(&duplicate); err != nil {
-			return fmt.Errorf("check revised invoice number: %w", err)
+		`, command.TenantID, command.NormalizedInvoiceNumber, excludedInvoiceID).Scan(&duplicate); err != nil {
+			return "", fmt.Errorf("check revised invoice number: %w", err)
 		}
 		if duplicate && command.DuplicateInvoiceValidation != nil {
 			status = domain.ClaimBlocked
@@ -159,30 +179,34 @@ func (t transaction) PersistRevision(ctx context.Context, command ports.Revision
 			validation.RuleVersion,
 			validation.CreatedAt.UTC().Format(time.RFC3339Nano),
 		); err != nil {
-			return fmt.Errorf("insert revision validation: %w", err)
+			return "", fmt.Errorf("insert revision validation: %w", err)
 		}
 	}
 	if err := t.insertLinkCandidates(ctx, command.Candidates); err != nil {
-		return err
+		return "", err
 	}
 	if err := t.insertDuplicateCandidates(ctx, command.TenantID, command.ClaimSet.ID, command.DuplicateCandidates); err != nil {
-		return err
+		return "", err
 	}
 	if _, err := t.tx.ExecContext(ctx, `
 		UPDATE claim_sets SET status = ? WHERE tenant_id = ? AND id = ? AND status = 'draft'
 	`, status, command.TenantID, command.ClaimSet.ID); err != nil {
-		return fmt.Errorf("publish claim revision: %w", err)
+		return "", fmt.Errorf("publish claim revision: %w", err)
 	}
+	return status, nil
+}
+
+func (t transaction) publishRevisionJob(ctx context.Context, command ports.RevisionCommand, expectedJobStates []string, status domain.ClaimStatus) error {
 	jobStatus := domain.JobNeedsReview
 	if status == domain.ClaimBlocked {
 		jobStatus = domain.JobBlocked
 	}
-	result, err = t.tx.ExecContext(ctx, `
+	result, err := t.tx.ExecContext(ctx, `
 		UPDATE processing_jobs
 		SET status = ?, version = version + 1
 		WHERE tenant_id = ? AND id = ? AND document_id = ?
-		  AND status IN ('needs_review', 'blocked')
-	`, jobStatus, command.TenantID, command.JobID, command.DocumentID)
+		  AND status = ANY(?::text[])
+	`, jobStatus, command.TenantID, command.JobID, command.DocumentID, expectedJobStates)
 	if err != nil {
 		return fmt.Errorf("publish revision job: %w", err)
 	}

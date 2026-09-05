@@ -35,16 +35,17 @@ type ReimbursementListPage struct {
 }
 
 type ReimbursementItem struct {
-	ID            string              `json:"id"`
-	AssignmentID  string              `json:"assignment_id"`
-	FactType      domain.DocumentType `json:"fact_type"`
-	FactID        string              `json:"fact_id"`
-	SourceDeleted bool                `json:"source_deleted"`
-	DisplayName   string              `json:"display_name"`
-	BusinessDate  string              `json:"business_date"`
-	AmountMinor   int64               `json:"amount_minor"`
-	Currency      domain.Currency     `json:"currency"`
-	SortOrder     int                 `json:"sort_order"`
+	FactReviewDecisionID *string             `json:"fact_review_decision_id"`
+	ID                   string              `json:"id"`
+	AssignmentID         string              `json:"assignment_id"`
+	FactType             domain.DocumentType `json:"fact_type"`
+	FactID               string              `json:"fact_id"`
+	SourceDeleted        bool                `json:"source_deleted"`
+	DisplayName          string              `json:"display_name"`
+	BusinessDate         string              `json:"business_date"`
+	AmountMinor          int64               `json:"amount_minor"`
+	Currency             domain.Currency     `json:"currency"`
+	SortOrder            int                 `json:"sort_order"`
 }
 
 type ReimbursementFinding struct {
@@ -71,6 +72,8 @@ type ReimbursementDecision struct {
 }
 
 type ReimbursementDetail struct {
+	MaterialsCaptured bool   `json:"materials_captured"`
+	MaterialCount     *int64 `json:"material_count"`
 	ReimbursementSummary
 	RuleVersion  string                              `json:"rule_version"`
 	SnapshotHash string                              `json:"snapshot_hash"`

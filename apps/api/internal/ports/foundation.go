@@ -38,27 +38,30 @@ type BootstrapOwner struct {
 }
 
 type LoginCandidate struct {
-	UserID       string
-	Email        string
-	DisplayName  string
-	PasswordHash string
-	TenantID     string
-	TenantName   string
-	Currency     domain.Currency
-	Timezone     string
-	Role         domain.Role
-	Status       string
+	UserID            string
+	Email             string
+	DisplayName       string
+	PasswordHash      string
+	TenantID          string
+	TenantName        string
+	Currency          domain.Currency
+	Timezone          string
+	Role              domain.Role
+	Status            string
+	MembershipVersion int
 }
 
 type SessionRecord struct {
-	ID            string
-	TenantID      string
-	UserID        string
-	TokenHash     string
-	CSRFTokenHash string
-	ExpiresAt     time.Time
-	CreatedAt     time.Time
-	LastSeenAt    time.Time
+	VerifiedPasswordHash      string
+	ExpectedMembershipVersion int
+	ID                        string
+	TenantID                  string
+	UserID                    string
+	TokenHash                 string
+	CSRFTokenHash             string
+	ExpiresAt                 time.Time
+	CreatedAt                 time.Time
+	LastSeenAt                time.Time
 }
 
 type SessionPrincipal struct {

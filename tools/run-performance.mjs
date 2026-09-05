@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { cpus, freemem, platform, totalmem } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -56,8 +57,8 @@ async function main() {
       inbox_list: "/jobs",
       document_detail: `/documents/${encodeURIComponent(seed.representative_document_id)}`,
       claim_set_detail: `/claim-sets/${encodeURIComponent(seed.representative_claim_set_id)}`,
-      payment_list: "/payments",
-      invoice_list: "/invoices",
+      payment_list: "/payments?limit=100",
+      invoice_list: "/invoices?limit=100",
       fact_insights: "/insights?limit=100",
     };
     const apiResults = {};
@@ -181,6 +182,8 @@ async function uploadBatch(client, variants, count, measured) {
         "document-create",
       );
       if (measured) samples.push(duration);
+      // 上传计时只读 Server-Timing；清理前等造数 Provider 在能力摘要边界终止，避免与 Worker 的版本 CAS 竞争。
+      await waitForUploadCleanup(client, result.body.job_id);
       await client.mutate(
         `/documents/${encodeURIComponent(result.body.document_id)}`,
         { method: "DELETE" },
@@ -189,6 +192,23 @@ async function uploadBatch(client, variants, count, measured) {
   });
   await Promise.all(workers);
   return samples;
+}
+
+export async function waitForUploadCleanup(client, jobID) {
+  const deadline = performance.now() + 30_000;
+  while (performance.now() < deadline) {
+    const result = await client.read(`/jobs/${encodeURIComponent(jobID)}`);
+    const job = result.body;
+    if (
+      job.status === "failed" &&
+      job.error_code === "provider_capability_stale"
+    )
+      return;
+    if (!["queued", "processing"].includes(job.status))
+      throw new SafeToolError("upload_cleanup_state_invalid");
+    await delay(25);
+  }
+  throw new SafeToolError("upload_cleanup_timeout");
 }
 
 async function confirmBatch(client, jobIDs, measured) {
@@ -307,6 +327,9 @@ function createClient(server) {
     },
     mutate(path, options = {}) {
       return request(path, { ...options, csrf: true });
+    },
+    read(path) {
+      return request(path);
     },
     async upload(name, content) {
       const form = new FormData();

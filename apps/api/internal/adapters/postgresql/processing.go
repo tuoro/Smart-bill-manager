@@ -110,7 +110,11 @@ func (s *Store) CancellationRequested(ctx context.Context, tenantID, jobID strin
 }
 
 func (s *Store) GetDocumentPages(ctx context.Context, tenantID, documentID string) ([]ports.NormalizedPage, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	return readDocumentPages(ctx, s.db, tenantID, documentID)
+}
+
+func readDocumentPages(ctx context.Context, queryer allocationQueryer, tenantID, documentID string) ([]ports.NormalizedPage, error) {
+	rows, err := queryer.QueryContext(ctx, `
 		SELECT id, page_number, derived_image_storage_key, width, height, sha256,
 		       visual_fingerprint_version, dhash64, ahash64,
 		       dhash_band_0, dhash_band_1, dhash_band_2, dhash_band_3

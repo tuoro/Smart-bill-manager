@@ -8,6 +8,8 @@ const paths = {
   chart: 'M4 3v17h17 M8 16v-5 M13 16V7 M18 16v-8',
   settings: 'M4 6h7 M15 6h5 M4 12h2 M10 12h10 M4 18h10 M18 18h2 M11 3v6 M6 9v6 M14 15v6',
   shield: 'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6z M8 12l3 3 5-6',
+  users:
+    'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
   check: 'M5 12l4 4L19 6',
   upload: 'M12 16V3 M7 8l5-5 5 5 M4 15v5h16v-5',
   'arrow-right': 'M4 12h16 M14 6l6 6-6 6',

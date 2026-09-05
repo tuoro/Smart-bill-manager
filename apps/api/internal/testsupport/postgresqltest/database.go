@@ -61,6 +61,21 @@ func OpenEmptyDatabase(t testing.TB) *sql.DB {
 	return database
 }
 
+// InspectDatabase 仅用于故障注入测试的离线核对，不走生产启动门禁。
+func InspectDatabase(t testing.TB, config postgresqladapter.Config) *sql.DB {
+	t.Helper()
+	database, err := openAdministratorDatabase(config)
+	if err != nil {
+		t.Fatal("connect to isolated inspection database")
+	}
+	t.Cleanup(func() {
+		if err := database.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return database
+}
+
 func NewDatabase(t testing.TB) postgresqladapter.Config {
 	t.Helper()
 	path := os.Getenv(ConfigFileEnvironment)

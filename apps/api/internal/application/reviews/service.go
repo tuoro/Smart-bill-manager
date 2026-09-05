@@ -16,6 +16,7 @@ import (
 )
 
 type Service struct {
+	manual  *manualDependencies
 	reviews ports.ReviewRepository
 	tx      ports.TransactionManager
 	ids     ports.IDGenerator
@@ -32,11 +33,12 @@ func NewService(
 }
 
 type RevisionFieldInput struct {
-	Path        string
-	ValueType   string
-	Presence    string
-	Value       json.RawMessage
-	EvidenceIDs []string
+	Path           string                       `json:"path"`
+	ValueType      string                       `json:"value_type"`
+	Presence       string                       `json:"presence"`
+	Value          json.RawMessage              `json:"value"`
+	EvidenceIDs    []string                     `json:"evidence_ids"`
+	ManualEvidence []domain.ManualEvidenceInput `json:"manual_evidence"`
 }
 
 type RevisionInput struct {
@@ -209,6 +211,11 @@ func revisionCandidates(
 	current ports.ReviewSnapshot,
 	input RevisionInput,
 ) ([]domain.FieldCandidate, map[string][]ports.ReviewEvidence, error) {
+	return revisionCandidatesForPurpose(current, input, false)
+}
+
+// 只有已授权的正式字段纠错用例可以在真实 AI 来源之上追加人工摘录。
+func revisionCandidatesForPurpose(current ports.ReviewSnapshot, input RevisionInput, correction bool) ([]domain.FieldCandidate, map[string][]ports.ReviewEvidence, error) {
 	oldFields := make(map[string]ports.ReviewField, len(current.Fields))
 	evidenceByID := make(map[string]ports.ReviewEvidence)
 	for _, field := range current.Fields {
@@ -236,7 +243,7 @@ func revisionCandidates(
 			if len(value) != 0 && !bytes.Equal(value, []byte("null")) {
 				return nil, nil, domain.NewRuleError("absent_field_payload", "缺失字段不能携带值", domain.ErrInvalidInput)
 			}
-			if len(entry.EvidenceIDs) != 0 {
+			if len(entry.EvidenceIDs) != 0 || len(entry.ManualEvidence) != 0 {
 				return nil, nil, domain.NewRuleError("absent_field_evidence", "缺失字段不能携带证据", domain.ErrInvalidInput)
 			}
 			value = nil
@@ -251,7 +258,7 @@ func revisionCandidates(
 				selectedIDs = append(selectedIDs, evidence.ID)
 			}
 		}
-		if entry.Presence == "present" && changed && len(selectedIDs) == 0 && revisionFieldRequiresEvidence(entry) {
+		if entry.Presence == "present" && changed && len(selectedIDs) == 0 && len(entry.ManualEvidence) == 0 && revisionFieldRequiresEvidence(entry) {
 			return nil, nil, domain.NewRuleError(
 				"evidence_selection_required",
 				"新增或修改的字段必须显式选择同一文档证据",
@@ -264,6 +271,23 @@ func revisionCandidates(
 			Presence:  entry.Presence,
 			Value:     value,
 			Issues:    []string{},
+		}
+		if len(entry.ManualEvidence) > 0 && current.OriginAiRunID != "" && !correction {
+			return nil, nil, domain.NewRuleError("manual_evidence_not_allowed", "当前审核不是人工录入，请选择已有证据", domain.ErrInvalidInput)
+		}
+		if len(entry.ManualEvidence) > 0 && len(entry.ManualEvidence)+len(selectedIDs) > 8 {
+			return nil, nil, domain.NewRuleError("too_many_manual_evidence", "每个字段已有和新增证据合计最多 8 条", domain.ErrInvalidInput)
+		}
+		for _, annotation := range entry.ManualEvidence {
+			if err := annotation.Validate(current.PageCount); err != nil {
+				return nil, nil, err
+			}
+			pageID, exists := current.DocumentPageIDs[annotation.Page]
+			if !exists {
+				return nil, nil, domain.NewRuleError("invalid_manual_evidence", "证据页不属于当前文档", domain.ErrInvalidInput)
+			}
+			selections[entry.Path] = append(selections[entry.Path], ports.ReviewEvidence{DocumentPageID: pageID, Page: annotation.Page, Quote: annotation.Quote})
+			candidate.Evidence = append(candidate.Evidence, domain.CandidateEvidence{Page: annotation.Page, Quote: annotation.Quote})
 		}
 		for _, evidenceID := range selectedIDs {
 			evidence, exists := evidenceByID[evidenceID]
@@ -335,7 +359,8 @@ func (s Service) buildRevisionCommand(
 		old, existed := oldByPath[field.Path]
 		source := "user"
 		sourceUserID := tenant.UserID
-		if existed && old.ValueType == field.ValueType && old.Presence == field.Presence && jsonEqual(old.Value, field.Value) {
+		newEvidence := slices.ContainsFunc(selections[field.Path], func(evidence ports.ReviewEvidence) bool { return evidence.ID == "" })
+		if existed && !newEvidence && old.ValueType == field.ValueType && old.Presence == field.Presence && jsonEqual(old.Value, field.Value) {
 			source = old.Source
 			sourceUserID = old.SourceUserID
 		}

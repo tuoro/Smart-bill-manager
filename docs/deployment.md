@@ -16,14 +16,14 @@
 
 从所选 GitHub Release 下载同版本的以下两个附件：
 
-- `smart-bill-manager-docker-v0.3.4.tar.gz`；
-- `smart-bill-manager-docker-v0.3.4.tar.gz.sha256`。
+- `smart-bill-manager-docker-v0.4.0.tar.gz`；
+- `smart-bill-manager-docker-v0.4.0.tar.gz.sha256`。
 
 在同一目录校验并展开：
 
 ```bash
-sha256sum -c smart-bill-manager-docker-v0.3.4.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-v0.3.4.tar.gz
+sha256sum -c smart-bill-manager-docker-v0.4.0.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.4.0.tar.gz
 cd smart-bill-manager-docker
 ```
 
@@ -32,7 +32,7 @@ cd smart-bill-manager-docker
 ```bash
 git clone https://github.com/tuoro/Smart-bill-manager.git
 cd Smart-bill-manager
-git checkout v0.3.4
+git checkout v0.4.0
 ```
 
 使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
@@ -42,7 +42,7 @@ git checkout v0.3.4
 可从固定 Tag 流式取得安装器；安装器随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
 
 ```bash
-version=v0.3.4; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
+version=v0.4.0; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
 ```
 
 部署包根目录也提供安装器：

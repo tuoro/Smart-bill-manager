@@ -38,6 +38,10 @@ func LoadMasterKeyFile(path string) ([]byte, error) {
 	if len(encoded) > 128 {
 		return nil, errors.New("master key file is too large")
 	}
+	// 32 字节原始密钥中的 CR/LF 也是随机材料，不能按文本换行截断。
+	if len(encoded) == 32 {
+		return encoded, nil
+	}
 	encoded = trimLineEnding(encoded)
 	if len(encoded) == 32 {
 		return encoded, nil

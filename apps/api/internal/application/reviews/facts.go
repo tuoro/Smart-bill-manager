@@ -50,33 +50,3 @@ func (s FactService) Delete(
 		return transaction.DeleteFact(ctx, command)
 	})
 }
-
-func (s FactService) ListPayments(
-	ctx context.Context,
-	tenant domain.TenantContext,
-) ([]ports.Payment, error) {
-	if err := tenant.Require(domain.CapabilityFactsRead); err != nil {
-		return nil, err
-	}
-	return s.facts.ListPayments(ctx, tenant.TenantID)
-}
-
-func (s FactService) ListInvoices(
-	ctx context.Context,
-	tenant domain.TenantContext,
-) ([]ports.Invoice, error) {
-	if err := tenant.Require(domain.CapabilityFactsRead); err != nil {
-		return nil, err
-	}
-	return s.facts.ListInvoices(ctx, tenant.TenantID)
-}
-
-func (s FactService) ListTrips(
-	ctx context.Context,
-	tenant domain.TenantContext,
-) ([]ports.Trip, error) {
-	if err := tenant.Require(domain.CapabilityFactsRead); err != nil {
-		return nil, err
-	}
-	return s.facts.ListTrips(ctx, tenant.TenantID)
-}

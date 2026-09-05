@@ -4,6 +4,281 @@
  */
 
 export interface paths {
+    "/material-exports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 完整读取显式当前行程或固定报销快照，要求 facts.read 和 review.source.read；报销另需 reimbursements.read。无文件内容或内部存储键。 */
+        post: operations["previewMaterialExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/material-exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 重新比较预览 hash，最长两分钟逐份校验并准备磁盘 ZIP；每进程最多两个在途包，成功后同会话五分钟内领取一次。 */
+        post: operations["prepareMaterialExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/material-exports/{export_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 同一有效 tenant/user/session 一次性领取；不支持 HEAD、Range 或续传。客户端使用原生附件下载，不将 ZIP 读为 Blob。 */
+        get: operations["downloadMaterialExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/material-exports/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description 同一会话取消尚未领取的临时包；已领取的下载由浏览器取消，过期或已领取返回 404。 */
+        delete: operations["cancelMaterialExport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 只有密码验证成功后才返回 active 工作区，不产生 Session。 */
+        post: operations["listLoginWorkspaces"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 仅 Owner 读取本租户成员，包含 suspended；按入库时间和用户 ID 稳定分页。 */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 仅当前租户管理员按 ID 核对成员，冲突恢复不依赖其仍在当前分页。 */
+        get: operations["getMember"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description 仅改变本租户角色/状态并撤销其旧会话；不修改全局账号。 */
+        patch: operations["changeMember"];
+        trace?: never;
+    };
+    "/member-invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listMemberInvitations"];
+        put?: never;
+        post: operations["createMemberInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/member-invitations/{invitation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 仅当前租户管理员按 ID 核对邀请，不返回代码或其散列。 */
+        get: operations["getMemberInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/member-invitations/{invitation_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeMemberInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invitations/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 代码仅在请求体传输；无效、过期、撤销或已用统一拒绝。 */
+        post: operations["checkInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 新账号设置密码和姓名；已有账号必须验证旧密码，display_name 必须为空。成功不签发 Session。 */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeOwnPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/facts/{fact_type}/{fact_id}/correction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fact_type: components["parameters"]["CorrectionFactType"];
+                fact_id: components["parameters"]["CorrectionFactId"];
+            };
+            cookie?: never;
+        };
+        /** @description Owner/Finance 读取未删除正式单据的当前字段与来源，不重开 Job。 */
+        get: operations["getFactCorrection"];
+        put?: never;
+        post: operations["confirmFactCorrection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/facts/{fact_type}/{fact_id}/correction/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fact_type: components["parameters"]["CorrectionFactType"];
+                fact_id: components["parameters"]["CorrectionFactId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 校验完整字段、全部活动分配、重复和自动归属；不保存草稿。 */
+        post: operations["previewFactCorrection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/facts/{fact_type}/{fact_id}/correction/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFactCorrectionHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -260,6 +535,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs/{job_id}/manual-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startManualReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reviews/{job_id}": {
         parameters: {
             query?: never;
@@ -347,6 +638,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 按不可变确认入库时间和 ID 倒序分页；日期用于筛选，不保证跨请求冻结集合。 */
         get: operations["listPayments"];
         put?: never;
         post?: never;
@@ -363,7 +655,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["getPayment"];
         put?: never;
         post?: never;
         delete: operations["deletePayment"];
@@ -379,6 +671,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 有界分页，仅返回当前明细数量；完整明细通过详情读取。 */
         get: operations["listInvoices"];
         put?: never;
         post?: never;
@@ -395,10 +688,78 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["getInvoice"];
         put?: never;
         post?: never;
         delete: operations["deleteInvoice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Owner/Finance 获取当前辅助材料及 Invoice 聚合版本；与票面原件分开。 */
+        get: operations["getInvoiceMaterials"];
+        put?: never;
+        post: operations["addInvoiceMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice_id}/material-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 同租户原件的入库时间/ID keyset 分页；q 为文件名字面子串。未知或重复参数拒绝。 */
+        get: operations["listInvoiceMaterialCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice_id}/materials/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 只上传原件并关联，不创建 Job 或调用模型；同 SHA 复用同租户 Document。 */
+        post: operations["uploadInvoiceMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{invoice_id}/materials/{link_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 仅解除关联，保留原件、决定及已提交报销材料快照。 */
+        post: operations["removeInvoiceMaterial"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -413,7 +774,7 @@ export interface paths {
         };
         get: operations["listTrips"];
         put?: never;
-        post?: never;
+        post: operations["createTrip"];
         delete?: never;
         options?: never;
         head?: never;
@@ -431,6 +792,70 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deleteTrip"];
+        options?: never;
+        head?: never;
+        patch: operations["editTrip"];
+        trace?: never;
+    };
+    "/trip-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTripEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trip-evidence/{evidence_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTripEvidence"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trip-material-assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["assignTripMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/payments/{payment_id}/trip-preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["changeTripPreference"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -548,6 +973,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/facts/{fact_type}/{fact_id}/bad-debt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setFactBadDebt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/allocations/{fact_type}/{fact_id}": {
         parameters: {
             query?: never;
@@ -556,6 +997,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["getAllocationWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/allocations/{fact_type}/{fact_id}/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["searchAllocationTargets"];
         put?: never;
         post?: never;
         delete?: never;
@@ -648,6 +1105,272 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ExportScope: {
+            /** @enum {string} */
+            kind: "trip" | "reimbursement";
+            id: string;
+        };
+        ExportPrepareRequest: {
+            /** @enum {string} */
+            kind: "trip" | "reimbursement";
+            id: string;
+            expected_manifest_hash: string;
+            acknowledged_warnings: boolean;
+        };
+        ExportReference: {
+            /** @enum {string} */
+            kind: "original" | "auxiliary";
+            relation_id: string;
+            /** @enum {string} */
+            fact_type: "payment" | "invoice" | "trip_evidence";
+            fact_id: string;
+            fact_version: number | null;
+            review_decision_id: string | null;
+            display_name: string;
+            /** Format: date */
+            business_date: string;
+            amount_minor: number | null;
+            currency: string;
+            document_id: string;
+        };
+        ExportFile: {
+            document_id: string;
+            original_name: string;
+            path: string;
+            /** @enum {string} */
+            mime: "image/png" | "image/jpeg" | "image/webp" | "application/pdf";
+            size_bytes: number;
+            sha256: string;
+        };
+        ExportManifest: {
+            /** @constant */
+            schema_version: "material-delivery/1";
+            scope: components["schemas"]["ExportScope"];
+            name: string;
+            version: number;
+            trip: components["schemas"]["ReimbursementTripSnapshot"];
+            snapshot_hash: string;
+            materials_captured: boolean;
+            warnings: string[];
+            references: components["schemas"]["ExportReference"][];
+            files: components["schemas"]["ExportFile"][];
+            source_bytes: number;
+            manifest_hash: string;
+        };
+        ExportPrepared: {
+            id: string;
+            file_name: string;
+            size_bytes: number;
+            manifest_hash: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        WorkspaceLoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        WorkspaceChoices: {
+            items: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                role: components["schemas"]["Role"];
+            }[];
+        };
+        Member: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: email */
+            email: string;
+            display_name: string;
+            role: components["schemas"]["Role"];
+            /** @enum {string} */
+            status: "active" | "suspended";
+            version: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        MemberPage: {
+            items: components["schemas"]["Member"][];
+            next_cursor: string;
+        };
+        MemberChange: {
+            role: components["schemas"]["Role"];
+            /** @enum {string} */
+            status: "active" | "suspended";
+            expected_version: number;
+            reason: string;
+        };
+        Invitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+            /** @enum {string} */
+            status: "pending" | "consumed" | "revoked" | "expired";
+            version: number;
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InvitationPage: {
+            items: components["schemas"]["Invitation"][];
+            next_cursor: string;
+        };
+        InvitationRequest: {
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+            reason: string;
+            idempotency_key: string;
+        };
+        InvitationCreated: {
+            invitation: components["schemas"]["Invitation"];
+            /** @description 只返回一次，回放为空；不得保存到 URL、storage 或日志 */
+            code: string;
+            replayed: boolean;
+        };
+        InvitationRevocation: {
+            expected_version: number;
+            reason: string;
+        };
+        InvitationCode: {
+            code: string;
+        };
+        InvitationView: {
+            tenant_name: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+            existing_account: boolean;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        InvitationAcceptance: {
+            code: string;
+            display_name: string;
+            password: string;
+        };
+        PasswordChange: {
+            current_password: string;
+            new_password: string;
+        };
+        CorrectionRequest: {
+            expected_version: number;
+            /** Format: uuid */
+            current_review_decision_id: string;
+            /** @description 固定当前类型的完整快照；纠错允许在真实 AI 根上追加人工证据，不伪造根来源。 */
+            fields: components["schemas"]["RevisionRequest"]["fields"];
+            reason: string;
+            withdraw_link_ids: string[];
+        };
+        CorrectionConfirmRequest: {
+            expected_version: number;
+            /** Format: uuid */
+            current_review_decision_id: string;
+            fields: components["schemas"]["CorrectionRequest"]["fields"];
+            reason: string;
+            withdraw_link_ids: components["schemas"]["CorrectionRequest"]["withdraw_link_ids"];
+            preview_hash: string;
+            acknowledged_duplicate_keys: string[];
+        };
+        CorrectionLink: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            target_id: string;
+            allocated_minor: number;
+            /** @enum {string} */
+            currency: "CNY" | "USD" | "EUR" | "JPY";
+            /** @enum {string} */
+            target_currency: "CNY" | "USD" | "EUR" | "JPY";
+            /** Format: date */
+            target_business_date: string;
+            target_amount_minor: number;
+            target_allocated_minor: number;
+            target_version: number;
+            target_available: boolean;
+        };
+        CorrectionState: {
+            /** @enum {string} */
+            fact_type: "payment" | "invoice" | "trip";
+            /** Format: uuid */
+            fact_id: string;
+            version: number;
+            /** Format: uuid */
+            current_review_decision_id: string;
+            /** Format: uuid */
+            claim_set_id: string;
+            /** Format: uuid */
+            document_id: string;
+            links: components["schemas"]["CorrectionLink"][];
+            attribution: {
+                /** @enum {string} */
+                mode: "auto" | "manual" | "blocked" | "preserve_material_links";
+                assignment_id: string;
+                current_trip_id: string;
+                desired_trip_id: string;
+                matching_trip_count: number;
+                matching_trip_version: number;
+            };
+        };
+        CorrectionWorkspace: {
+            state: components["schemas"]["CorrectionState"];
+            review: components["schemas"]["Review"];
+        };
+        CorrectionPreview: {
+            state: components["schemas"]["CorrectionState"];
+            withdraw_link_ids: components["schemas"]["CorrectionRequest"]["withdraw_link_ids"];
+            preview_hash: string;
+            can_confirm: boolean;
+            issues: {
+                /** Format: uuid */
+                link_id?: string;
+                code: string;
+                message: string;
+            }[];
+            duplicates: {
+                key: string;
+                /** @enum {string} */
+                kind: "near_file" | "cross_page" | "field_combination";
+                existing_document_id: string;
+                existing_payment_id: string;
+                existing_invoice_id: string;
+                target_revision_id: string;
+                reason_codes: string[];
+            }[];
+        };
+        CorrectionResult: {
+            /** @enum {string} */
+            fact_type: "payment" | "invoice" | "trip";
+            /** Format: uuid */
+            fact_id: string;
+            /** Format: uuid */
+            review_decision_id: string;
+            /** Format: uuid */
+            claim_set_id: string;
+            version: number;
+            replayed: boolean;
+        };
+        CorrectionHistoryPage: {
+            next_before_revision: number | null;
+            items: {
+                /** Format: uuid */
+                review_decision_id: string;
+                previous_review_decision_id: string;
+                /** Format: uuid */
+                claim_set_id: string;
+                revision: number;
+                /** Format: uuid */
+                actor_user_id: string;
+                reason: string;
+                /** Format: date-time */
+                created_at: string;
+            }[];
+        };
         Health: {
             /** @constant */
             status: "ok";
@@ -905,6 +1628,8 @@ export interface components {
         };
         Review: {
             job: components["schemas"]["JobSummary"];
+            /** @enum {string} */
+            readonly entry_mode: "ai" | "manual";
             /** Format: uuid */
             claim_set_id: string;
             /** @enum {string} */
@@ -921,6 +1646,19 @@ export interface components {
             candidates: components["schemas"]["LinkCandidate"][];
             duplicate_candidates: components["schemas"]["DuplicateCandidate"][];
         };
+        ManualReviewRequest: {
+            expected_job_version: number;
+            /** @enum {string} */
+            document_type: "payment" | "invoice" | "trip";
+            reason: string;
+        };
+        ManualReviewResult: {
+            /** Format: uuid */
+            job_id: string;
+            /** Format: uuid */
+            claim_set_id: string;
+            replayed: boolean;
+        };
         RevisionRequest: {
             expected_revision: number;
             expected_optimistic_version: number;
@@ -933,6 +1671,11 @@ export interface components {
                 presence: "present" | "absent";
                 value?: unknown;
                 evidence_ids?: string[];
+                /** @description 仅人工来源审核可提交；用户显式标注，不能由字段值自动生成摘录 */
+                manual_evidence?: {
+                    page: number;
+                    quote: string;
+                }[];
             }[];
         };
         /** @description Payment/Invoice 必须提交 association_mode 与 allocations；Trip 禁止提交这两个成员。 */
@@ -986,7 +1729,7 @@ export interface components {
         InsightTrip: {
             /** Format: uuid */
             id: string;
-            destination: string;
+            name: string;
             /** Format: date */
             start_date: string;
             /** Format: date */
@@ -1090,7 +1833,12 @@ export interface components {
             anchor: components["schemas"]["AllocationFactSummary"];
             links: components["schemas"]["AllocationWorkspaceLink"][];
             targets: components["schemas"]["AllocationTarget"][];
+            next_cursor?: string;
             plan_hash: string;
+        };
+        AllocationTargetPage: {
+            items: components["schemas"]["AllocationTarget"][];
+            next_cursor?: string;
         };
         DesiredAllocation: {
             /** Format: uuid */
@@ -1113,7 +1861,44 @@ export interface components {
             plan_hash: string;
             replayed: boolean;
         };
+        FactSource: {
+            /** Format: uuid */
+            document_id: string;
+            /** Format: uuid */
+            claim_set_id: string;
+            /** Format: uuid */
+            review_decision_id: string;
+            revision: number;
+            /** @enum {string} */
+            origin_kind: "ai" | "manual";
+            original_name: string;
+            page_count: number;
+        };
+        BadDebtRequest: {
+            marked: boolean;
+            expected_version: number;
+            reason: string;
+        };
+        BadDebtResult: {
+            /** Format: uuid */
+            decision_id: string;
+            marked: boolean;
+            version: number;
+            replayed: boolean;
+        };
+        FactDetail: {
+            /** @enum {string} */
+            fact_type: "payment" | "invoice";
+            version: number;
+            payment?: components["schemas"]["Payment"];
+            invoice?: components["schemas"]["Invoice"];
+            links: components["schemas"]["CorrectionLink"][];
+            trip?: components["schemas"]["InsightTrip"];
+            /** @description 仅向具备 review.source.read 权限的用户返回；原件/审核沿用既有鉴权。 */
+            source?: components["schemas"]["FactSource"];
+        };
         Payment: {
+            bad_debt: boolean;
             /** Format: uuid */
             id: string;
             /** Format: int64 */
@@ -1129,6 +1914,8 @@ export interface components {
             /** Format: date-time */
             transaction_time: string;
             source_timezone: string;
+            /** Format: date */
+            business_date: string;
             payment_method?: string;
             order_number?: string;
             category?: string;
@@ -1136,6 +1923,7 @@ export interface components {
             created_at: string;
         };
         Invoice: {
+            bad_debt: boolean;
             /** Format: uuid */
             id: string;
             invoice_number: string;
@@ -1154,7 +1942,8 @@ export interface components {
             currency: components["schemas"]["Currency"];
             seller_name: string;
             buyer_name: string;
-            items: {
+            item_count: number;
+            items?: {
                 item_key: string;
                 name: string;
                 quantity?: string;
@@ -1171,21 +1960,87 @@ export interface components {
             created_at: string;
         };
         Trip: {
+            bad_debt_locked: boolean;
             /** Format: uuid */
             id: string;
-            origin?: string;
-            destination: string;
+            name: string;
             /** Format: date */
             start_date: string;
             /** Format: date */
             end_date: string;
-            traveler_name?: string;
-            transport_type?: string;
-            booking_reference?: string;
+            timezone: string | null;
+            notes: string;
+            version: number;
+            /** @enum {string} */
+            origin_kind: "manual" | "migrated_review";
             assigned_payment_count: number;
             assigned_invoice_count: number;
+            material_count: number;
             /** Format: date-time */
             created_at: string;
+        };
+        TripManagementRequest: {
+            name: string;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            /** @description IANA 时区；日期涵盖当地整天 */
+            timezone: string;
+            notes: string;
+            /** @description 新建必须为 0，编辑必须为当前版本 */
+            expected_version: number;
+            reason: string;
+        };
+        TripDeleteRequest: {
+            expected_version: number;
+            reason: string;
+        };
+        TripManagementResult: {
+            /** Format: uuid */
+            trip_id: string;
+            version: number;
+            replayed: boolean;
+        };
+        TripEvidence: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            document_id: string;
+            destination: string;
+            origin?: string;
+            /** Format: date */
+            start_date: string;
+            /** Format: date */
+            end_date: string;
+            transport_type?: string;
+            booking_reference?: string;
+            version: number;
+            /** Format: uuid */
+            current_link_id?: string;
+            /** Format: uuid */
+            current_trip_id?: string;
+            current_trip_name?: string;
+        };
+        TripEvidencePage: {
+            items: components["schemas"]["TripEvidence"][];
+            next_cursor?: string;
+        };
+        TripMaterialRequest: {
+            /** Format: uuid */
+            evidence_id: string;
+            /** Format: uuid */
+            desired_trip_id: string | null;
+            /** Format: uuid */
+            expected_link_id: string | null;
+            expected_version: number;
+            reason: string;
+        };
+        TripMaterialResult: {
+            /** Format: uuid */
+            link_id?: string;
+            version: number;
+            replayed: boolean;
         };
         /** @enum {string} */
         TripAttributionView: "all" | "suggested" | "assigned";
@@ -1203,7 +2058,13 @@ export interface components {
             current_assignment_id?: string;
             /** Format: uuid */
             current_trip_id?: string;
-            current_trip_destination?: string;
+            current_trip_name?: string;
+            fact_version: number;
+            /** @enum {string} */
+            assignment_mode: "auto" | "manual" | "blocked";
+            /** @enum {string} */
+            assignment_state: "automatic" | "manual" | "blocked" | "manual_unassigned" | "overlap" | "no_match" | "pending";
+            match_count: number;
             suggested: boolean;
             reason_codes: ("currently_assigned" | "date_inside_trip" | "date_within_3_days_before" | "date_within_3_days_after" | "linked_fact_assigned_to_trip")[];
         };
@@ -1218,11 +2079,13 @@ export interface components {
             fact_type: components["schemas"]["AllocationFactType"];
             /** Format: uuid */
             fact_id: string;
+            expected_fact_version: number;
             desired_trip_id: string | null;
             expected_assignment_id: string | null;
             reason: string;
         };
         TripAssignmentResult: {
+            fact_version?: number;
             /** Format: uuid */
             decision_id: string;
             /** @enum {string} */
@@ -1238,13 +2101,17 @@ export interface components {
         ReimbursementTripSnapshot: {
             /** Format: uuid */
             id: string;
-            destination: string;
+            name: string;
             /** Format: date */
             start_date: string;
             /** Format: date */
             end_date: string;
+            timezone: string | null;
+            version: number | null;
         };
         ReimbursementPolicyItem: {
+            /** Format: uuid */
+            fact_review_decision_id?: string;
             /** Format: uuid */
             assignment_id: string;
             fact_type: components["schemas"]["AllocationFactType"];
@@ -1280,9 +2147,66 @@ export interface components {
             related_reimbursement_id?: string;
             related_status?: components["schemas"]["ReimbursementStatus"];
         };
+        InvoiceMaterial: {
+            /**
+             * Format: uuid
+             * @description 活动列表为 Link ID，候选列表为 Document ID
+             */
+            id: string;
+            /** Format: uuid */
+            document_id: string;
+            original_name: string;
+            /** @enum {string} */
+            mime: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+            size_bytes: number;
+            page_count: number;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InvoiceMaterialWorkspace: {
+            /** Format: uuid */
+            invoice_id: string;
+            version: number;
+            items: components["schemas"]["InvoiceMaterial"][];
+        };
+        InvoiceMaterialPage: {
+            next_cursor: string;
+            items: components["schemas"]["InvoiceMaterial"][];
+        };
+        InvoiceMaterialRequest: {
+            expected_version: number;
+            reason: string;
+            idempotency_key: string;
+        };
+        InvoiceMaterialAddRequest: {
+            /** Format: uuid */
+            document_id: string;
+            expected_version: number;
+            reason: string;
+            idempotency_key: string;
+        };
+        InvoiceMaterialResult: {
+            /** Format: uuid */
+            invoice_id: string;
+            /** Format: uuid */
+            link_id: string;
+            /** Format: uuid */
+            document_id: string;
+            version: number;
+            replayed: boolean;
+        };
+        ReimbursementMaterial: {
+            /** Format: uuid */
+            invoice_id: string;
+            /** Format: uuid */
+            link_id: string;
+            /** Format: uuid */
+            document_id: string;
+        };
         ReimbursementPolicySnapshot: {
             /** @constant */
-            rule_version: "reimbursement-policy/1";
+            rule_version: "reimbursement-policy/2";
+            materials: components["schemas"]["ReimbursementMaterial"][];
             trip: components["schemas"]["ReimbursementTripSnapshot"];
             items: components["schemas"]["ReimbursementPolicyItem"][];
             findings: components["schemas"]["ReimbursementPolicyFinding"][];
@@ -1321,6 +2245,8 @@ export interface components {
             next_cursor?: string;
         };
         ReimbursementItem: {
+            /** Format: uuid */
+            fact_review_decision_id?: string | null;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -1380,8 +2306,10 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
-            /** @constant */
-            rule_version: "reimbursement-policy/1";
+            /** @enum {string} */
+            rule_version: "reimbursement-policy/1" | "reimbursement-policy/2";
+            materials_captured: boolean;
+            material_count: number | null;
             snapshot_hash: string;
             totals_by_currency: components["schemas"]["ReimbursementCurrencyTotal"][];
             items: components["schemas"]["ReimbursementItem"][];
@@ -1498,6 +2426,15 @@ export interface components {
         };
     };
     parameters: {
+        FactCursor: string;
+        FactLimit: number;
+        FactDateFrom: string;
+        FactDateTo: string;
+        /** @description 折叠空白后的字面子串，搜索现有名称及单号。 */
+        FactSearch: string;
+        FactAllocationStatus: "all" | "unallocated" | "partial" | "allocated";
+        CorrectionFactType: "payment" | "invoice" | "trip";
+        CorrectionFactId: string;
         CsrfToken: string;
         IdempotencyKey: string;
         DocumentId: string;
@@ -1518,6 +2455,572 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    previewMaterialExport: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportScope"];
+            };
+        };
+        responses: {
+            /** @description 有界完整清单，不能按管理页截断 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportManifest"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+        };
+    };
+    prepareMaterialExport: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportPrepareRequest"];
+            };
+        };
+        responses: {
+            /** @description 完整 ZIP 已准备，尚未下载 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPrepared"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            /** @description 并发名额已满、磁盘不可写或服务已关闭；不得认为已生成 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["error.schema"];
+                };
+            };
+        };
+    };
+    downloadMaterialExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已完整校验的 ZIP；精确 Content-Length 和附件文件名 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description HEAD 不消费临时包 */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    cancelMaterialExport: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 临时文件句柄已释放 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listLoginWorkspaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description 显式工作区选择 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceChoices"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["FactCursor"];
+                limit?: components["parameters"]["FactLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本页成员 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前成员版本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    changeMember: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberChange"];
+            };
+        };
+        responses: {
+            /** @description 变更后的成员，版本递增 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listMemberInvitations: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["FactCursor"];
+                limit?: components["parameters"]["FactLimit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owner 查看邀请历史，不返回代码或 hash */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createMemberInvitation: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description 48 小时邀请，代码只在首次成功响应返回；回放 code 为空字符串 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getMemberInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前邀请版本 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    revokeMemberInvitation: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationRevocation"];
+            };
+        };
+        responses: {
+            /** @description 已撤销的邀请 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    checkInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationCode"];
+            };
+        };
+        responses: {
+            /** @description 持有代码者核对工作区与身份模式 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAcceptance"];
+            };
+        };
+        responses: {
+            /** @description 已加入，请显式登录 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeOwnPassword: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChange"];
+            };
+        };
+        responses: {
+            /** @description 密码已修改，全部工作区会话已撤销，包括当前会话 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description unauthenticated 会话失效；invalid_credentials 当前密码不正确，不应清空表单 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getFactCorrection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fact_type: components["parameters"]["CorrectionFactType"];
+                fact_id: components["parameters"]["CorrectionFactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前字段、分配和归属 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionWorkspace"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    confirmFactCorrection: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                fact_type: components["parameters"]["CorrectionFactType"];
+                fact_id: components["parameters"]["CorrectionFactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectionConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description 同 ID 原子纠错或同请求回放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    previewFactCorrection: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                fact_type: components["parameters"]["CorrectionFactType"];
+                fact_id: components["parameters"]["CorrectionFactId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectionRequest"];
+            };
+        };
+        responses: {
+            /** @description 内容绑定预览；can_confirm 为 false 时不得提交 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getFactCorrectionHistory: {
+        parameters: {
+            query?: {
+                before_revision?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                fact_type: components["parameters"]["CorrectionFactType"];
+                fact_id: components["parameters"]["CorrectionFactId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 修订倒序 keyset 历史；首次确认也在其中 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionHistoryPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     getHealth: {
         parameters: {
             query?: never;
@@ -1995,6 +3498,39 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    startManualReview: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                job_id: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description 已显式建立人工审核，或同请求幂等重放；没有创建 Fact */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualReviewResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     getReview: {
         parameters: {
             query?: never;
@@ -2133,24 +3669,57 @@ export interface operations {
     };
     listPayments: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: components["parameters"]["FactCursor"];
+                limit?: components["parameters"]["FactLimit"];
+                date_from?: components["parameters"]["FactDateFrom"];
+                date_to?: components["parameters"]["FactDateTo"];
+                /** @description 折叠空白后的字面子串，搜索现有名称及单号。 */
+                q?: components["parameters"]["FactSearch"];
+                allocation_status?: components["parameters"]["FactAllocationStatus"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description 未删除 Payment */
+            /** @description 当前页未删除 Payment */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
+                        /** @description 末页为空字符串 */
+                        next_cursor: string;
                         items: components["schemas"]["Payment"][];
                     };
                 };
             };
+        };
+    };
+    getPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: components["parameters"]["PaymentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前支付、分配及获授权来源的一致性详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     deletePayment: {
@@ -2178,24 +3747,57 @@ export interface operations {
     };
     listInvoices: {
         parameters: {
-            query?: never;
+            query?: {
+                cursor?: components["parameters"]["FactCursor"];
+                limit?: components["parameters"]["FactLimit"];
+                date_from?: components["parameters"]["FactDateFrom"];
+                date_to?: components["parameters"]["FactDateTo"];
+                /** @description 折叠空白后的字面子串，搜索现有名称及单号。 */
+                q?: components["parameters"]["FactSearch"];
+                allocation_status?: components["parameters"]["FactAllocationStatus"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description 未删除 Invoice */
+            /** @description 当前页未删除 Invoice */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
+                        /** @description 末页为空字符串 */
+                        next_cursor: string;
                         items: components["schemas"]["Invoice"][];
                     };
                 };
             };
+        };
+    };
+    getInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前发票、明细、分配及获授权来源的一致性详情 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactDetail"];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     deleteInvoice: {
@@ -2221,6 +3823,168 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getInvoiceMaterials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 全部活动辅助材料，最多 100 份 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceMaterialWorkspace"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addInvoiceMaterial: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceMaterialAddRequest"];
+            };
+        };
+        responses: {
+            /** @description 关联成功或同请求幂等回放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceMaterialResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listInvoiceMaterialCandidates: {
+        parameters: {
+            query?: {
+                q?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 候选页；排除本发票原件和已关联材料 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceMaterialPage"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    uploadInvoiceMaterial: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description 单个 JPEG/PNG/WebP/PDF，最多 20 MiB、20 页
+                     */
+                    file: string;
+                    expected_version: number;
+                    reason: string;
+                    idempotency_key: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 上传关联成功或同请求幂等回放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceMaterialResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            /** @description 文件超过 20 MiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    removeInvoiceMaterial: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                invoice_id: components["parameters"]["InvoiceId"];
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceMaterialRequest"];
+            };
+        };
+        responses: {
+            /** @description 解除成功或同请求幂等回放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceMaterialResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     listTrips: {
         parameters: {
             query?: never;
@@ -2244,20 +4008,147 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    createTrip: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripManagementRequest"];
+            };
+        };
+        responses: {
+            /** @description 重放既有创建决定 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripManagementResult"];
+                };
+            };
+            /** @description 手动行程已创建，唯一时间匹配的支付已归入 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripManagementResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     deleteTrip: {
         parameters: {
             query?: never;
             header: {
                 "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 trip_id: components["parameters"]["TripId"];
             };
             cookie?: never;
         };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description 仅删除容器、结束归属；支付、发票、凭证和报销历史保留 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripManagementResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    editTrip: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                trip_id: components["parameters"]["TripId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripManagementRequest"];
+            };
+        };
+        responses: {
+            /** @description 行程已编辑；日期或时区变化时仅重算允许自动归属的支付 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripManagementResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listTripEvidence: {
+        parameters: {
+            query?: {
+                trip_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         requestBody?: never;
         responses: {
-            /** @description Trip 已标记删除，相关活动归属已在同一事务中终止 */
+            /** @description 已审核凭证的独立分页列表，不产生费用容器 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripEvidencePage"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    deleteTripEvidence: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                evidence_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 仅软删除凭证并结束材料关联，不删除行程或费用 */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -2266,6 +4157,69 @@ export interface operations {
             };
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    assignTripMaterial: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripMaterialRequest"];
+            };
+        };
+        responses: {
+            /** @description 凭证关联已更新 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripMaterialResult"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeTripPreference: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "auto" | "blocked";
+                    expected_version: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 偏好已记录，auto 会立即重新计算时间归属 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listTripAttributionCandidates: {
@@ -2517,6 +4471,40 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    setFactBadDebt: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                fact_type: components["schemas"]["AllocationFactType"];
+                fact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BadDebtRequest"];
+            };
+        };
+        responses: {
+            /** @description 坏账状态已变更或原请求重放 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadDebtResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     getAllocationWorkspace: {
         parameters: {
             query?: never;
@@ -2541,6 +4529,36 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    searchAllocationTargets: {
+        parameters: {
+            query?: {
+                q?: string;
+                view?: "recommended" | "all_dates";
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                fact_type: components["schemas"]["AllocationFactType"];
+                fact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 同币种可分配目标的有界页；全部日期包含超过 30 天的目标 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationTargetPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     adjustAllocation: {

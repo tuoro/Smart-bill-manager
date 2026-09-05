@@ -1,5 +1,15 @@
 # PostgreSQL 备份、验证与恢复说明
 
+> 当前已按 [ADR-0033](decisions/0033-postgresql-restore-activation.md) 实现并验收数据库唯一恢复阶段与对象身份配对。v0.4.0 的 9 项实际故障/入口对照及 1,000 Document 完整恢复证据见 [安全聚合](../tests/evidence/m4/v0.4.0-backup-restore-gate-summary.json)；历史固定 `crash_safe_restore_state: true` 不作为本次依据。`backup verify` 仍只验证认证包、文件和 dump 目录，独立验证须额外执行一次 scratch 完整恢复。发布状态见 [发布记录](releases/v0.4.0.md)。
+
+B7/B8 前向 `0008` 的坏账决定、状态查询函数及删除约束均进入自包含 PostgreSQL dump；对象集合不变。认证恢复必须保留非空支付/发票坏账历史、Fact 版本、派生行程保护以及历史报销快照，不能只检查空表存在。升级前如发现单个 Fact 超过 200 条活动分配则明确阻断迁移，保留原库等待显式处理，不清空数据或静默截断。
+
+B5 增补（已本地验收、未发布）：按 ADR-0029 精确恢复邀请与账号审计；原快照验证后，激活前除清空 Session 外，还撤销尚未消费/撤销的邀请并标记 restore 原因，保留邀请历史及其余记录。旧邀请代码不能在恢复后重新使用，聚合证据不得包含邀请 token/hash。
+
+B6 已验收增补：`SBM_OBJECTS_PATH/export-spool/` 仅存创建后立即 unlink 的短期导出句柄，不进入认证备份；备份仍只复制精确 `objects/` 集合。停机后该目录应为空，非空残留不得作为业务材料或自动纳入备份；恢复创建空目录。沿用现有持久化挂载，不新增数据库或 `/tmp` 大文件目录。
+
+B4 增补（已本地验收）：辅助材料继续由 Document 纳入精确对象集合，新增关系/决定/报销材料快照必须完整恢复。未完成的精确文件发布意图需由启动恢复先收口，离线备份不得忽略它们或放宽多余/缺失对象检查；范围见 ADR-0028。
+
 状态：已按 ADR-0020 冻结目标；以当前安全聚合证据记录 PostgreSQL 工具与 1,000 Document 演练结果
 
 本说明只覆盖当前 Clean Slate PostgreSQL 17 系统，不读取、转换或恢复旧数据库、SQLite 文件、旧对象布局、旧任务状态或历史清单。历史 SQLite 实现与演练结果只保留在 ADR-0018 和 `docs/m4-evidence.md`，不得用于当前操作。新架构公开版本之间的 Schema migration 属于当前数据库的前向升级，不是旧数据导入；升级前必须使用本说明取得可验证回滚点。
@@ -21,6 +31,7 @@
 - 服务端、`pg_dump` 和 `pg_restore` major 版本固定为 17；版本不一致时失败。
 - 数据库备份格式只允许 PostgreSQL 自包含 dump。禁止复制 PostgreSQL 数据目录、WAL、容器可写层或 Docker volume 作为应用级备份。
 - 迁移集合、`schema_migrations`、当前 Schema/约束身份、表数量和审计链必须进入认证清单并在 verify/restore 后复核。
+- ADR-0024 前向迁移删除旧容器列后，结构身份按可见列顺序编号，不使用 `pg_dump` 无法保留的物理列序空位；实际可见列顺序、列名、既有类型定义、默认值、非空和约束仍参与校验。不得手改认证清单或跳过结构匹配。新表动态进入表清单；本切片新增的 `postgresql_tools` 标记测试验证非空容器/管理历史真实恢复，并不替代发布前的完整 1,000 Document 演练。
 - 对象清单必须精确等于数据库引用的唯一物理对象集合；共享 key 去重但引用行数单独记录。
 - 当前 CLI 与 Compose 只接受 PostgreSQL 17。不得执行历史 SQLite 命令或把历史 SQLite 演练作为当前恢复证据。
 
@@ -40,7 +51,7 @@
 
 1. 严格解析清单与标签并验证 HMAC；
 2. 核对 PostgreSQL 17 工具、迁移集合、dump 哈希和对象文件；
-3. 恢复到一次性全新验证数据库；
+3. 使用同一版本 `/app/backup restore`，恢复到一次性全新验证数据库、对象根和独立密钥目标；
 4. 核对 Schema/约束身份、表数量、审计链、租户边界和精确对象引用；
 5. 销毁验证数据库和临时凭据。
 
@@ -50,9 +61,11 @@
 
 - PostgreSQL 数据库、对象根和恢复状态目标必须全新且为空；不允许覆盖、合并或回填已有数据库。
 - 发布镜像中的 `/app/backup restore` 必须通过默认 entrypoint 以固定 UID/GID 10001 执行，使新对象树从创建起归运行身份所有。隔离演练若为调用 PostgreSQL 工具而显式绕过 entrypoint，必须在 app 启动前把本轮全新恢复树一次性归一到 10001:10001；不得把该步骤用于接管既有或归属不明的目录。
-- 恢复先建立 durable `incomplete` 状态，再把 dump 恢复到全新数据库、对象恢复到同文件系统 staging，并完成全部离线复核。
-- 只有迁移、Schema/约束、表数量、审计链、对象集合与清单全部一致后，才能删除全部 Session 并把恢复状态原子切换为 `complete`。
-- `incomplete`、未知、损坏或与数据库身份不匹配的状态必须阻止 app 和 `bootstrap-owner` 启动。
+- 恢复在与普通 migration 共用的事务锁内核对空目标并提交 `sbm_restore.state` 的 durable `incomplete`；随后才写入 dump。普通 migration 遇该状态也拒绝，不会修复或跳过它。
+- 原快照验证通过后清空 Session、撤销未消费邀请并设置租约宽限；再次核对全部允许变化。在新对象根写入 owner-only `restore-identity.json`、发布对象与独立主密钥、同步文件/父目录并完成后检查后，最后一笔 PostgreSQL 事务才将唯一阶段改为 `complete`。身份文件不存阶段，不是第二套状态机。
+- `incomplete`、未知、损坏、空行/多行或数据库身份不匹配均阻止 app、`bootstrap-owner` 和 `recover-account`；完整状态仍须与当前对象身份精确配对。不能删状态或配对文件来“修复”启动，失败副本保留用于离线诊断并改用新的空目标重试。
+- 普通首次安装/前向升级无恢复状态和身份文件，但配置的对象根必须预先存在且路径不含符号链接。部署准备器负责建立目录，启动检查不以自动创建根掩盖漏挂载。该检查不代表对普通对象逐文件做完整性扫描。
+- 再次备份恢复库时先核对配对；`pg_dump` 排除操作 Schema `sbm_restore`，对象包不包含旧身份文件。下一次恢复生成新身份，不能继承旧的 `complete`。
 - 旧 Cookie 必须失败；操作者使用原有独立登录凭据建立新 Session。恢复不会自动调用 Provider、邮箱或其他外部系统。
 - restore 对快照中仍为 `processing` 的租约只把 `lease_expires_at` 推迟 120 秒，不修改 attempt、version 或 AiRun；该持久化宽限窗覆盖受限 Compose 启动与健康检查，用于在 Server 启动后完成只读基线验证，随后仍由既有过期租约与 `SKIP LOCKED` 竞争语义自动接管。
 

@@ -56,6 +56,7 @@ export function validateAllocationDraft(
   desired.sort((left, right) => left.target_fact_id.localeCompare(right.target_fact_id))
 
   let planError = ''
+  if (rows.filter((row) => row.selected).length > 200) planError = '一个分配计划最多选择 200 个目标'
   if (desiredTotalMinor > workspace.anchor.amount_minor) {
     planError = '期望分配合计超过当前账单总额'
   }

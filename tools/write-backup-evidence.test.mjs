@@ -2,33 +2,36 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  activationCaseNames,
+  bindRecoveryExecution,
+  recoveryReportNames,
   buildEvidence,
   safeEvidenceErrorCode,
 } from "./write-backup-evidence.mjs";
+import { buildReport as buildStaticReport } from "./write-local-static-gates.mjs";
 
 test("evidence merger emits only safe aggregates after every gate passes", () => {
   const inputs = validInputs();
   const evidence = buildEvidence(inputs, {
     branch: "codex/m1-ai-inbox",
     baseSHA: "a".repeat(40),
+    releaseInputSHA256: "b".repeat(64),
+    imageID: "sha256:" + "c".repeat(64),
     recordedDate: "2026-08-31",
   });
   assert.equal(evidence.overall_status, "passed");
   assert.equal(
     evidence.evidence_version,
-    "M4-BACKUP-RESTORE-POSTGRESQL-2026-09-01",
+    "M4-BACKUP-RESTORE-POSTGRESQL-ADR0033",
   );
   assert.equal(evidence.synthetic_dataset.document_count, 1000);
   assert.equal(evidence.recovered_runtime.rto_passed, true);
-  assert.equal(evidence.stage.m4, "complete_local_only");
+  assert.equal(evidence.stage.remaining_release_gates, "separately_required");
   assert.equal(
     evidence.stage.model_accuracy_gate,
     "pending_explicit_authorization",
   );
-  assert.equal(
-    evidence.gates.browser_acceptance,
-    "passed_in_final_local_release_gate",
-  );
+  assert.equal(evidence.gates.browser_acceptance, "separate_required_gate");
   const encoded = JSON.stringify(evidence);
   for (const forbidden of [
     "job-processing",
@@ -52,6 +55,8 @@ test("evidence merger rejects a passing label with an invalid exact increment", 
       buildEvidence(inputs, {
         branch: "codex/m1-ai-inbox",
         baseSHA: "a".repeat(40),
+        releaseInputSHA256: "b".repeat(64),
+        imageID: "sha256:" + "c".repeat(64),
         recordedDate: "2026-08-31",
       }),
     /database verification/,
@@ -62,6 +67,8 @@ test("evidence merger rejects spliced backup identities, late clocks, and missin
   const metadata = {
     branch: "codex/m1-ai-inbox",
     baseSHA: "a".repeat(40),
+    releaseInputSHA256: "b".repeat(64),
+    imageID: "sha256:" + "c".repeat(64),
     recordedDate: "2026-08-31",
   };
   const spliced = validInputs();
@@ -74,7 +81,7 @@ test("evidence merger rejects spliced backup identities, late clocks, and missin
   assert.throws(() => buildEvidence(lateClock, metadata), /recovery clock/);
 
   const incomplete = validInputs();
-  delete incomplete.staticGates.recovery_controller_tests.total;
+  delete incomplete.staticGates.counts.critical_invariants_total;
   assert.throws(() => buildEvidence(incomplete, metadata), /missing/);
 });
 
@@ -99,7 +106,7 @@ function validInputs() {
     database_table_count: 40,
     operation_started_at_epoch_ms: started,
     operation_finished_at_epoch_ms: finished,
-    elapsed_ms: 100,
+    elapsed_ms: finished - started,
     passed: true,
   });
   const snapshot = {
@@ -144,11 +151,15 @@ function validInputs() {
     ),
     passed: true,
   };
-  return {
+  const result = {
     backup: operation("backup", recoveryStarted - 1_000, recoveryStarted - 1),
     verify: operation("verify", recoveryStarted, recoveryStarted + 100),
+    scratchRestore: {
+      ...operation("restore", recoveryStarted + 100, recoveryStarted + 300),
+      invalidated_session_count: snapshot.session_count,
+    },
     restore: {
-      ...operation("restore", recoveryStarted + 100, recoveryStarted + 500),
+      ...operation("restore", recoveryStarted + 300, recoveryStarted + 500),
       invalidated_session_count: snapshot.session_count,
     },
     snapshot,
@@ -206,38 +217,155 @@ function validInputs() {
       append_only_changes_scoped: true,
       passed: true,
     },
-    staticGates: {
-      kind: "m4-backup-static-gates",
-      version: 1,
-      go_test_all: "passed",
-      go_vet_all: "passed",
-      go_build_all_without_vcs_stamp: "passed",
-      web_check: "passed",
-      recovery_controller_tests: { passed: 14, failed: 0, total: 14 },
-      critical_invariant_branches: {
-        passed: 136,
-        total: 136,
-        percentage: 100,
+    staticGates: validStaticGates(),
+    activation: {
+      report_kind: "restore-activation-gate-result",
+      protocol_version: 1,
+      build_identity: {
+        baseline_head: "a".repeat(40),
+        release_input_sha256: "b".repeat(64),
+        image_id: "sha256:" + "c".repeat(64),
       },
-      domain_application_statement_coverage: {
-        percentage: 85.71,
-        covered: 3101,
-        total: 3618,
-        required_percentage: 85,
-        passed: true,
-      },
-      infrastructure_transport_statement_coverage: {
-        percentage: 75.18,
-        covered: 3625,
-        total: 4822,
-        required_percentage: 70,
-        passed: true,
-      },
-      git_diff_check: "passed",
-      credential_and_private_asset_scan: "passed",
-      binary_and_large_file_check: "passed",
-      temporary_artifact_check: "passed",
-      current_slice_process_residue_check: "passed",
+      cases: Object.fromEntries(
+        activationCaseNames.map((name) => [name, true]),
+      ),
+      passed: true,
     },
   };
+  result.executionBinding = bindRecoveryExecution(
+    result,
+    result.activation.build_identity,
+    Object.fromEntries(
+      recoveryReportNames.map((name) => [
+        name,
+        result.activation.build_identity.image_id,
+      ]),
+    ),
+  );
+  return result;
 }
+
+function validStaticGates() {
+  return buildStaticReport({
+    expectedHead: "a".repeat(40),
+    expectedReleaseInput: "b".repeat(64),
+    imageID: "sha256:" + "c".repeat(64),
+    baseComposeConfigSha256: "d".repeat(64),
+    acceptanceComposeConfigSha256: "e".repeat(64),
+    nodeTestFiles: 19,
+    webTestFiles: 11,
+    webTestCases: 51,
+    criticalInvariantsPassed: 245,
+    criticalInvariantsTotal: 245,
+    domainCoveragePercent: 86.2,
+    transportCoveragePercent: 76.42,
+    gates: Object.fromEntries(
+      [
+        "go_test",
+        "go_vet",
+        "go_build",
+        "web_check",
+        "node_tests",
+        "critical_invariants",
+        "coverage",
+        "diff_check",
+        "sensitive_audit",
+        "large_file_audit",
+        "temporary_audit",
+        "process_audit",
+        "release_input_recheck",
+      ].map((name) => [name, true]),
+    ),
+  });
+}
+
+test("restore evidence requires actual activation cases with the same candidate identity", () => {
+  const metadata = {
+    branch: "main",
+    baseSHA: "a".repeat(40),
+    releaseInputSHA256: "b".repeat(64),
+    imageID: "sha256:" + "c".repeat(64),
+    recordedDate: "2026-09-05",
+  };
+  for (const mutate of [
+    (inputs) => {
+      delete inputs.activation;
+    },
+    (inputs) => {
+      inputs.activation.cases.database_restored_failure_blocks_runtime = false;
+    },
+    (inputs) => {
+      delete inputs.activation.cases.server_and_account_cli_fail_closed;
+    },
+    (inputs) => {
+      inputs.activation.build_identity.image_id = "sha256:" + "f".repeat(64);
+    },
+    (inputs) => {
+      inputs.staticGates.build_identity.release_input_sha256 = "f".repeat(64);
+    },
+  ]) {
+    const inputs = validInputs();
+    mutate(inputs);
+    assert.throws(() => buildEvidence(inputs, metadata), /activation/);
+  }
+});
+
+test("restore evidence requires a separate completed scratch restore in the recovery clock", () => {
+  const metadata = {
+    branch: "main",
+    baseSHA: "a".repeat(40),
+    releaseInputSHA256: "b".repeat(64),
+    imageID: "sha256:" + "c".repeat(64),
+    recordedDate: "2026-09-05",
+  };
+  for (const mutate of [
+    (inputs) => {
+      delete inputs.scratchRestore;
+    },
+    (inputs) => {
+      inputs.scratchRestore.passed = false;
+    },
+    (inputs) => {
+      inputs.scratchRestore.backup_set_id = "f".repeat(32);
+    },
+    (inputs) => {
+      inputs.scratchRestore.invalidated_session_count += 1;
+    },
+    (inputs) => {
+      inputs.scratchRestore.operation_started_at_epoch_ms =
+        inputs.restore.operation_finished_at_epoch_ms;
+    },
+    (inputs) => {
+      inputs.scratchRestore.operation_finished_at_epoch_ms =
+        inputs.restore.operation_started_at_epoch_ms + 1;
+    },
+  ]) {
+    const inputs = validInputs();
+    mutate(inputs);
+    assert.throws(() => buildEvidence(inputs, metadata));
+  }
+});
+
+test("recovery execution binding rejects old image steps and substituted otherwise valid reports", () => {
+  const inputs = validInputs();
+  const identity = inputs.activation.build_identity;
+  const images = {
+    ...inputs.executionBinding.executed_images,
+    restore: "sha256:" + "d".repeat(64),
+  };
+  assert.throws(
+    () => bindRecoveryExecution(inputs, identity, images),
+    /candidate/,
+  );
+  const metadata = {
+    branch: "main",
+    baseSHA: identity.baseline_head,
+    releaseInputSHA256: identity.release_input_sha256,
+    imageID: identity.image_id,
+    recordedDate: "2026-09-05",
+  };
+  inputs.backup.elapsed_ms += 1;
+  assert.throws(() => buildEvidence(inputs, metadata), /execution/);
+  delete inputs.executionBinding;
+  assert.throws(() => buildEvidence(inputs, metadata));
+});

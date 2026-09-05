@@ -15,18 +15,22 @@ type TripAttributionCursor struct {
 }
 
 type TripAttributionCandidate struct {
-	FactType               domain.DocumentType `json:"fact_type"`
-	FactID                 string              `json:"fact_id"`
-	DisplayName            string              `json:"display_name"`
-	BusinessDate           string              `json:"business_date"`
-	AmountMinor            int64               `json:"amount_minor"`
-	Currency               string              `json:"currency"`
-	CurrentAssignmentID    string              `json:"current_assignment_id,omitempty"`
-	CurrentTripID          string              `json:"current_trip_id,omitempty"`
-	CurrentTripDestination string              `json:"current_trip_destination,omitempty"`
-	Suggested              bool                `json:"suggested"`
-	ReasonCodes            []string            `json:"reason_codes"`
-	Rank                   int                 `json:"-"`
+	FactType            domain.DocumentType `json:"fact_type"`
+	FactID              string              `json:"fact_id"`
+	DisplayName         string              `json:"display_name"`
+	BusinessDate        string              `json:"business_date"`
+	AmountMinor         int64               `json:"amount_minor"`
+	Currency            string              `json:"currency"`
+	CurrentAssignmentID string              `json:"current_assignment_id,omitempty"`
+	CurrentTripID       string              `json:"current_trip_id,omitempty"`
+	CurrentTripName     string              `json:"current_trip_name,omitempty"`
+	FactVersion         int                 `json:"fact_version"`
+	AssignmentMode      string              `json:"assignment_mode"`
+	AssignmentState     string              `json:"assignment_state"`
+	MatchCount          int                 `json:"match_count"`
+	Suggested           bool                `json:"suggested"`
+	ReasonCodes         []string            `json:"reason_codes"`
+	Rank                int                 `json:"-"`
 }
 
 type TripAttributionQuery struct {
@@ -43,6 +47,7 @@ type TripAttributionPage struct {
 }
 
 type TripAssignmentResult struct {
+	FactVersion          int    `json:"fact_version,omitempty"`
 	DecisionID           string `json:"decision_id"`
 	Action               string `json:"action"`
 	PreviousAssignmentID string `json:"previous_assignment_id,omitempty"`
@@ -56,6 +61,8 @@ type TripAssignmentReplay struct {
 }
 
 type TripAssignmentCommand struct {
+	ExpectedFactVersion  int
+	DecisionSource       string
 	TenantID             string
 	ActorUserID          string
 	FactType             domain.DocumentType
@@ -73,6 +80,7 @@ type TripAssignmentCommand struct {
 }
 
 type TripRepository interface {
+	TripManagementRepository
 	ListTripAttributionCandidates(
 		ctx context.Context,
 		tenantID string,
@@ -85,6 +93,7 @@ type TripRepository interface {
 }
 
 type TripAssignmentTransaction interface {
+	TripManagementTransaction
 	ApplyTripAssignment(
 		ctx context.Context,
 		command TripAssignmentCommand,

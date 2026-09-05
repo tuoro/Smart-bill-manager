@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
@@ -133,8 +135,14 @@ func TestMembershipLastOwnerAndSuspensionInvariants(t *testing.T) {
 	}
 	if err := store.CreateSession(ctx, ports.SessionRecord{
 		ID: "suspended-session", TenantID: owner.TenantID, UserID: owner.UserID,
+		VerifiedPasswordHash: owner.PasswordHash, ExpectedMembershipVersion: candidates[0].MembershipVersion,
 		TokenHash: "suspended-token", CSRFTokenHash: "csrf", ExpiresAt: now.Add(time.Hour), CreatedAt: now, LastSeenAt: now,
-	}); err != nil {
+	}); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("suspended membership created session: %v", err)
+	}
+	// 保留读取侧保护测试：历史会话也不能绕过当前成员状态。
+	if _, err := store.DB().ExecContext(ctx, `INSERT INTO sessions (id, tenant_id, user_id, token_hash, csrf_token_hash, expires_at, created_at, last_seen_at)
+		VALUES ('suspended-session', ?, ?, 'suspended-token', 'csrf', ?, ?, ?)`, owner.TenantID, owner.UserID, now.Add(time.Hour), now, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.FindSession(ctx, "suspended-token"); !errors.Is(err, domain.ErrUnauthenticated) {
@@ -173,6 +181,13 @@ func TestTenantScopedSessionForeignKey(t *testing.T) {
 	if err == nil {
 		t.Fatal("cross-tenant session unexpectedly succeeded")
 	}
+	// 登录证明现在会先拒绝；仍独立核对原有数据库复合外键，不能弱化成只测前置判断。
+	_, err = store.DB().ExecContext(ctx, `INSERT INTO sessions (id,tenant_id,user_id,token_hash,csrf_token_hash,expires_at,created_at,last_seen_at)
+		VALUES ('synthetic-cross-session','00000000-0000-4000-8000-000000000099',?,'synthetic-token-hash','synthetic-csrf-hash',?,?,?)`, owner.UserID, now.Add(time.Hour), now, now)
+	var pgError *pgconn.PgError
+	if !errors.As(err, &pgError) || pgError.Code != "23503" {
+		t.Fatal("tenant-scoped session foreign key did not reject cross-tenant insert")
+	}
 }
 
 func TestMigrationIsIdempotent(t *testing.T) {
@@ -188,8 +203,12 @@ func TestMigrationIsIdempotent(t *testing.T) {
 	if err := store.db.QueryRow("SELECT count(*) FROM schema_migrations").Scan(&versions); err != nil {
 		t.Fatal(err)
 	}
-	if versions != 1 {
-		t.Fatalf("migration versions = %d, want 1", versions)
+	expected, err := loadMigrations(migrationsDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if versions != len(expected) {
+		t.Fatalf("migration versions = %d, want %d", versions, len(expected))
 	}
 }
 

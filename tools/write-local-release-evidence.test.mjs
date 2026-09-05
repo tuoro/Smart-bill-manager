@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildSafeEvidence } from "./write-local-release-evidence.mjs";
+import { requiredImageFiles } from "./check-release-image.mjs";
 
 const identity = {
   baseline_head: "a".repeat(40),
@@ -68,11 +69,15 @@ function reports() {
       image: {
         static_gate_count: 12,
         required_assets: Object.fromEntries(
-          Array.from({ length: 17 }, (_, index) => [`asset_${index}`, true]),
+          requiredImageFiles.map((path) => [
+            path.slice(1).replaceAll("/", "_"),
+            true,
+          ]),
         ),
         forbidden_assets_absent: true,
         toolchains_absent: true,
         package_managers_absent: true,
+        runtime_assets_readable: true,
       },
     },
     bootstrap: {
@@ -91,6 +96,8 @@ function reports() {
       cases: Object.fromEntries(
         [
           "valid_raw",
+          "valid_raw_lf",
+          "valid_raw_crlf",
           "empty",
           "too_large",
           "invalid_format",
@@ -225,16 +232,16 @@ function reports() {
       report_kind: "m4-playwright-result",
       passed: true,
       build_identity: browserIdentity,
-      required_spec_files: 8,
-      minimum_passed_scenarios: 73,
+      required_spec_files: 15,
+      minimum_passed_scenarios: 120,
       network_policy: {
         loopback_origin_only: true,
         closed_loopback_proxy: true,
         background_networking_disabled: true,
       },
-      spec_files: 8,
-      total_scenarios: 73,
-      passed_scenarios: 73,
+      spec_files: 15,
+      total_scenarios: 120,
+      passed_scenarios: 120,
       failed_scenarios: 0,
       skipped_scenarios: 0,
       failed_gates: [],
@@ -245,11 +252,11 @@ function reports() {
       build_identity: identity,
       gates: Object.fromEntries(staticGateNames.map((name) => [name, true])),
       counts: {
-        node_test_files: 13,
-        web_test_files: 9,
-        web_test_cases: 38,
-        critical_invariants_passed: 140,
-        critical_invariants_total: 140,
+        node_test_files: 19,
+        web_test_files: 11,
+        web_test_cases: 51,
+        critical_invariants_passed: 245,
+        critical_invariants_total: 245,
       },
       coverage: {
         domain_application_percent: 85,
@@ -304,6 +311,20 @@ test("safe evidence merger rejects incomplete or duplicated gate shapes", () => 
     expectedReleaseInput: identity.release_input_sha256,
   };
   const mutations = [
+    (input) => {
+      input.image.image.runtime_assets_readable = false;
+    },
+    (input) => {
+      input.playwright.required_spec_files = 8;
+      input.playwright.spec_files = 8;
+      input.playwright.minimum_passed_scenarios = 73;
+      input.playwright.total_scenarios = 73;
+      input.playwright.passed_scenarios = 73;
+    },
+    (input) => {
+      input.playwright.passed_scenarios = 116;
+      input.playwright.total_scenarios = 116;
+    },
     (input) => delete input.static.gates.coverage,
     (input) => {
       input.entrypoint.cases.unexpected = true;
@@ -316,7 +337,16 @@ test("safe evidence merger rejects incomplete or duplicated gate shapes", () => 
     (input) => {
       input.performance.data_shape.source_claim_chains = 9_999;
     },
-    (input) => delete input.image.image.required_assets.asset_16,
+    (input) =>
+      delete input.image.image.required_assets[
+        "app_migrations_0008_allocation_search_and_bad_debt.sql"
+      ],
+    (input) => {
+      delete input.image.image.required_assets[
+        "app_migrations_0008_allocation_search_and_bad_debt.sql"
+      ];
+      input.image.image.required_assets.unexpected_asset = true;
+    },
     (input) => {
       input.memory.environment.process_identity_passed = false;
     },

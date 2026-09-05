@@ -3,8 +3,14 @@ import type { InsightAggregate, InsightFact, InsightPage, Session, Trip } from '
 import { captureResponsiveReview } from './visual-review'
 
 const trip: Trip = {
+  bad_debt_locked: false,
   id: '00000000-0000-4000-8000-000000001001',
-  destination: '北京',
+  name: '北京',
+  timezone: 'Asia/Shanghai',
+  version: 1,
+  notes: '',
+  origin_kind: 'manual',
+  material_count: 0,
   start_date: '2026-08-01',
   end_date: '2026-08-03',
   assigned_payment_count: 1,
@@ -282,7 +288,7 @@ function insightFact(
       ? {
           trip: {
             id: assignedTrip.id,
-            destination: assignedTrip.destination,
+            name: assignedTrip.name,
             start_date: assignedTrip.start_date,
             end_date: assignedTrip.end_date,
           },

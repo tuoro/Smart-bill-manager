@@ -908,19 +908,19 @@ func TestPaymentAllocatesAcrossInvoicesAndReplaysCanonicalPlan(t *testing.T) {
 		t.Fatalf("changed idempotent plan error = %v", err)
 	}
 
-	payments, err := fixture.store.ListPayments(ctx, fixture.tenant.TenantID)
+	payments, err := fixture.store.ReadPaymentPage(ctx, fixture.tenant.TenantID, ports.FactQuery{Limit: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(payments) != 1 || payments[0].AllocatedMinor != 10_000 || payments[0].RemainingMinor != 0 || payments[0].AllocationStatus != "allocated" {
+	if len(payments.Items) != 1 || payments.Items[0].AllocatedMinor != 10_000 || payments.Items[0].RemainingMinor != 0 || payments.Items[0].AllocationStatus != "allocated" {
 		t.Fatalf("payment allocation projection = %#v", payments)
 	}
-	invoices, err := fixture.store.ListInvoices(ctx, fixture.tenant.TenantID)
+	invoices, err := fixture.store.ReadInvoicePage(ctx, fixture.tenant.TenantID, ports.FactQuery{Limit: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
-	balances := make(map[int64][3]any, len(invoices))
-	for _, invoice := range invoices {
+	balances := make(map[int64][3]any, len(invoices.Items))
+	for _, invoice := range invoices.Items {
 		balances[invoice.TotalMinor] = [3]any{invoice.AllocatedMinor, invoice.RemainingMinor, invoice.AllocationStatus}
 	}
 	if balances[6_000] != [3]any{int64(4_000), int64(2_000), "partial"} ||
@@ -1029,23 +1029,23 @@ func TestInvoiceReceivesMultiplePaymentsAndDeletionRestoresBalance(t *testing.T)
 		t.Fatalf("overflow partial writes = facts:%d decisions:%d", overflowFacts, overflowDecisions)
 	}
 
-	invoices, err := fixture.store.ListInvoices(ctx, fixture.tenant.TenantID)
-	if err != nil || len(invoices) != 1 {
+	invoices, err := fixture.store.ReadInvoicePage(ctx, fixture.tenant.TenantID, ports.FactQuery{Limit: 100})
+	if err != nil || len(invoices.Items) != 1 {
 		t.Fatalf("invoices before deletion = %#v, error = %v", invoices, err)
 	}
-	if invoices[0].ID != invoiceResult.FactID || invoices[0].AllocatedMinor != 9_000 || invoices[0].RemainingMinor != 1_000 || invoices[0].AllocationStatus != "partial" {
-		t.Fatalf("many-to-one invoice projection = %#v", invoices[0])
+	if invoices.Items[0].ID != invoiceResult.FactID || invoices.Items[0].AllocatedMinor != 9_000 || invoices.Items[0].RemainingMinor != 1_000 || invoices.Items[0].AllocationStatus != "partial" {
+		t.Fatalf("many-to-one invoice projection = %#v", invoices.Items[0])
 	}
 	facts := NewFactService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now.Add(8 * time.Hour)})
 	if err := facts.Delete(ctx, fixture.tenant, domain.DocumentPayment, paymentResults[0].FactID, "delete-first-allocated-payment"); err != nil {
 		t.Fatal(err)
 	}
-	invoices, err = fixture.store.ListInvoices(ctx, fixture.tenant.TenantID)
-	if err != nil || len(invoices) != 1 {
+	invoices, err = fixture.store.ReadInvoicePage(ctx, fixture.tenant.TenantID, ports.FactQuery{Limit: 100})
+	if err != nil || len(invoices.Items) != 1 {
 		t.Fatalf("invoices after deletion = %#v, error = %v", invoices, err)
 	}
-	if invoices[0].AllocatedMinor != 5_000 || invoices[0].RemainingMinor != 5_000 || invoices[0].AllocationStatus != "partial" {
-		t.Fatalf("restored invoice balance = %#v", invoices[0])
+	if invoices.Items[0].AllocatedMinor != 5_000 || invoices.Items[0].RemainingMinor != 5_000 || invoices.Items[0].AllocationStatus != "partial" {
+		t.Fatalf("restored invoice balance = %#v", invoices.Items[0])
 	}
 	var activeLinks, endedLinks int
 	if err := fixture.store.DB().QueryRowContext(ctx, `
@@ -1667,8 +1667,13 @@ func newFileReviewFixture(t *testing.T) reviewFixture {
 
 func newReviewFixtureAt(t *testing.T) reviewFixture {
 	t.Helper()
-	ctx := context.Background()
 	store := postgresqltest.Open(t)
+	return newReviewFixtureInStore(t, store)
+}
+
+func newReviewFixtureInStore(t *testing.T, store *postgresqladapter.Store) reviewFixture {
+	t.Helper()
+	ctx := context.Background()
 	ids := system.IDGenerator{}
 	now := time.Date(2026, 8, 27, 8, 0, 0, 0, time.UTC)
 	userID := mustID(t, ids)
@@ -2069,7 +2074,7 @@ func invoiceEnvelope(number string) domain.ClaimEnvelope {
 		SchemaVersion: "document-claim/3",
 		DocumentType:  "invoice",
 		Fields: []domain.FieldCandidate{
-			{Path: "invoice_number", ValueType: "string", Presence: "present", Value: json.RawMessage(`"` + number + `"`), Evidence: evidence(number), Issues: []string{}},
+			{Path: "invoice_number", ValueType: "string", Presence: "present", Value: json.RawMessage(strconv.Quote(number)), Evidence: evidence(number), Issues: []string{}},
 			{Path: "invoice_date", ValueType: "date", Presence: "present", Value: json.RawMessage(`"2026-08-27"`), Evidence: evidence("2026-08-27"), Issues: []string{}},
 			{Path: "total_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence("123.45"), Issues: []string{}},
 			{Path: "tax_minor", ValueType: "money_minor", Presence: "absent", Issues: []string{}},

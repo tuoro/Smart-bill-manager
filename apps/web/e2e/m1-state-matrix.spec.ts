@@ -546,9 +546,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     })
     await page.route(paymentsURL, async (route) => {
       await paymentResponse
-      await fulfillJSON(route, { items: [payment] })
+      await fulfillJSON(route, { items: [payment], next_cursor: '' })
     })
-    await page.route(invoicesURL, (route) => fulfillJSON(route, { items: [] }))
+    await page.route(invoicesURL, (route) => fulfillJSON(route, { items: [], next_cursor: '' }))
 
     await page.goto('/payments')
     const facts = page.locator('section.facts-panel')
@@ -559,11 +559,13 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(paymentRow).toContainText('Synthetic State Merchant')
     await expect(paymentRow).toContainText('321.09')
     await expect(paymentRow).toContainText('SYN-STATE-001')
-    await expect(facts.getByText('1 条记录')).toBeVisible()
+    await expect(facts.getByText('本页 1 条')).toBeVisible()
     await captureResponsiveReview(page, testInfo, 'payments')
 
     await page.getByRole('tab', { name: '发票' }).click()
-    await expect(page.locator('section.facts-panel .state-layout')).toContainText('还没有正式发票')
+    await expect(page.locator('section.facts-panel .state-layout')).toContainText(
+      '当前范围没有发票记录',
+    )
     await captureResponsiveReview(page, testInfo, 'invoices')
     expect(pageErrors).toEqual([])
   })
@@ -572,7 +574,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)
     const payment = syntheticPayment()
-    await page.route(paymentsURL, (route) => fulfillJSON(route, { items: [payment] }))
+    await page.route(paymentsURL, (route) =>
+      fulfillJSON(route, { items: [payment], next_cursor: '' }),
+    )
     let workspace = allocationWorkspaceFixture()
     let submitted: unknown
     await page.route(allocationURL(payment.id), async (route) => {
@@ -659,7 +663,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     releaseWorkspace()
 
     await expect(page.getByText('没有可分配的单据')).toBeVisible()
-    await expect(page.getByText('需要同币种且日期相差不超过 30 天的发票')).toBeVisible()
+    await expect(page.getByText('可切换全部日期搜索同币种单据；跨期分配须填写理由。')).toBeVisible()
+    await expect(page.getByLabel('日期范围')).toHaveValue('recommended')
+    await expect(page.getByRole('option', { name: '全部日期（可跨期）' })).toBeAttached()
     await expect(page.getByRole('button', { name: '确认没有变化' })).toBeDisabled()
     expect(pageErrors).toEqual([])
   })
@@ -908,6 +914,7 @@ function baseReview(label: string): Review {
       created_at: timestamp,
       version: 1,
     },
+    entry_mode: 'ai',
     claim_set_id: `00000000-0000-4000-8000-000000000${Number(idSuffix) + 100}`,
     document_type: 'payment',
     revision: 1,
@@ -933,6 +940,7 @@ function baseReview(label: string): Review {
 
 function syntheticPayment(): Payment {
   return {
+    bad_debt: false,
     id: '00000000-0000-4000-8000-000000000901',
     amount_minor: 32109,
     allocated_minor: 12345,
@@ -941,6 +949,7 @@ function syntheticPayment(): Payment {
     currency: 'CNY',
     merchant: 'Synthetic State Merchant',
     transaction_time: timestamp,
+    business_date: '2026-08-28',
     source_timezone: 'Asia/Shanghai',
     payment_method: 'Synthetic Card',
     order_number: 'SYN-STATE-001',
@@ -1065,6 +1074,272 @@ function allocationTarget(
 
 function rowFor(queue: ReturnType<Page['locator']>, originalName: string) {
   return queue.locator('tbody tr').filter({ hasText: originalName })
+}
+
+test.describe('B1 显式人工录入', () => {
+  test('失败转人工、填写证据、保存刷新和确认', async ({ page }, testInfo) => {
+    const errors = trackPageErrors(page)
+    await mockSession(page, {
+      ...ownerSession(),
+      capabilities: [...ownerSession().capabilities, 'claims.review'],
+    })
+    const failed = job('failed', 'synthetic-manual.png', '合成识别失败')
+    let current = manualReviewFixture(failed)
+    let confirmations = 0
+    await mockJobs(page, () => [failed])
+    await mockDocumentContent(page, failed.document_id)
+    await page.route(reviewURL(failed.id), (route) => fulfillJSON(route, current))
+    await page.route(
+      (url) => url.pathname === `/api/v1/jobs/${failed.id}/manual-review`,
+      async (route) => {
+        expect(route.request().postDataJSON()).toEqual({
+          document_type: 'payment',
+          reason: '原件清晰，改为人工录入',
+          expected_job_version: failed.version,
+        })
+        expect(route.request().headers()['idempotency-key']).toBeTruthy()
+        await fulfillJSON(route, {
+          job_id: failed.id,
+          claim_set_id: current.claim_set_id,
+          replayed: false,
+        })
+      },
+    )
+    await page.route(
+      (url) => url.pathname === `/api/v1/reviews/${failed.id}/revisions`,
+      async (route) => {
+        const payload = route.request().postDataJSON()
+        expect(
+          payload.fields.find((field: { path: string }) => field.path === 'merchant'),
+        ).toMatchObject({
+          manual_evidence: [{ page: 1, quote: '用户核对商户的实际摘录' }],
+          evidence_ids: [],
+        })
+        current = {
+          ...current,
+          revision: 2,
+          optimistic_version: 1,
+          claim_status: 'ready_for_review',
+          validations: [],
+          job: { ...current.job, status: 'needs_review', version: 3 },
+          fields: current.fields.map((field) => {
+            const edited = payload.fields.find(
+              (entry: { path: string }) => entry.path === field.path,
+            )
+            if (!edited) return field
+            return {
+              ...field,
+              presence: edited.presence,
+              value: edited.value,
+              evidence: (edited.manual_evidence ?? []).map(
+                (evidence: { page: number; quote: string }) => ({
+                  ...evidence,
+                  id: `${field.id}-manual-evidence`,
+                }),
+              ),
+            }
+          }),
+        }
+        await route.fulfill({ status: 201, json: current })
+      },
+    )
+    await page.route(confirmURL(failed.id), async (route) => {
+      confirmations++
+      await fulfillJSON(route, {
+        review_decision_id: 'manual-review-decision',
+        fact_type: 'payment',
+        fact_id: 'manual-payment',
+        link_ids: [],
+        replayed: false,
+      })
+    })
+    await page.goto('/inbox')
+    await page.getByRole('button', { name: '转人工录入', exact: true }).click()
+    const form = page.locator('section[aria-labelledby="manual-review-title"]')
+    await form.getByRole('combobox', { name: '单据类型', exact: true }).selectOption('payment')
+    await form.getByLabel('接管理由').fill('原件清晰，改为人工录入')
+    await form.getByRole('button', { name: '确认转人工', exact: true }).click()
+    await expect(page.getByText('已转人工', { exact: true })).toBeVisible()
+    await expect(page.getByText('AI 提取', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: '修订字段', exact: true }).click()
+    for (const [label, value] of [
+      ['支付金额（最小单位）', '32109'],
+      ['币种', 'CNY'],
+      ['商户', '合成人工商户'],
+      ['交易时间', '2026-08-28T08:00:00Z'],
+      ['来源时区', 'Asia/Shanghai'],
+    ]) {
+      await page.getByLabel(`${label} 是否存在`, { exact: true }).selectOption('present')
+      await page.getByLabel(label!, { exact: true }).fill(value!)
+      if (label !== '来源时区') {
+        await page.getByLabel(`${label} 来源页码`, { exact: true }).fill('1')
+        await page
+          .getByLabel(`${label} 原件摘录`, { exact: true })
+          .fill(label === '商户' ? '用户核对商户的实际摘录' : '用户核对的实际摘录')
+      }
+    }
+    await captureResponsiveReview(page, testInfo, 'manual-review-edit')
+    expect(confirmations).toBe(0)
+    await page.getByRole('button', { name: '保存修订版本', exact: true }).click()
+    await expect(page.getByRole('button', { name: '修订字段', exact: true })).toBeVisible()
+    await page.reload()
+    await expect(page.getByText('合成人工商户', { exact: true })).toBeVisible()
+    await expect(page.getByText('已转人工', { exact: true })).toBeVisible()
+    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
+    await page.getByRole('button', { name: '确认并保存记录', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
+    expect(confirmations).toBe(1)
+    expect(errors).toEqual([])
+  })
+
+  test('人工修订冲突刷新保留字段与摘录，重新核对后才可提交', async ({ page }) => {
+    await mockSession(page)
+    const failed = job('failed', 'manual-revision-conflict.png')
+    let current = manualReviewFixture(failed)
+    await mockReview(page, current)
+    await page.route(
+      (url) => url.pathname === `/api/v1/reviews/${failed.id}`,
+      (route) => fulfillJSON(route, current),
+    )
+    let saves = 0
+    await page.route(
+      (url) => url.pathname === `/api/v1/reviews/${failed.id}/revisions`,
+      async (route) => {
+        saves++
+        if (saves === 1) {
+          current = {
+            ...current,
+            revision: 2,
+            fields: current.fields.map((field) =>
+              field.path === 'merchant'
+                ? { ...field, presence: 'present', value: '服务器新商户' }
+                : field,
+            ),
+          }
+          await fulfillError(route, 409, 'version_conflict', '版本已变化')
+          return
+        }
+        expect(route.request().postDataJSON()).toMatchObject({
+          expected_revision: 2,
+          fields: expect.arrayContaining([
+            {
+              path: 'merchant',
+              value_type: 'string',
+              presence: 'present',
+              value: '保留我的商户',
+              evidence_ids: [],
+              manual_evidence: [{ page: 1, quote: '保留我的摘录' }],
+            },
+          ]),
+        })
+        await route.fulfill({ status: 201, json: { ...current, revision: 3 } })
+      },
+    )
+    await page.goto(`/reviews/${failed.id}`)
+    await page.getByRole('button', { name: '修订字段', exact: true }).click()
+    await page.getByLabel('商户 是否存在', { exact: true }).selectOption('present')
+    await page.getByLabel('商户', { exact: true }).fill('保留我的商户')
+    await page.getByLabel('商户 来源页码', { exact: true }).fill('1')
+    await page.getByLabel('商户 原件摘录', { exact: true }).fill('保留我的摘录')
+    const save = page.getByRole('button', { name: '保存修订版本', exact: true })
+    await save.click()
+    await expect(save).toBeDisabled()
+    await page.getByRole('button', { name: '刷新最新版本', exact: true }).click()
+    await expect(page.getByLabel('商户', { exact: true })).toHaveValue('保留我的商户')
+    await expect(page.getByLabel('商户 来源页码', { exact: true })).toHaveValue('1')
+    await expect(page.getByLabel('商户 原件摘录', { exact: true })).toHaveValue('保留我的摘录')
+    await expect(save).toBeDisabled()
+    await page.getByText('查看服务器最新版本', { exact: false }).click()
+    await expect(page.getByText('服务器新商户', { exact: true })).toBeVisible()
+    await page.getByLabel('我已比较最新版本，确认继续使用当前草稿').check()
+    await save.click()
+    await expect(page.getByRole('button', { name: '修订字段', exact: true })).toBeVisible()
+    expect(saves).toBe(2)
+  })
+
+  for (const outcome of ['version_conflict', 'response_lost'] as const) {
+    test(`转人工 ${outcome} 保留输入并显式重试`, async ({ page }) => {
+      await mockSession(page, {
+        ...ownerSession(),
+        capabilities: [...ownerSession().capabilities, 'claims.review'],
+      })
+      const failed = job('failed', `manual-${outcome}.png`)
+      await mockJobs(page, () => [failed])
+      await mockReview(page, manualReviewFixture(failed))
+      const requests: Array<{ body: unknown; key: string | undefined }> = []
+      await page.route(
+        (url) => url.pathname === `/api/v1/jobs/${failed.id}`,
+        (route) => fulfillJSON(route, { ...failed, version: 2 }),
+      )
+      await page.route(
+        (url) => url.pathname === `/api/v1/jobs/${failed.id}/manual-review`,
+        async (route) => {
+          requests.push({
+            body: route.request().postDataJSON(),
+            key: route.request().headers()['idempotency-key'],
+          })
+          if (requests.length === 1) {
+            if (outcome === 'response_lost') await route.abort('failed')
+            else await fulfillError(route, 409, 'version_conflict', '任务版本已变化')
+            return
+          }
+          await fulfillJSON(route, {
+            job_id: failed.id,
+            claim_set_id: 'manual-root',
+            replayed: outcome === 'response_lost',
+          })
+        },
+      )
+      await page.goto('/inbox')
+      await page.getByRole('button', { name: '转人工录入', exact: true }).click()
+      const form = page.locator('section[aria-labelledby="manual-review-title"]')
+      await form.getByRole('combobox', { name: '单据类型', exact: true }).selectOption('payment')
+      await form.getByLabel('接管理由').fill('保留这次人工选择')
+      await form.getByRole('button', { name: '确认转人工', exact: true }).click()
+      await expect(form.getByRole('alert')).toBeVisible()
+      await expect(form.getByLabel('接管理由')).toHaveValue('保留这次人工选择')
+      if (outcome === 'version_conflict') {
+        await expect(form.getByRole('button', { name: '确认转人工', exact: true })).toBeDisabled()
+        await form.getByRole('button', { name: '刷新任务状态' }).click()
+        await expect(form.getByRole('status')).toContainText('类型和理由已保留')
+      }
+      expect(requests).toHaveLength(1)
+      await form.getByRole('button', { name: '确认转人工', exact: true }).click()
+      await expect(page.getByRole('heading', { name: '审核单据', exact: true })).toBeVisible()
+      expect(requests).toHaveLength(2)
+      if (outcome === 'response_lost') expect(requests[1]).toEqual(requests[0])
+      else {
+        expect(requests[1]!.key).not.toBe(requests[0]!.key)
+        expect(requests[1]!.body).toMatchObject({
+          expected_job_version: 2,
+          reason: '保留这次人工选择',
+        })
+      }
+    })
+  }
+  test('无审核能力时不展示转人工入口', async ({ page }) => {
+    await mockSession(page, reviewerSession())
+    await mockJobs(page, () => [job('failed', 'manual-forbidden.png')])
+    await page.goto('/inbox')
+    await expect(page.getByText('manual-forbidden.png', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: '转人工录入', exact: true })).toHaveCount(0)
+  })
+})
+
+function manualReviewFixture(failed: JobSummary): Review {
+  const review = blockedReview('manual-root')
+  return {
+    ...review,
+    job: { ...failed, status: 'blocked', version: 2 },
+    entry_mode: 'manual',
+    fields: review.fields.map((field) => ({
+      ...field,
+      presence: field.path === 'document_type' ? 'present' : 'absent',
+      value: field.path === 'document_type' ? 'payment' : undefined,
+      source: 'user',
+      evidence: [],
+    })),
+  }
 }
 
 function trackPageErrors(page: Page): string[] {

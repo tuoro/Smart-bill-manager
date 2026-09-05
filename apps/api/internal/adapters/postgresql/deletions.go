@@ -50,6 +50,10 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 	}
 	deletedAt := command.DeletedAt.UTC().Format(time.RFC3339Nano)
 	metadata, _ := json.Marshal(map[string]string{"fact_type": string(command.FactType)})
+	resourceType := string(command.FactType)
+	if command.FactType == domain.DocumentTrip {
+		resourceType = "trip_evidence"
+	}
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO audit_events (
 			id, tenant_id, actor_user_id, action, resource_type, resource_id,
@@ -59,7 +63,7 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 		command.AuditEventID,
 		command.TenantID,
 		command.ActorUserID,
-		command.FactType,
+		resourceType,
 		command.FactID,
 		command.RequestID,
 		string(metadata),
@@ -83,7 +87,7 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 		`, deletedAt, command.ActorUserID, command.AuditEventID, command.TenantID, command.FactID)
 	} else {
 		result, err = t.tx.ExecContext(ctx, `
-			UPDATE trips
+			UPDATE trip_evidence_facts
 			SET deleted_at = ?, deleted_by_user_id = ?, deletion_audit_event_id = ?, version = version + 1
 			WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
 		`, deletedAt, command.ActorUserID, command.AuditEventID, command.TenantID, command.FactID)
@@ -97,6 +101,20 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 	}
 	if affected != 1 {
 		return domain.ErrNotFound
+	}
+	if command.FactType == domain.DocumentInvoice {
+		if _, err := t.tx.ExecContext(ctx, `UPDATE invoice_material_links SET ended_at = ?, ended_by_audit_event_id = ?
+			WHERE tenant_id = ? AND invoice_id = ? AND ended_at IS NULL`, deletedAt, command.AuditEventID, command.TenantID, command.FactID); err != nil {
+			return fmt.Errorf("end deleted invoice materials: %w", err)
+		}
+	}
+	if command.FactType == domain.DocumentTrip {
+		_, err := t.tx.ExecContext(ctx, `UPDATE trip_material_links SET ended_at = ?, ended_by_audit_event_id = ?
+			WHERE tenant_id = ? AND evidence_id = ? AND ended_at IS NULL`, deletedAt, command.AuditEventID, command.TenantID, command.FactID)
+		if err != nil {
+			return fmt.Errorf("end deleted evidence links: %w", err)
+		}
+		return nil
 	}
 	if _, err := t.tx.ExecContext(ctx, `
 		UPDATE payment_invoice_links
@@ -118,15 +136,12 @@ func (t transaction) DeleteFact(ctx context.Context, command ports.FactDeleteCom
 		UPDATE trip_fact_assignments
 		SET ended_at = ?, ended_by_audit_event_id = ?
 		WHERE tenant_id = ? AND ended_at IS NULL
-		  AND ((? = 'trip' AND trip_id = ?)
-		    OR (? = 'payment' AND payment_id = ?)
+		  AND ((? = 'payment' AND payment_id = ?)
 		    OR (? = 'invoice' AND invoice_id = ?))
 	`,
 		deletedAt,
 		command.AuditEventID,
 		command.TenantID,
-		command.FactType,
-		command.FactID,
 		command.FactType,
 		command.FactID,
 		command.FactType,

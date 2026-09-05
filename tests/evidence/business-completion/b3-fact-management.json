@@ -1,0 +1,102 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "B3-ADR-0027-complete-fact-management",
+  "date": "2026-09-04",
+  "status": "passed_local_slice",
+  "accepted": true,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "worktree_files_excluding_evidence": 148,
+  "worktree_sha256": "1fbd72186fdca045624fe95e20f7ab146c1ca099ea047047aa56ef09b97a6708",
+  "fingerprint_method": "SHA-256 of sorted unique modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/; includes preserved ADR-0024, B1 and B2 work",
+  "database": {
+    "major": 17,
+    "source": "existing postgres:17; no pull or download",
+    "isolation": "dedicated internal network, no host database port, synthetic data only",
+    "tested": [
+      "Payment and Invoice each traverse 201 rows without duplicates; equal creation timestamps use immutable ID tie-breaker",
+      "deleted anchor still permits continuation; newly inserted row appears on first-page refresh; business-date correction does not change sort identity",
+      "inclusive dates, literal percent/underscore/backslash, merchant/order/buyer/seller/number filters; unallocated/partial/allocated and zero-amount semantics",
+      "cursor bound to tenant, kind and canonical filter; strict malformed, unknown and repeated HTTP query parameters rejected",
+      "bounded limit-plus-one SQL; current invoice item count in list and full current revision items in consistent detail snapshot",
+      "detail after correction matches current fields, items, version and Review source; Owner/Finance/Viewer/Reviewer, cross-tenant and deleted boundaries",
+      "Viewer response omits source identities and original downloads remain forbidden; HTTP authentication and CSRF enforced",
+      "0005 forward index upgrade, repeat application and injected rollback preserve data, schema ledger and existing records"
+    ]
+  },
+  "go": {
+    "version": "1.26.7",
+    "test_command": "GOMAXPROCS=2 go test -json -p 1 -parallel 2 -timeout 60s -count=1 -covermode=atomic -coverpkg=./internal/domain/...,./internal/application/...,./internal/adapters/...,./internal/transport/... -coverprofile=<isolated-output> ./...",
+    "passed_test_events_including_subtests": 541,
+    "failed": 0,
+    "skipped_tests": 0,
+    "critical_invariants": { "matrix": "tests/critical-invariants.tsv", "passed": 179, "total": 179, "method": "all package/test identities matched uncached final pass events" },
+    "statement_coverage": {
+      "domain_application": { "covered": 3673, "total": 4257, "percent": 86.28, "threshold": 85, "passed": true },
+      "infrastructure_transport": { "covered": 4443, "total": 5889, "percent": 75.45, "threshold": 70, "passed": true },
+      "method": "unique statement blocks with any positive atomic count; existing layer boundaries unchanged"
+    },
+    "vet": "all packages and postgresql_tools backup tests passed",
+    "build": "all packages and static postgresql_tools backup test binary passed"
+  },
+  "authenticated_restore": {
+    "test": "TestManualTripAuthenticatedBackupRestore",
+    "passed": true,
+    "native_pg_dump_pg_restore": true,
+    "file_only_database_authentication": true,
+    "nonempty_original_pages_manual_claim_revision_evidence_and_correction": true,
+    "schema_with_0005_indexes_and_exact_object_inventory_verified": true,
+    "limit": "focused regression fixture, not a new 1000-Document exercise"
+  },
+  "web": {
+    "unit_tests_passed": 43,
+    "unit_test_files": 10,
+    "contract_typecheck_lint_format_build": "passed",
+    "browser_command": "playwright test fact-corrections fact-management m1-state-matrix manual-trip-workspace navigation m3-email-sources m3-reimbursements m3-trip-attribution m4-insights ui-refresh --workers=1 --reporter=json",
+    "browser_spec_files": 10,
+    "browser_passed": 89,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "browser_retries": 0,
+    "b3_browser_scenarios": 6,
+    "scope": "real production-built components with synthetic mocked API plus separate database-backed HTTP integration; not a deployed runtime browser release gate",
+    "covered": ["201 records in both collections", "filter, exact-range retry and stale response isolation", "detail and return to original cursor", "original, correction and allocation entry points", "Viewer source suppression and missing detail", "delete confirmation, failure retention, success refresh and cancel focus", "source expansion, failure retry and stale source response across detail navigation"],
+    "responsive_capture_widths_px": [384, 768, 1024, 1440],
+    "themes": ["light", "dark"],
+    "visual_review": "1440px dark list and 384px light detail inspected, including final source-control spacing; responsive and action contrast assertions passed"
+  },
+  "failure_history": [
+    { "stage": "database_environment", "cause": "existing PostgreSQL image had no passwd entry for isolated uid", "resolution": "add synthetic read-only passwd mapping; preserve file-only credentials; restart succeeded without OOM" },
+    { "stage": "http_test_fixture", "cause": "fixture read document identity from the wrong response level", "resolution": "use actual nested job.document_id contract; direct and full database HTTP regressions pass" },
+    { "stage": "web_build", "cause": "formatted multiline inline delete expression was not valid template syntax", "resolution": "use a named cancel handler; full build passes" },
+    { "stage": "source_browser_fixture", "cause": "new typed relationship fixture omitted required target fields", "resolution": "complete synthetic contract fields; typecheck and browser scenario pass" },
+    { "stage": "browser_regression", "cause": "expanded 89-test run found missing existing permission guidance; 88 passed and one failed", "resolution": "restore guidance and hide unauthorized count/refresh; rerun all 89 with zero retries, failures or skips" },
+    { "stage": "ui_review", "cause": "cancel removed focused button and narrow source controls were inline", "resolution": "return focus to delete entry and separate labeled source controls; browser and visual checks pass" }
+  ],
+  "review": {
+    "git_diff_check": "passed",
+    "changed_files_over_1_mib": 0,
+    "targeted_known_secret_pattern_matches": 0,
+    "scan_limit": "known key/private-key patterns and scoped diff review, not universal secret detection",
+    "read_only_agents": "database query/cursor/permission and UI request-race/source/delete review; main agent implemented and verified all edits",
+    "tool_tests": "fact-pagination and release-image policy pass; model evaluation and performance tools syntax checked only"
+  },
+  "resources": {
+    "heavy_stages_serial": true,
+    "database_memory_mib": 1024,
+    "go_and_restore_tools_memory_mib_each": 2048,
+    "maximum_simultaneous_container_limit_mib": 3072,
+    "minimum_observed_available_host_memory_mib": 5747,
+    "available_after_browser_stopped_mib": 6468,
+    "swap": "pre-existing 3898 MiB used; no expanded limits or OOM retry",
+    "database_oom_killed": false,
+    "credentials": "one-time synthetic, owner-only temporary files; never emitted or committed",
+    "containers_network_removed": true,
+    "docker_volume_created": false,
+    "browser_and_preview_stopped": true,
+    "temporary_credentials_data_raw_reports_cache_and_build_removed": true,
+    "available_after_cleanup_mib": 6995,
+    "approximate_temporary_host_disk_mib_before_cleanup": 472,
+    "existing_user_instance": "not accessed, restarted or upgraded"
+  },
+  "not_performed": ["real Provider/mailbox/account integration or model correctness evaluation", "production release image/runtime performance/Lighthouse gates", "Git commit, push, tag, deployment or release", "B4 through B6 implementation"]
+}

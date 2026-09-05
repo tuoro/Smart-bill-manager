@@ -13,7 +13,7 @@ func TestEvaluateReimbursementPolicyProducesDeterministicFindingsAndCurrencyTota
 
 	input := ReimbursementPolicyInput{
 		Trip: ReimbursementTripSnapshot{
-			ID: "trip-a", Destination: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-03",
+			ID: "trip-a", Name: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-03",
 		},
 		Items: []ReimbursementPolicyItem{
 			{AssignmentID: "assignment-payment-b", FactType: DocumentPayment, FactID: "payment-b", DisplayName: "合成商户乙", BusinessDate: "2026-08-02", AmountMinor: 50, Currency: CurrencyUSD},
@@ -88,7 +88,7 @@ func TestEvaluateReimbursementPolicyProducesDeterministicFindingsAndCurrencyTota
 func TestEvaluateReimbursementPolicyInvoiceOnlyAndFullyCoveredHaveNoFindings(t *testing.T) {
 	t.Parallel()
 
-	trip := ReimbursementTripSnapshot{ID: "trip", Destination: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-02"}
+	trip := ReimbursementTripSnapshot{ID: "trip", Name: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-02"}
 	invoiceOnly, err := EvaluateReimbursementPolicy(ReimbursementPolicyInput{
 		Trip: trip,
 		Items: []ReimbursementPolicyItem{{
@@ -122,7 +122,7 @@ func TestEvaluateReimbursementPolicyInvoiceOnlyAndFullyCoveredHaveNoFindings(t *
 func TestEvaluateReimbursementPolicyRejectsInvalidAndOverflowInputs(t *testing.T) {
 	t.Parallel()
 
-	trip := ReimbursementTripSnapshot{ID: "trip", Destination: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-02"}
+	trip := ReimbursementTripSnapshot{ID: "trip", Name: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-02"}
 	base := ReimbursementPolicyItem{
 		AssignmentID: "assignment", FactType: DocumentPayment, FactID: "payment",
 		DisplayName: "合成商户", BusinessDate: "2026-08-01", AmountMinor: 100, Currency: CurrencyCNY,
@@ -247,7 +247,7 @@ func TestReimbursementFindingAndRequestLimitsAreExplicit(t *testing.T) {
 	t.Parallel()
 
 	trip := ReimbursementTripSnapshot{
-		ID: "trip", Destination: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-02",
+		ID: "trip", Name: "合成目的地", StartDate: "2026-08-01", EndDate: "2026-08-02",
 	}
 	item := ReimbursementPolicyItem{
 		AssignmentID: "assignment", FactType: DocumentInvoice, FactID: "invoice",

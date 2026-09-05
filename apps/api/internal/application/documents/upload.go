@@ -50,27 +50,17 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 	if err := input.Tenant.Require(domain.CapabilityDocumentsProcess); err != nil {
 		return UploadResult{}, err
 	}
-	if input.Source == nil {
-		return UploadResult{}, domain.NewRuleError("document_required", "请选择一个文件", domain.ErrInvalidInput)
-	}
-	name, err := safeDocumentName(input.Name)
+	prepared, err := PrepareUpload(ctx, s.objects, s.inspector, input)
 	if err != nil {
 		return UploadResult{}, err
 	}
-	staged, err := s.objects.Stage(ctx, input.Source, ports.MaxDocumentBytes)
-	if err != nil {
-		return UploadResult{}, err
-	}
+	name, staged, inspection := prepared.Name, prepared.Staged, prepared.Inspection
 	committed := false
 	defer func() {
 		if !committed {
 			_ = s.objects.Abort(context.WithoutCancel(ctx), staged)
 		}
 	}()
-	inspection, err := s.inspector.InspectStaged(ctx, staged, name, input.MIME)
-	if err != nil {
-		return UploadResult{}, err
-	}
 	documentID, err := s.ids.NewID()
 	if err != nil {
 		return UploadResult{}, fmt.Errorf("generate document id: %w", err)
@@ -145,8 +135,32 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 	return UploadResult{DocumentID: documentID, JobID: jobID, Status: domain.JobQueued, SHA256: staged.SHA256}, nil
 }
 
-func safeDocumentName(value string) (string, error) {
-	return NormalizeDocumentName(value)
+type PreparedUpload struct {
+	Name       string
+	Staged     ports.StagedObject
+	Inspection ports.DocumentInspection
+}
+
+// 普通识别上传和发票辅助上传共享相同的文件边界，不共享任务创建语义。
+func PrepareUpload(ctx context.Context, objects ports.ObjectStore, inspector ports.DocumentInspector, input UploadInput) (PreparedUpload, error) {
+	var result PreparedUpload
+	if input.Source == nil {
+		return result, domain.NewRuleError("document_required", "请选择一个文件", domain.ErrInvalidInput)
+	}
+	var err error
+	result.Name, err = NormalizeDocumentName(input.Name)
+	if err != nil {
+		return result, err
+	}
+	result.Staged, err = objects.Stage(ctx, input.Source, ports.MaxDocumentBytes)
+	if err != nil {
+		return result, err
+	}
+	result.Inspection, err = inspector.InspectStaged(ctx, result.Staged, result.Name, input.MIME)
+	if err != nil {
+		return result, errors.Join(err, objects.Abort(context.WithoutCancel(ctx), result.Staged))
+	}
+	return result, nil
 }
 
 func NormalizeDocumentName(value string) (string, error) {

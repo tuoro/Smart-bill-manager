@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { countFactPages } from "./fact-pagination.mjs";
 
 const toolDirectory = dirname(fileURLToPath(import.meta.url));
 const projectDirectory = resolve(toolDirectory, "..");
@@ -173,8 +174,8 @@ async function main() {
       },
     );
     const [payments, invoices] = await Promise.all([
-      client.get("/payments"),
-      client.get("/invoices"),
+      countFactPages(client, "/payments"),
+      countFactPages(client, "/invoices"),
     ]);
     const result = {
       result_kind:
@@ -206,7 +207,7 @@ async function main() {
         temperature: 0,
         seed: "provider_not_supported",
       },
-      ai_direct_fact_count: payments.items.length + invoices.items.length,
+      ai_direct_fact_count: payments + invoices,
       samples: extractions,
     };
     const encoded = `${JSON.stringify(result, null, 2)}\n`;

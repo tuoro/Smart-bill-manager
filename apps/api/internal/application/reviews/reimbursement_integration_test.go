@@ -59,22 +59,14 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tripReview := seedAdditionalReview(
-		t, fixture, tripEnvelope("上海", "北京", "2026-08-26", "2026-08-28"), "reimbursement-trip",
-	)
-	trip, err := reviewService.Confirm(ctx, fixture.tenant, tripReview.Job.ID, ConfirmInput{
-		ExpectedRevision: tripReview.Revision,
-		IdempotencyKey:   "reimbursement-seed-trip",
-		RequestID:        "reimbursement-seed-trip-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	desiredTripID := trip.FactID
+	blockPaymentAuto(t, fixture, payment.FactID)
+	trip := seedManualTrip(t, fixture, "reimbursement-trip", "北京", "2026-08-26", "2026-08-28")
+	desiredTripID := trip.TripID
 	assign := func(factType domain.DocumentType, factID, label string) string {
 		t.Helper()
 		result, assignErr := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-			FactType: factType, FactID: factID, DesiredTripID: &desiredTripID,
+			ExpectedFactVersion: assignmentVersion(t, fixture, factType, factID),
+			FactType:            factType, FactID: factID, DesiredTripID: &desiredTripID,
 			Reason: "合成报销归属", IdempotencyKey: "reimbursement-assign-" + label,
 			RequestID: "reimbursement-assign-" + label + "-request",
 		})
@@ -88,7 +80,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		assign(domain.DocumentInvoice, invoice.FactID, "invoice"),
 	}
 
-	preview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, []string{assignmentIDs[1], assignmentIDs[0]})
+	preview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, []string{assignmentIDs[1], assignmentIDs[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +102,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
 		AcknowledgedFindingKeys: []string{}, Reason: "活动 Link 变化后旧预检必须失效",
 		IdempotencyKey: "reimbursement-submit-stale-link", RequestID: "reimbursement-submit-stale-link-request",
 	}); !hasRuleCode(err, "reimbursement_snapshot_stale") {
@@ -130,12 +122,13 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	restoredPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs)
+	restoredPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs)
 	if err != nil || len(restoredPreview.Findings) != 0 || restoredPreview.SnapshotHash == preview.SnapshotHash {
 		t.Fatalf("restored reimbursement preview = %#v, err = %v", restoredPreview, err)
 	}
 	if _, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-		FactType: domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: nil,
+		ExpectedFactVersion: assignmentVersion(t, fixture, domain.DocumentPayment, payment.FactID),
+		FactType:            domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: nil,
 		ExpectedAssignmentID: &assignmentIDs[0],
 		Reason:               "合成报销预检后撤销行程归属", IdempotencyKey: "reimbursement-unassign-payment",
 		RequestID: "reimbursement-unassign-payment-request",
@@ -143,14 +136,15 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: restoredPreview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: restoredPreview.SnapshotHash,
 		AcknowledgedFindingKeys: []string{}, Reason: "活动 Assignment 变化后旧预检必须失效",
 		IdempotencyKey: "reimbursement-submit-stale-assignment", RequestID: "reimbursement-submit-stale-assignment-request",
 	}); !hasRuleCode(err, "reimbursement_selection_stale") {
 		t.Fatalf("changed Assignment snapshot error = %v", err)
 	}
 	reassigned, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-		FactType: domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: &desiredTripID,
+		ExpectedFactVersion: assignmentVersion(t, fixture, domain.DocumentPayment, payment.FactID),
+		FactType:            domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: &desiredTripID,
 		Reason: "恢复合成报销行程归属", IdempotencyKey: "reimbursement-reassign-payment",
 		RequestID: "reimbursement-reassign-payment-request",
 	})
@@ -158,7 +152,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	assignmentIDs[0] = reassigned.AssignmentID
-	preview, err = reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs)
+	preview, err = reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs)
 	if err != nil || len(preview.Findings) != 0 {
 		t.Fatalf("current reimbursement preview = %#v, err = %v", preview, err)
 	}
@@ -177,7 +171,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		_, _ = fixture.store.DB().ExecContext(context.Background(), "DROP TRIGGER IF EXISTS fail_reimbursement_audit ON audit_events")
 	})
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
 		AcknowledgedFindingKeys: []string{}, Reason: "合成事务回滚验证",
 		IdempotencyKey: "reimbursement-submit-rollback", RequestID: "reimbursement-submit-rollback-request",
 	}); err == nil {
@@ -200,7 +194,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	firstInput := reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: preview.SnapshotHash,
 		AcknowledgedFindingKeys: []string{}, Reason: "提交合成报销快照",
 		IdempotencyKey: "reimbursement-submit-first", RequestID: "reimbursement-submit-first-request",
 	}
@@ -273,7 +267,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatalf("changed reimbursement replay = %v", err)
 	}
 
-	pendingPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs)
+	pendingPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,14 +275,14 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatalf("pending duplicate findings = %#v", pendingPreview.Findings)
 	}
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: pendingPreview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: pendingPreview.SnapshotHash,
 		AcknowledgedFindingKeys: []string{}, Reason: "不能遗漏提示确认",
 		IdempotencyKey: "reimbursement-submit-missing-findings", RequestID: "reimbursement-submit-missing-findings-request",
 	}); !hasRuleCode(err, "reimbursement_findings_unacknowledged") {
 		t.Fatalf("missing finding acknowledgements = %v", err)
 	}
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: pendingPreview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: pendingPreview.SnapshotHash,
 		AcknowledgedFindingKeys: reimbursementFindingKeysForTest(pendingPreview), Reason: "不得并存第二个待处理快照",
 		IdempotencyKey: "reimbursement-submit-conflict", RequestID: "reimbursement-submit-conflict-request",
 	}); !hasRuleCode(err, "reimbursement_trip_already_submitted") {
@@ -321,7 +315,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	}); !hasRuleCode(err, "idempotency_key_conflict") {
 		t.Fatalf("changed status replay = %v", err)
 	}
-	reimbursedPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs)
+	reimbursedPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +333,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatalf("reopen for stale preview = %#v, err = %v", reopenedForStalePreview, err)
 	}
 	if _, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: reimbursedPreview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: reimbursedPreview.SnapshotHash,
 		AcknowledgedFindingKeys: reimbursementFindingKeysForTest(reimbursedPreview), Reason: "相关报销状态变化后旧预检必须失效",
 		IdempotencyKey: "reimbursement-submit-stale-prior-status", RequestID: "reimbursement-submit-stale-prior-status-request",
 	}); !hasRuleCode(err, "reimbursement_snapshot_stale") {
@@ -353,12 +347,12 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	if err != nil || remarked.Version != 4 {
 		t.Fatalf("remarked reimbursement = %#v, err = %v", remarked, err)
 	}
-	reimbursedPreview, err = reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs)
+	reimbursedPreview, err = reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	second, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: reimbursedPreview.SnapshotHash,
+		TripID: trip.TripID, AssignmentIDs: assignmentIDs, ExpectedSnapshotHash: reimbursedPreview.SnapshotHash,
 		AcknowledgedFindingKeys: reimbursementFindingKeysForTest(reimbursedPreview), Reason: "确认重复提示后重新提交",
 		IdempotencyKey: "reimbursement-submit-second", RequestID: "reimbursement-submit-second-request",
 	})
@@ -386,7 +380,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	if secondRejected.Status != domain.ReimbursementStatusRejected || secondRejected.Version != 2 {
 		t.Fatalf("rejected reimbursement = %#v", secondRejected)
 	}
-	rejectedIgnoredPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs)
+	rejectedIgnoredPreview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -549,7 +543,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	if _, err := reimbursementService.List(ctx, viewer, "", 50); err != nil {
 		t.Fatalf("viewer list = %v", err)
 	}
-	if _, err := reimbursementService.Preview(ctx, viewer, trip.FactID, assignmentIDs); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := reimbursementService.Preview(ctx, viewer, trip.TripID, assignmentIDs); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer preview = %v", err)
 	}
 	reviewer := fixture.tenant
@@ -559,14 +553,14 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	}
 	finance := fixture.tenant
 	finance.Role = domain.RoleFinance
-	if _, err := reimbursementService.Preview(ctx, finance, trip.FactID, assignmentIDs); err != nil {
+	if _, err := reimbursementService.Preview(ctx, finance, trip.TripID, assignmentIDs); err != nil {
 		t.Fatalf("finance preview = %v", err)
 	}
 	otherTenant := addTenantReviewFixture(t, fixture)
 	if _, err := reimbursementService.Get(ctx, otherTenant.tenant, first.ReimbursementID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross-tenant reimbursement detail = %v", err)
 	}
-	if _, err := reimbursementService.Preview(ctx, otherTenant.tenant, trip.FactID, assignmentIDs); !errors.Is(err, domain.ErrNotFound) {
+	if _, err := reimbursementService.Preview(ctx, otherTenant.tenant, trip.TripID, assignmentIDs); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross-tenant reimbursement preview = %v", err)
 	}
 
@@ -636,7 +630,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 				}
 			}
 		}
-		for _, forbiddenValue := range []string{trip.FactID, payment.FactID, invoice.FactID, "北京", "CNY", "12345", "合成报销"} {
+		for _, forbiddenValue := range []string{trip.TripID, payment.FactID, invoice.FactID, "北京", "CNY", "12345", "合成报销"} {
 			if strings.Contains(encoded, forbiddenValue) {
 				t.Fatalf("unsafe reimbursement audit metadata value in %s", encoded)
 			}
@@ -662,14 +656,12 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	if deletedSources != 1 || afterPaymentDelete.SnapshotHash != preview.SnapshotHash {
 		t.Fatalf("snapshot after Payment deletion = %#v", afterPaymentDelete)
 	}
-	if _, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, assignmentIDs); !hasRuleCode(err, "reimbursement_selection_stale") {
+	if _, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, assignmentIDs); !hasRuleCode(err, "reimbursement_selection_stale") {
 		t.Fatalf("deleted source preview = %v", err)
 	}
-	if err := factService.Delete(ctx, fixture.tenant, domain.DocumentTrip, trip.FactID, "reimbursement-delete-trip"); err != nil {
-		t.Fatal(err)
-	}
+	deleteManualTrip(t, fixture, trip, "reimbursement-delete-trip")
 	afterTripDelete, err := reimbursementService.Get(ctx, fixture.tenant, first.ReimbursementID)
-	if err != nil || !afterTripDelete.TripDeleted || afterTripDelete.Trip.Destination != "北京" {
+	if err != nil || !afterTripDelete.TripDeleted || afterTripDelete.Trip.Name != "北京" {
 		t.Fatalf("snapshot after Trip deletion = %#v, err = %v", afterTripDelete, err)
 	}
 }
@@ -706,29 +698,19 @@ func TestReimbursementPaymentBusinessDateCrossesSourceTimezoneBoundary(t *testin
 		t.Fatalf("stored Payment business date = %q, want 2026-08-28", storedBusinessDate)
 	}
 
-	tripReview := seedAdditionalReview(
-		t,
-		fixture,
-		tripEnvelope("上海", "合成跨日目的地", "2026-08-28", "2026-08-28"),
-		"reimbursement-cross-date-trip",
-	)
-	trip, err := reviewService.Confirm(ctx, fixture.tenant, tripReview.Job.ID, ConfirmInput{
-		ExpectedRevision: tripReview.Revision,
-		IdempotencyKey:   "reimbursement-cross-date-trip-confirm", RequestID: "reimbursement-cross-date-trip-confirm-request",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	desiredTripID := trip.FactID
+	blockPaymentAuto(t, fixture, payment.FactID)
+	trip := seedManualTrip(t, fixture, "reimbursement-cross-date-trip", "合成跨日目的地", "2026-08-28", "2026-08-28")
+	desiredTripID := trip.TripID
 	assigned, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{
-		FactType: domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: &desiredTripID,
+		ExpectedFactVersion: assignmentVersion(t, fixture, domain.DocumentPayment, payment.FactID),
+		FactType:            domain.DocumentPayment, FactID: payment.FactID, DesiredTripID: &desiredTripID,
 		Reason: "验证跨时区换日业务日期", IdempotencyKey: "reimbursement-cross-date-assign",
 		RequestID: "reimbursement-cross-date-assign-request",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	preview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.FactID, []string{assigned.AssignmentID})
+	preview, err := reimbursementService.Preview(ctx, fixture.tenant, trip.TripID, []string{assigned.AssignmentID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -737,7 +719,7 @@ func TestReimbursementPaymentBusinessDateCrossesSourceTimezoneBoundary(t *testin
 		t.Fatalf("cross-date reimbursement preview = %#v", preview)
 	}
 	created, err := reimbursementService.Submit(ctx, fixture.tenant, reimbursementapp.SubmissionInput{
-		TripID: trip.FactID, AssignmentIDs: []string{assigned.AssignmentID},
+		TripID: trip.TripID, AssignmentIDs: []string{assigned.AssignmentID},
 		ExpectedSnapshotHash: preview.SnapshotHash, AcknowledgedFindingKeys: reimbursementFindingKeysForTest(preview),
 		Reason: "确认跨时区业务日期快照", IdempotencyKey: "reimbursement-cross-date-submit",
 		RequestID: "reimbursement-cross-date-submit-request",

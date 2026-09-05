@@ -10,6 +10,8 @@ const entries = [
   ['数据洞察', '/insights'],
   ['邮箱来源', '/email-sources'],
   ['AI 配置', '/settings/ai'],
+  ['成员管理', '/settings/members'],
+  ['账号与密码', '/settings/account'],
 ] as const
 const capabilities = [
   'documents.process',
@@ -18,6 +20,7 @@ const capabilities = [
   'insights.read',
   'email_archive.read',
   'providers.manage',
+  'members.manage',
   'allocations.manage',
 ]
 
@@ -337,6 +340,7 @@ test.describe('全站导航：纯合成布局、权限与键盘验收', () => {
     { capability: 'insights.read', groups: ['财务数据'], paths: ['/insights'] },
     { capability: 'email_archive.read', groups: ['来源'], paths: ['/email-sources'] },
     { capability: 'providers.manage', groups: ['系统'], paths: ['/settings/ai'] },
+    { capability: 'members.manage', groups: ['系统'], paths: ['/settings/members'] },
     { capability: '', groups: [], paths: [] },
   ]
   for (const { capability, groups, paths } of permissionCases) {
@@ -345,13 +349,15 @@ test.describe('全站导航：纯合成布局、权限与键盘验收', () => {
       await page.goto('/inbox')
       await expect(page.getByRole('heading', { level: 1, name: 'AI 收件箱' })).toBeVisible()
       const navigation = page.locator('#primary-navigation')
-      await expect(navigation.locator('.nav-group h2')).toHaveText(groups)
-      await expect(navigation.locator('.nav-item')).toHaveCount(paths.length)
+      const expectedGroups = [...new Set([...groups, '系统'])]
+      const expectedPaths = [...paths, '/settings/account']
+      await expect(navigation.locator('.nav-group h2')).toHaveText(expectedGroups)
+      await expect(navigation.locator('.nav-item')).toHaveCount(expectedPaths.length)
       expect(
         await navigation
           .locator('.nav-item')
           .evaluateAll((links) => links.map((link) => link.getAttribute('href'))),
-      ).toEqual(paths)
+      ).toEqual(expectedPaths)
       for (const group of await navigation.locator('.nav-group').all()) {
         expect(await group.locator('.nav-item').count()).toBeGreaterThan(0)
       }
@@ -469,7 +475,7 @@ async function mockNavigation(page: Page, allowed = capabilities) {
         return
       }
       if (pathname === '/api/v1/payments' && method === 'GET') {
-        await route.fulfill({ json: { items: [] } })
+        await route.fulfill({ json: { items: [], next_cursor: '' } })
         return
       }
       if (

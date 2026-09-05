@@ -38,7 +38,8 @@ func (s *Store) ListReimbursements(
 ) (ports.ReimbursementListPage, error) {
 	statement := `
 		SELECT reimbursement.id, reimbursement.trip_id,
-		       reimbursement.trip_destination, reimbursement.trip_start_date::text, reimbursement.trip_end_date::text,
+		       reimbursement.trip_name, reimbursement.trip_start_date::text, reimbursement.trip_end_date::text,
+		       reimbursement.trip_timezone, reimbursement.trip_version,
 		       CASE WHEN trip.deleted_at IS NULL THEN 0 ELSE 1 END,
 		       reimbursement.status, reimbursement.version,
 		       (SELECT count(*) FROM reimbursement_items item
@@ -102,7 +103,8 @@ func loadReimbursementDetail(
 	var createdAt, updatedAt string
 	err := queryer.QueryRowContext(ctx, `
 		SELECT reimbursement.id, reimbursement.trip_id,
-		       reimbursement.trip_destination, reimbursement.trip_start_date::text, reimbursement.trip_end_date::text,
+		       reimbursement.trip_name, reimbursement.trip_start_date::text, reimbursement.trip_end_date::text,
+		       reimbursement.trip_timezone, reimbursement.trip_version,
 		       CASE WHEN trip.deleted_at IS NULL THEN 0 ELSE 1 END,
 		       reimbursement.status, reimbursement.version,
 		       (SELECT count(*) FROM reimbursement_items item
@@ -110,16 +112,17 @@ func loadReimbursementDetail(
 		       (SELECT count(*) FROM reimbursement_policy_findings finding
 		        WHERE finding.tenant_id = reimbursement.tenant_id AND finding.reimbursement_id = reimbursement.id),
 		       reimbursement.created_at, reimbursement.updated_at,
-		       reimbursement.policy_rule_version, reimbursement.snapshot_hash
+		       reimbursement.policy_rule_version, reimbursement.snapshot_hash, reimbursement.materials_captured, reimbursement.material_count
 		FROM reimbursements reimbursement
 		JOIN trips trip ON trip.tenant_id = reimbursement.tenant_id AND trip.id = reimbursement.trip_id
 		WHERE reimbursement.tenant_id = ? AND reimbursement.id = ?
 	`, tenantID, reimbursementID).Scan(
 		&detail.ID,
 		&detail.Trip.ID,
-		&detail.Trip.Destination,
+		&detail.Trip.Name,
 		&detail.Trip.StartDate,
 		&detail.Trip.EndDate,
+		&detail.Trip.Timezone, &detail.Trip.Version,
 		&tripDeleted,
 		&detail.Status,
 		&detail.Version,
@@ -129,6 +132,7 @@ func loadReimbursementDetail(
 		&updatedAt,
 		&detail.RuleVersion,
 		&detail.SnapshotHash,
+		&detail.MaterialsCaptured, &detail.MaterialCount,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.ReimbursementDetail{}, domain.ErrNotFound
@@ -220,14 +224,15 @@ func loadReimbursementPreview(
 	}
 	input := domain.ReimbursementPolicyInput{}
 	err = queryer.QueryRowContext(ctx, `
-		SELECT id, destination, start_date::text, end_date::text
+		SELECT id, name, start_date::text, end_date::text, timezone, version
 		FROM trips
 		WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
 	`, tenantID, tripID).Scan(
 		&input.Trip.ID,
-		&input.Trip.Destination,
+		&input.Trip.Name,
 		&input.Trip.StartDate,
 		&input.Trip.EndDate,
+		&input.Trip.Timezone, &input.Trip.Version,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.ReimbursementPolicySnapshot{}, domain.ErrNotFound
@@ -240,6 +245,10 @@ func loadReimbursementPreview(
 		return domain.ReimbursementPolicySnapshot{}, err
 	}
 	input.Links, err = loadReimbursementPolicyLinks(ctx, queryer, tenantID, input.Items)
+	if err != nil {
+		return domain.ReimbursementPolicySnapshot{}, err
+	}
+	input.Materials, err = loadReimbursementMaterials(ctx, queryer, tenantID, input.Items)
 	if err != nil {
 		return domain.ReimbursementPolicySnapshot{}, err
 	}
@@ -266,7 +275,8 @@ func loadReimbursementPolicyItems(
 		SELECT assignment.id, assignment.payment_id, assignment.invoice_id,
 		       payment.merchant, payment.business_date::text,
 		       payment.amount_minor, payment.currency,
-		       invoice.seller_name, invoice.invoice_date::text, invoice.total_minor, invoice.currency
+		       invoice.seller_name, invoice.invoice_date::text, invoice.total_minor, invoice.currency,
+		       coalesce(payment.current_review_decision_id, invoice.current_review_decision_id, '')
 		FROM trip_fact_assignments assignment
 		LEFT JOIN payments payment
 		  ON payment.tenant_id = assignment.tenant_id
@@ -305,6 +315,7 @@ func loadReimbursementPolicyItems(
 			&invoiceDate,
 			&invoiceAmount,
 			&invoiceCurrency,
+			&item.FactReviewDecisionID,
 		); err != nil {
 			return nil, fmt.Errorf("scan reimbursement assignment: %w", err)
 		}
@@ -462,19 +473,21 @@ func (t transaction) SubmitReimbursement(
 	createdAt := command.CreatedAt.UTC().Format(time.RFC3339Nano)
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO reimbursements (
-			id, tenant_id, trip_id, trip_destination, trip_start_date, trip_end_date,
-			status, policy_rule_version, snapshot_hash, created_by_user_id,
+			id, tenant_id, trip_id, trip_name, trip_start_date, trip_end_date, trip_timezone, trip_version,
+			status, policy_rule_version, snapshot_hash, material_count, created_by_user_id,
 			created_by_decision_id, created_at, updated_at, version
-		) VALUES (?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?, ?, ?, ?, 1)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?, ?, ?, ?, ?, 1)
 	`,
 		command.ReimbursementID,
 		command.TenantID,
 		preview.Trip.ID,
-		preview.Trip.Destination,
+		preview.Trip.Name,
 		preview.Trip.StartDate,
 		preview.Trip.EndDate,
+		preview.Trip.Timezone, preview.Trip.Version,
 		preview.RuleVersion,
 		preview.SnapshotHash,
+		len(preview.Materials),
 		command.ActorUserID,
 		command.DecisionID,
 		createdAt,
@@ -493,8 +506,8 @@ func (t transaction) SubmitReimbursement(
 			INSERT INTO reimbursement_items (
 				id, tenant_id, reimbursement_id, trip_fact_assignment_id,
 				fact_type, payment_id, invoice_id, display_name, business_date,
-				amount_minor, currency, sort_order, created_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				amount_minor, currency, sort_order, created_at, fact_review_decision_id
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			itemIDs[item.AssignmentID],
 			command.TenantID,
@@ -509,8 +522,15 @@ func (t transaction) SubmitReimbursement(
 			item.Currency,
 			index,
 			createdAt,
+			item.FactReviewDecisionID,
 		); err != nil {
 			return ports.ReimbursementMutationResult{}, reimbursementWriteError("insert reimbursement item", err)
+		}
+	}
+	for _, material := range preview.Materials {
+		if _, err := t.tx.ExecContext(ctx, `INSERT INTO reimbursement_material_snapshots (tenant_id, reimbursement_id, invoice_id, link_id, document_id)
+			VALUES (?, ?, ?, ?, ?)`, command.TenantID, command.ReimbursementID, material.InvoiceID, material.LinkID, material.DocumentID); err != nil {
+			return ports.ReimbursementMutationResult{}, err
 		}
 	}
 	for _, finding := range preview.Findings {
@@ -707,9 +727,10 @@ func scanReimbursementSummary(scanner interface{ Scan(...any) error }) (ports.Re
 	if err := scanner.Scan(
 		&item.ID,
 		&item.Trip.ID,
-		&item.Trip.Destination,
+		&item.Trip.Name,
 		&item.Trip.StartDate,
 		&item.Trip.EndDate,
+		&item.Trip.Timezone, &item.Trip.Version,
 		&tripDeleted,
 		&item.Status,
 		&item.Version,
@@ -746,7 +767,7 @@ func loadReimbursementItems(
 		         ELSE CASE WHEN invoice.deleted_at IS NULL THEN 0 ELSE 1 END
 		       END,
 		       item.display_name, item.business_date::text, item.amount_minor,
-		       item.currency, item.sort_order
+		       item.currency, item.sort_order, item.fact_review_decision_id
 		FROM reimbursement_items item
 		LEFT JOIN payments payment
 		  ON payment.tenant_id = item.tenant_id AND payment.id = item.payment_id
@@ -766,6 +787,7 @@ func loadReimbursementItems(
 		if err := rows.Scan(
 			&item.ID, &item.AssignmentID, &item.FactType, &item.FactID, &sourceDeleted,
 			&item.DisplayName, &item.BusinessDate, &item.AmountMinor, &item.Currency, &item.SortOrder,
+			&item.FactReviewDecisionID,
 		); err != nil {
 			return nil, fmt.Errorf("scan reimbursement item: %w", err)
 		}

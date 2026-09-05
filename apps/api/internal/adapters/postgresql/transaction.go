@@ -65,6 +65,18 @@ func (s *Store) runTransactionAttempt(ctx context.Context, isolation sql.Isolati
 }
 
 func normalizeTransactionError(err error) error {
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) {
+		if pgError.Code == "23505" && pgError.ConstraintName == "fact_bad_debt_idempotency_unique" {
+			return domain.NewRuleError("idempotency_key_conflict", "幂等键已用于不同的坏账操作", domain.ErrConflict)
+		}
+		switch pgError.Message {
+		case "trip_bad_debt_locked":
+			return domain.NewRuleError("trip_bad_debt_locked", "行程关联坏账单据，请先处理坏账或调整关联后再删除", domain.ErrConflict)
+		case "allocation_active_target_limit_exceeded":
+			return domain.NewRuleError("allocation_active_target_limit_exceeded", "单据最多保留 200 条活动分配，请先调整已有分配", domain.ErrConflict)
+		}
+	}
 	if isRetryableTransactionError(err) {
 		return fmt.Errorf("postgresql transaction conflict: %w", domain.ErrConflict)
 	}

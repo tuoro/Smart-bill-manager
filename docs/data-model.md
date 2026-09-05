@@ -1,7 +1,25 @@
 # 数据模型基线
 
+ADR-0033 恢复激活：同一 PostgreSQL 中 `sbm_restore.state` 仅保存本次操作的格式版本、恢复 ID、数据库 OID/名称和唯一阶段；不属于业务 public Schema，不进 dump，不新增业务迁移。对象根 `restore-identity.json` 只保存对应身份、没有第二份阶段。普通未恢复库两者均不存在；恢复库两者必须匹配且数据库阶段为 complete。每次新恢复重新创建身份，历史业务数据不变。
+
+B7/B8：`0008` 按 ADR-0031 增加双侧有界候选/余额索引和每端 200 活动 Link 上限；ADR-0032 使用 `fact_bad_debt_decisions` 最新不可变决定派生 Payment/Invoice 坏账状态，保留数据和纠错来源。不增加 Fact flag 投影或冗余 Trip 锁字段，状态变更与 Fact 版本跃迁由事务及提交约束绑定。
+
+B6 已验收增补：[ADR-0030](decisions/0030-material-delivery-packages.md) 只读取现有活动归属或不可变报销条目/材料快照，不增加表或迁移。导出清单的公开字段不含 storage_key；初始 Review 只定位原件，不能替代旧快照未捕获的正式 Review。临时包 ID/句柄为进程内至多两个可过期资源，不能用于业务查询或恢复正式数据。
+
+B5 增补（已本地验收、未发布）：`0007` 按 [ADR-0029](decisions/0029-member-account-lifecycle.md) 增加 Membership.version、单次邀请（仅 token hash）与全局账号审计。角色/状态变化撤销本租户会话，密码变化撤销全局会话；不保存租户级密码。邀请消费、成员变化和审计原子提交，现有用户与业务记录前向保留。
+
+B4 增补（已本地验收）：`0006` 按 [ADR-0028](decisions/0028-invoice-supporting-materials.md) 新增发票辅助 Link/决定、报销材料快照与捕获标记。Document 仍是唯一不可变二进制身份，SHA 按租户去重；活动关联唯一，终止关系和历史快照保留，Invoice.version 绑定材料变更。历史报销仅标记未捕获，不回填当前附件或改旧 hash。
+
+B3 增补（已本地验收）：`0005` 仅为 Payment/Invoice 增加 `(tenant_id, created_at DESC, id DESC) WHERE deleted_at IS NULL` 索引。入库时间/ID 已不可变，不新增排序表或字段；分页/详情均为现有 Fact、当前明细和活动 Link 的查询投影。来源身份只向获授权账号输出，见 [ADR-0027](decisions/0027-complete-fact-management.md)。
+
+B2 增补（已本地验收）：Payment/Invoice/TripEvidence 保留首次 `source_review_decision_id`，新增 `current_review_decision_id` 表示当前字段修订，聚合 `version` 继续用于并发检查。不可变 `fact_corrections` 记录前后确认、理由、操作者、幂等请求与审计；完整历史字段只在 Claim 中保存。InvoiceItem 和 FactFieldOrigin 加入 ReviewDecision 作用域，保留旧明细/来源并限定当前查询。新报销项记录字段修订身份；旧快照不回填伪造来源或重算 hash。见 [ADR-0026](decisions/0026-confirmed-fact-correction.md)。
+
+B1 增补（已本地验收）：[ADR-0025](decisions/0025-explicit-manual-review.md) 允许无 AI 根来源的初始人工 Claim，revised_by_user_id、人工接管理由与请求身份必填；AI 根来源规则保持。后续版本继承根来源，Evidence 可由用户显式标注同文档页码与摘录；不伪造 AiRun、自动摘录或 Fact。通过新增 0003 前向迁移保留现存记录。
+
 状态：M0～M4 本地数据模型已完成；当前只实现 PostgreSQL 17 Clean Slate Schema
 原则：全新 Schema，不读取、不迁移旧数据库
+
+当前扩展：ADR-0024 新增 `0002`，分离人工 Trip 与 `trip_evidence_facts`，保留已发布 PostgreSQL 数据。容器管理、自动归属与材料关联有明确来源和不可变决定；下文原 Trip Fact 指凭证，当前结构以 ADR-0024 为准。已在隔离 PostgreSQL 17 完成数据库升级与集成验收，尚未应用到用户运行实例。
 
 ## 核心关系
 
@@ -429,7 +447,15 @@ Source 描述符不包含密码、OAuth、Token、Cookie、密文、密钥引用
 
 Document 增加 `ingestion_kind = upload | email_attachment` 与 `original_object_owner = document | email_attachment`。手工上传固定为 `upload/document`；邮件新建 Document 固定为 `email_attachment/email_attachment` 并继续保存 Source 创建者作为授权摄取主体。ProcessingJob、AiRun、Claim、Review 与 Fact 不增加邮件专用分支。
 
-### Trip（M3 第二切片）
+### Trip（ADR-0024 人工行程容器）
+
+- tenant_id、id、name、start_date、end_date、timezone、notes；
+- origin_kind：`manual | migrated_review`；last_management_decision_id；
+- created_at、updated_at、version 与软删除元数据。
+
+容器不属于 Fact，不持有审核来源。新建必须明确 IANA 时区；迁移的旧容器允许空时区，但不参与自动归属。TripManagementDecision 以不可变管理快照、期望/结果版本、actor、理由、幂等键及 AuditEvent 记录创建、编辑、删除。模型不能创建容器。
+
+### TripEvidence（`trip_evidence_facts`）
 
 - tenant_id、id、source_review_decision_id；
 - origin，可为空；destination；
@@ -438,7 +464,11 @@ Document 增加 `ingestion_kind = upload | email_attachment` 与 `original_objec
 - created_at、updated_at、version；
 - deleted_at、deleted_by_user_id、deletion_audit_event_id。
 
-Trip 与 Payment/Invoice 一样只能由对应类型的 confirmed ReviewDecision 创建；`destination + start_date + end_date` 必填且 `end_date >= start_date`。删除采用软删除并保留字段来源与审核链。地点、姓名和预订编号是租户私有业务字段，不进入 safe metadata。
+TripEvidence 与 Payment/Invoice 一样只能由对应类型的 confirmed ReviewDecision 创建；`destination + start_date + end_date` 必填且 `end_date >= start_date`。票面字段不可改写，删除采用软删除并保留字段来源与审核链。地点、姓名和预订编号是租户私有业务字段，不进入 safe metadata。
+
+### TripMaterialDecision / TripMaterialLink
+
+凭证归属与费用分开存储，不产生虚拟金额。Decision 保存凭证、actor、来源 `manual | migration`、前 Link、目标行程、期望凭证版本、动作、理由、幂等键及审计。迁移来源仅允许 `0002` 初始化，运行时只能写人工决定。每个凭证最多一条活动 Link，容器可以有多条；移动必须由同一决定结束前 Link 并建立新 Link。删除容器或凭证只终止对应 Link，历史不可改写或删除。
 
 ### TripFactAssignmentDecision
 
@@ -448,6 +478,8 @@ Trip 与 Payment/Invoice 一样只能由对应类型的 confirmed ReviewDecision
 - action：`assign | move | unassign`；
 - idempotency_key、request_hash、reason；
 - audit_event_id、created_at。
+
+Decision 另保存 `decision_source = manual | automatic`、`expected_fact_version` 和自动决定的 `rule_version = trip-time-attribution/1`。Payment 使用 `trip_assignment_mode = auto | manual | blocked`，复用现有 Fact version 进行归属并发控制；旧决定的版本缺失仅保留为历史，运行时新写入必须匹配实际版本。
 
 Decision 不可更新或删除。assign 要求无 previous 且有目标，move 要求有 previous 且有不同目标，unassign 要求有 previous 且目标为空。`tenant_id + idempotency_key` 永久唯一；reason 为 1～500 字符的租户私有业务说明，不写 AuditEvent。
 
@@ -462,14 +494,15 @@ Decision 不可更新或删除。assign 要求无 previous 且有目标，move �
 
 ### FactFieldOrigin 与 ReviewDecision 扩展
 
-FactFieldOrigin 增加可空 `trip_id` 并继续保证 Payment、Invoice、InvoiceItem、Trip 四者严格单选。ReviewDecision 的 confirm 记录显式 `fact_type`：Payment/Invoice 继续要求金额关联计划，Trip 要求该计划为空；三类确认都要求完整疑似重复计划。旧确认形状不保留兼容分支。
+FactFieldOrigin 的可空 `trip_id` 指向 `trip_evidence_facts`，继续保证 Payment、Invoice、InvoiceItem、TripEvidence 四者严格单选，不指向人工容器。ReviewDecision 的 `fact_type=trip` 表示审核凭证，不能绕过来源创建材料或容器；三类确认仍要求完整疑似重复计划。
 
 ### Reimbursement（M3 第三切片）
 
 - tenant_id、id、trip_id；
-- trip_destination、trip_start_date、trip_end_date 快照；
+- trip_name、trip_start_date、trip_end_date、trip_timezone、trip_version 快照；旧快照新增的时区/版本为空，原显示值与 hash 保留；
 - status：`submitted | reimbursed | rejected`；
-- policy_rule_version：固定 `reimbursement-policy/1`；
+- policy_rule_version：新提交固定 `reimbursement-policy/2`；保留历史 `/1`；
+- materials_captured、material_count：新提交明确捕获精确集合和数量，历史为 false/null，不回填当前材料；数量不可变且与材料快照子表行数以延迟约束核对；
 - snapshot_hash；
 - created_by_user_id、created_at、updated_at、version。
 
@@ -492,7 +525,7 @@ Reimbursement 不是 Document Fact，不持有 source_review_decision_id，也�
 - related_reimbursement_id、related_reimbursement_status，可按 code 为空；
 - created_at。
 
-Finding 由提交事务使用 `reimbursement-policy/1` 重算并冻结，创建字段不可变且不可删除。`finding_key` 由规则输入确定性产生，在同一 Reimbursement 内唯一；最多 1,000 条，超过时明确拒绝而非截断。预检 Finding 不落库。
+Finding 由提交事务使用当前 `reimbursement-policy/2` 重算并冻结，历史 `/1` 保留；创建字段不可变且不可删除。`finding_key` 由规则输入确定性产生，在同一 Reimbursement 内唯一；最多 1,000 条，超过时明确拒绝而非截断。预检 Finding 不落库。
 
 ### ReimbursementStatusDecision
 
@@ -539,7 +572,7 @@ BackupManifestV2 不是数据库实体或运行时第二数据源，只描述一
 - 未形成 Fact 的 Document 聚合允许租户所有者显式物理删除；删除覆盖原件、派生页、Job、AiRun、Claim、Evidence、ValidationResult 和未决定的关联候选，只保留不含文件名、证据正文和财务字段的删除审计墓碑。
 - 邮件附件拥有的原件对象不随未确认 Document 删除；删除事务只移除 Document 及其派生聚合并把 EmailAttachment 的 Document 链接置空。EmailMessage、EmailAttachment 和归档对象继续按邮箱 Source 保留策略存在。
 - 已确认 Fact 的单项删除写入结构化 `fact_deleted` AuditEvent 和 Fact 删除标记；Source、Claim、FactFieldOrigin 和 Review 链在租户存在期间保留，避免产生不可解释的历史正式数据。
-- 删除 Payment、Invoice 或 Trip 时，同一删除 AuditEvent 一次性终止相关活动 TripFactAssignment；历史 AssignmentDecision 与已终止 Link 保留。
+- 删除 Payment/Invoice 使用 Fact 删除 AuditEvent 终止其费用 Link；删除容器使用独立 `trip_workspace_delete` 审计终止该容器费用/材料 Link。删除 TripEvidence 只终止材料 Link，不能用相同 ID 删除容器或费用。
 - 删除 Trip、Payment 或 Invoice 不删除已有 Reimbursement、Item、Finding 或 StatusDecision；详情使用冻结快照并标明来源已删除。已删除资源不能进入新的预检或提交。
 - 删除 ProviderConfig 时立即删除对应密文；已有 AiRun 只保留不可逆安全指纹，不保留可恢复凭据。
 - 删除整个租户时物理删除全部业务行、对象文件、派生物、审计链和密钥材料，并输出按资源类型计数与对象哈希组成的删除清单。

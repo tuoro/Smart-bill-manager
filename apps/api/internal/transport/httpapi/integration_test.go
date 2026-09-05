@@ -29,12 +29,15 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/accounts"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/invoicematerials"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/materialexports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
@@ -47,6 +50,7 @@ import (
 
 type httpTestFixture struct {
 	store         *postgresqladapter.Store
+	objects       *localstorage.Store
 	handler       http.Handler
 	worker        *processing.Worker
 	owner         bootstrap.Result
@@ -347,7 +351,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/payments/"+paymentID, nil, ownerSession, true, ""), http.StatusNotFound)
 	paymentsAfterDelete := fixture.request(http.MethodGet, "/api/v1/payments", nil, ownerSession, false, "")
 	assertStatus(t, paymentsAfterDelete, http.StatusOK)
-	if paymentsAfterDelete.Body.String() != "{\"items\":[]}\n" {
+	if paymentsAfterDelete.Body.String() != "{\"items\":[],\"next_cursor\":\"\"}\n" {
 		t.Fatalf("deleted payment remained visible: %s", paymentsAfterDelete.Body.String())
 	}
 	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/provider-configs/"+providerID, nil, ownerSession, true, ""), http.StatusNoContent)
@@ -563,7 +567,7 @@ func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
 	tripID := newID(t)
 	factID := newID(t)
 	validAssignment := fmt.Sprintf(
-		`{"fact_type":"payment","fact_id":%q,"desired_trip_id":null,"expected_assignment_id":null,"reason":"合成归属边界"}`,
+		`{"fact_type":"payment","fact_id":%q,"desired_trip_id":null,"expected_assignment_id":null,"expected_fact_version":1,"reason":"合成归属边界"}`,
 		factID,
 	)
 
@@ -605,8 +609,14 @@ func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
 			"application/json", map[string]string{"Idempotency-Key": "trip-http-denied-" + denied.csrf},
 		), http.StatusForbidden)
 	}
-	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/trips/"+tripID, nil, financeSession, true, ""), http.StatusForbidden)
-	assertStatus(t, fixture.request(http.MethodDelete, "/api/v1/trips/"+tripID, nil, ownerSession, true, ""), http.StatusNotFound)
+	for _, item := range []struct {
+		session *testSession
+		status  int
+	}{{financeSession, http.StatusForbidden}, {ownerSession, http.StatusNotFound}} {
+		assertStatus(t, fixture.requestWithHeaders(http.MethodDelete, "/api/v1/trips/"+tripID,
+			strings.NewReader(`{"expected_version":1,"reason":"合成删除测试"}`), item.session, true, "application/json",
+			map[string]string{"Idempotency-Key": "trip-http-delete-absent"}), item.status)
+	}
 }
 
 func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
@@ -800,11 +810,36 @@ func TestHTTPReimbursementSuccessfulLifecycleAndTenantIsolation(t *testing.T) {
 		map[string]string{"Idempotency-Key": "reimbursement-http-confirm-trip"},
 	)
 	assertStatus(t, tripConfirm, http.StatusOK)
-	tripID := asString(t, decodeMap(t, tripConfirm)["fact_id"])
+	evidenceID := asString(t, decodeMap(t, tripConfirm)["fact_id"])
+	tripList := fixture.request(http.MethodGet, "/api/v1/trips", nil, ownerSession, false, "")
+	assertStatus(t, tripList, http.StatusOK)
+	if len(decodeMap(t, tripList)["items"].([]any)) != 0 {
+		t.Fatal("trip evidence created an expense container")
+	}
+	var paymentVersion int
+	if err := fixture.store.DB().QueryRowContext(context.Background(), `SELECT version FROM payments WHERE tenant_id = ? AND id = ?`, fixture.owner.TenantID, paymentID).Scan(&paymentVersion); err != nil {
+		t.Fatal(err)
+	}
+	preference := fixture.request(http.MethodPost, "/api/v1/payments/"+paymentID+"/trip-preference",
+		strings.NewReader(fmt.Sprintf(`{"mode":"blocked","expected_version":%d}`, paymentVersion)), ownerSession, true, "application/json")
+	assertStatus(t, preference, http.StatusNoContent)
+	paymentVersion++
+	createdTrip := fixture.requestWithHeaders(http.MethodPost, "/api/v1/trips",
+		strings.NewReader(`{"name":"合成 HTTP 出差","start_date":"2026-08-26","end_date":"2026-08-28","timezone":"Asia/Shanghai","notes":"","expected_version":0,"reason":"创建合成出差"}`),
+		ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "reimbursement-http-create-container"})
+	assertStatus(t, createdTrip, http.StatusCreated)
+	tripID := asString(t, decodeMap(t, createdTrip)["trip_id"])
+	materialBody, err := json.Marshal(map[string]any{"evidence_id": evidenceID, "desired_trip_id": tripID, "expected_link_id": nil, "expected_version": 1, "reason": "关联合成材料"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	material := fixture.requestWithHeaders(http.MethodPost, "/api/v1/trip-material-assignments", bytes.NewReader(materialBody),
+		ownerSession, true, "application/json", map[string]string{"Idempotency-Key": "reimbursement-http-material"})
+	assertStatus(t, material, http.StatusOK)
 
 	assignmentPayload, err := json.Marshal(map[string]any{
 		"fact_type": "payment", "fact_id": paymentID, "desired_trip_id": tripID,
-		"expected_assignment_id": nil, "reason": "合成 HTTP 报销归属",
+		"expected_assignment_id": nil, "expected_fact_version": paymentVersion, "reason": "合成 HTTP 报销归属",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1143,7 +1178,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	documentQueries := documents.NewQueryService(store, store, objects)
 	jobActions := documents.NewActionService(store, store, system.IDGenerator{}, system.Clock{})
 	documentDeletions := documents.NewDeletionService(store, objects, store, system.IDGenerator{}, system.Clock{})
-	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{})
+	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{}).WithManualEntry(store, normalizer, objects)
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	emailService := applicationemails.NewService(
@@ -1162,7 +1197,18 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	insightService := insights.NewService(store)
-	server, err := NewServer(authService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, allocationService, emailService, tripService, reimbursementService, insightService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	invoiceMaterialService := invoicematerials.NewService(store, store, objects, objects, inspector, system.IDGenerator{}, system.Clock{})
+	accountService := accounts.NewService(store, hasher, cryptography.TokenGenerator{}, system.IDGenerator{}, system.Clock{})
+	if err := objects.InitializeExportSpool(); err != nil {
+		t.Fatal(err)
+	}
+	exportService := materialexports.NewService(store, objects, objects, system.IDGenerator{})
+	t.Cleanup(func() {
+		if err := exportService.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, exportService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -1176,6 +1222,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	}
 	return &httpTestFixture{
 		store: store, handler: server.Handler(), worker: worker, owner: owner,
+		objects:    objects,
 		ownerEmail: ownerEmail, ownerPassword: ownerPassword, emailArchive: emailService,
 	}
 }

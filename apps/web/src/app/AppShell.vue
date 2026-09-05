@@ -4,6 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { sessionStore } from './session'
 import { theme, toggleTheme } from './theme'
 import AppIcon from '../components/AppIcon.vue'
+import { ApiError } from '../data/client'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,6 +17,8 @@ const isCollapsed = computed(() => !isMobile.value && sidebarCollapsed.value)
 const navigationElement = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const mainContent = ref<HTMLElement | null>(null)
+const logoutError = ref('')
+const loggingOut = ref(false)
 
 const capabilities = computed(() => new Set(session.value?.capabilities ?? []))
 const groups = [
@@ -52,6 +55,8 @@ const groups = [
     label: '系统',
     items: [
       { to: '/settings/ai', label: 'AI 配置', icon: 'settings', capability: 'providers.manage' },
+      { to: '/settings/members', label: '成员管理', icon: 'users', capability: 'members.manage' },
+      { to: '/settings/account', label: '账号与密码', icon: 'shield', capability: '' },
     ],
   },
 ] as const
@@ -59,12 +64,19 @@ const navigation = computed(() =>
   groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => capabilities.value.has(item.capability)),
+      items: group.items.filter(
+        (item) => !item.capability || capabilities.value.has(item.capability),
+      ),
     }))
     .filter((group) => group.items.length > 0),
 )
 const activePath = computed(() => {
   if (route.path.startsWith('/reviews/')) return '/inbox'
+  if (route.path.startsWith('/facts/payment/')) return '/payments'
+  if (route.path.startsWith('/payments/')) return '/payments'
+  if (route.path.startsWith('/invoices/')) return '/invoices'
+  if (route.path.startsWith('/facts/invoice/')) return '/invoices'
+  if (route.path.startsWith('/facts/trip/')) return '/trips'
   if (route.path.startsWith('/allocations/payment/')) return '/payments'
   if (route.path.startsWith('/allocations/invoice/')) return '/invoices'
   return route.path
@@ -125,8 +137,17 @@ watch(
 )
 
 async function logout() {
-  await sessionStore.logout()
-  await router.replace({ name: 'login' })
+  if (loggingOut.value) return
+  loggingOut.value = true
+  logoutError.value = ''
+  try {
+    await sessionStore.logout()
+    await router.replace({ name: 'login' })
+  } catch (error) {
+    logoutError.value = error instanceof ApiError ? error.message : '退出结果未确认，请重试。'
+  } finally {
+    loggingOut.value = false
+  }
 }
 </script>
 
@@ -169,7 +190,9 @@ async function logout() {
           <strong>{{ session?.user.display_name }}</strong>
           <span>{{ session?.user.email }}</span>
         </div>
-        <button class="button button-quiet" type="button" @click="logout">退出</button>
+        <button class="button button-quiet" type="button" :disabled="loggingOut" @click="logout">
+          退出
+        </button>
       </div>
     </header>
 
@@ -240,6 +263,7 @@ async function logout() {
       </component>
 
       <main id="main-content" ref="mainContent" class="main-content" tabindex="-1">
+        <p v-if="logoutError" class="notice notice-danger" role="alert">{{ logoutError }}</p>
         <slot />
       </main>
     </div>

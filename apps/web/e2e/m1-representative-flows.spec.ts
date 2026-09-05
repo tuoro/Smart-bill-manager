@@ -130,13 +130,17 @@ test.describe.serial('M1 四个代表页面流程', () => {
     const browserErrors = collectBrowserErrors(page)
     await page.getByRole('link', { name: '支付管理' }).click()
     await expect(page.getByRole('heading', { name: '支付管理', exact: true })).toBeVisible()
-    const paymentRow = page.locator('tbody tr').filter({ hasText: confirmedFactID })
+    const paymentRow = page.locator('tbody tr').filter({
+      has: page.locator(`a[href^="/payments/${confirmedFactID}?"]`),
+    })
     await expect(paymentRow).toContainText('Synthetic Memory Merchant')
     await expect(paymentRow).toContainText('123.45')
-    await expect(page.getByText('1 条记录')).toBeVisible()
+    await expect(page.locator('tbody tr')).toHaveCount(1)
+    await expect(page.getByText('本页 1 条', { exact: true })).toBeVisible()
 
     await page.getByRole('tab', { name: '发票' }).click()
-    await expect(page.getByText('还没有正式发票')).toBeVisible()
+    await expect(page.getByText('当前范围没有发票记录', { exact: true })).toBeVisible()
+    await expect(page.getByText('本页 0 条', { exact: true })).toBeVisible()
     expect(browserErrors).toEqual([])
   })
 })

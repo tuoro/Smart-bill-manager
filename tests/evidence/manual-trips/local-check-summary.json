@@ -1,0 +1,84 @@
+{
+  "schema_version": "local-slice-check/1",
+  "slice": "ADR-0024-manual-trip-workspace",
+  "date": "2026-09-04",
+  "status": "awaiting_isolated_postgresql_validation",
+  "accepted": false,
+  "baseline_head": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+  "changed_file_count_excluding_evidence": 66,
+  "worktree_sha256": "6bebebdd9b6bc0453f811730868c03ca6602b0fecf54eb8c4111e517eb1e98f2",
+  "fingerprint_method": "SHA-256 of sorted modified/untracked paths, NUL, full file bytes, NUL; excludes tests/evidence/manual-trips/",
+  "verified": {
+    "domain_unit_tests": "passed",
+    "all_go_packages_and_tests_compile": "passed; go test -p 1 -timeout 60s -run ^$ ./...; no database test execution",
+    "go_vet": "passed",
+    "go_build": "passed",
+    "web_openapi_generation": "passed",
+    "web_typecheck": "passed",
+    "web_eslint": "passed",
+    "web_format": "passed",
+    "web_unit_tests": { "files": 9, "passed": 38, "failed": 0 },
+    "web_production_build": "passed",
+    "release_policy_unit_tests": { "passed": 3, "failed": 0, "skipped": 0 },
+    "mock_browser": {
+      "passed": 14,
+      "failed": 0,
+      "workers": 1,
+      "retries": 0,
+      "api": "intercepted synthetic fixtures on a separate loopback static preview; not the user's instance",
+      "specs": [
+        "manual-trip-workspace.spec.ts",
+        "m3-trip-attribution.spec.ts",
+        "m3-reimbursements.spec.ts",
+        "m4-insights.spec.ts"
+      ],
+      "manual_trip_capture_widths_px": [1440, 1024, 768, 384],
+      "manual_trip_capture_themes": ["light", "dark"],
+      "manual_trip_capture_states": ["create_editor", "two_ticket_materials"],
+      "capture_count_for_manual_trip_states": 16,
+      "earlier_runs": [
+        { "passed": 13, "failed": 1, "cause": "existing test selector became ambiguous after adding a second refresh control" },
+        { "passed": 13, "failed": 1, "cause": "existing test selector became ambiguous after adding a second status region" }
+      ],
+      "correction": "scope assertions to the intended control/status; preserve assertions; rerun all four specs",
+      "accessibility_limit": "keyboard flow and responsive checks only; not a full Lighthouse or accessibility gate"
+    },
+    "initial_migration_unchanged": true,
+    "git_diff_check": "passed",
+    "changed_or_untracked_files_over_1_mib": 0,
+    "known_secret_pattern_matches_in_changed_files": 0,
+    "secret_scan_limit": "targeted patterns plus diff review, not a guarantee that arbitrary secrets can be detected"
+  },
+  "not_run": [
+    "PostgreSQL 0001-to-0002 upgrade and empty-database migration execution",
+    "database/application/HTTP integration and affected critical invariants",
+    "database rollback, concurrency, timezone/DST and tenant/role boundary acceptance",
+    "affected backup/restore exercise",
+    "database-backed coverage and performance gates",
+    "real local API browser acceptance and full release gates"
+  ],
+  "blocking_authority": "fresh owner-only temporary PostgreSQL credentials and isolated synthetic database resources require the current user's authorization",
+  "resource_limits": {
+    "heavy_stages_serial": true,
+    "go_maxprocs": 2,
+    "go_package_parallelism": 1,
+    "go_test_timeout_seconds": 60,
+    "temporary_go_container_memory_mib": 2048,
+    "new_credentials_created": false,
+    "new_database_or_provider_started": false,
+    "new_dependencies_or_images_downloaded": false,
+    "host_memory_observation": "about 6.6-6.9 GiB available during final checks; pre-existing swap remained full; no resource-limit increase or OOM retry"
+  },
+  "cleanup": {
+    "temporary_static_preview_stopped": true,
+    "temporary_go_containers_remaining": 0,
+    "temporary_database_networks_or_volumes_created": false,
+    "temporary_reports_screenshots_and_compiler_cache_destroyed": true,
+    "approximate_temporary_disk_removed_mib": 339,
+    "web_dist": "336 KiB generated build output, ignored by Git and not included in the change set",
+    "user_running_app_and_database": "untouched; original containers still running"
+  },
+  "commit_created": false,
+  "pushed_or_released": false,
+  "real_provider_or_mail_contacted": false
+}

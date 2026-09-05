@@ -6,6 +6,22 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/inbox' },
     {
+      path: '/join',
+      name: 'join',
+      component: () => import('../features/auth/JoinPage.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/settings/account',
+      name: 'settings-account',
+      component: () => import('../features/settings/AccountSettingsPage.vue'),
+    },
+    {
+      path: '/settings/members',
+      name: 'settings-members',
+      component: () => import('../features/settings/MembersSettingsPage.vue'),
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../features/auth/LoginPage.vue'),
@@ -26,6 +42,23 @@ const router = createRouter({
       path: '/payments',
       name: 'payments',
       component: () => import('../features/facts/PaymentsPage.vue'),
+    },
+    {
+      path: '/payments/:factId',
+      name: 'payment-detail',
+      component: () => import('../features/facts/FactDetailPage.vue'),
+      props: { kind: 'payment' },
+    },
+    {
+      path: '/invoices/:factId',
+      name: 'invoice-detail',
+      component: () => import('../features/facts/FactDetailPage.vue'),
+      props: { kind: 'invoice' },
+    },
+    {
+      path: '/facts/:factType/:factId/correction',
+      name: 'fact-correction',
+      component: () => import('../features/facts/FactCorrectionPage.vue'),
     },
     {
       path: '/invoices',
@@ -63,6 +96,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  if (to.name === 'join') return true
   const session = await sessionStore.resolve()
   if (to.meta.public) {
     if (to.name === 'login' && session) return { name: 'inbox' }
@@ -70,6 +104,13 @@ router.beforeEach(async (to) => {
   }
   if (!session) return { name: 'login', query: { redirect: to.fullPath } }
   return true
+})
+
+sessionStore.onInvalidated((reason) => {
+  const route = router.currentRoute.value
+  // 初次导航尚未匹配页面时，由 beforeEach 保留用户原本的目标地址。
+  if (route.name && !route.meta.public)
+    void router.replace({ name: 'login', query: { redirect: route.fullPath, reason } })
 })
 
 export default router

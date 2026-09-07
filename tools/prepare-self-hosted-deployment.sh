@@ -124,7 +124,6 @@ master_key=${deployment_directory}/master-key
 postgres_admin_password=${deployment_directory}/postgres-admin-password
 postgres_migration_password=${deployment_directory}/postgres-migration-password
 postgres_runtime_password=${deployment_directory}/postgres-runtime-password
-owner_password=${deployment_directory}/owner-password
 environment_file=${deployment_directory}/deployment.env
 default_data_directory=${deployment_directory}/data
 created_default_data=false
@@ -138,7 +137,6 @@ cleanup() {
     "$postgres_admin_password" \
     "$postgres_migration_password" \
     "$postgres_runtime_password" \
-    "$owner_password" \
     "$environment_file"
   [ "$created_postgres" = false ] || rmdir -- "$postgres_data_directory" 2>/dev/null || true
   [ "$created_objects" = false ] || rmdir -- "$objects_directory" 2>/dev/null || true
@@ -177,7 +175,6 @@ generate_hex_secret "$master_key"
 generate_hex_secret "$postgres_admin_password"
 generate_hex_secret "$postgres_migration_password"
 generate_hex_secret "$postgres_runtime_password"
-generate_hex_secret "$owner_password"
 
 {
   printf '%s\n' 'SBM_STORAGE_TYPE=bind'
@@ -195,7 +192,6 @@ generate_hex_secret "$owner_password"
   printf 'SBM_POSTGRES_ADMIN_PASSWORD_SOURCE=%s\n' "$postgres_admin_password"
   printf 'SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE=%s\n' "$postgres_migration_password"
   printf 'SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE=%s\n' "$postgres_runtime_password"
-  printf 'SBM_OWNER_PASSWORD_SOURCE=%s\n' "$owner_password"
 } >"$environment_file"
 chmod 0600 "$environment_file"
 
@@ -204,4 +200,4 @@ printf '%s\n' "deployment files created with owner-only permissions"
 printf '%s\n' "PostgreSQL data: ${postgres_data_directory}"
 printf '%s\n' "objects: ${objects_directory}"
 printf '%s\n' "backups: ${backups_directory}"
-printf '%s\n' "record the Owner password from ${owner_password} before bootstrap; bootstrap deletes that file after success"
+printf '%s\n' "create the Owner in the browser after the application starts"

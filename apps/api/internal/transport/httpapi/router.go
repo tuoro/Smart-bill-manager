@@ -13,6 +13,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/accounts"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
@@ -67,6 +68,8 @@ type Server struct {
 	reimbursements   reimbursements.Service
 	insights         insights.Service
 	exports          *materialexports.Service
+	setup            bootstrap.Service
+	setupInspector   SetupInspector
 	spa              http.Handler
 }
 
@@ -87,6 +90,8 @@ func NewServer(
 	reimbursementService reimbursements.Service,
 	insightService insights.Service,
 	exportService *materialexports.Service,
+	setupService bootstrap.Service,
+	setupInspector SetupInspector,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -113,6 +118,8 @@ func NewServer(
 		reimbursements:   reimbursementService,
 		insights:         insightService,
 		exports:          exportService,
+		setup:            setupService,
+		setupInspector:   setupInspector,
 		health:           health,
 		readiness:        readiness,
 		ids:              system.IDGenerator{},
@@ -128,6 +135,8 @@ func (s *Server) Handler() http.Handler {
 	router.HandleFunc("GET /api/v1/ready", s.readinessHandler)
 	router.HandleFunc("POST /api/v1/session/login", s.loginHandler)
 	router.HandleFunc("POST /api/v1/session/workspaces", s.workspaceChoicesHandler)
+	router.HandleFunc("GET /api/v1/setup", s.setupHandler)
+	router.HandleFunc("POST /api/v1/setup", s.createSetupHandler)
 	router.HandleFunc("POST /api/v1/invitations/check", s.checkInvitationHandler)
 	router.HandleFunc("POST /api/v1/invitations/accept", s.acceptInvitationHandler)
 	router.Handle("GET /api/v1/members", s.requireSession(http.HandlerFunc(s.membersHandler)))

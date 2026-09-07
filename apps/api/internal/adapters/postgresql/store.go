@@ -202,3 +202,23 @@ func readPasswordFile(path string) ([]byte, error) {
 	}
 	return value, nil
 }
+
+// SchemaAbsent 报告目标库是否尚未建立迁移记录表。首启自初始化据此判断是否需要
+// 自行应用迁移；Compose 硬化路径下 app 总在独立 migrate 入口之后启动，永不触发。
+func SchemaAbsent(ctx context.Context, config Config) (bool, error) {
+	db, err := openDatabase(config)
+	if err != nil {
+		return false, err
+	}
+	defer db.Close()
+	if err := db.PingContext(ctx); err != nil {
+		return false, fmt.Errorf("ping PostgreSQL for schema inspection: %w", err)
+	}
+	var present bool
+	if err := db.QueryRowContext(
+		ctx, "SELECT to_regclass('public.schema_migrations') IS NOT NULL",
+	).Scan(&present); err != nil {
+		return false, fmt.Errorf("inspect PostgreSQL schema: %w", err)
+	}
+	return !present, nil
+}

@@ -13,7 +13,8 @@ ADR-0022 已提供固定镜像摘要、Compose 部署包和宿主持久化目录
 - 新增一个引导式安装入口，交互收集运行目录、三类持久化目录、Owner 身份和监听配置，然后复用现有准备器与部署 wrapper 完成镜像拉取、数据库 provision、Schema migration、Owner bootstrap 和应用启动。
 - 同一安装器支持从固定 Git Tag 流式启动：只接受显式语义版本，下载该 GitHub Release 的版本化 Bundle 与 sidecar，在 owner-only 临时目录通过 SHA-256 后调用包内安装器并回收临时文件。它不解析 `latest`、不查询 API，也不执行未校验 Bundle。
 - PostgreSQL 数据、对象文件和备份目录可分别指定绝对路径；缺省时仍位于运行目录的 `data/postgres`、`data/objects` 和 `backups`。三个目标必须彼此独立、尚不存在且位于 Git 仓库外，安装器不会接管或覆盖已有目录。
-- Secret 仍只写入 Owner 可读文件，不进入命令参数、普通环境、日志或仓库。安装器不打印 Owner 密码；继续前明确暂停，让用户从一次性文件保存密码。bootstrap 成功后删除该文件。
+- Secret 仍只写入 Owner 可读文件，不进入命令参数、普通环境、日志或仓库。
+- Owner 不再由安装器创建：安装器只做目录、secret、镜像、provision、migration 和启动，Owner 通过应用内一次性初始化页 `/setup` 创建。安装器因此不再询问邮箱、显示名、工作区名、币种和时区，也不再生成需要用户手工抄录的一次性密码。该页面在存在 Owner 后永久关闭，唯一性由 `BootstrapOwner` 的 Serializable 事务保证。`/app/bootstrap-owner` 二进制保留，供 ADR-0033 的恢复身份校验契约与内部门禁使用。
 - 安装器只是唯一 Compose 契约的易用入口。升级、备份、恢复、日志和停止继续使用版本化部署包内的 `sbm-deploy.sh`，不增加第二运行配置或隐藏自动更新器。
 - README 只给出一条命令安装入口；显式 Compose 命令和纯 Docker CLI 部署移入部署指南。
 - 纯 Docker CLI 路径为单角色部署：应用容器在提供 `SBM_OWNER_EMAIL` 时首启自行应用迁移并创建唯一 Owner，数据库密码接受明文环境变量回退，主密钥在未挂载时于持久卷内自动生成。它不成为第二受支持安装链路——不提供三层权限分离、依赖顺序、健康等待和升级门禁，升级与恢复仍以安装器和 `sbm-deploy.sh` 为权威入口。

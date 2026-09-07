@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -34,7 +33,6 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
-	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/transport/httpapi"
 )
 
@@ -53,7 +51,6 @@ type config struct {
 	aiConcurrency        int
 	webDistPath          string
 	deploymentMode       string
-	autoInitialize       bool
 }
 
 type runtimeReadiness struct {
@@ -86,7 +83,11 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	if config.autoInitialize {
+	absent, err := postgresqladapter.SchemaAbsent(ctx, config.database)
+	if err != nil {
+		return err
+	}
+	if absent {
 		if err := autoInitializeSchema(ctx, config, logger); err != nil {
 			return err
 		}
@@ -102,11 +103,6 @@ func run(logger *slog.Logger) error {
 	hasher, err := cryptography.NewPasswordHasher(cryptography.DefaultArgon2Params)
 	if err != nil {
 		return err
-	}
-	if config.autoInitialize {
-		if err := autoInitializeOwner(ctx, store, hasher, logger); err != nil {
-			return err
-		}
 	}
 	authService, err := auth.NewService(
 		store,
@@ -215,6 +211,8 @@ func run(logger *slog.Logger) error {
 		reimbursementService,
 		insightService,
 		exportService,
+		bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}),
+		store,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,
@@ -273,8 +271,6 @@ func loadConfig() (config, error) {
 		extractionSchemaPath: os.Getenv("SBM_EXTRACTION_SCHEMA_PATH"),
 		webDistPath:          os.Getenv("SBM_WEB_DIST_PATH"),
 		deploymentMode:       os.Getenv("SBM_DEPLOYMENT_MODE"),
-		// 交出 Owner 凭据即表示要求自初始化；Compose 硬化路径从不设置它。
-		autoInitialize: strings.TrimSpace(os.Getenv("SBM_OWNER_EMAIL")) != "",
 	}
 	for name, entry := range map[string]string{
 		"SBM_HTTP_ADDRESS":           value.httpAddress,
@@ -335,91 +331,3 @@ func autoInitializeSchema(ctx context.Context, value config, logger *slog.Logger
 	return nil
 }
 
-// autoInitializeOwner 只在数据库仍为空时创建唯一 Owner；已初始化的部署重启不受影响。
-func autoInitializeOwner(
-	ctx context.Context,
-	store *postgresqladapter.Store,
-	hasher cryptography.PasswordHasher,
-	logger *slog.Logger,
-) error {
-	email := strings.TrimSpace(os.Getenv("SBM_OWNER_EMAIL"))
-	if email == "" {
-		return nil
-	}
-	ownerCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	empty, err := store.IdentityIsEmpty(ownerCtx)
-	if err != nil {
-		return fmt.Errorf("auto initialize owner: %w", err)
-	}
-	if !empty {
-		logger.Info("auto initialize: an owner already exists, skipping owner creation")
-		return nil
-	}
-	password, err := autoInitializeOwnerPassword()
-	if err != nil {
-		return err
-	}
-	defer clear(password)
-	service := bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{})
-	_, err = service.Execute(ownerCtx, bootstrap.Input{
-		Email:           email,
-		Password:        password,
-		DisplayName:     environmentOrDefault("SBM_OWNER_DISPLAY_NAME", "Owner"),
-		TenantName:      environmentOrDefault("SBM_TENANT_NAME", "My Workspace"),
-		DefaultCurrency: domain.Currency(environmentOrDefault("SBM_DEFAULT_CURRENCY", "CNY")),
-		Timezone:        environmentOrDefault("SBM_TIMEZONE", "Asia/Shanghai"),
-	})
-	if errors.Is(err, domain.ErrBootstrapNotEmpty) {
-		logger.Info("auto initialize: an owner already exists, skipping owner creation")
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("auto initialize owner: %w", err)
-	}
-	logger.Info("auto initialize: owner created", "email", email)
-	return nil
-}
-
-func autoInitializeOwnerPassword() ([]byte, error) {
-	if path := strings.TrimSpace(os.Getenv("SBM_OWNER_PASSWORD_FILE")); path != "" {
-		info, err := os.Lstat(path)
-		if err != nil {
-			return nil, fmt.Errorf("inspect owner password file: %w", err)
-		}
-		if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
-			return nil, errors.New("owner password file must be regular and accessible only by its owner")
-		}
-		file, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("open owner password file: %w", err)
-		}
-		defer file.Close()
-		password, err := io.ReadAll(io.LimitReader(file, 1026))
-		if err != nil {
-			return nil, fmt.Errorf("read owner password file: %w", err)
-		}
-		if len(password) > 1025 {
-			return nil, errors.New("owner password file exceeds 1024 bytes")
-		}
-		if len(password) > 0 && password[len(password)-1] == '\n' {
-			password = password[:len(password)-1]
-			if len(password) > 0 && password[len(password)-1] == '\r' {
-				password = password[:len(password)-1]
-			}
-		}
-		return password, nil
-	}
-	password := os.Getenv("SBM_OWNER_PASSWORD")
-	if strings.TrimSpace(password) == "" {
-		return nil, errors.New("SBM_OWNER_PASSWORD or SBM_OWNER_PASSWORD_FILE is required when SBM_OWNER_EMAIL is set")
-	}
-	return []byte(password), nil
-}
-
-func environmentOrDefault(name, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
-		return value
-	}
-	return fallback
-}

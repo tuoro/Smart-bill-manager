@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { api } from '../data/client'
 import { sessionStore } from './session'
 
 const router = createRouter({
@@ -20,6 +21,12 @@ const router = createRouter({
       path: '/settings/members',
       name: 'settings-members',
       component: () => import('../features/settings/MembersSettingsPage.vue'),
+    },
+    {
+      path: '/setup',
+      name: 'setup',
+      component: () => import('../features/auth/SetupPage.vue'),
+      meta: { public: true },
     },
     {
       path: '/login',
@@ -95,8 +102,23 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// 尚未初始化的部署把所有入口引导到一次性初始化页；创建 Owner 后接口返回
+// required=false，该页面自行跳回登录，之后不再触发。
+let setupSettled = false
+async function setupRequired() {
+  if (setupSettled) return false
+  try {
+    const state = await api.setupRequired()
+    setupSettled = !state.required
+    return state.required
+  } catch {
+    return false
+  }
+}
+
 router.beforeEach(async (to) => {
   if (to.name === 'join') return true
+  if (to.name !== 'setup' && (await setupRequired())) return { name: 'setup' }
   const session = await sessionStore.resolve()
   if (to.meta.public) {
     if (to.name === 'login' && session) return { name: 'inbox' }

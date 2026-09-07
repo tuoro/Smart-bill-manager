@@ -1125,6 +1125,11 @@ func httpTripRevisionPayload(t *testing.T, review map[string]any) []byte {
 }
 
 func newHTTPTestFixture(t *testing.T) *httpTestFixture {
+	return newHTTPTestFixtureWithOwner(t, true)
+}
+
+// newHTTPTestFixtureWithOwner 可构造尚未初始化的部署，用于覆盖一次性初始化接口。
+func newHTTPTestFixtureWithOwner(t *testing.T, withOwner bool) *httpTestFixture {
 	t.Helper()
 	root := t.TempDir()
 	store := postgresqltest.Open(t)
@@ -1133,20 +1138,23 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 	bootstrapService := bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{})
 	ownerEmail := "owner@example.test"
 	ownerPassword := "owner-password-123"
-	owner, err := bootstrapService.Execute(context.Background(), bootstrap.Input{
-		Email: ownerEmail, Password: []byte(ownerPassword), DisplayName: "Owner", TenantName: "Primary",
-		DefaultCurrency: domain.CurrencyCNY, Timezone: "Asia/Shanghai",
-	})
-	if err != nil {
-		store.Close()
-		t.Fatal(err)
-	}
-	if _, err := bootstrapService.Execute(context.Background(), bootstrap.Input{
-		Email: "second@example.test", Password: []byte("second-password"), DisplayName: "Second", TenantName: "Second",
-		DefaultCurrency: domain.CurrencyCNY, Timezone: "Asia/Shanghai",
-	}); !errors.Is(err, domain.ErrBootstrapNotEmpty) {
-		store.Close()
-		t.Fatalf("second bootstrap error = %v", err)
+	var owner bootstrap.Result
+	if withOwner {
+		owner, err = bootstrapService.Execute(context.Background(), bootstrap.Input{
+			Email: ownerEmail, Password: []byte(ownerPassword), DisplayName: "Owner", TenantName: "Primary",
+			DefaultCurrency: domain.CurrencyCNY, Timezone: "Asia/Shanghai",
+		})
+		if err != nil {
+			store.Close()
+			t.Fatal(err)
+		}
+		if _, err := bootstrapService.Execute(context.Background(), bootstrap.Input{
+			Email: "second@example.test", Password: []byte("second-password"), DisplayName: "Second", TenantName: "Second",
+			DefaultCurrency: domain.CurrencyCNY, Timezone: "Asia/Shanghai",
+		}); !errors.Is(err, domain.ErrBootstrapNotEmpty) {
+			store.Close()
+			t.Fatalf("second bootstrap error = %v", err)
+		}
 	}
 	authService, err := auth.NewService(store, hasher, cryptography.TokenGenerator{}, system.IDGenerator{}, system.Clock{}, time.Hour)
 	if err != nil {
@@ -1208,7 +1216,7 @@ func newHTTPTestFixture(t *testing.T) *httpTestFixture {
 			t.Error(err)
 		}
 	})
-	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, exportService, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -1458,4 +1466,48 @@ func newID(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return id
+}
+
+func TestHTTPSetupIsSingleUseAndClosesPermanently(t *testing.T) {
+	fixture := newHTTPTestFixtureWithOwner(t, false)
+	defer fixture.store.Close()
+
+	initial := fixture.request(http.MethodGet, "/api/v1/setup", nil, nil, false, "")
+	assertStatus(t, initial, http.StatusOK)
+	if required := decodeMap(t, initial)["required"]; required != true {
+		t.Fatalf("required on an empty deployment = %v, want true", required)
+	}
+
+	body := "{\"email\":\"owner@example.test\",\"password\":\"owner-password-123\"," +
+		"\"display_name\":\"Owner\",\"tenant_name\":\"Primary\"," +
+		"\"default_currency\":\"CNY\",\"timezone\":\"Asia/Shanghai\"}"
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/setup", strings.NewReader(body), nil, false, "application/json",
+	), http.StatusNoContent)
+
+	settled := fixture.request(http.MethodGet, "/api/v1/setup", nil, nil, false, "")
+	assertStatus(t, settled, http.StatusOK)
+	if required := decodeMap(t, settled)["required"]; required != false {
+		t.Fatalf("required after setup = %v, want false", required)
+	}
+
+	// 重放必须被拒绝，且拒绝来自 BootstrapOwner 的事务判定而非接口层预检查。
+	replay := "{\"email\":\"attacker@example.test\",\"password\":\"attacker-password-1\"," +
+		"\"display_name\":\"Attacker\",\"tenant_name\":\"Hijacked\"," +
+		"\"default_currency\":\"CNY\",\"timezone\":\"Asia/Shanghai\"}"
+	rejected := fixture.request(
+		http.MethodPost, "/api/v1/setup", strings.NewReader(replay), nil, false, "application/json",
+	)
+	if rejected.Code == http.StatusNoContent {
+		t.Fatal("a second setup call created another owner")
+	}
+	if code := decodeMap(t, rejected)["error"]; code == nil {
+		t.Fatal("rejected setup did not carry an error envelope")
+	}
+
+	// 初始化出来的账号必须能真正登录。
+	login := "{\"email\":\"owner@example.test\",\"password\":\"owner-password-123\"}"
+	assertStatus(t, fixture.request(
+		http.MethodPost, "/api/v1/session/login", strings.NewReader(login), nil, false, "application/json",
+	), http.StatusOK)
 }

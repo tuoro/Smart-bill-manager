@@ -78,14 +78,21 @@ test("self-hosted bundle generation is deterministic", async () => {
   }
 });
 
-test("README exposes one-command, Compose, and bounded Docker CLI deployment forms", async () => {
+test("README leads with the one-command installer and defers other forms to the deployment guide", async () => {
+  const repositoryRoot = dirname(toolsDirectory);
   for (const name of ["README.md", "README_EN.md"]) {
-    const readme = await readFile(join(dirname(toolsDirectory), name), "utf8");
-    assert.match(readme, /version=v0\.4\.0; curl .*--release-version "\$version"/);
-    assert.match(readme, /docker compose --project-name smart-bill-manager/);
-    assert.match(readme, /docker run -d \\/);
-    assert.match(readme, /--network smart-bill-manager_database/);
-    assert.match(readme, /docker network connect bridge smart-bill-manager/);
-    assert.match(readme, /--read-only/);
+    const readme = await readFile(join(repositoryRoot, name), "utf8");
+    assert.match(readme, /install-self-hosted\.sh/);
+    assert.match(readme, /--release-version v0\.4\.0/);
+    assert.match(readme, /docs\/deployment\.md/);
+    // README 只保留一条命令安装；Compose 与 docker run 的完整形式属于部署指南。
+    assert.equal(/docker compose --project-name/.test(readme), false);
+    assert.equal(/docker run -d/.test(readme), false);
   }
+  const guide = await readFile(join(repositoryRoot, "docs", "deployment.md"), "utf8");
+  assert.match(guide, /docker compose --project-name smart-bill-manager/);
+  assert.match(guide, /docker run -d --name smart-bill-manager/);
+  assert.match(guide, /--read-only/);
+  // 一次性初始化已移入浏览器，安装命令不得再要求 Owner 环境变量。
+  assert.equal(/SBM_OWNER_PASSWORD/.test(guide), false);
 });

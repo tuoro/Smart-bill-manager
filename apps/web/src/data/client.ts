@@ -150,6 +150,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       '/session/workspaces',
       '/invitations/check',
       '/invitations/accept',
+      '/setup',
     ].includes(path)
     if (
       response.status === 401 &&
@@ -231,6 +232,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ expected_version, reason }),
     })
+  },
+  setupRequired(): Promise<{ required: boolean }> {
+    return request('/setup')
+  },
+  createOwner(input: {
+    email: string
+    password: string
+    display_name: string
+    tenant_name: string
+    default_currency: string
+    timezone: string
+  }): Promise<void> {
+    return request('/setup', { method: 'POST', body: JSON.stringify(input) })
   },
   checkInvitation(code: string): Promise<InvitationView> {
     return request('/invitations/check', { method: 'POST', body: JSON.stringify({ code }) })
@@ -402,8 +416,8 @@ export const api = {
       body: JSON.stringify(body),
     })
   },
-  getReview(jobId: string): Promise<Review> {
-    return request(`/reviews/${encodeURIComponent(jobId)}`)
+  getReview(jobId: string, signal?: AbortSignal): Promise<Review> {
+    return request(`/reviews/${encodeURIComponent(jobId)}`, { signal })
   },
   revise(jobId: string, body: RevisionRequest): Promise<Review> {
     return request(`/reviews/${encodeURIComponent(jobId)}/revisions`, {

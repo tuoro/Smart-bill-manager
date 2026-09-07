@@ -7,7 +7,7 @@ usage: tools/sbm-deploy.sh DEPLOYMENT_DIRECTORY COMMAND [arguments]
 
 commands:
   pull
-  bootstrap EMAIL DISPLAY_NAME TENANT_NAME CURRENCY TIMEZONE
+  bootstrap
   start
   status
   logs
@@ -89,7 +89,6 @@ fi
 
 base_compose=${repository_root}/infra/compose/compose.yaml
 release_compose=${repository_root}/infra/compose/compose.release.yaml
-bootstrap_compose=${repository_root}/infra/compose/compose.bootstrap.yaml
 
 # Compose 会让调用方环境覆盖 --env-file；清除全部应用插值键，确保只有
 # 已审查的发布文件与用户部署文件能够提供配置。
@@ -115,7 +114,6 @@ unset \
   SBM_POSTGRES_ADMIN_PASSWORD_SOURCE \
   SBM_POSTGRES_MIGRATION_PASSWORD_SOURCE \
   SBM_POSTGRES_RUNTIME_PASSWORD_SOURCE \
-  SBM_OWNER_PASSWORD_SOURCE
 
 compose() {
   docker compose \
@@ -127,16 +125,6 @@ compose() {
     "$@"
 }
 
-compose_with_bootstrap() {
-  docker compose \
-    --project-name "$project_name" \
-    --env-file "$environment_file" \
-    --env-file "$release_environment_file" \
-    -f "$base_compose" \
-    -f "$release_compose" \
-    -f "$bootstrap_compose" \
-    "$@"
-}
 
 case "$command_name" in
   pull)
@@ -144,30 +132,11 @@ case "$command_name" in
     compose pull database provision migrate app
     ;;
   bootstrap)
-    [ "$#" -eq 5 ] || usage
-    owner_email=$1
-    owner_display_name=$2
-    tenant_name=$3
-    currency=$4
-    timezone=$5
-    owner_password=${deployment_directory}/owner-password
-    [ -f "$owner_password" ] && [ ! -L "$owner_password" ] || {
-      printf '%s\n' "one-time Owner password is unavailable; bootstrap may already be complete" >&2
-      exit 1
-    }
+    [ "$#" -eq 0 ] || usage
     compose up -d --no-build --pull never --wait database
     compose run --rm --no-deps provision
     compose run --rm --no-deps migrate
-    compose_with_bootstrap run --rm --no-deps app \
-      /app/bootstrap-owner \
-      -email "$owner_email" \
-      -display-name "$owner_display_name" \
-      -tenant-name "$tenant_name" \
-      -currency "$currency" \
-      -timezone "$timezone" \
-      -password-file /run/sbm-secrets/owner-password
-    rm -f -- "$owner_password"
-    printf '%s\n' "Owner bootstrap completed; the one-time password file was removed"
+    printf '%s\n' "database provisioned and schema initialized; create the Owner in the browser"
     ;;
   start)
     [ "$#" -eq 0 ] || usage

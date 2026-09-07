@@ -22,11 +22,11 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   | sh -s -- --release-version v0.4.0
 ```
 
-安装器依次询问运行目录、PostgreSQL 数据目录、附件对象目录、备份目录、Owner 登录信息和本机 HTTP 端口。直接回车采用默认值；例如可把三类持久化目录分别设置为独立数据盘下尚不存在的子目录。路径必须是绝对路径，父目录必须已存在，三个目标不能相同；安装器不会覆盖或接管已有目录。
+安装器依次询问运行目录、PostgreSQL 数据目录、附件对象目录、备份目录和本机 HTTP 端口。直接回车采用默认值；例如可把三类持久化目录分别设置为独立数据盘下尚不存在的子目录。路径必须是绝对路径，父目录必须已存在，三个目标不能相同；安装器不会覆盖或接管已有目录。
 
-配置完成后，安装器创建 owner-only secret，暂停提示保存一次性 Owner 密码，再按固定顺序完成镜像拉取、PostgreSQL provision、Schema migration、Owner bootstrap、应用启动和状态检查。PostgreSQL 与应用始终是两个独立容器，数据库不发布宿主端口。
+配置完成后，安装器创建 owner-only secret，再按固定顺序完成镜像拉取、PostgreSQL provision、Schema migration、应用启动和状态检查。PostgreSQL 与应用始终是两个独立容器，数据库不发布宿主端口。
 
-完成后打开 <http://127.0.0.1:8080>（或安装时填写的端口），使用初始化邮箱和已记录的 Owner 密码登录。安装到此结束，后续参见“首次登录后”和“日常操作”。
+完成后打开 <http://127.0.0.1:8080>（或安装时填写的端口）。页面会引导你创建 Owner 账号——安装器不再询问 Owner 信息，也不再生成需要你手工抄录的一次性密码。安装到此结束，后续参见“首次登录后”和“日常操作”。
 
 ## 2. 离线部署包或固定源码 Tag 安装
 
@@ -78,7 +78,7 @@ runtime_directory="$(realpath ../sbm-runtime-parent)/deployment"
   --http-port 7476
 ```
 
-准备器会创建一份主密钥、三份独立 PostgreSQL 角色密码、一份一次性 Owner 密码，以及只含非秘密配置和 secret 文件路径的 `deployment.env`。目录权限为 `0700`，文件为 `0600`，secret 值不会打印。
+准备器会创建一份主密钥、三份独立 PostgreSQL 角色密码，以及只含非秘密配置和 secret 文件路径的 `deployment.env`。目录权限为 `0700`，文件为 `0600`，secret 值不会打印。
 
 新安装的完整持久化布局如下：
 
@@ -92,13 +92,12 @@ deployment/
 ├── postgres-admin-password
 ├── postgres-migration-password
 ├── postgres-runtime-password
-├── owner-password     # 初始化成功后自动删除
 └── deployment.env
 ```
 
 `data/postgres`、`data/objects`、主密钥和认证备份共同构成恢复边界，不能只复制其中一个目录。不要手工编辑 PostgreSQL 数据文件，也不要从对象目录单独删除文件。
 
-初始化前请从 `$runtime_directory/owner-password` 把 Owner 密码录入密码管理器；初始化成功后部署工具会删除该一次性文件。主密钥和三个数据库密码必须持续保留并独立备份，丢失后无法恢复现有数据或 Provider 密文。
+主密钥和三个数据库密码必须持续保留并独立备份，丢失后无法恢复现有数据或 Provider 密文。
 
 ### 3.2 拉取固定镜像
 
@@ -108,20 +107,13 @@ deployment/
 
 部署配置固定 Smart Bill Manager 和 PostgreSQL 17 的内容摘要，不使用 `latest`。当前应用镜像为 `linux/amd64`；其他架构会明确失败，不做模拟或自动替换。
 
-### 3.3 初始化数据库结构和唯一 Owner
-
-以下示例使用测试身份，请按需替换显示名称、租户名称、币种和 IANA 时区：
+### 3.3 初始化数据库结构
 
 ```bash
-./tools/sbm-deploy.sh "$runtime_directory" bootstrap \
-  owner@example.invalid \
-  "Owner" \
-  "My Workspace" \
-  CNY \
-  Asia/Shanghai
+./tools/sbm-deploy.sh "$runtime_directory" bootstrap
 ```
 
-Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库地址、账户或端口，也不需要手工运行 SQL。该命令依次等待 PostgreSQL 健康、创建最小权限角色、在空数据库执行 Clean Slate `0001` 结构初始化、创建唯一 Owner，并在成功后删除一次性 Owner 密码文件。命令失败时不要反复重试；先按终端中的稳定错误定位根因。
+Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库地址、账户或端口，也不需要手工运行 SQL。该命令依次等待 PostgreSQL 健康、创建最小权限角色，并在空数据库执行 Clean Slate `0001` 结构初始化。Owner 不在这一步创建——应用启动后在浏览器完成。命令失败时不要反复重试；先按终端中的稳定错误定位根因。
 
 ### 3.4 启动并登录
 
@@ -130,11 +122,11 @@ Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库�
 ./tools/sbm-deploy.sh "$runtime_directory" status
 ```
 
-浏览器打开 <http://127.0.0.1:8080>，使用初始化邮箱和已记录的 Owner 密码登录。
+浏览器打开 <http://127.0.0.1:8080>，按页面提示创建 Owner 账号，随后登录。
 
 ## 4. 纯 Docker CLI 部署（不使用 Compose）
 
-不想引入 Compose 时，用两条 `docker run` 起 PostgreSQL 和应用即可。只要提供了 `SBM_OWNER_EMAIL`，应用容器首次启动时就会自行完成 Schema 初始化和 Owner 创建，不需要单独执行 provision、migrate 和 bootstrap-owner。
+不想引入 Compose 时，用两条 `docker run` 起 PostgreSQL 和应用即可。应用容器发现数据库还没有 Schema 时会自行完成初始化，Owner 则在浏览器里创建，不需要单独执行 provision、migrate 和 bootstrap-owner。
 
 本节走的是**单角色**模式：应用使用的数据库账号同时具备建表权限，`sbm_admin` / `sbm_migration` / `sbm_runtime` 三层权限分离在这条路径上不成立。应用被攻破时攻击者可以直接修改表结构。需要权限分离时使用第 1、2 步的安装器，或按第 3 步分步执行。
 
@@ -167,13 +159,11 @@ docker run -d --name smart-bill-manager --network my-net \
   -e SBM_POSTGRES_HOST=my-postgres \
   -e SBM_POSTGRES_USER=sbm_app \
   -e SBM_POSTGRES_PASSWORD=<数据库密码> \
-  -e SBM_OWNER_EMAIL=owner@example.com \
-  -e SBM_OWNER_PASSWORD=<Owner 登录密码> \
   -v sbm-data:/var/lib/sbm \
   ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-打开 <http://127.0.0.1:8080>，用上面填的邮箱和 Owner 密码登录。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
+打开 <http://127.0.0.1:8080>，页面会引导你创建 Owner 账号并填写工作区名称、币种和时区，创建完成后即可登录。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
 
 ### 4.2.1 使用已有的 PostgreSQL
 
@@ -208,11 +198,11 @@ Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍�
 
 为避免密钥写进容器可写层后随容器一起丢失，入口脚本要求 `/var/lib/sbm` 或 `/var/lib/sbm/secrets` 确实来自挂载卷，否则以 `master_key_storage_not_persistent` 失败。上面的 `-v sbm-data:/var/lib/sbm` 满足该条件。
 
-**首启初始化。** 设置了 `SBM_OWNER_EMAIL` 即进入自初始化：应用在开始服务前先应用未执行的迁移，随后在数据库仍为空时用 `SBM_OWNER_PASSWORD`（或 `SBM_OWNER_PASSWORD_FILE`）创建唯一 Owner。这一步同时把数据库账号当作迁移身份使用，因此需要建表权限——这就是本节开头所说的单角色模式。
+**首启初始化。** 应用启动时检查目标库有没有 `schema_migrations`。没有就自行应用全部迁移——此时把运行账号同时当作迁移身份使用，因此该账号需要建表权限，这就是本节开头所说的单角色模式。已有 Schema 则完全不触发：Compose 路径下 app 总在独立的 `migrate` 入口之后启动，硬化路径因此不受影响。
 
-不设 `SBM_OWNER_EMAIL` 则完全不触发，应用像 Compose 路径一样要求 Schema 已由独立的 `migrate` 入口准备好。Compose 从不设置这个变量，硬化路径因此不受影响。
+**创建 Owner。** 没有任何环境变量参与，全部在浏览器完成。首次访问任意页面都会被引导到一次性初始化页 `/setup`，填写邮箱、姓名、工作区名称、币种、时区和密码即可。创建成功后 `GET /api/v1/setup` 永久返回 `required: false`，该页面不再出现，重复提交被拒绝。
 
-已存在 Owner 时跳过，且**不再要求密码**——初始化完成后可以把 `SBM_OWNER_PASSWORD` 从 `docker run` 命令里删掉，重启照常。`SBM_OWNER_DISPLAY_NAME`、`SBM_TENANT_NAME`、`SBM_DEFAULT_CURRENCY`、`SBM_TIMEZONE` 可选，默认 `Owner` / `My Workspace` / `CNY` / `Asia/Shanghai`。
+"只能创建一次"由 [`BootstrapOwner`](../apps/api/internal/adapters/postgresql/identity.go) 的 Serializable 事务保证——它在同一事务里统计身份记录，非空即回滚，不依赖接口层的预检查，因此并发和重放都无法绕过。
 
 ### 4.4 与 Compose 契约的差异
 

@@ -11,11 +11,6 @@ options:
   --postgres-directory ABSOLUTE_NEW_DIRECTORY
   --objects-directory ABSOLUTE_NEW_DIRECTORY
   --backups-directory ABSOLUTE_NEW_DIRECTORY
-  --owner-email EMAIL
-  --owner-display-name NAME
-  --tenant-name NAME
-  --currency CODE
-  --timezone IANA_TIMEZONE
   --http-port PORT
 EOF
   exit 2
@@ -26,11 +21,6 @@ runtime_directory=
 postgres_directory=
 objects_directory=
 backups_directory=
-owner_email=
-owner_display_name=
-tenant_name=
-currency=
-timezone=
 http_port=
 
 while [ "$#" -gt 0 ]; do
@@ -41,11 +31,6 @@ while [ "$#" -gt 0 ]; do
     --postgres-directory) postgres_directory=$2 ;;
     --objects-directory) objects_directory=$2 ;;
     --backups-directory) backups_directory=$2 ;;
-    --owner-email) owner_email=$2 ;;
-    --owner-display-name) owner_display_name=$2 ;;
-    --tenant-name) tenant_name=$2 ;;
-    --currency) currency=$2 ;;
-    --timezone) timezone=$2 ;;
     --http-port) http_port=$2 ;;
     *) usage ;;
   esac
@@ -103,11 +88,6 @@ else
   [ -z "$postgres_directory" ] || set -- "$@" --postgres-directory "$postgres_directory"
   [ -z "$objects_directory" ] || set -- "$@" --objects-directory "$objects_directory"
   [ -z "$backups_directory" ] || set -- "$@" --backups-directory "$backups_directory"
-  [ -z "$owner_email" ] || set -- "$@" --owner-email "$owner_email"
-  [ -z "$owner_display_name" ] || set -- "$@" --owner-display-name "$owner_display_name"
-  [ -z "$tenant_name" ] || set -- "$@" --tenant-name "$tenant_name"
-  [ -z "$currency" ] || set -- "$@" --currency "$currency"
-  [ -z "$timezone" ] || set -- "$@" --timezone "$timezone"
   [ -z "$http_port" ] || set -- "$@" --http-port "$http_port"
   "$remote_installer" "$@"
   trap - EXIT HUP INT TERM
@@ -162,16 +142,10 @@ prompt_required() {
 [ -n "$postgres_directory" ] || postgres_directory=$(prompt_default "PostgreSQL 数据目录" "$runtime_directory/data/postgres")
 [ -n "$objects_directory" ] || objects_directory=$(prompt_default "附件对象目录" "$runtime_directory/data/objects")
 [ -n "$backups_directory" ] || backups_directory=$(prompt_default "备份目录" "$runtime_directory/backups")
-[ -n "$owner_email" ] || owner_email=$(prompt_required "Owner 登录邮箱")
-[ -n "$owner_display_name" ] || owner_display_name=$(prompt_default "Owner 显示名称" "Owner")
-[ -n "$tenant_name" ] || tenant_name=$(prompt_default "工作区名称" "My Workspace")
-[ -n "$currency" ] || currency=$(prompt_default "默认币种" "CNY")
-[ -n "$timezone" ] || timezone=$(prompt_default "IANA 时区" "Asia/Shanghai")
 [ -n "$http_port" ] || http_port=$(prompt_default "本机 HTTP 端口" "8080")
 
 for required_value in "$runtime_directory" "$postgres_directory" "$objects_directory" \
-  "$backups_directory" "$owner_email" "$owner_display_name" "$tenant_name" \
-  "$currency" "$timezone" "$http_port"; do
+  "$backups_directory" "$http_port"; do
   case "$required_value" in
     *'
 '*) printf '%s\n' "installation values must not contain newlines" >&2; exit 2 ;;
@@ -187,22 +161,13 @@ set -- "$runtime_directory" --http-port "$http_port"
   set -- "$@" --backups-directory "$backups_directory"
 "${tools_directory}/prepare-self-hosted-deployment.sh" "$@"
 
-owner_password_file=${runtime_directory}/owner-password
-printf '\n一次性 Owner 密码已写入：%s\n' "$owner_password_file"
-printf '%s\n' "请现在将其保存到密码管理器；初始化成功后该文件会被删除。"
-printf '%s' "保存完成后按 Enter 继续，或按 Ctrl+C 停止安装：" >&2
-read_install_input || {
-  printf '%s\n' "installation stopped before Owner bootstrap; prepared files were retained" >&2
-  exit 1
-}
-
 deploy=${tools_directory}/sbm-deploy.sh
 "$deploy" "$runtime_directory" pull
-"$deploy" "$runtime_directory" bootstrap \
-  "$owner_email" "$owner_display_name" "$tenant_name" "$currency" "$timezone"
+"$deploy" "$runtime_directory" bootstrap
 "$deploy" "$runtime_directory" start
 "$deploy" "$runtime_directory" status
 
 printf '\nSmart Bill Manager 已启动：http://127.0.0.1:%s\n' "$http_port"
+printf '%s\n' "在浏览器打开该地址创建 Owner 账号，完成一次性初始化。"
 printf '运行目录：%s\n' "$runtime_directory"
 printf '日常管理：%s %s status|logs|stop|start|down\n' "$deploy" "$runtime_directory"

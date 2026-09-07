@@ -57,7 +57,6 @@ test("deployment preparation creates distinct owner-only secrets without printin
       "postgres-admin-password",
       "postgres-migration-password",
       "postgres-runtime-password",
-      "owner-password",
     ];
     const values = [];
     for (const name of secretNames) {
@@ -160,11 +159,6 @@ test("guided installer preserves custom mappings and invokes the deployment life
       "--postgres-directory", postgres,
       "--objects-directory", objects,
       "--backups-directory", backups,
-      "--owner-email", "owner@example.invalid",
-      "--owner-display-name", "Owner",
-      "--tenant-name", "Test Workspace",
-      "--currency", "CNY",
-      "--timezone", "Asia/Shanghai",
       "--http-port", "7476",
     ], "\n", { env: environment });
     assert.match(stdout, /http:\/\/127\.0\.0\.1:7476/);
@@ -176,10 +170,13 @@ test("guided installer preserves custom mappings and invokes the deployment life
 
     const calls = await readFile(log, "utf8");
     const pull = calls.indexOf(" pull database provision migrate app");
-    const bootstrap = calls.indexOf("/app/bootstrap-owner");
+    const provision = calls.indexOf(" run --rm --no-deps provision");
+    const migrate = calls.indexOf(" run --rm --no-deps migrate");
     const start = calls.lastIndexOf(" up -d --no-build --pull never --wait app");
     const status = calls.lastIndexOf(" ps");
-    assert.ok(pull >= 0 && bootstrap > pull && start > bootstrap && status > start);
+    assert.ok(pull >= 0 && provision > pull && migrate > provision && start > migrate && status > start);
+    // 安装器不再创建 Owner；该步骤已移入浏览器中的一次性初始化页。
+    assert.equal(calls.includes("/app/bootstrap-owner"), false);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
@@ -224,11 +221,6 @@ test("streamed installer downloads and verifies a versioned release bundle befor
       "--postgres-directory", postgres,
       "--objects-directory", objects,
       "--backups-directory", backups,
-      "--owner-email", "owner@example.invalid",
-      "--owner-display-name", "Owner",
-      "--tenant-name", "Streamed Workspace",
-      "--currency", "CNY",
-      "--timezone", "Asia/Shanghai",
       "--http-port", "7476",
     ], "\n", { env: environment });
     assert.match(stdout, /smart-bill-manager-docker-v9\.8\.7\.tar\.gz: OK/);

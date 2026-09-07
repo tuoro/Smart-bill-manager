@@ -171,11 +171,15 @@ if [ -r /proc/meminfo ]; then
       if [ "$available_kib" -lt 6291456 ]; then
         printf '可用内存约 %s MiB，低于建议的 6144 MiB。安装可能因内存不足失败。\n' \
           "$((available_kib / 1024))" >&2
-        printf '%s' "仍要继续请按 Enter，或按 Ctrl+C 停止：" >&2
-        if [ ! -t 0 ] && ( : </dev/tty ) 2>/dev/null; then
+        # 与确认提示一致：没有可交互终端时只警告，不因读不到输入而中止。
+        if [ -t 0 ]; then
+          printf '%s' "仍要继续请按 Enter，或按 Ctrl+C 停止：" >&2
+          IFS= read -r _ || exit 1
+        elif ( : </dev/tty ) 2>/dev/null; then
+          printf '%s' "仍要继续请按 Enter，或按 Ctrl+C 停止：" >&2
           IFS= read -r _ </dev/tty || exit 1
         else
-          IFS= read -r _ || exit 1
+          printf '%s\n' "（无可交互终端，继续安装。）" >&2
         fi
       fi
       ;;

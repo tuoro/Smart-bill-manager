@@ -9,7 +9,9 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 ## Installation
 
-Requires a `linux/amd64` host, Docker Engine, and at least 6 GiB of available memory. Two commands:
+Requires a `linux/amd64` host, Docker Engine, and at least 6 GiB of available memory.
+
+Create a user-defined network first — Docker's default `bridge` network does not resolve container names, and the app finds the database by name — then start the two containers:
 
 ```bash
 docker network create my-net

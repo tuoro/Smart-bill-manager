@@ -9,7 +9,9 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 ## 安装
 
-需要 `linux/amd64` 主机、Docker Engine，以及至少 6 GiB 可用内存。两条命令：
+需要 `linux/amd64` 主机、Docker Engine，以及至少 6 GiB 可用内存。
+
+先建一个自定义网络（Docker 默认的 `bridge` 网络不支持按容器名解析，应用要靠名字找到数据库），再起两个容器：
 
 ```bash
 docker network create my-net

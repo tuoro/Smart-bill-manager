@@ -29,7 +29,9 @@ const notice = computed(() =>
     ? '密码已修改，所有工作区会话已失效，请使用新密码登录。'
     : route.query.reason === 'expired'
       ? '登录已失效，请重新登录。'
-      : '',
+      : route.query.reason === 'setup_complete'
+        ? '工作区已创建。请用刚设置的邮箱和密码登录。'
+        : '',
 )
 
 const redirectPath = computed(() => {

@@ -20,7 +20,7 @@
 
 ## 首次 Owner 初始化
 
-数据库连接同样可以在浏览器里配置。未通过环境变量提供连接信息时，应用只启动一个最小 HTTP 表面（SPA 加 `GET /api/v1/setup`、`POST /api/v1/setup/database` 与其 `/test` 变体），`/api/v1/ready` 返回 `503`，其余 `/api/` 路径返回 `database_not_configured` 而不是页面——否则前端会把 200 加 HTML 误判成有效响应。连接验证通过后配置写入 `/var/lib/sbm/secrets`，进程随即转入常规启动并自动应用迁移；验证失败不保存任何设置。
+数据库连接同样可以在浏览器里配置。未通过环境变量提供连接信息时，应用只启动一个最小 HTTP 表面（SPA 加 `GET /api/v1/setup`、`POST /api/v1/setup/database` 与其 `/test` 变体），`/api/v1/ready` 返回 `503`，其余 `/api/` 路径返回 `database_not_configured` 而不是页面——否则前端会把 200 加 HTML 误判成有效响应。连接验证通过后配置写入 `/var/lib/sbm/config`（`sbm:sbm 0700`，与只读穿越的主密钥目录 `/var/lib/sbm/secrets` 分开），进程随即转入常规启动并自动应用迁移；验证失败不保存任何设置。
 
 正常部署不再通过命令行创建 Owner。数据库结构就绪、应用启动后，在浏览器打开部署地址即可：未初始化的部署会把任意入口引导到一次性初始化页 `/setup`，填写管理员用户名和密码即可完成创建；姓名、工作区名称、币种和时区在「更多设置」里可选，缺省为 `管理员` / `我的工作区` / `CNY` / `Asia/Shanghai`。密码只经由该表单提交，不出现在命令参数、环境变量、`deployment.env` 或日志中。
 

@@ -195,6 +195,8 @@ Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍�
 
 初始化页写入的配置同样只保存非秘密字段；密码单独存为同目录下的 0600 文件，与 Compose 路径共用同一条读取契约。连接验证失败时两个文件都会被删除，部署回到未配置状态而不是固化一份连不上的设置。
 
+**卷内布局。** `-v sbm-data:/var/lib/sbm` 下有三个目录，权限各不相同：`objects/`（`sbm:sbm 0700`，上传的原件）、`secrets/`（`root:sbm 0710`，只放主密钥，应用只能穿越不能写）、`config/`（`sbm:sbm 0700`，初始化页写入的数据库配置与密码）。主密钥与应用可写目录刻意分开，避免被攻破的应用覆盖它。
+
 **主密钥。** 未挂载 `/run/secrets/sbm_master_key` 时，入口脚本在 `/var/lib/sbm/secrets/master-key` 生成一份并在日志中提示。**必须把它单独备份出去**——丢失后已保存的 Provider API Key 无法恢复。注意它和数据在同一个卷里，这与安装器路径下"主密钥独立托管"的边界不同；备份时需要把它复制到另一处保管。
 
 为避免密钥写进容器可写层后随容器一起丢失，入口脚本要求 `/var/lib/sbm` 或 `/var/lib/sbm/secrets` 确实来自挂载卷，否则以 `master_key_storage_not_persistent` 失败。上面的 `-v sbm-data:/var/lib/sbm` 满足该条件。

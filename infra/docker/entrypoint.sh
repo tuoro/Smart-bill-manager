@@ -41,6 +41,18 @@ chmod 0710 "$target_dir" || fail secret_target_permissions
 [ "$(stat -c '%a:%u:%g' "$target_dir" 2>/dev/null || true)" = "710:0:10001" ] || fail secret_target_permissions
 
 if [ "$needs_objects" = true ]; then
+  # 应用自身写入的首启配置目录。它与放主密钥的 secrets 目录分开：secrets 由
+  # root 管理、应用只能穿越，避免被攻破的应用覆盖主密钥。
+  config_dir=/var/lib/sbm/config
+  [ ! -L "$config_dir" ] || fail config_directory_invalid
+  mkdir -p "$config_dir" || fail config_directory_unavailable
+  [ -d "$config_dir" ] || fail config_directory_invalid
+  # 与 objects 目录同一顺序：先取回属主再改权限，最后交给 sbm。
+  # --cap-drop ALL 去掉了 CAP_FOWNER，root 无法 chmod 非自有目录。
+  chown root:root "$config_dir" || fail config_directory_permissions
+  chmod 0700 "$config_dir" || fail config_directory_permissions
+  chown sbm:sbm "$config_dir" || fail config_directory_permissions
+
   data_dir=/var/lib/sbm/objects
   [ ! -L "$data_dir" ] || fail data_directory_invalid
   mkdir -p "$data_dir" || fail data_directory_unavailable
@@ -160,6 +172,12 @@ materialize_runtime_password() {
     materialize_secret_from_env "$SBM_POSTGRES_PASSWORD" \
       "${target_dir}/postgres-runtime-password" postgres-runtime-password
     unset SBM_POSTGRES_PASSWORD
+    return
+  fi
+  # 两个来源都没有时不再失败：数据库可能尚未配置，将由应用的首启配置页写入
+  # 持久卷。硬化路径始终挂载该 secret，行为不变。
+  if [ ! -e /run/secrets/sbm_postgres_runtime_password ] \
+    && [ ! -L /run/secrets/sbm_postgres_runtime_password ]; then
     return
   fi
   materialize_secret /run/secrets/sbm_postgres_runtime_password \

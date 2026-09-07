@@ -272,16 +272,23 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	}
 }
 
-// settingsDirectory 是持久卷内保存首启数据库配置与密码的目录。
+// settingsDirectory 是持久卷内保存首启数据库配置与密码的目录。它由应用自身写入，
+// 因此与只读穿越的主密钥目录 /var/lib/sbm/secrets 分开。
 func settingsDirectory() string {
-	return environmentOrDefault("SBM_SETTINGS_DIR", "/var/lib/sbm/secrets")
+	return environmentOrDefault("SBM_SETTINGS_DIR", "/var/lib/sbm/config")
 }
 
 // resolveDatabase 优先使用环境变量；未提供时回退到持久卷中的首启配置。
 // 两者都没有时返回 ErrConnectionSettingsAbsent，由调用方进入配置流程。
+//
+// 判断依据是口令文件是否真实存在，而不是 SBM_POSTGRES_PASSWORD_FILE 是否被设置：
+// 镜像 ENV 无条件给出该路径，只看变量会让首启配置永远无法生效。
 func resolveDatabase() (postgresqladapter.Config, error) {
-	if strings.TrimSpace(os.Getenv("SBM_POSTGRES_PASSWORD_FILE")) != "" {
-		return postgresqladapter.RuntimeConfigFromEnvironment()
+	passwordFile := strings.TrimSpace(os.Getenv("SBM_POSTGRES_PASSWORD_FILE"))
+	if passwordFile != "" {
+		if _, err := os.Stat(passwordFile); err == nil {
+			return postgresqladapter.RuntimeConfigFromEnvironment()
+		}
 	}
 	directory := settingsDirectory()
 	settings, err := postgresqladapter.LoadConnectionSettings(

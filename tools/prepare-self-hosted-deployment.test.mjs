@@ -227,7 +227,7 @@ test("streamed installer downloads and verifies a versioned release bundle befor
       "--backups-directory", backups,
       "--http-port", "7476",
     ], "\n", { env: environment });
-    assert.match(stdout, /smart-bill-manager-docker-v9\.8\.7\.tar\.gz: OK/);
+    // 校验成功不再逐行打印，只保留一行提示；失败路径由下一个用例覆盖。
     assert.match(stdout, /http:\/\/127\.0\.0\.1:7476/);
     assert.equal((await readdir(parent)).some((name) => name.startsWith("sbm-release-install.")), false);
     // 运行目录不得落在被清理的临时解压目录内，否则整个部署会随之消失。

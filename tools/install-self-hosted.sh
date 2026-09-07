@@ -12,6 +12,7 @@ options:
   --objects-directory ABSOLUTE_NEW_DIRECTORY
   --backups-directory ABSOLUTE_NEW_DIRECTORY
   --http-port PORT
+  --yes                       不进行任何交互，全部使用默认值
 EOF
   exit 2
 }
@@ -22,8 +23,14 @@ postgres_directory=
 objects_directory=
 backups_directory=
 http_port=
+assume_yes=false
 
 while [ "$#" -gt 0 ]; do
+  if [ "$1" = --yes ]; then
+    assume_yes=true
+    shift
+    continue
+  fi
   [ "$#" -ge 2 ] || usage
   case "$1" in
     --release-version) release_version=$2 ;;
@@ -36,6 +43,8 @@ while [ "$#" -gt 0 ]; do
   esac
   shift 2
 done
+
+explicit_runtime_directory=$runtime_directory
 
 script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -x "${script_directory}/prepare-self-hosted-deployment.sh" ]; then
@@ -75,7 +84,11 @@ else
     -o "${remote_directory}/${archive_name}" "${release_url}/${archive_name}"
   curl -fL --proto '=https' --tlsv1.2 \
     -o "${remote_directory}/${archive_name}.sha256" "${release_url}/${archive_name}.sha256"
-  (CDPATH= cd -- "$remote_directory" && sha256sum -c "${archive_name}.sha256")
+  printf '%s\n' "正在校验安装包…" >&2
+  (CDPATH= cd -- "$remote_directory" && sha256sum -c --status "${archive_name}.sha256") || {
+    printf '%s\n' "安装包校验失败，请重新运行安装器。" >&2
+    exit 1
+  }
   tar -xzf "${remote_directory}/${archive_name}" -C "$remote_directory"
   remote_installer=${remote_directory}/smart-bill-manager-docker/install.sh
   [ -x "$remote_installer" ] || {
@@ -89,6 +102,7 @@ else
   [ -z "$objects_directory" ] || set -- "$@" --objects-directory "$objects_directory"
   [ -z "$backups_directory" ] || set -- "$@" --backups-directory "$backups_directory"
   [ -z "$http_port" ] || set -- "$@" --http-port "$http_port"
+  [ "$assume_yes" = false ] || set -- "$@" --yes
   "$remote_installer" "$@"
   trap - EXIT HUP INT TERM
   cleanup_remote
@@ -168,6 +182,38 @@ if [ -r /proc/meminfo ]; then
   esac
 fi
 
+# 端口不该由用户回答。占用时自动向后找一个空闲端口，只在结果里告知。
+port_in_use() {
+  probe_port=$1
+  probe_hex=$(printf '%04X' "$probe_port")
+  for table in /proc/net/tcp /proc/net/tcp6; do
+    [ -r "$table" ] || continue
+    # 第 2 列为本地地址，形如 0100007F:1F90；状态 0A 表示 LISTEN。
+    awk -v hex="$probe_hex" '
+      NR > 1 {
+        split($2, address, ":")
+        if (address[2] == hex && $4 == "0A") { found = 1 }
+      }
+      END { exit !found }
+    ' "$table" && return 0
+  done
+  return 1
+}
+
+select_http_port() {
+  candidate=$1
+  attempt=0
+  while [ "$attempt" -lt 40 ]; do
+    port_in_use "$candidate" || {
+      printf '%s\n' "$candidate"
+      return 0
+    }
+    candidate=$((candidate + 1))
+    attempt=$((attempt + 1))
+  done
+  printf '%s\n' "$1"
+}
+
 # 默认运行目录必须独立于部署包位置。流式安装时部署包解压在 /tmp 的临时目录里，
 # 安装结束会被 rm -rf；把运行目录默认到它旁边会让整个部署连同数据一起被删除。
 if [ -n "${HOME:-}" ] && [ -d "$HOME" ] && [ -w "$HOME" ]; then
@@ -217,10 +263,28 @@ prompt_required() {
   printf '%s\n' "$prompt_value"
 }
 
-if [ -z "$runtime_directory" ]; then
-  printf '%s\n' "数据保存位置：数据库、上传的单据和备份都会放在这个目录下。" >&2
-  printf '%s\n' "请把它放在你不会误删的地方；直接回车使用默认值。" >&2
-  runtime_directory=$(prompt_default "数据保存位置" "$default_runtime_directory")
+[ -n "$runtime_directory" ] || runtime_directory=$default_runtime_directory
+[ -n "$http_port" ] || http_port=$(select_http_port 8080)
+
+if [ "$assume_yes" = false ] && [ -z "$explicit_runtime_directory" ]; then
+  printf '\n' >&2
+  printf '%s\n' "即将安装 Smart Bill Manager：" >&2
+  printf '\n' >&2
+  printf '  数据保存在  %s\n' "$runtime_directory" >&2
+  printf '  安装后访问  http://127.0.0.1:%s\n' "$http_port" >&2
+  printf '\n' >&2
+  printf '%s\n' "数据库、上传的单据和备份都会放在上面这个目录里，请勿随意删除。" >&2
+  if [ "$http_port" != 8080 ]; then
+    printf '%s\n' "（8080 端口已被占用，已自动改用 ${http_port}。）" >&2
+  fi
+  printf '\n' >&2
+  printf '%s' "按 Enter 开始安装；如需换个位置，请直接输入完整路径：" >&2
+  read_install_input || {
+    printf '\n%s\n' "已取消安装。" >&2
+    exit 1
+  }
+  [ -z "$prompt_value" ] || runtime_directory=$prompt_value
+  printf '\n' >&2
 fi
 
 # 防御性检查：运行目录落在部署包内时，流式安装结束的清理会把数据一并删除。
@@ -254,7 +318,6 @@ if [ "$resume_installation" = false ]; then
   [ -n "$postgres_directory" ] || postgres_directory=${runtime_directory}/data/postgres
   [ -n "$objects_directory" ] || objects_directory=${runtime_directory}/data/objects
   [ -n "$backups_directory" ] || backups_directory=${runtime_directory}/backups
-  [ -n "$http_port" ] || http_port=$(prompt_default "浏览器访问端口" "8080")
 
   for required_value in "$runtime_directory" "$postgres_directory" "$objects_directory" \
     "$backups_directory" "$http_port"; do
@@ -269,13 +332,17 @@ fi
 # 失败后磁盘上不留痕迹，重跑即可。
 application_image=$(awk -F= '/^SBM_IMAGE=/ { print substr($0, index($0, "=") + 1) }' "$release_environment")
 database_image=$(awk -F= '/^SBM_POSTGRES_IMAGE=/ { print substr($0, index($0, "=") + 1) }' "$release_environment")
+step() {
+  printf '[%s/4] %s\n' "$1" "$2" >&2
+}
+
+step 1 "下载程序镜像（约 600 MiB，首次安装耗时较长）"
 for image in "$application_image" "$database_image"; do
   [ -n "$image" ] || {
     printf '%s\n' "deployment bundle is incomplete: release.env does not pin both images" >&2
     exit 1
   }
   docker image inspect "$image" >/dev/null 2>&1 && continue
-  printf '正在拉取镜像：%s\n' "${image%%@*}" >&2
   docker pull --quiet "$image" >/dev/null || {
     printf '%s\n' "镜像拉取失败。请检查网络是否可以访问 ghcr.io 与 Docker Hub 后重试；" >&2
     printf '%s\n' "本次未创建任何目录，直接重新运行安装器即可。" >&2
@@ -283,6 +350,7 @@ for image in "$application_image" "$database_image"; do
   }
 done
 
+step 2 "创建数据目录"
 if [ "$resume_installation" = false ]; then
   set -- "$runtime_directory" --http-port "$http_port"
   [ "$postgres_directory" = "$runtime_directory/data/postgres" ] || \
@@ -291,7 +359,7 @@ if [ "$resume_installation" = false ]; then
     set -- "$@" --objects-directory "$objects_directory"
   [ "$backups_directory" = "$runtime_directory/backups" ] || \
     set -- "$@" --backups-directory "$backups_directory"
-  "${tools_directory}/prepare-self-hosted-deployment.sh" "$@"
+  "${tools_directory}/prepare-self-hosted-deployment.sh" "$@" >/dev/null
 fi
 
 # 流式安装时部署包解压在临时目录，安装结束即被清理。把它复制进运行目录，
@@ -306,12 +374,38 @@ fi
 
 deploy=${installed_bundle}/tools/sbm-deploy.sh
 [ -x "$deploy" ] || deploy=${tools_directory}/sbm-deploy.sh
-"$deploy" "$runtime_directory" pull
-"$deploy" "$runtime_directory" bootstrap
-"$deploy" "$runtime_directory" start
-"$deploy" "$runtime_directory" status
 
-printf '\nSmart Bill Manager 已启动：http://127.0.0.1:%s\n' "$http_port"
-printf '%s\n' "在浏览器打开该地址创建 Owner 账号，完成一次性初始化。"
-printf '运行目录：%s\n' "$runtime_directory"
-printf '日常管理：%s %s status|logs|stop|start|down\n' "$deploy" "$runtime_directory"
+# 运行目录内放一个包装脚本，使日常命令不必重复冗长的绝对路径。
+manage=${runtime_directory}/sbm
+cat >"$manage" <<'WRAPPER'
+#!/bin/sh
+# 由安装器生成：把运行目录固定为脚本自身所在目录。
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+exec "${here}/bundle/tools/sbm-deploy.sh" "$here" "$@"
+WRAPPER
+chmod 0755 "$manage"
+"$deploy" "$runtime_directory" pull >/dev/null
+
+step 3 "初始化数据库"
+"$deploy" "$runtime_directory" bootstrap >/dev/null
+
+step 4 "启动服务"
+"$deploy" "$runtime_directory" start >/dev/null
+"$deploy" "$runtime_directory" status >/dev/null
+
+display_directory=$runtime_directory
+case "$runtime_directory" in
+  "${HOME:-/nonexistent}"/*) display_directory="~${runtime_directory#${HOME}}" ;;
+esac
+
+printf '\n'
+printf '%s\n' "安装完成。"
+printf '\n'
+printf '  现在用浏览器打开   http://127.0.0.1:%s\n' "$http_port"
+printf '%s\n' "  页面会引导你创建管理员账号，之后就可以开始使用。"
+printf '\n'
+printf '  数据保存在        %s\n' "$display_directory"
+printf '  查看运行状态      %s/sbm status\n' "$display_directory"
+printf '  停止 / 启动       %s/sbm stop   %s/sbm start\n' "$display_directory" "$display_directory"
+printf '\n' 

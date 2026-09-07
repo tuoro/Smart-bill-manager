@@ -5,7 +5,7 @@
 Smart Bill Manager is a self-hosted AI workspace for financial documents. It turns payment screenshots, invoices, and trip material into traceable candidates; a candidate becomes formal financial data only after explicit human review and confirmation.
 
 > [!IMPORTANT]
-> `v0.4.0` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
+> `v0.5.0` is a public-testing prerelease of the Clean Slate system. The distributable image supports single-host `linux/amd64` only. Formal real-model evaluation, real mailbox integration, TLS/domain setup, and production deployment are not complete.
 
 ## Installation
 
@@ -28,7 +28,7 @@ docker run -d --name smart-bill-manager --network my-net \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \
-  ghcr.io/tuoro/smart-bill-manager:v0.4.0
+  ghcr.io/tuoro/smart-bill-manager:v0.5.0
 ```
 
 Open <http://127.0.0.1:8080>. The page guides you through two steps: the database host, port and name are already prefilled to match the commands above, so only the account and password are needed ("test connection" is available); once it verifies, the schema is created. Then create the administrator account with a username and password.

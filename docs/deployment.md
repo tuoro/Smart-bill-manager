@@ -43,7 +43,7 @@ docker run -d --name smart-bill-manager --network my-net \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \
-  ghcr.io/tuoro/smart-bill-manager:v0.4.0
+  ghcr.io/tuoro/smart-bill-manager:v0.5.0
 ```
 
 打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接信息（地址已预填为 `smart-bill-manager-db`（即上一步的容器名），账号密码用上一步设置的），验证通过后自动建表；再创建管理员账号。两步都完成后即可登录。

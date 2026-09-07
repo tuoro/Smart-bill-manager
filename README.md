@@ -5,7 +5,7 @@
 Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作台。它把支付截图、发票和行程资料整理成可追溯候选；只有用户明确审核确认后，候选才会成为正式财务事实。
 
 > [!IMPORTANT]
-> `v0.4.0` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
+> `v0.5.0` 是 Clean Slate 公开实测预发布版，目前只提供 `linux/amd64` 单机部署。真实模型正确率、真实邮箱联调、TLS/域名和生产部署尚未完成，不应视为生产稳定版。
 
 ## 安装
 
@@ -28,7 +28,7 @@ docker run -d --name smart-bill-manager --network my-net \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \
-  ghcr.io/tuoro/smart-bill-manager:v0.4.0
+  ghcr.io/tuoro/smart-bill-manager:v0.5.0
 ```
 
 打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接——地址、端口、库名都已按上面的命令预填好，只需补上账号密码（可先点「检测连接」）——验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。

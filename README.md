@@ -9,56 +9,50 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 ## 安装
 
-前置条件：`linux/amd64` 主机、Docker Engine、Docker Compose 2.24.4 或更新版本，以及至少 6 GiB 可用内存。不满足时安装器会在开始前明确指出。
-
-在终端里执行：
+需要 `linux/amd64` 主机、Docker Engine，以及至少 6 GiB 可用内存。两条命令：
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 \
-  https://raw.githubusercontent.com/tuoro/Smart-bill-manager/v0.4.0/tools/install-self-hosted.sh \
-  | sh -s -- --release-version v0.4.0
+docker network create my-net
+
+docker run -d --name my-postgres --network my-net \
+  --restart unless-stopped \
+  -e POSTGRES_USER=sbm_app \
+  -e POSTGRES_DB=smart_bill_manager \
+  -e POSTGRES_PASSWORD=<自己设一个数据库密码> \
+  -v sbm-postgres:/var/lib/postgresql/data \
+  postgres:17-alpine
+
+docker run -d --name smart-bill-manager --network my-net \
+  --restart unless-stopped --init --stop-timeout 20 \
+  -p 127.0.0.1:8080:8080 \
+  -v sbm-data:/var/lib/sbm \
+  ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-安装器会显示一屏确认信息（数据存在哪、装完访问哪个地址），**按一次 Enter 即可**；想换位置就直接输入完整路径。随后它自动下载镜像、部署 PostgreSQL、初始化结构并启动，全程四步进度。
+打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接（地址填 `my-postgres`，账号密码用上面设的，可先点「检测连接」），验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
 
-- 数据默认保存在 `~/smart-bill-manager`，请勿随意删除；
-- 访问端口默认 `8080`，被占用时自动改用下一个空闲端口并在确认信息里说明；
-- 无人值守场景（脚本、CI）加 `--yes` 跳过确认；没有可交互终端时也会自动按默认值继续。
+数据库连接也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。已经有 PostgreSQL 的话不需要起第一个容器，直接指向它即可。
 
-装完打开提示的地址，页面会引导你创建管理员账号（用户名 + 密码），之后即可使用。
+升级时换用新的镜像 tag 重建应用容器。存在未执行的数据库迁移时应用会拒绝启动并提示——迁移原地修改数据且不可回滚，请先按[备份与恢复](docs/backup-restore.md)创建并验证备份，再加 `-e SBM_ALLOW_MIGRATION=true` 重建。
 
-日常管理不需要记长路径：
-
-```bash
-~/smart-bill-manager/sbm status
-```
-
-离线部署包安装、手工分步安装、纯 Docker CLI 部署（两条 `docker run` 起数据库和应用，Owner 在浏览器里创建）和日常运维命令见[部署指南](docs/deployment.md)。
+加固参数、使用已有 PostgreSQL、卷内布局和日常运维见[部署指南](docs/deployment.md)。
 
 ## 数据库与持久化
 
-默认 Compose 会自动部署独立的 PostgreSQL 17 容器、创建最小权限角色并初始化数据库结构，普通用户无需填写数据库地址或手工运行 SQL。默认持久化布局位于创建的运行目录；安装时也可把下面三类目录分别映射到其他全新绝对路径：
+应用容器的所有持久数据都在 `/var/lib/sbm` 下，挂一个卷即可：
 
 ```text
-deployment/
-├── data/postgres/     # PostgreSQL 数据
-├── data/objects/      # 上传的图片和 PDF
-├── backups/           # 独立验证的备份包
-├── master-key         # Provider 密文所需主密钥
-├── postgres-*-password
-└── deployment.env     # 非秘密运行配置和 secret 文件路径
+/var/lib/sbm/
+├── objects/    # 上传的图片和 PDF        （sbm:sbm 0700）
+├── secrets/    # 主密钥，由入口脚本管理  （root:sbm 0710，应用只能穿越）
+└── config/     # 数据库连接与密码        （sbm:sbm 0700，初始化页写入）
 ```
 
-必须同时备份数据库、对象文件、主密钥和认证备份；不要把其中任何 secret 提交到 Git。`down` 只删除容器和网络，不删除上述目录。
+PostgreSQL 数据在它自己的容器卷里。首次启动时若未挂载主密钥，入口脚本会在 `secrets/` 内生成一份并在日志中提示——**它和数据在同一个卷里，必须单独复制一份到别处保管**，丢失后已保存的 Provider API Key 无法恢复。
+
+备份必须同时覆盖数据库、对象文件和主密钥，且按[备份与恢复说明](docs/backup-restore.md)生成认证备份包。把卷或数据目录整个复制不构成可恢复的备份。
 
 Clean Slate 只表示不读取旧架构和 SQLite 数据。从当前新架构开始，后续版本默认保留数据，并通过版本化 PostgreSQL Schema migration 升级数据库结构；不会要求用户每次更新都清空数据库。
-
-升级前先按 [备份与恢复说明](docs/backup-restore.md) 创建并独立验证备份，再换用新版本部署包：
-
-```bash
-./tools/sbm-deploy.sh "$runtime_directory" pull
-./tools/sbm-deploy.sh "$runtime_directory" upgrade --backup-confirmed
-```
 
 ## 主要能力
 

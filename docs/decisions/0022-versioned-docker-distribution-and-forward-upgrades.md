@@ -1,8 +1,11 @@
 # ADR-0022：版本化 Docker 分发与新架构前向升级
 
-状态：已实施
+状态：已被取代（2026-09-07）
+
 
 日期：2026-09-01
+
+> **已被取代**：版本化部署包（`smart-bill-manager-docker-*.tar.gz`）与其构建脚本已删除。分发改为直接使用固定 tag 的 `ghcr.io/tuoro/smart-bill-manager` 镜像；前向升级的门禁由 `SBM_ALLOW_MIGRATION` 在应用启动时执行。
 
 ## 背景
 

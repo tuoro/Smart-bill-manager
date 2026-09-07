@@ -9,56 +9,50 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 ## Installation
 
-Requirements: a `linux/amd64` host, Docker Engine, Docker Compose 2.24.4 or newer, and at least 6 GiB of available memory. The installer checks all of these before it starts.
-
-Run this in a terminal:
+Requires a `linux/amd64` host, Docker Engine, and at least 6 GiB of available memory. Two commands:
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 \
-  https://raw.githubusercontent.com/tuoro/Smart-bill-manager/v0.4.0/tools/install-self-hosted.sh \
-  | sh -s -- --release-version v0.4.0
+docker network create my-net
+
+docker run -d --name my-postgres --network my-net \
+  --restart unless-stopped \
+  -e POSTGRES_USER=sbm_app \
+  -e POSTGRES_DB=smart_bill_manager \
+  -e POSTGRES_PASSWORD=<choose a database password> \
+  -v sbm-postgres:/var/lib/postgresql/data \
+  postgres:17-alpine
+
+docker run -d --name smart-bill-manager --network my-net \
+  --restart unless-stopped --init --stop-timeout 20 \
+  -p 127.0.0.1:8080:8080 \
+  -v sbm-data:/var/lib/sbm \
+  ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-The installer shows one confirmation screen — where the data goes and which address to open — and **a single Enter starts it**; type a full path instead to store the data elsewhere. It then downloads the images, deploys PostgreSQL, initializes the schema, and starts the app in four reported steps.
+Open <http://127.0.0.1:8080>. The page guides you through two steps: enter the database connection (host `my-postgres`, with the credentials set above; "test connection" is available), which creates the schema once it verifies, then create the administrator account with a username and password.
 
-- Data is stored in `~/smart-bill-manager` by default; do not delete it.
-- The port defaults to `8080`; if it is taken, the next free port is chosen and reported.
-- For unattended use add `--yes`. Without an interactive terminal the installer proceeds with the defaults on its own.
+The connection can also be pinned with `-e SBM_POSTGRES_HOST`, `-e SBM_POSTGRES_USER` and `-e SBM_POSTGRES_PASSWORD`, which skips the first step. If you already run PostgreSQL, skip the first container and point at it instead.
 
-When it finishes, open the printed address and follow the page to create the administrator account with a username and password.
+To upgrade, recreate the application container with a newer image tag. When migrations are pending the app refuses to start and says so — migrations rewrite data in place and cannot be rolled back, so create and verify a backup first (see [backup and restore](docs/backup-restore.md)), then recreate with `-e SBM_ALLOW_MIGRATION=true`.
 
-Day-to-day management does not require long paths:
-
-```bash
-~/smart-bill-manager/sbm status
-```
-
-Offline bundle installation, manual step-by-step setup, a pure Docker CLI deployment (two `docker run` commands for the database and the app, with the owner created in the browser), and day-to-day operations are covered in the [deployment guide](docs/deployment.md); the detailed guide is maintained in Chinese.
+Hardening flags, using an existing PostgreSQL, the volume layout, and day-to-day operations are covered in the [deployment guide](docs/deployment.md); the detailed guide is maintained in Chinese.
 
 ## Database and persistence
 
-The default Compose stack deploys PostgreSQL 17 as a separate container, provisions least-privilege roles, and initializes the database schema automatically. Regular users do not enter a database address or run SQL manually. The default layout keeps persistent material under the deployment directory; the installer can instead map the three data directories to separate new absolute paths:
+Everything the application persists lives under `/var/lib/sbm`, so one volume is enough:
 
 ```text
-deployment/
-├── data/postgres/     # PostgreSQL data
-├── data/objects/      # uploaded images and PDFs
-├── backups/           # independently verified backup packages
-├── master-key         # master key required for Provider ciphertext
-├── postgres-*-password
-└── deployment.env     # non-secret runtime settings and secret file paths
+/var/lib/sbm/
+├── objects/    # uploaded images and PDFs        (sbm:sbm 0700)
+├── secrets/    # master key, managed by the entrypoint (root:sbm 0710, traverse only)
+└── config/     # database connection and password (sbm:sbm 0700, written by the setup page)
 ```
 
-Back up the database, objects, master key, and authenticated backup set together, while keeping secrets out of Git. `down` removes containers and networks but never these directories.
+PostgreSQL keeps its data in its own container volume. On first start, if no master key is mounted, the entrypoint generates one under `secrets/` and says so in the log — **it sits in the same volume as the data, so copy it somewhere else as well**. Losing it makes stored Provider API keys unrecoverable.
 
-Clean Slate only rejects legacy architecture and SQLite data. Releases within the current architecture preserve PostgreSQL data by default and apply versioned schema migrations; users are not expected to clear their database for each update.
+A backup must cover the database, the object files, and the master key, and must be produced as an authenticated backup package (see [backup and restore](docs/backup-restore.md)). Copying the volume or data directory is not a restorable backup.
 
-After creating and independently verifying a backup, update with the new deployment bundle and run:
-
-```bash
-./tools/sbm-deploy.sh "$runtime_directory" pull
-./tools/sbm-deploy.sh "$runtime_directory" upgrade --backup-confirmed
-```
+Clean Slate only means that no legacy schema or SQLite data is read. From this architecture onward, releases keep existing data and upgrade the database through versioned PostgreSQL schema migrations; you are not asked to wipe the database on every update.
 
 ## Main capabilities
 

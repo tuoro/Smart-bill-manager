@@ -77,12 +77,28 @@ func main() {
 }
 
 func run(logger *slog.Logger) error {
-	config, err := loadConfig()
-	if err != nil {
-		return err
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	// 数据库未配置时先只提供首启配置服务；写入成功后再按常规路径完整启动。
+	for {
+		config, err := loadConfig()
+		if errors.Is(err, postgresqladapter.ErrConnectionSettingsAbsent) {
+			if err := runDatabaseSetup(ctx, logger); err != nil {
+				return err
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		return runApplication(ctx, config, logger)
+	}
+}
+
+func runApplication(ctx context.Context, config config, logger *slog.Logger) error {
 	absent, err := postgresqladapter.SchemaAbsent(ctx, config.database)
 	if err != nil {
 		return err
@@ -256,8 +272,32 @@ func run(logger *slog.Logger) error {
 	}
 }
 
+// settingsDirectory 是持久卷内保存首启数据库配置与密码的目录。
+func settingsDirectory() string {
+	return environmentOrDefault("SBM_SETTINGS_DIR", "/var/lib/sbm/secrets")
+}
+
+// resolveDatabase 优先使用环境变量；未提供时回退到持久卷中的首启配置。
+// 两者都没有时返回 ErrConnectionSettingsAbsent，由调用方进入配置流程。
+func resolveDatabase() (postgresqladapter.Config, error) {
+	if strings.TrimSpace(os.Getenv("SBM_POSTGRES_PASSWORD_FILE")) != "" {
+		return postgresqladapter.RuntimeConfigFromEnvironment()
+	}
+	directory := settingsDirectory()
+	settings, err := postgresqladapter.LoadConnectionSettings(
+		postgresqladapter.SettingsFilePath(directory),
+	)
+	if err != nil {
+		return postgresqladapter.Config{}, err
+	}
+	return settings.Config(
+		postgresqladapter.PasswordFilePath(directory),
+		os.Getenv("SBM_MIGRATIONS_DIR"),
+	), nil
+}
+
 func loadConfig() (config, error) {
-	database, err := postgresqladapter.RuntimeConfigFromEnvironment()
+	database, err := resolveDatabase()
 	if err != nil {
 		return config{}, err
 	}
@@ -331,3 +371,64 @@ func autoInitializeSchema(ctx context.Context, value config, logger *slog.Logger
 	return nil
 }
 
+
+func environmentOrDefault(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+// runDatabaseSetup 在数据库尚未配置时提供最小 HTTP 表面，等待用户在浏览器里
+// 填写连接信息。写入并验证成功后返回，由 run 重新解析配置并完整启动。
+func runDatabaseSetup(ctx context.Context, logger *slog.Logger) error {
+	address := os.Getenv("SBM_HTTP_ADDRESS")
+	if strings.TrimSpace(address) == "" {
+		return errors.New("SBM_HTTP_ADDRESS is required")
+	}
+	setupServer, err := httpapi.NewSetupServer(
+		os.Getenv("SBM_WEB_DIST_PATH"),
+		settingsDirectory(),
+		os.Getenv("SBM_MIGRATIONS_DIR"),
+		logger,
+	)
+	if err != nil {
+		return err
+	}
+	server := &http.Server{
+		Addr:              address,
+		Handler:           setupServer.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	serverErrors := make(chan error, 1)
+	go func() {
+		logger.Info("setup: waiting for database configuration", "address", address)
+		serverErrors <- server.ListenAndServe()
+	}()
+	shutdown := func() error {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return server.Shutdown(shutdownCtx)
+	}
+	select {
+	case <-setupServer.Completed():
+		if err := shutdown(); err != nil {
+			return fmt.Errorf("shutdown setup server: %w", err)
+		}
+		return nil
+	case <-ctx.Done():
+		if err := shutdown(); err != nil {
+			return fmt.Errorf("shutdown setup server: %w", err)
+		}
+		return nil
+	case err := <-serverErrors:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return fmt.Errorf("serve setup HTTP: %w", err)
+	}
+}

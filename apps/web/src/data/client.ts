@@ -151,6 +151,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       '/invitations/check',
       '/invitations/accept',
       '/setup',
+      '/setup/database',
+      '/setup/database/test',
     ].includes(path)
     if (
       response.status === 401 &&
@@ -233,8 +235,28 @@ export const api = {
       body: JSON.stringify({ expected_version, reason }),
     })
   },
-  setupRequired(): Promise<{ required: boolean }> {
+  setupRequired(): Promise<{ required: boolean; database_required: boolean }> {
     return request('/setup')
+  },
+  testDatabase(input: {
+    host: string
+    port: string
+    database: string
+    user: string
+    password: string
+    ssl_mode: string
+  }): Promise<{ connected: boolean }> {
+    return request('/setup/database/test', { method: 'POST', body: JSON.stringify(input) })
+  },
+  configureDatabase(input: {
+    host: string
+    port: string
+    database: string
+    user: string
+    password: string
+    ssl_mode: string
+  }): Promise<void> {
+    return request('/setup/database', { method: 'POST', body: JSON.stringify(input) })
   },
   createOwner(input: {
     email: string

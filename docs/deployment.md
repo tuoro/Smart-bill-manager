@@ -156,14 +156,13 @@ docker run -d --name my-postgres --network my-net \
 docker run -d --name smart-bill-manager --network my-net \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
-  -e SBM_POSTGRES_HOST=my-postgres \
-  -e SBM_POSTGRES_USER=sbm_app \
-  -e SBM_POSTGRES_PASSWORD=<数据库密码> \
   -v sbm-data:/var/lib/sbm \
   ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-打开 <http://127.0.0.1:8080>，页面会引导你创建管理员账号，填写用户名和密码即可，创建完成后登录。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
+打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接信息（地址填上一步的容器名 `my-postgres`，账号密码用 4.1 里设置的），验证通过后自动建表；再创建管理员账号。两步都完成后即可登录。
+
+也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。环境变量优先于页面写入的配置。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
 
 ### 4.2.1 使用已有的 PostgreSQL
 
@@ -192,7 +191,9 @@ Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍�
 
 **其余有默认值，按需覆盖。** `SBM_POSTGRES_HOST`（`database`）、`SBM_POSTGRES_PORT`（`5432`）、`SBM_POSTGRES_DATABASE`（`smart_bill_manager`）、`SBM_POSTGRES_USER`（`sbm_runtime`）、`SBM_POSTGRES_SSL_MODE`（`disable`）、`SBM_SESSION_TTL`（`168h`）、`SBM_AI_CONCURRENCY`（`2`）。objects 路径、poppler 路径和迁移目录由镜像固定，正常不需要改。
 
-**数据库密码。** `SBM_POSTGRES_PASSWORD` 是明文回退，仅在未挂载 `/run/secrets/sbm_postgres_runtime_password` 时生效；两者并存时文件优先。入口脚本把它写入受限文件后即从环境中移除，应用进程的 `/proc/self/environ` 里不会保留。硬化部署继续使用文件。
+**数据库连接。** 三种来源，按优先级：`SBM_POSTGRES_PASSWORD_FILE`（Compose 硬化路径）> `SBM_POSTGRES_PASSWORD` 明文环境变量 > 初始化页写入的 `/var/lib/sbm/secrets/database.json`。明文环境变量由入口脚本写入受限文件后即从环境中移除，应用进程的 `/proc/self/environ` 里不会保留。
+
+初始化页写入的配置同样只保存非秘密字段；密码单独存为同目录下的 0600 文件，与 Compose 路径共用同一条读取契约。连接验证失败时两个文件都会被删除，部署回到未配置状态而不是固化一份连不上的设置。
 
 **主密钥。** 未挂载 `/run/secrets/sbm_master_key` 时，入口脚本在 `/var/lib/sbm/secrets/master-key` 生成一份并在日志中提示。**必须把它单独备份出去**——丢失后已保存的 Provider API Key 无法恢复。注意它和数据在同一个卷里，这与安装器路径下"主密钥独立托管"的边界不同；备份时需要把它复制到另一处保管。
 

@@ -27,7 +27,9 @@ func (s *Server) setupHandler(response http.ResponseWriter, request *http.Reques
 		writeError(response, request, err)
 		return
 	}
-	writeJSON(response, http.StatusOK, map[string]any{"required": required})
+	writeJSON(response, http.StatusOK, map[string]any{
+		"required": required, "database_required": false,
+	})
 }
 
 // createSetupHandler 在空数据库上创建唯一 Owner。并发与重放由

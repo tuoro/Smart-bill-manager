@@ -21,7 +21,7 @@ const advanced = ref(false)
 const stage = ref<'database' | 'account'>('account')
 const currencies = ['CNY', 'USD', 'EUR', 'JPY']
 
-const dbHost = ref('database')
+const dbHost = ref('smart-bill-manager-db')
 const dbPort = ref('5432')
 const dbName = ref('smart_bill_manager')
 const dbUser = ref('')

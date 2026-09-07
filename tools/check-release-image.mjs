@@ -60,7 +60,7 @@ export const requiredImageFiles = [
 ];
 const expectedImageEnvironment = [
   "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-  "SBM_POSTGRES_HOST=database",
+  "SBM_POSTGRES_HOST=smart-bill-manager-db",
   "SBM_POSTGRES_PORT=5432",
   "SBM_POSTGRES_DATABASE=smart_bill_manager",
   "SBM_POSTGRES_USER=sbm_runtime",

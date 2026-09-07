@@ -16,7 +16,7 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 ```bash
 docker network create my-net
 
-docker run -d --name my-postgres --network my-net \
+docker run -d --name smart-bill-manager-db --network my-net \
   --restart unless-stopped \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
@@ -31,7 +31,7 @@ docker run -d --name smart-bill-manager --network my-net \
   ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接（地址填 `my-postgres`，账号密码用上面设的，可先点「检测连接」），验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
+打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接——地址、端口、库名都已按上面的命令预填好，只需补上账号密码（可先点「检测连接」）——验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
 
 数据库连接也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。已经有 PostgreSQL 的话不需要起第一个容器，直接指向它即可。
 

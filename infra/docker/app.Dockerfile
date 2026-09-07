@@ -85,7 +85,7 @@ COPY --from=postgres-tools /usr/lib/liblber.so.2 /usr/lib/liblber.so.2
 COPY --from=postgres-tools /usr/lib/libsasl2.so.3 /usr/lib/libsasl2.so.3
 COPY --from=postgres-tools /usr/lib/libkeyutils.so.1 /usr/lib/libkeyutils.so.1
 
-ENV SBM_POSTGRES_HOST=database \
+ENV SBM_POSTGRES_HOST=smart-bill-manager-db \
     SBM_POSTGRES_PORT=5432 \
     SBM_POSTGRES_DATABASE=smart_bill_manager \
     SBM_POSTGRES_USER=sbm_runtime \

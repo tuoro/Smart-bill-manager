@@ -16,7 +16,7 @@ Create a user-defined network first — Docker's default `bridge` network does n
 ```bash
 docker network create my-net
 
-docker run -d --name my-postgres --network my-net \
+docker run -d --name smart-bill-manager-db --network my-net \
   --restart unless-stopped \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
@@ -31,7 +31,7 @@ docker run -d --name smart-bill-manager --network my-net \
   ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-Open <http://127.0.0.1:8080>. The page guides you through two steps: enter the database connection (host `my-postgres`, with the credentials set above; "test connection" is available), which creates the schema once it verifies, then create the administrator account with a username and password.
+Open <http://127.0.0.1:8080>. The page guides you through two steps: the database host, port and name are already prefilled to match the commands above, so only the account and password are needed ("test connection" is available); once it verifies, the schema is created. Then create the administrator account with a username and password.
 
 The connection can also be pinned with `-e SBM_POSTGRES_HOST`, `-e SBM_POSTGRES_USER` and `-e SBM_POSTGRES_PASSWORD`, which skips the first step. If you already run PostgreSQL, skip the first container and point at it instead.
 

@@ -25,7 +25,7 @@
 ```bash
 docker network create my-net
 
-docker run -d --name my-postgres --network my-net \
+docker run -d --name smart-bill-manager-db --network my-net \
   --restart unless-stopped \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
@@ -46,7 +46,7 @@ docker run -d --name smart-bill-manager --network my-net \
   ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接信息（地址填上一步的容器名 `my-postgres`，账号密码用 4.1 里设置的），验证通过后自动建表；再创建管理员账号。两步都完成后即可登录。
+打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接信息（地址已预填为 `smart-bill-manager-db`（即上一步的容器名），账号密码用上一步设置的），验证通过后自动建表；再创建管理员账号。两步都完成后即可登录。
 
 也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。环境变量优先于页面写入的配置。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
 

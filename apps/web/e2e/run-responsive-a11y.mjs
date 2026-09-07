@@ -378,7 +378,7 @@ async function measureKeyboard(browser, server) {
       input_type: document.querySelector('input[name="password"]')?.getAttribute('type'),
       button_name: document.querySelector('.password-toggle')?.getAttribute('aria-label'),
     }))
-    await page.getByLabel('邮箱', { exact: true }).fill('missing-user@example.test')
+    await page.getByLabel('用户名或邮箱', { exact: true }).fill('missing-user@example.test')
     await page.getByLabel('密码', { exact: true }).fill('definitely-wrong-password')
     await page.getByRole('button', { name: '登录', exact: true }).click()
     await page.getByRole('alert').waitFor({ state: 'visible', timeout: 15_000 })

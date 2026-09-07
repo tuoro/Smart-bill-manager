@@ -346,8 +346,8 @@ if [ "$resume_installation" = false ]; then
   done
 fi
 
-# 先拉镜像。这是最常见的失败点（需要访问 ghcr.io），放在创建任何目录之前，
-# 失败后磁盘上不留痕迹，重跑即可。
+# 先拉镜像。这一步依赖外部网络且传输量大，是流程中最容易被中断的一环；
+# 放在创建任何目录之前，中断后磁盘上不留痕迹，重跑即可。
 application_image=$(awk -F= '/^SBM_IMAGE=/ { print substr($0, index($0, "=") + 1) }' "$release_environment")
 database_image=$(awk -F= '/^SBM_POSTGRES_IMAGE=/ { print substr($0, index($0, "=") + 1) }' "$release_environment")
 step() {

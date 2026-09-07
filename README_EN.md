@@ -21,7 +21,7 @@ curl -fsSL --proto '=https' --tlsv1.2 \
 
 The installer verifies the matching deployment bundle, then asks for the runtime directory, the three data directories, and the local port (press Enter for defaults). It pulls images, deploys PostgreSQL, initializes the schema, and starts the app.
 
-When it finishes, open <http://127.0.0.1:8080> and follow the page to create the Owner account.
+When it finishes, open <http://127.0.0.1:8080> and follow the page to create the administrator account with a username and password.
 
 Offline bundle installation, manual step-by-step setup, a pure Docker CLI deployment (two `docker run` commands for the database and the app, with the owner created in the browser), and day-to-day operations are covered in the [deployment guide](docs/deployment.md); the detailed guide is maintained in Chinese.
 

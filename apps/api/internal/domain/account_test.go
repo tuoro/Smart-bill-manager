@@ -8,12 +8,24 @@ import (
 )
 
 func TestAccountInputNormalizationAndBoundaries(t *testing.T) {
-	if value, err := NormalizeLoginEmail(" ＯＷＮＥＲ@example.invalid "); err != nil || value != "owner@example.invalid" {
+	if value, err := NormalizeLoginIdentifier(" ＯＷＮＥＲ@example.invalid "); err != nil || value != "owner@example.invalid" {
 		t.Fatal("canonical email mismatch")
 	}
-	for _, value := range []string{"", "Name <owner@example.invalid>", "owner", strings.Repeat("x", 255) + "@example.invalid"} {
-		if _, err := NormalizeLoginEmail(value); !errors.Is(err, ErrInvalidInput) {
-			t.Fatal("invalid email accepted")
+	// 不含 "@" 时按用户名接受，使不发信的自托管部署无需编造邮箱地址。
+	for _, value := range []string{" ＡＤＭＩＮ ", "admin", "a.b_c-1", strings.Repeat("u", 64)} {
+		if _, err := NormalizeLoginIdentifier(value); err != nil {
+			t.Fatalf("username %q rejected: %v", value, err)
+		}
+	}
+	if value, err := NormalizeLoginIdentifier(" ＡＤＭＩＮ "); err != nil || value != "admin" {
+		t.Fatal("username normalization mismatch")
+	}
+	for _, value := range []string{
+		"", "Name <owner@example.invalid>", strings.Repeat("x", 255) + "@example.invalid",
+		"ab", strings.Repeat("u", 65), ".admin", "-admin", "_admin", "ad min", "admin!", "管理员",
+	} {
+		if _, err := NormalizeLoginIdentifier(value); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("invalid identifier accepted: %q", value)
 		}
 	}
 	if value, err := NormalizeAccountName("  合成姓名  "); err != nil || value != "合成姓名" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -44,6 +45,20 @@ func (s *Server) createSetupHandler(response http.ResponseWriter, request *http.
 	if err := decodeAccountFields(response, request, fields); err != nil {
 		writeError(response, request, err)
 		return
+	}
+	// 单机自托管只有一个工作区，且当前没有创建第二个的入口。初始化页因此不再
+	// 强制命名；缺省时给一个可读的名字，用户仍可在「更多设置」里显式提供。
+	if strings.TrimSpace(tenantName) == "" {
+		tenantName = "我的工作区"
+	}
+	if strings.TrimSpace(displayName) == "" {
+		displayName = "管理员"
+	}
+	if strings.TrimSpace(currency) == "" {
+		currency = "CNY"
+	}
+	if strings.TrimSpace(timezone) == "" {
+		timezone = "Asia/Shanghai"
 	}
 	value := []byte(password)
 	defer clear(value)

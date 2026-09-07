@@ -62,7 +62,10 @@ func TestBootstrapValidationAndAtomicBoundary(t *testing.T) {
 		DefaultCurrency: domain.CurrencyCNY, Timezone: "Asia/Shanghai",
 	}
 	invalid := []Input{
-		func() Input { value := base; value.Email = "invalid"; return value }(),
+		// "invalid" 现在是合法用户名；这里改用确实非法的标识符。
+		func() Input { value := base; value.Email = "ad min"; return value }(),
+		func() Input { value := base; value.Email = "ab"; return value }(),
+		func() Input { value := base; value.Email = "not@an@email"; return value }(),
 		func() Input { value := base; value.DisplayName = " "; return value }(),
 		func() Input { value := base; value.TenantName = " "; return value }(),
 		func() Input { value := base; value.DefaultCurrency = domain.Currency("GBP"); return value }(),

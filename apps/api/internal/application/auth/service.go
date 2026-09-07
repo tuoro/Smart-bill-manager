@@ -133,7 +133,7 @@ func (s Service) Workspaces(ctx context.Context, input LoginInput) ([]WorkspaceC
 }
 
 func (s Service) verifiedCandidates(ctx context.Context, input LoginInput) ([]ports.LoginCandidate, error) {
-	email, err := domain.NormalizeLoginEmail(input.Email)
+	email, err := domain.NormalizeLoginIdentifier(input.Email)
 	if err != nil || len(input.Password) > 1024 {
 		return nil, domain.InvalidCredentials()
 	}

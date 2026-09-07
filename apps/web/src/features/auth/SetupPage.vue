@@ -6,9 +6,9 @@ import { theme, toggleTheme } from '../../app/theme'
 import AppIcon from '../../components/AppIcon.vue'
 
 const router = useRouter()
-const email = ref('')
-const name = ref('Owner')
-const tenant = ref('')
+const identifier = ref('')
+const name = ref('管理员')
+const tenant = ref('我的工作区')
 const currency = ref('CNY')
 const timezone = ref(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai')
 const password = ref('')
@@ -47,7 +47,7 @@ async function submit() {
   pending.value = true
   try {
     await api.createOwner({
-      email: email.value,
+      email: identifier.value,
       password: password.value,
       display_name: name.value,
       tenant_name: tenant.value,
@@ -88,10 +88,10 @@ async function submit() {
         <p class="eyebrow">一次性初始化</p>
         <h1 id="setup-story-title">创建你的工作区</h1>
         <p class="login-intro">
-          这台部署还没有账号。现在创建的账号是工作区的 Owner，完成后本页面将永久关闭。
+          这台部署还没有账号。现在创建的是管理员账号，完成后本页面将永久关闭。
         </p>
         <ol class="trace-flow" aria-label="初始化说明">
-          <li><strong>Owner</strong><span>拥有全部权限，可邀请成员并分配角色</span></li>
+          <li><strong>管理员</strong><span>拥有全部权限，可邀请成员并分配角色</span></li>
           <li><strong>工作区</strong><span>你的账单、行程和报销都归属于它</span></li>
           <li><strong>只有一次</strong><span>创建后无法再通过本页添加账号</span></li>
         </ol>
@@ -101,7 +101,7 @@ async function submit() {
         <p v-if="!ready && !error" class="login-form">正在检查初始化状态…</p>
         <form v-else-if="ready" class="login-form" @submit.prevent="submit">
           <div>
-            <h2 id="setup-title">创建 Owner 账号</h2>
+            <h2 id="setup-title">创建管理员账号</h2>
             <p>这是本机自托管的部署，下面的信息只保存在你自己的数据库里。</p>
           </div>
 
@@ -111,33 +111,21 @@ async function submit() {
           </div>
 
           <label class="field-stack">
-            <span>邮箱</span>
-            <small class="field-hint">登录时用的账号名。本系统不发送任何邮件，填一个你记得住的即可。</small>
+            <span>管理员用户名</span>
+            <small class="field-hint"
+              >登录时用的账号名。本系统不发送任何邮件，可以直接用 admin；填邮箱也可以。</small
+            >
             <input
-              v-model.trim="email"
+              v-model.trim="identifier"
               class="input"
-              type="email"
+              type="text"
               autocomplete="username"
               maxlength="254"
+              placeholder="admin"
               required
               :disabled="pending"
               :aria-invalid="Boolean(error)"
               :aria-describedby="error ? 'setup-error' : undefined"
-            />
-          </label>
-
-          <label class="field-stack">
-            <span>工作区名称</span>
-            <small class="field-hint"
-              >你所有账单、发票、行程和报销的归属，显示在界面左上角。邀请成员后大家共用它。</small
-            >
-            <input
-              v-model.trim="tenant"
-              class="input"
-              maxlength="120"
-              placeholder="例如：我的工作室"
-              required
-              :disabled="pending"
             />
           </label>
 
@@ -188,7 +176,7 @@ async function submit() {
             <span class="setup-more-mark" :class="{ 'is-open': advanced }">
               <AppIcon name="chevron-right" />
             </span>
-            <span>更多设置（姓名、币种、时区）</span>
+            <span>更多设置（姓名、工作区名称、币种、时区）</span>
           </button>
 
           <template v-if="advanced">
@@ -203,6 +191,11 @@ async function submit() {
                 required
                 :disabled="pending"
               />
+            </label>
+            <label class="field-stack">
+              <span>工作区名称</span>
+              <small class="field-hint">显示在界面左上角，你的账单、行程和报销都归属于它。</small>
+              <input v-model.trim="tenant" class="input" maxlength="120" :disabled="pending" />
             </label>
             <label class="field-stack">
               <span>默认币种</span>

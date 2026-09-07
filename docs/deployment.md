@@ -26,7 +26,7 @@ curl -fsSL --proto '=https' --tlsv1.2 \
 
 配置完成后，安装器创建 owner-only secret，再按固定顺序完成镜像拉取、PostgreSQL provision、Schema migration、应用启动和状态检查。PostgreSQL 与应用始终是两个独立容器，数据库不发布宿主端口。
 
-完成后打开 <http://127.0.0.1:8080>（或安装时填写的端口）。页面会引导你创建 Owner 账号——安装器不再询问 Owner 信息，也不再生成需要你手工抄录的一次性密码。安装到此结束，后续参见“首次登录后”和“日常操作”。
+完成后打开 <http://127.0.0.1:8080>（或安装时填写的端口）。页面会引导你创建管理员账号——安装器不再询问 Owner 信息，也不再生成需要你手工抄录的一次性密码。安装到此结束，后续参见“首次登录后”和“日常操作”。
 
 ## 2. 离线部署包或固定源码 Tag 安装
 
@@ -122,7 +122,7 @@ Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库�
 ./tools/sbm-deploy.sh "$runtime_directory" status
 ```
 
-浏览器打开 <http://127.0.0.1:8080>，按页面提示创建 Owner 账号，随后登录。
+浏览器打开 <http://127.0.0.1:8080>，按页面提示创建管理员账号，随后登录。
 
 ## 4. 纯 Docker CLI 部署（不使用 Compose）
 
@@ -163,7 +163,7 @@ docker run -d --name smart-bill-manager --network my-net \
   ghcr.io/tuoro/smart-bill-manager:v0.4.0
 ```
 
-打开 <http://127.0.0.1:8080>，页面会引导你创建 Owner 账号并填写工作区名称、币种和时区，创建完成后即可登录。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
+打开 <http://127.0.0.1:8080>，页面会引导你创建管理员账号，填写用户名和密码即可，创建完成后登录。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
 
 ### 4.2.1 使用已有的 PostgreSQL
 
@@ -200,7 +200,7 @@ Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍�
 
 **首启初始化。** 应用启动时检查目标库有没有 `schema_migrations`。没有就自行应用全部迁移——此时把运行账号同时当作迁移身份使用，因此该账号需要建表权限，这就是本节开头所说的单角色模式。已有 Schema 则完全不触发：Compose 路径下 app 总在独立的 `migrate` 入口之后启动，硬化路径因此不受影响。
 
-**创建 Owner。** 没有任何环境变量参与，全部在浏览器完成。首次访问任意页面都会被引导到一次性初始化页 `/setup`，填写邮箱、姓名、工作区名称、币种、时区和密码即可。创建成功后 `GET /api/v1/setup` 永久返回 `required: false`，该页面不再出现，重复提交被拒绝。
+**创建管理员。** 没有任何环境变量参与，全部在浏览器完成。首次访问任意页面都会被引导到一次性初始化页 `/setup`，填写管理员用户名和密码即可；姓名、工作区名称、币种和时区在「更多设置」里可选。登录标识符可以是纯用户名（如 `admin`），系统不发送任何邮件，不要求可收信的邮箱地址。创建成功后 `GET /api/v1/setup` 永久返回 `required: false`，该页面不再出现，重复提交被拒绝。
 
 "只能创建一次"由 [`BootstrapOwner`](../apps/api/internal/adapters/postgresql/identity.go) 的 Serializable 事务保证——它在同一事务里统计身份记录，非空即回滚，不依赖接口层的预检查，因此并发和重放都无法绕过。
 

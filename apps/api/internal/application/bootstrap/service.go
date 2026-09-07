@@ -102,5 +102,5 @@ func (s Service) Execute(ctx context.Context, input Input) (Result, error) {
 }
 
 func normalizeEmail(value string) (string, error) {
-	return domain.NormalizeLoginEmail(value)
+	return domain.NormalizeLoginIdentifier(value)
 }

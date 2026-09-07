@@ -175,11 +175,11 @@ onBeforeUnmount(() => {
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <form class="invitation-form" @submit.prevent="create">
       <label class="field-stack"
-        ><span>受邀邮箱</span
+        ><span>受邀用户名或邮箱</span
         ><input
           v-model.trim="draft.email"
           class="input"
-          type="email"
+          type="text"
           maxlength="254"
           required
           :disabled="busy || uncertain"

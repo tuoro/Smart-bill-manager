@@ -54,7 +54,7 @@ func (s Service) Invite(ctx context.Context, principal ports.SessionPrincipal, i
 	if err != nil {
 		return ports.InvitationCreated{}, err
 	}
-	input.Email, err = domain.NormalizeLoginEmail(input.Email)
+	input.Email, err = domain.NormalizeLoginIdentifier(input.Email)
 	if err != nil {
 		return ports.InvitationCreated{}, err
 	}

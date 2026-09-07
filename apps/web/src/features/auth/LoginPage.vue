@@ -30,7 +30,7 @@ const notice = computed(() =>
     : route.query.reason === 'expired'
       ? '登录已失效，请重新登录。'
       : route.query.reason === 'setup_complete'
-        ? '工作区已创建。请用刚设置的邮箱和密码登录。'
+        ? '工作区已创建。请用刚设置的用户名和密码登录。'
         : '',
 )
 
@@ -118,11 +118,11 @@ async function submit() {
           </div>
 
           <label class="field-stack">
-            <span>邮箱</span>
+            <span>用户名或邮箱</span>
             <input
               v-model.trim="email"
               class="input"
-              type="email"
+              type="text"
               name="email"
               autocomplete="username"
               maxlength="254"

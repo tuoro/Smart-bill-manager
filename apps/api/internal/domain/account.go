@@ -11,13 +11,38 @@ import (
 
 const MaxPendingInvitations = 100
 
-func NormalizeLoginEmail(value string) (string, error) {
-	email := strings.ToLower(strings.TrimSpace(norm.NFKC.String(value)))
-	address, err := mail.ParseAddress(email)
-	if err != nil || address.Address != email || len(email) > 254 {
-		return "", NewRuleError("invalid_email", "登录邮箱格式不正确", ErrInvalidInput)
+// NormalizeLoginIdentifier 规范化登录标识符。系统不发送任何邮件，因此标识符
+// 可以是邮箱，也可以是纯用户名；两者共用同一列与唯一索引，已有邮箱账号不受影响。
+// 含 "@" 时按邮箱严格校验，否则按用户名字符集校验。
+func NormalizeLoginIdentifier(value string) (string, error) {
+	identifier := strings.ToLower(strings.TrimSpace(norm.NFKC.String(value)))
+	if strings.Contains(identifier, "@") {
+		address, err := mail.ParseAddress(identifier)
+		if err != nil || address.Address != identifier || len(identifier) > 254 {
+			return "", newInvalidLoginIdentifier()
+		}
+		return identifier, nil
 	}
-	return email, nil
+	if len(identifier) < 3 || len(identifier) > 64 {
+		return "", newInvalidLoginIdentifier()
+	}
+	for index, character := range identifier {
+		switch {
+		case character >= 'a' && character <= 'z', character >= '0' && character <= '9':
+		case (character == '.' || character == '_' || character == '-') && index > 0:
+		default:
+			return "", newInvalidLoginIdentifier()
+		}
+	}
+	return identifier, nil
+}
+
+func newInvalidLoginIdentifier() error {
+	return NewRuleError(
+		"invalid_login_identifier",
+		"登录标识符必须是邮箱，或 3–64 位小写字母、数字、点、下划线、连字符（不能以符号开头）",
+		ErrInvalidInput,
+	)
 }
 
 func NormalizeAccountName(value string) (string, error) {

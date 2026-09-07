@@ -125,7 +125,7 @@ func run(args []string, input *os.File, prompts, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	email, err := domain.NormalizeLoginEmail(values.Email)
+	email, err := domain.NormalizeLoginIdentifier(values.Email)
 	if err != nil {
 		return err
 	}

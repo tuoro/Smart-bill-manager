@@ -122,7 +122,7 @@ test('跨期搜索、翻页保留草稿、理由与失败重试幂等', async ({
   await page.getByRole('button', { name: '确认补充分配' }).click()
   await expect(page.getByText('合成失败，请重试')).toBeVisible()
   await expect(chosen.getByLabel('分配金额（最小单位）')).toHaveValue('2000')
-  await page.getByRole('button', { name: '确认补充分配' }).click()
+  await page.getByRole('button', { name: '重试原分配' }).click()
   await expect(page.getByText('补充分配已保存，余额已刷新')).toBeVisible()
   expect(bodies).toHaveLength(2)
   expect(bodies[1]?.desired_allocations).toEqual([

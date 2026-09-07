@@ -1,5 +1,9 @@
 # 数据模型基线
 
+ADR-0035 不改变持久化模型。分配草案仅以当前工作区在页内派生，采用不会写库，旧 Link 的目标和金额完整保留。最终写入仍由用户显式理由和完整 `desired_allocations` 进入既有 Adjustment 事务；建议不成为 Fact、余额或业务理由来源。
+
+ADR-0034 不改变持久化模型。连续审核的任务顺序、当前位置及确认/驳回/暂缓计数只存在浏览器页签内存；暂缓不是 Job 状态，不创建 AuditEvent/Fact。确认与驳回复用原 revision、候选决定、幂等请求及服务器事务。
+
 ADR-0033 恢复激活：同一 PostgreSQL 中 `sbm_restore.state` 仅保存本次操作的格式版本、恢复 ID、数据库 OID/名称和唯一阶段；不属于业务 public Schema，不进 dump，不新增业务迁移。对象根 `restore-identity.json` 只保存对应身份、没有第二份阶段。普通未恢复库两者均不存在；恢复库两者必须匹配且数据库阶段为 complete。每次新恢复重新创建身份，历史业务数据不变。
 
 B7/B8：`0008` 按 ADR-0031 增加双侧有界候选/余额索引和每端 200 活动 Link 上限；ADR-0032 使用 `fact_bad_debt_decisions` 最新不可变决定派生 Payment/Invoice 坏账状态，保留数据和纠错来源。不增加 Fact flag 投影或冗余 Trip 锁字段，状态变更与 Fact 版本跃迁由事务及提交约束绑定。

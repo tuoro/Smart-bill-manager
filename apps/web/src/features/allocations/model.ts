@@ -26,6 +26,20 @@ export function createAllocationDraft(workspace: AllocationWorkspace): Allocatio
   }))
 }
 
+export function allocationDraftChanged(
+  workspace: AllocationWorkspace,
+  rows: AllocationDraftRow[],
+): boolean {
+  const signature = (items: AllocationDraftRow[]) =>
+    JSON.stringify(
+      items
+        .filter((row) => row.selected || row.amountText)
+        .map((row) => [row.target.id, row.selected, row.amountText])
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0]))),
+    )
+  return signature(rows) !== signature(createAllocationDraft(workspace))
+}
+
 export function validateAllocationDraft(
   workspace: AllocationWorkspace,
   rows: AllocationDraftRow[],

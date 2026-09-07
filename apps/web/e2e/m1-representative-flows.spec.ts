@@ -107,8 +107,7 @@ test.describe.serial('M1 四个代表页面流程', () => {
     await expect(page.getByRole('heading', { name: '规则校验' })).toBeVisible()
     await expect(page.getByAltText('playwright-payment.png 的第 1 页规范化审核图')).toBeVisible()
 
-    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    const confirm = page.getByRole('button', { name: '确认并保存记录' })
+    const confirm = page.getByRole('button', { name: '确认保存，不分配' })
     await expect(confirm).toBeEnabled()
     await confirm.click()
     await expect(page.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()

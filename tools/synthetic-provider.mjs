@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 const maxRequestBytes = 24 * 1024 * 1024;
 const providerKind = "smart-bill-manager-synthetic-provider";
 const providerVersion = 1;
+const reviewAllocationExtractionCount = 3;
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
@@ -80,7 +81,9 @@ async function main() {
       );
       const envelope = probe
         ? capabilityEnvelope()
-        : paymentEnvelope(counters.extractions + 1);
+        : options.mode === "review-allocation"
+          ? reviewAllocationEnvelope(counters.extractions + 1)
+          : paymentEnvelope(counters.extractions + 1);
       if (probe) counters.probes += 1;
       else counters.extractions += 1;
       response.once("finish", () => {
@@ -109,6 +112,15 @@ async function main() {
         usage: { prompt_tokens: 100, completion_tokens: 80 },
       });
     } catch (error) {
+      if (error?.code === "review_allocation_sequence_out_of_range") {
+        return writeJSON(response, 400, {
+          error: {
+            code: error.code,
+            message:
+              "review-allocation supports exactly three extraction responses",
+          },
+        });
+      }
       const status = error?.code === "request_too_large" ? 413 : 400;
       return writeJSON(response, status, {
         error: { message: "invalid request" },
@@ -164,6 +176,58 @@ function paymentEnvelope(sequence) {
     },
     invoice: null,
     trip: null,
+  };
+}
+
+function reviewAllocationEnvelope(sequence) {
+  if (
+    !Number.isInteger(sequence) ||
+    sequence < 1 ||
+    sequence > reviewAllocationExtractionCount
+  ) {
+    const error = new RangeError(
+      "review-allocation sequence must be an integer from 1 to 3",
+    );
+    error.code = "review_allocation_sequence_out_of_range";
+    throw error;
+  }
+  const merchant = "Synthetic Throughflow Merchant";
+  if (sequence === 1) {
+    return {
+      ...capabilityEnvelope(),
+      document_type: "payment",
+      payment: {
+        amount: { text: "CNY 100.00", page: 1 },
+        currency: { text: "CNY", page: 1 },
+        merchant: { text: merchant, page: 1 },
+        transaction_time: { text: "2026-09-05 09:00", page: 1 },
+        timezone: null,
+        payment_method: null,
+        order_number: { text: "SYNTHETIC-THROUGHFLOW-P-001", page: 1 },
+        category: null,
+      },
+    };
+  }
+  return {
+    ...capabilityEnvelope(),
+    document_type: "invoice",
+    invoice: {
+      invoice_number: {
+        text: sequence === 2 ? "90000000000000000001" : "90000000000000000002",
+        page: 1,
+      },
+      invoice_date: {
+        text: sequence === 2 ? "2026-09-04" : "2026-09-05",
+        page: 1,
+      },
+      amount_without_tax: null,
+      tax_amount: null,
+      amount_with_tax: { text: "CNY 60.00", page: 1 },
+      currency: { text: "CNY", page: 1 },
+      seller_name: { text: merchant, page: 1 },
+      buyer_name: { text: "Synthetic Throughflow Buyer", page: 1 },
+      items: [],
+    },
   };
 }
 
@@ -252,8 +316,10 @@ function parseArguments(argumentsList) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     throw new Error("--listen port is invalid");
   const mode = values.get("mode") ?? "normal";
-  if (mode !== "normal" && mode !== "hang-extractions")
-    throw new Error("--mode must be normal or hang-extractions");
+  if (!["normal", "hang-extractions", "review-allocation"].includes(mode))
+    throw new Error(
+      "--mode must be normal, hang-extractions or review-allocation",
+    );
   if (!/^synthetic-[a-z0-9._-]+$/.test(values.get("model"))) {
     throw new Error("--model must use a synthetic-* identity");
   }
@@ -331,7 +397,13 @@ function safeProviderErrorCode(error) {
   return "startup_failed";
 }
 
-export { parseArguments, paymentEnvelope, safeProviderErrorCode, summarizeLatency };
+export {
+  parseArguments,
+  paymentEnvelope,
+  reviewAllocationEnvelope,
+  safeProviderErrorCode,
+  summarizeLatency,
+};
 
 if (
   process.argv[1] &&

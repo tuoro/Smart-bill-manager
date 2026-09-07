@@ -293,11 +293,10 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
         .locator('.validation-list li[data-status="passed"]')
         .evaluate((element) => getComputedStyle(element).color),
     )
-    await expect(page.getByRole('radio', { name: /确认当前没有候选/ })).toBeVisible()
+    await expect(page.getByRole('radio', { name: /确认当前没有候选/ })).toHaveCount(0)
 
-    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
     await captureResponsiveReview(page, testInfo, 'review')
-    await page.getByRole('button', { name: '确认并保存记录' }).click()
+    await page.getByRole('button', { name: '确认保存，不分配' }).click()
     const completion = page.locator('section.completion-state')
     await expect(completion).toBeVisible()
     await expect(completion.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
@@ -469,8 +468,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     })
 
     await page.goto(`/reviews/${review.job.id}`)
-    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    await expect(page.getByRole('button', { name: '确认并保存记录' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '确认保存，不分配' })).toBeDisabled()
     await expect(page.locator('#duplicate-resolution-error')).toContainText(
       '请逐项确认全部疑似重复候选',
     )
@@ -479,8 +477,8 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       'duplicate-resolution-error',
     )
     await page.getByRole('checkbox', { name: /近似文件.*近似支付截图/ }).check()
-    await expect(page.getByRole('button', { name: '确认并保存记录' })).toBeEnabled()
-    await page.getByRole('button', { name: '确认并保存记录' }).click()
+    await expect(page.getByRole('button', { name: '确认保存，不分配' })).toBeEnabled()
+    await page.getByRole('button', { name: '确认保存，不分配' }).click()
 
     expect(submitted).toMatchObject({
       duplicate_resolutions: [
@@ -512,7 +510,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
         .locator('[aria-labelledby="validation-title"]')
         .getByText('金额字段缺失，必须人工修订并绑定证据'),
     ).toBeVisible()
-    await expect(page.getByRole('button', { name: '确认并保存记录' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '确认保存，不分配' })).toBeDisabled()
     expect(pageErrors).toEqual([])
   })
 
@@ -526,8 +524,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     )
 
     await page.goto(`/reviews/${review.job.id}`)
-    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    await page.getByRole('button', { name: '确认并保存记录' }).click()
+    await page.getByRole('button', { name: '确认保存，不分配' }).click()
 
     const conflict = page.getByRole('alert')
     await expect(conflict).toContainText('审核版本已变化')
@@ -1185,8 +1182,7 @@ test.describe('B1 显式人工录入', () => {
     await page.reload()
     await expect(page.getByText('合成人工商户', { exact: true })).toBeVisible()
     await expect(page.getByText('已转人工', { exact: true })).toBeVisible()
-    await page.getByRole('radio', { name: /确认当前没有候选/ }).check()
-    await page.getByRole('button', { name: '确认并保存记录', exact: true }).click()
+    await page.getByRole('button', { name: '确认保存，不分配', exact: true }).click()
     await expect(page.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
     expect(confirmations).toBe(1)
     expect(errors).toEqual([])

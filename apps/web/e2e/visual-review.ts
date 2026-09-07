@@ -2,7 +2,12 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 import { resolve, sep } from 'node:path'
 
 // 复用已经完成交互断言的纯合成页面，不创建第二套业务 fixture。
-export async function captureResponsiveReview(page: Page, testInfo: TestInfo, name: string) {
+export async function captureResponsiveReview(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+  actionSelector?: string,
+) {
   const viewport = page.viewportSize()
   if (!viewport) throw new Error('Visual review requires an explicit viewport')
   const focused = await page.evaluateHandle(() => document.activeElement)
@@ -32,7 +37,7 @@ export async function captureResponsiveReview(page: Page, testInfo: TestInfo, na
           ),
           `${name} ${theme} ${width}px 不应产生页面根横向溢出`,
         ).toBe(true)
-        await assertActionButtonContrast(page)
+        await assertActionButtonContrast(page, false, actionSelector)
         await page.evaluate(async () => {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
           scrollTo(0, 0)
@@ -69,12 +74,17 @@ export async function captureResponsiveReview(page: Page, testInfo: TestInfo, na
   }
 }
 
-export async function assertActionButtonContrast(page: Page, requirePrimary = false) {
+export async function assertActionButtonContrast(
+  page: Page,
+  requirePrimary = false,
+  actionSelector?: string,
+) {
   if (requirePrimary) {
     expect(await page.locator('button.button-primary:enabled:visible').count()).toBeGreaterThan(0)
   }
   const buttons = page.locator(
-    'button.button-primary:enabled:visible, button.button-danger:enabled:visible, button.page-number-button[aria-current="page"]:visible',
+    actionSelector ??
+      'button.button-primary:enabled:visible, button.button-danger:enabled:visible, button.page-number-button[aria-current="page"]:visible',
   )
   for (const button of await buttons.all()) {
     const label = (await button.innerText()).trim()

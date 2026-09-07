@@ -1,0 +1,139 @@
+{
+  "report_kind": "continuous-review-reduction/1",
+  "measured_on": "2026-09-05",
+  "status": "passed_local_web_slice",
+  "baseline_head": "32afe1e3dc6dcadcbff0ad69f482942436ccdd27",
+  "fixture": {
+    "version": "review-reduction-fixtures/1",
+    "synthetic_documents": 20,
+    "payments": 10,
+    "invoices": 10,
+    "sha256": "0629c9c7ebb43376061596a1afc01f24218cbde66c5c93b0dd856011550bc3cf"
+  },
+  "measurement_scope": "仅计任务导航、无候选单选、最终保存点击；不计原件核对、滚动、修订或用户主动操作时长。",
+  "baseline": {
+    "execution": "生产代码改动前，基于基线源码构建的隔离静态 UI 上实际浏览器执行",
+    "navigation_clicks": 39,
+    "mechanical_no_candidate_selections": 20,
+    "explicit_save_clicks": 20,
+    "total_actions": 79,
+    "correct_confirm_requests": 20,
+    "distinct_idempotency_keys": 20,
+    "unexpected_requests": 0,
+    "page_errors": 0,
+    "script_sha256": "b1dceed8bd5205162a7df61f42b170af8c362d26f068db89108393a57dd6a8e0",
+    "raw_result_sha256": "51bccf388cc93d07139260854cb6bad806e3d71c431ff082f091beb4f5119f4c"
+  },
+  "candidate": {
+    "fixture_version": "review-reduction-fixtures/1",
+    "documents": 20,
+    "navigation_clicks": 1,
+    "mechanical_no_candidate_selections": 0,
+    "explicit_save_clicks": 20,
+    "total_actions": 21,
+    "correct_confirm_requests": 20,
+    "unexpected_requests": 0,
+    "actual_model_evaluated": false,
+    "human_time_measured": false,
+    "distinct_idempotency_keys": 20,
+    "page_errors": 0
+  },
+  "comparison": {
+    "actions_removed": 58,
+    "action_reduction_percent": 73.42,
+    "explicit_save_decisions_before": 20,
+    "explicit_save_decisions_after": 20
+  },
+  "validation": {
+    "contract_generation": "passed_no_generated_diff",
+    "typecheck": "passed",
+    "lint": "passed",
+    "format_check": "passed",
+    "production_build": "passed",
+    "unit": {
+      "test_files": 12,
+      "passed": 56,
+      "failed": 0
+    },
+    "mock_browser": {
+      "spec_files": 15,
+      "passed": 136,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "workers": 1,
+      "new_review_cases": 20,
+      "started_at": "2026-09-05T15:25:02.571Z",
+      "raw_report_sha256": "d6af4eb56a6a3e16f826ba012971169861bfab3bb2431f5f350f0e40be3604ff"
+    },
+    "coverage": [
+      "单独审核与固定20单连续审核",
+      "多页原件URL、字段、证据、选择与焦点不串单",
+      "警告/阻断定位、通过规则可展开",
+      "候选分配、重复逐项决定及blocked暂缓",
+      "草稿未保存时不能驳回继续，修订提交中不能改证据",
+      "409刷新revision后重新确认",
+      "确认/驳回未知结果原请求同键显式重试",
+      "读取403/404不跳过、503显式重试、401失效跳转",
+      "旧读取取消及迟到写响应隔离",
+      "固定队列范围、返回继续、明确结束及整页刷新提示",
+      "无审核能力、退出和同身份重新登录清空队列",
+      "人工来源和行程凭证不发送金额分配字段"
+    ],
+    "responsive": {
+      "widths": [
+        384,
+        768,
+        1024,
+        1440
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "new_exception_screenshots": 8,
+      "root_horizontal_overflow": false,
+      "action_button_contrast_minimum": 4.5,
+      "keyboard_and_heading_focus": "passed",
+      "visual_inspection": "passed"
+    },
+    "environment": {
+      "node": "24.20.0",
+      "browser": "现有 Playwright Chromium",
+      "new_dependencies_downloaded": false,
+      "heavy_tasks": "serial",
+      "preview": "loopback_static_only_no_api_proxy",
+      "unmocked_api_status": 501,
+      "memory_available_before": "约10 GiB",
+      "memory_available_after": "约9.7 GiB",
+      "swap_used_after": "约12 MiB"
+    }
+  },
+  "excluded": {
+    "real_model_called": false,
+    "model_accuracy_evaluated": false,
+    "human_time_measured": false,
+    "human_time_reduction_target_verified": false,
+    "real_backend_representative_test_run": false,
+    "representative_selector_updated_only": "apps/web/e2e/m1-representative-flows.spec.ts",
+    "backend_or_database_changed": false,
+    "user_instance_upgraded": false,
+    "committed": false,
+    "published": false
+  },
+  "cleanup": {
+    "owned_static_preview_stopped": true,
+    "temporary_builds_reports_screenshots_removed": true,
+    "safe_aggregate_retained": true
+  },
+  "files_sha256": {
+    "apps/web/src/data/client.ts": "5b2332952ed1de2151182c1e8a3b4ab02be989a09fba0998252dcab0e8b3b155",
+    "apps/web/src/features/inbox/InboxPage.vue": "b79453ba58a51f9070d19f527dd8dbe0ce1fe4ebcf0edae9e1bcdca6e69c5d26",
+    "apps/web/src/features/review/ReviewPage.vue": "4c5ed37e040561ced5fa91f7bf71e4916a07f6181c29ba33066ff69b9aade275",
+    "apps/web/src/features/review/queue.ts": "d6ca2feac5b1b5624896d1072e288ece9717b8c4a2210387e51aebe29e89924f",
+    "apps/web/src/features/review/ValidationResults.vue": "1754653c4660f6a78e6003cc4bd17dd1006d0d615a3a7bb8b464fb52851033bb",
+    "apps/web/src/features/review/queue.test.ts": "f34bf06e58073feeec94a76e63456b5e62423bf320dde17125f3a83bbde3df57",
+    "apps/web/e2e/review-reduction.spec.ts": "08bc18d6f08d196325b9ac2112c7ddc51141585e68cc229423c8f1d6b08b9b2c",
+    "apps/web/e2e/review-reduction-fixtures.ts": "0629c9c7ebb43376061596a1afc01f24218cbde66c5c93b0dd856011550bc3cf"
+  }
+}

@@ -1,8 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  RouterLink,
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  useRoute,
+  useRouter,
+  type RouteLocationNormalized,
+} from 'vue-router'
 import AppIcon from '../../components/AppIcon.vue'
 import { sessionStore } from '../../app/session'
+import ValidationResults from './ValidationResults.vue'
+import {
+  continuousReviewLocation,
+  reviewQueue,
+  reviewQueueScope,
+  type ReviewQueueOutcome,
+} from './queue'
 import {
   ApiError,
   api,
@@ -53,6 +67,74 @@ const allocationItems = ref<AllocationEditor[]>([])
 const duplicateResolutionIds = ref<string[]>([])
 const rejectPanelOpen = ref(false)
 const rejectReason = ref('')
+const navigating = ref(false)
+const navigationError = ref('')
+const finishedOutcome = ref<ReviewQueueOutcome | null>(null)
+const uncertainAction = ref<'confirm' | 'reject' | null>(null)
+const taskHeading = ref<HTMLElement | null>(null)
+let taskEpoch = 0
+let readEpoch = 0
+let readController: AbortController | null = null
+let allowedNavigation = ''
+let initialEditorSignature = ''
+let confirmAttempt: { body: ConfirmRequest; key: string } | null = null
+let rejectAttempt: { revision: number; reason: string; key: string } | null = null
+
+const queueScope = computed(() => reviewQueueScope(sessionStore.current.value))
+const queue = computed(() => reviewQueue.forScope(queueScope.value))
+const continuous = computed(() => route.query.continuous === '1')
+const queuedJobId = computed(() => queue.value?.jobIds[queue.value.index])
+const inQueue = computed(() => continuous.value && queuedJobId.value === jobId.value)
+const queueFinished = computed(
+  () =>
+    continuous.value &&
+    queue.value &&
+    queue.value.index === queue.value.jobIds.length &&
+    queue.value.jobIds.at(-1) === jobId.value,
+)
+const queueCounts = computed(() => {
+  const outcomes = queue.value?.outcomes ?? []
+  return {
+    confirmed: outcomes.filter((outcome) => outcome === 'confirmed').length,
+    rejected: outcomes.filter((outcome) => outcome === 'rejected').length,
+    deferred: outcomes.filter((outcome) => outcome === 'deferred').length,
+  }
+})
+const queueNotice = computed(() => {
+  const last = queue.value?.outcomes.at(-1)
+  const position = queue.value?.index ?? 0
+  if (last === 'confirmed') return `第 ${position} 份已保存。请核对当前单据，不会自动确认。`
+  if (last === 'rejected') return `第 ${position} 份已驳回，未生成正式记录。`
+  if (last === 'deferred') return `第 ${position} 份已暂缓，仍需处理，未生成正式记录。`
+  return '按开启时的顺序审核，不会自动加入新任务。'
+})
+const busy = computed(() => saving.value || confirming.value || rejecting.value || navigating.value)
+const handled = computed(() => Boolean(completed.value || finishedOutcome.value))
+const hasUnsavedChanges = computed(
+  () =>
+    !handled.value &&
+    ((editing.value && editorSignature() !== initialEditorSignature) ||
+      associationMode.value !== '' ||
+      duplicateResolutionIds.value.length > 0 ||
+      rejectReason.value !== ''),
+)
+const noAssociationCandidates = computed(
+  () =>
+    review.value && review.value.document_type !== 'trip' && review.value.candidates.length === 0,
+)
+const confirmLabel = computed(() => {
+  if (confirming.value) return '正在保存…'
+  if (uncertainAction.value === 'confirm') return '重试原确认'
+  if (noAssociationCandidates.value)
+    return inQueue.value ? '确认保存，不分配并继续' : '确认保存，不分配'
+  return inQueue.value ? '确认保存并继续' : '确认并保存记录'
+})
+const actionableValidations = computed(
+  () => review.value?.validations.filter((validation) => validation.status !== 'passed') ?? [],
+)
+const passedValidations = computed(
+  () => review.value?.validations.filter((validation) => validation.status === 'passed') ?? [],
+)
 
 const selectedReviewField = computed(() =>
   review.value?.fields.find((field) => field.path === selectedPath.value),
@@ -119,7 +201,11 @@ const itemKeys = computed(() => {
 })
 const associationDecision = computed(() =>
   review.value
-    ? buildAssociationDecision(review.value, associationMode.value, allocationItems.value)
+    ? buildAssociationDecision(
+        review.value,
+        noAssociationCandidates.value ? 'no_candidate' : associationMode.value,
+        allocationItems.value,
+      )
     : null,
 )
 const duplicateDecision = computed(() =>
@@ -131,6 +217,10 @@ const isTripReview = computed(() => review.value?.document_type === 'trip')
 const canConfirm = computed(() =>
   Boolean(
     review.value &&
+    !loading.value &&
+    !busy.value &&
+    !handled.value &&
+    uncertainAction.value !== 'reject' &&
     !editing.value &&
     !needsRefresh.value &&
     review.value.claim_status === 'ready_for_review' &&
@@ -150,10 +240,19 @@ const pageURL = computed(() =>
 )
 
 async function load() {
+  if (busy.value || uncertainAction.value) return
+  readController?.abort()
+  const controller = new AbortController()
+  readController = controller
+  const read = ++readEpoch
+  const task = captureTask()
+  const isCurrent = () => task.isCurrent() && read === readEpoch && !controller.signal.aborted
   loading.value = true
   error.value = ''
   try {
-    const latest = await api.getReview(jobId.value)
+    const latest = await api.getReview(task.jobId, controller.signal)
+    if (!isCurrent()) return
+    if (latest.job.id !== task.jobId) throw new Error('审核响应与当前单据不一致')
     if (editing.value && review.value) {
       editors.value = refreshDraftFields(review.value, latest, editors.value)
       review.value = latest
@@ -168,14 +267,41 @@ async function load() {
       resetEditor()
     }
   } catch (caught) {
+    if (!isCurrent()) return
     if (caught instanceof ApiError && caught.status === 404) {
       error.value = '该审核已结束或不存在，请返回收件箱查看最新状态。'
     } else {
       error.value = caught instanceof ApiError ? caught.message : '审核资料加载失败'
     }
   } finally {
-    loading.value = false
+    if (isCurrent()) {
+      loading.value = false
+      if (!editing.value) await focusTaskHeading()
+    }
   }
+}
+
+function captureTask() {
+  const epoch = taskEpoch
+  const id = jobId.value
+  const session = sessionStore.current.value
+  return {
+    jobId: id,
+    isCurrent: () =>
+      epoch === taskEpoch &&
+      id === jobId.value &&
+      session?.user.id === sessionStore.current.value?.user.id &&
+      session?.tenant.id === sessionStore.current.value?.tenant.id,
+  }
+}
+
+function editorSignature() {
+  return JSON.stringify([documentType.value, editors.value])
+}
+
+async function focusTaskHeading() {
+  await nextTick()
+  taskHeading.value?.focus()
 }
 
 function resetEditor() {
@@ -192,12 +318,16 @@ function resetEditor() {
   needsRefresh.value = false
   draftRefreshed.value = false
   draftRechecked.value = false
+  initialEditorSignature = editorSignature()
+  confirmAttempt = null
+  rejectAttempt = null
 }
 
 function startEditing() {
-  if (!review.value) return
+  if (!review.value || editing.value || busy.value || uncertainAction.value) return
   editing.value = true
   editors.value = editableFields(review.value, documentType.value)
+  initialEditorSignature = editorSignature()
 }
 
 function changeDocumentType() {
@@ -236,6 +366,7 @@ function selectPage(pageNumber: number) {
 }
 
 function toggleEvidence(evidenceId: string) {
+  if (busy.value || uncertainAction.value) return
   const editor = selectedEditor.value
   if (!editor) return
   const index = editor.evidenceIds.indexOf(evidenceId)
@@ -244,7 +375,14 @@ function toggleEvidence(evidenceId: string) {
 }
 
 async function saveRevision() {
-  if (!review.value || needsRefresh.value || (draftRefreshed.value && !draftRechecked.value)) return
+  if (
+    !review.value ||
+    busy.value ||
+    uncertainAction.value ||
+    needsRefresh.value ||
+    (draftRefreshed.value && !draftRechecked.value)
+  )
+    return
   const built = buildRevisionRequest(review.value, documentType.value, editors.value)
   fieldErrors.value = built.errors
   if (!built.request) {
@@ -255,13 +393,16 @@ async function saveRevision() {
   }
   saving.value = true
   error.value = ''
+  const task = captureTask()
   try {
-    review.value = await api.revise(jobId.value, built.request)
+    const latest = await api.revise(task.jobId, built.request)
+    if (!task.isCurrent()) return
+    review.value = latest
     resetEditor()
   } catch (caught) {
-    handleMutationError(caught)
+    if (task.isCurrent()) handleMutationError(caught)
   } finally {
-    saving.value = false
+    if (task.isCurrent()) saving.value = false
   }
 }
 
@@ -272,21 +413,32 @@ async function confirmReview() {
     return
   confirming.value = true
   error.value = ''
+  const task = captureTask()
+  let result: ConfirmResult
   try {
-    const body: ConfirmRequest = {
-      expected_revision: review.value.revision,
-      duplicate_resolutions: duplicates.duplicate_resolutions,
+    if (!confirmAttempt || uncertainAction.value !== 'confirm') {
+      const body: ConfirmRequest = {
+        expected_revision: review.value.revision,
+        duplicate_resolutions: duplicates.duplicate_resolutions,
+      }
+      if (!isTripReview.value && association) {
+        body.association_mode = association.association_mode
+        body.allocations = association.allocations
+      }
+      confirmAttempt = { body, key: crypto.randomUUID() }
     }
-    if (!isTripReview.value && association) {
-      body.association_mode = association.association_mode
-      body.allocations = association.allocations
-    }
-    completed.value = await api.confirm(jobId.value, body, crypto.randomUUID())
+    result = await api.confirm(task.jobId, confirmAttempt.body, confirmAttempt.key)
   } catch (caught) {
-    handleMutationError(caught)
+    if (task.isCurrent()) handleDecisionError(caught, 'confirm')
+    return
   } finally {
-    confirming.value = false
+    if (task.isCurrent()) confirming.value = false
   }
+  if (!task.isCurrent()) return
+  uncertainAction.value = null
+  confirmAttempt = null
+  completed.value = result
+  await finishTask('confirmed')
 }
 
 function candidateFor(editor: AllocationEditor) {
@@ -297,23 +449,107 @@ function selectAllocation(editor: AllocationEditor) {
   if (editor.selected) associationMode.value = 'allocate_candidates'
 }
 
-function chooseNonAllocation(mode: 'reject_all' | 'no_candidate') {
-  associationMode.value = mode
+function rejectAllCandidates() {
+  associationMode.value = 'reject_all'
   for (const item of allocationItems.value) item.selected = false
 }
 
 async function rejectReview() {
-  if (!review.value) return
+  if (
+    !review.value ||
+    editing.value ||
+    busy.value ||
+    handled.value ||
+    needsRefresh.value ||
+    uncertainAction.value === 'confirm'
+  )
+    return
   rejecting.value = true
   error.value = ''
+  const task = captureTask()
   try {
-    await api.reject(jobId.value, review.value.revision, rejectReason.value, crypto.randomUUID())
-    await router.replace('/inbox')
+    if (!rejectAttempt || uncertainAction.value !== 'reject')
+      rejectAttempt = {
+        revision: review.value.revision,
+        reason: rejectReason.value,
+        key: crypto.randomUUID(),
+      }
+    await api.reject(task.jobId, rejectAttempt.revision, rejectAttempt.reason, rejectAttempt.key)
   } catch (caught) {
-    handleMutationError(caught)
+    if (task.isCurrent()) handleDecisionError(caught, 'reject')
+    return
   } finally {
-    rejecting.value = false
+    if (task.isCurrent()) rejecting.value = false
   }
+  if (!task.isCurrent()) return
+  uncertainAction.value = null
+  rejectAttempt = null
+  await finishTask('rejected')
+}
+
+function handleDecisionError(caught: unknown, action: 'confirm' | 'reject') {
+  if (!(caught instanceof ApiError) || caught.status >= 500) {
+    uncertainAction.value = action
+    error.value = '上次提交结果尚未确认。请重试原决定以核对结果，不会自动跳过或改用新的决定。'
+    return
+  }
+  uncertainAction.value = null
+  confirmAttempt = null
+  rejectAttempt = null
+  handleMutationError(caught)
+}
+
+async function finishTask(outcome: ReviewQueueOutcome) {
+  finishedOutcome.value = outcome
+  if (!inQueue.value) {
+    if (outcome === 'rejected') await navigateAfterDecision('/inbox')
+    else await focusTaskHeading()
+    return
+  }
+  const next = reviewQueue.advance(queueScope.value, jobId.value, outcome)
+  if (next) await navigateAfterDecision(router.resolve(continuousReviewLocation(next)).fullPath)
+  else await focusTaskHeading()
+}
+
+async function navigateAfterDecision(target: string) {
+  const task = captureTask()
+  navigating.value = true
+  navigationError.value = ''
+  allowedNavigation = target
+  try {
+    const failure = await router.replace(target)
+    if (failure && task.isCurrent())
+      navigationError.value = '本项处理结果已保留，但未能打开下一页面。请继续本轮审核或返回收件箱。'
+  } catch {
+    if (task.isCurrent())
+      navigationError.value = '本项处理结果已保留，但未能打开下一页面。请继续本轮审核或返回收件箱。'
+  } finally {
+    if (task.isCurrent()) navigating.value = false
+    if (allowedNavigation === target) allowedNavigation = ''
+  }
+}
+
+async function deferTask() {
+  if (!inQueue.value || editing.value || busy.value || uncertainAction.value || handled.value)
+    return
+  await finishTask('deferred')
+}
+
+async function locateValidation(fieldId: string) {
+  if (busy.value || uncertainAction.value) return
+  const field = review.value?.fields.find((field) => field.id === fieldId)
+  if (!field) return
+  if (field.path === 'document_type') {
+    startEditing()
+    await nextTick()
+    document.getElementById('document-type')?.focus()
+    return
+  }
+  selectPath(field.path)
+  await nextTick()
+  document
+    .querySelector<HTMLElement>(`[data-field-path="${CSS.escape(field.path)}"] button`)
+    ?.focus()
 }
 
 function handleMutationError(caught: unknown) {
@@ -355,7 +591,67 @@ function documentTypeLabel(type?: string) {
   return '单据'
 }
 
-onMounted(() => void load())
+function mayLeave(to: RouteLocationNormalized) {
+  if (!sessionStore.current.value || to.fullPath === allowedNavigation || handled.value) return true
+  if (busy.value) return false
+  if (uncertainAction.value)
+    return window.confirm('上次提交结果尚未确认。离开后请在收件箱核对服务端状态，确定离开吗？')
+  return !hasUnsavedChanges.value || window.confirm('尚未保存的修订或审核选择会丢失，确定离开吗？')
+}
+
+function warnBeforeUnload(event: BeforeUnloadEvent) {
+  if (!busy.value && !hasUnsavedChanges.value && !uncertainAction.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(mayLeave)
+onBeforeRouteUpdate(mayLeave)
+onMounted(() => window.addEventListener('beforeunload', warnBeforeUnload))
+onBeforeUnmount(() => {
+  taskEpoch++
+  readController?.abort()
+  window.removeEventListener('beforeunload', warnBeforeUnload)
+})
+
+watch(
+  () => [jobId.value, continuous.value],
+  () => {
+    taskEpoch++
+    readController?.abort()
+    review.value = null
+    completed.value = null
+    finishedOutcome.value = null
+    editing.value = false
+    saving.value = false
+    confirming.value = false
+    rejecting.value = false
+    navigating.value = false
+    error.value = ''
+    navigationError.value = ''
+    needsRefresh.value = false
+    draftRefreshed.value = false
+    draftRechecked.value = false
+    documentType.value = 'unknown'
+    editors.value = []
+    fieldErrors.value = {}
+    selectedPath.value = ''
+    activePage.value = 1
+    associationMode.value = ''
+    allocationItems.value = []
+    duplicateResolutionIds.value = []
+    rejectPanelOpen.value = false
+    rejectReason.value = ''
+    uncertainAction.value = null
+    confirmAttempt = null
+    rejectAttempt = null
+    if (queueFinished.value) {
+      loading.value = false
+      void focusTaskHeading()
+    } else void load()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -365,15 +661,69 @@ onMounted(() => void load())
       ><strong>审核工作台</strong>
     </nav>
 
-    <div v-if="loading" class="panel state-layout" role="status">
+    <section v-if="inQueue && queue" class="panel review-queue-bar" aria-label="连续审核进度">
+      <div>
+        <strong>连续审核 · 第 {{ queue.index + 1 }} / {{ queue.jobIds.length }} 份</strong>
+        <p role="status" aria-live="polite">{{ queueNotice }}</p>
+      </div>
+      <div class="page-actions">
+        <button
+          class="button button-small"
+          type="button"
+          :disabled="loading || busy || editing || Boolean(uncertainAction) || handled"
+          @click="deferTask"
+        >
+          稍后处理，不保存
+        </button>
+        <RouterLink class="text-button" to="/inbox">返回收件箱</RouterLink>
+      </div>
+      <p v-if="editing" class="quiet queue-draft-note">请先保存或放弃修订，再继续其他单据。</p>
+    </section>
+    <p
+      v-else-if="continuous && !queueFinished && !navigating"
+      class="notice notice-warning"
+      role="status"
+    >
+      {{
+        queuedJobId
+          ? '当前链接不在本轮队列的位置。本单按单独审核处理。'
+          : '连续审核队列未保留（刷新或结束后会清空）。本单按单独审核处理，不会自动继续。'
+      }}
+      <RouterLink v-if="queuedJobId" :to="continuousReviewLocation(queuedJobId)"
+        >回到本轮审核</RouterLink
+      >
+    </p>
+    <div v-if="navigationError" class="notice notice-danger" role="alert">
+      {{ navigationError }}
+      <RouterLink v-if="queuedJobId" :to="continuousReviewLocation(queuedJobId)"
+        >继续本轮审核</RouterLink
+      >
+    </div>
+
+    <div v-if="loading || navigating" class="panel state-layout" role="status">
       <span class="spinner spinner-large" aria-hidden="true"></span
       ><strong>正在加载识别结果与原件</strong><span>准备当前版本的字段和证据。</span>
     </div>
 
+    <section
+      v-else-if="queueFinished"
+      class="panel completion-state"
+      aria-labelledby="queue-completion-title"
+    >
+      <span class="completion-mark"><AppIcon name="check" /></span>
+      <h1 id="queue-completion-title" ref="taskHeading" tabindex="-1">本轮审核结束</h1>
+      <p>
+        已保存 {{ queueCounts.confirmed }} 份 · 已驳回 {{ queueCounts.rejected }} 份 · 暂缓
+        {{ queueCounts.deferred }} 份
+      </p>
+      <p>暂缓项仍需处理；新任务不在本轮内，可返回收件箱查看。</p>
+      <RouterLink class="button button-primary" to="/inbox">返回收件箱</RouterLink>
+    </section>
+
     <template v-else-if="completed">
       <section class="panel completion-state" aria-labelledby="completion-title">
         <span class="completion-mark"><AppIcon name="check" /></span>
-        <h1 id="completion-title">
+        <h1 id="completion-title" ref="taskHeading" tabindex="-1">
           {{ completed.fact_type === 'trip' ? '行程凭证审核完成' : '正式账单已创建' }}
         </h1>
         <p>
@@ -414,10 +764,28 @@ onMounted(() => void load())
       </section>
     </template>
 
+    <section
+      v-else-if="finishedOutcome"
+      class="panel completion-state"
+      aria-labelledby="handled-title"
+    >
+      <h1 id="handled-title" ref="taskHeading" tabindex="-1">
+        {{ finishedOutcome === 'rejected' ? '识别结果已驳回' : '本单已暂缓' }}
+      </h1>
+      <p>未生成正式记录。</p>
+      <RouterLink
+        v-if="queuedJobId"
+        class="button button-primary"
+        :to="continuousReviewLocation(queuedJobId)"
+        >继续本轮审核</RouterLink
+      >
+      <RouterLink class="button" to="/inbox">返回收件箱</RouterLink>
+    </section>
+
     <template v-else-if="review">
       <header class="page-header review-header">
         <div>
-          <h1>审核单据</h1>
+          <h1 ref="taskHeading" tabindex="-1">审核单据</h1>
           <p class="review-document-name">{{ review.job.original_name }}</p>
           <p class="technical-meta">
             版本 {{ review.revision }} · {{ review.page_count }} 页 · 任务 {{ review.job.id }}
@@ -426,7 +794,13 @@ onMounted(() => void load())
         <div class="page-actions">
           <span class="status" :data-tone="review.claim_status === 'blocked' ? 'danger' : 'warning'"
             ><span aria-hidden="true">●</span>{{ statusLabel(review.claim_status) }}</span
-          ><button v-if="!editing" class="button" type="button" @click="startEditing">
+          ><button
+            v-if="!editing"
+            class="button"
+            type="button"
+            :disabled="busy || Boolean(uncertainAction)"
+            @click="startEditing"
+          >
             修订字段
           </button>
         </div>
@@ -449,7 +823,14 @@ onMounted(() => void load())
 
       <div v-if="error" class="notice notice-danger" role="alert">
         <AppIcon name="alert" /><span>{{ error }}</span
-        ><button class="text-button" type="button" @click="load">刷新最新版本</button>
+        ><button
+          class="text-button"
+          type="button"
+          :disabled="busy || Boolean(uncertainAction)"
+          @click="load"
+        >
+          刷新最新版本
+        </button>
       </div>
 
       <section v-if="editing && draftRefreshed" class="panel page-stack" aria-label="修订冲突核对">
@@ -545,7 +926,11 @@ onMounted(() => void load())
           </div>
         </section>
 
-        <section class="panel fields-panel" aria-labelledby="fields-title">
+        <section
+          class="panel fields-panel"
+          aria-labelledby="fields-title"
+          :inert="busy || Boolean(uncertainAction)"
+        >
           <div class="panel-heading">
             <div>
               <h2 id="fields-title">识别结果</h2>
@@ -582,6 +967,7 @@ onMounted(() => void load())
               <article
                 v-for="field in visibleEditors"
                 :key="field.path"
+                :data-field-path="field.path"
                 class="claim-field"
                 :class="{ selected: selectedPath === field.path }"
                 @click="selectPath(field.path)"
@@ -688,6 +1074,7 @@ onMounted(() => void load())
               <article
                 v-for="field in visibleReadFields"
                 :key="field.path"
+                :data-field-path="field.path"
                 class="claim-field"
                 :class="{ selected: selectedPath === field.path }"
                 @click="selectPath(field.path)"
@@ -756,6 +1143,7 @@ onMounted(() => void load())
                 ><input
                   type="checkbox"
                   :checked="selectedEditor.evidenceIds.includes(evidence.id)"
+                  :disabled="busy || Boolean(uncertainAction)"
                   @change="toggleEvidence(evidence.id)"
                 /><span
                   ><strong>第 {{ evidence.page }} 页</strong
@@ -776,29 +1164,28 @@ onMounted(() => void load())
             <div class="panel-heading">
               <div>
                 <h2 id="validation-title">规则校验</h2>
-                <p>请先处理阻断项，再确认正式记录。</p>
+                <p>
+                  {{
+                    actionableValidations.length
+                      ? `${actionableValidations.length} 项需要留意，请核对后处理。`
+                      : '规则校验未发现问题，请核对原件。'
+                  }}
+                </p>
               </div>
             </div>
-            <ul class="validation-list">
-              <li
-                v-for="validation in review.validations"
-                :key="validation.id"
-                :data-status="validation.status"
-              >
-                <span><AppIcon :name="validation.status === 'passed' ? 'check' : 'alert'" /></span>
-                <div>
-                  <strong>{{
-                    validation.status === 'passed'
-                      ? '校验通过'
-                      : validation.status === 'warning'
-                        ? '请留意'
-                        : '需要处理'
-                  }}</strong>
-                  <p>{{ validation.safe_message }}</p>
-                  <small class="technical-meta">{{ validation.rule_code }}</small>
-                </div>
-              </li>
-            </ul>
+            <ValidationResults
+              :validations="actionableValidations"
+              :disabled="busy || Boolean(uncertainAction)"
+              @locate="locateValidation"
+            />
+            <details
+              v-if="passedValidations.length"
+              :key="review.job.id"
+              class="passed-validations"
+            >
+              <summary>查看 {{ passedValidations.length }} 项已通过规则</summary>
+              <ValidationResults :validations="passedValidations" />
+            </details>
           </section>
 
           <section class="panel decision-panel" aria-labelledby="duplicate-title">
@@ -811,6 +1198,7 @@ onMounted(() => void load())
             <fieldset
               v-if="review.duplicate_candidates.length"
               class="association-options duplicate-options"
+              :disabled="busy || Boolean(uncertainAction)"
               aria-labelledby="duplicate-title"
               :aria-describedby="
                 duplicateDecision?.error ? 'duplicate-resolution-error' : undefined
@@ -872,107 +1260,108 @@ onMounted(() => void load())
             <div class="panel-heading">
               <div>
                 <h2 id="association-title">金额分配</h2>
-                <p>选择关联单据和金额，或明确不关联。</p>
+                <p>
+                  {{
+                    noAssociationCandidates
+                      ? '当前没有候选，确认保存时不创建金额分配。'
+                      : '选择关联单据和金额，或明确不关联。'
+                  }}
+                </p>
               </div>
             </div>
-            <fieldset class="association-options">
+            <fieldset
+              v-if="review.candidates.length"
+              class="association-options"
+              :disabled="busy || Boolean(uncertainAction)"
+            >
               <legend class="visually-hidden">选择关联方式</legend>
-              <template v-if="review.candidates.length">
-                <div
-                  v-for="editor in allocationItems"
-                  :key="editor.candidateId"
-                  class="allocation-option"
-                  :data-unavailable="!candidateFor(editor)?.available"
-                >
-                  <label>
-                    <input
-                      v-model="editor.selected"
-                      type="checkbox"
-                      :disabled="!candidateFor(editor)?.available"
-                      @change="selectAllocation(editor)"
-                    /><span>
-                      <strong>
-                        分配给{{ documentTypeLabel(candidateFor(editor)?.target_type) }} ·
-                        {{ candidateFor(editor)?.display_name }}
-                      </strong>
-                      <small>
-                        总额 {{ candidateFor(editor)?.amount_minor }} · 已分配
-                        {{ candidateFor(editor)?.allocated_minor }} · 剩余
-                        {{ candidateFor(editor)?.remaining_minor }}
-                        {{ candidateFor(editor)?.currency }}（最小单位）
-                      </small>
-                      <small>
-                        {{ candidateFor(editor)?.business_date }} ·
-                        {{
-                          candidateFor(editor)?.available
-                            ? candidateFor(editor)?.name_exact
-                              ? '名称一致'
-                              : '名称不一致，需判断'
-                            : '候选已不可用，请刷新'
-                        }}
-                      </small>
-                    </span>
-                  </label>
-                  <div v-if="editor.selected" class="allocation-amount">
-                    <label :for="`allocation-${editor.candidateId}`">本次分配（最小单位）</label>
-                    <input
-                      :id="`allocation-${editor.candidateId}`"
-                      v-model="editor.textValue"
-                      class="input"
-                      inputmode="numeric"
-                      :aria-invalid="Boolean(associationDecision?.errors[editor.candidateId])"
-                    />
-                    <small
-                      v-if="associationDecision?.errors[editor.candidateId]"
-                      class="danger-text"
-                    >
-                      {{ associationDecision.errors[editor.candidateId] }}
-                    </small>
-                  </div>
-                </div>
-                <div class="review-allocation-summary" aria-live="polite">
-                  <span>单据总额 {{ associationDecision?.factAmountMinor ?? 0 }}</span>
-                  <span>本次合计 {{ associationDecision?.totalMinor ?? 0 }}</span>
-                  <span>
-                    分配后剩余
-                    {{
-                      Math.max(
-                        (associationDecision?.factAmountMinor ?? 0) -
-                          (associationDecision?.totalMinor ?? 0),
-                        0,
-                      )
-                    }}
-                  </span>
-                  <small>以上金额均为最小货币单位</small>
-                </div>
+              <div
+                v-for="editor in allocationItems"
+                :key="editor.candidateId"
+                class="allocation-option"
+                :data-unavailable="!candidateFor(editor)?.available"
+              >
                 <label>
                   <input
-                    :checked="associationMode === 'reject_all'"
-                    type="radio"
-                    name="association"
-                    value="reject_all"
-                    @change="chooseNonAllocation('reject_all')"
+                    v-model="editor.selected"
+                    type="checkbox"
+                    :disabled="!candidateFor(editor)?.available"
+                    @change="selectAllocation(editor)"
                   /><span>
-                    <strong>不关联任何候选</strong>
-                    <small>仅保存当前单据，不创建金额分配</small>
+                    <strong>
+                      分配给{{ documentTypeLabel(candidateFor(editor)?.target_type) }} ·
+                      {{ candidateFor(editor)?.display_name }}
+                    </strong>
+                    <small>
+                      总额 {{ candidateFor(editor)?.amount_minor }} · 已分配
+                      {{ candidateFor(editor)?.allocated_minor }} · 剩余
+                      {{ candidateFor(editor)?.remaining_minor }}
+                      {{ candidateFor(editor)?.currency }}（最小单位）
+                    </small>
+                    <small>
+                      {{ candidateFor(editor)?.business_date }} ·
+                      {{
+                        candidateFor(editor)?.available
+                          ? candidateFor(editor)?.name_exact
+                            ? '名称一致'
+                            : '名称不一致，需判断'
+                          : '候选已不可用，请刷新'
+                      }}
+                    </small>
                   </span>
                 </label>
-              </template>
-              <label v-else>
+                <div v-if="editor.selected" class="allocation-amount">
+                  <label :for="`allocation-${editor.candidateId}`">本次分配（最小单位）</label>
+                  <input
+                    :id="`allocation-${editor.candidateId}`"
+                    v-model="editor.textValue"
+                    class="input"
+                    inputmode="numeric"
+                    :aria-invalid="Boolean(associationDecision?.errors[editor.candidateId])"
+                  />
+                  <small v-if="associationDecision?.errors[editor.candidateId]" class="danger-text">
+                    {{ associationDecision.errors[editor.candidateId] }}
+                  </small>
+                </div>
+              </div>
+              <div class="review-allocation-summary" aria-live="polite">
+                <span>单据总额 {{ associationDecision?.factAmountMinor ?? 0 }}</span>
+                <span>本次合计 {{ associationDecision?.totalMinor ?? 0 }}</span>
+                <span>
+                  分配后剩余
+                  {{
+                    Math.max(
+                      (associationDecision?.factAmountMinor ?? 0) -
+                        (associationDecision?.totalMinor ?? 0),
+                      0,
+                    )
+                  }}
+                </span>
+                <small>以上金额均为最小货币单位</small>
+              </div>
+              <label>
                 <input
-                  :checked="associationMode === 'no_candidate'"
+                  :checked="associationMode === 'reject_all'"
                   type="radio"
                   name="association"
-                  value="no_candidate"
-                  @change="chooseNonAllocation('no_candidate')"
-                /><span> <strong>确认当前没有候选</strong><small>本次仅保存正式记录</small> </span>
+                  value="reject_all"
+                  @change="rejectAllCandidates"
+                /><span>
+                  <strong>不关联任何候选</strong>
+                  <small>仅保存当前单据，不创建金额分配</small>
+                </span>
               </label>
             </fieldset>
           </section>
 
           <section class="panel final-actions" aria-labelledby="final-title">
             <h2 id="final-title">完成审核</h2>
-            <p v-if="review.claim_status === 'blocked'" class="danger-text">
+            <p v-if="uncertainAction" class="danger-text">
+              上次{{
+                uncertainAction === 'confirm' ? '确认' : '驳回'
+              }}结果未知，仅可重试原决定；重试前不会切换单据。
+            </p>
+            <p v-else-if="review.claim_status === 'blocked'" class="danger-text">
               当前识别结果未通过校验，请先修订字段并保存，再完成审核。
             </p>
             <p v-else-if="duplicateDecision && !duplicateDecision.request">
@@ -990,7 +1379,9 @@ onMounted(() => void load())
             <p v-else>
               确认后将保存正式{{
                 documentTypeLabel(review.document_type)
-              }}记录，并保留原件与审核依据。
+              }}记录，并保留原件与审核依据。{{
+                noAssociationCandidates ? '本次不创建金额分配。' : ''
+              }}{{ inQueue ? '保存成功后进入下一项，失败停留当前单据。' : '' }}
             </p>
             <button
               class="button button-primary button-block"
@@ -998,11 +1389,12 @@ onMounted(() => void load())
               :disabled="!canConfirm || confirming || editing"
               @click="confirmReview"
             >
-              {{ confirming ? '正在保存…' : '确认并保存记录' }}
+              {{ confirmLabel }}
             </button>
             <button
               class="button button-block"
               type="button"
+              :disabled="busy || Boolean(uncertainAction)"
               @click="rejectPanelOpen = !rejectPanelOpen"
             >
               驳回识别结果
@@ -1015,14 +1407,23 @@ onMounted(() => void load())
                 class="textarea"
                 maxlength="500"
                 rows="3"
+                :disabled="busy || Boolean(uncertainAction)"
               ></textarea
               ><button
                 class="button button-danger button-block"
                 type="button"
-                :disabled="rejecting"
+                :disabled="busy || editing || needsRefresh || uncertainAction === 'confirm'"
                 @click="rejectReview"
               >
-                {{ rejecting ? '正在驳回…' : '确认驳回，不保存正式记录' }}
+                {{
+                  rejecting
+                    ? '正在驳回…'
+                    : uncertainAction === 'reject'
+                      ? '重试原驳回'
+                      : inQueue
+                        ? '确认驳回并继续，不保存正式记录'
+                        : '确认驳回，不保存正式记录'
+                }}
               </button>
             </div>
           </section>
@@ -1033,12 +1434,34 @@ onMounted(() => void load())
     <section v-else class="panel state-layout" role="alert">
       <span class="state-glyph"><AppIcon name="alert" /></span><strong>无法打开审核</strong>
       <p>{{ error }}</p>
+      <button class="button button-primary" type="button" @click="load">重试读取当前单据</button>
       <RouterLink class="button" to="/inbox">返回收件箱</RouterLink>
     </section>
   </div>
 </template>
 
 <style scoped>
+.review-queue-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+}
+.review-queue-bar p {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.queue-draft-note {
+  flex-basis: 100%;
+}
+.passed-validations > summary {
+  padding: 12px 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
 .manual-source-notice {
   display: block;
   overflow-wrap: anywhere;

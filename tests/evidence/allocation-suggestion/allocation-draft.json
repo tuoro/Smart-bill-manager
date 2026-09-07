@@ -1,0 +1,249 @@
+{
+  "report_kind": "allocation-suggestion-reduction/1",
+  "measured_on": "2026-09-06",
+  "status": "passed_local_web_slice",
+  "baseline_head": "32afe1e3dc6dcadcbff0ad69f482942436ccdd27",
+  "baseline_includes_uncommitted_adr0034": true,
+  "fixture": {
+    "version": "allocation-suggestion-fixtures/1",
+    "synthetic_scenarios": 8,
+    "scenario_input_sha256": "e6bd91336b8bbc6cc857af39b610010e0151f359c09aaddfb232570d5946a40d"
+  },
+  "measurement_scope": "仅计固定任务中的目标勾选、采用建议、金额填写、理由填写、明确保存及查询；不计页面导航、阅读核对、滚动、实际键击、修订返工或用户主动操作时间。每次 fill 记一次填写，非键击数。",
+  "baseline": {
+    "execution": "分配生产代码修改前，基于包含 ADR-0034 的当前工作区构建隔离静态 UI，实际浏览器运行同一批固定场景。",
+    "counts": {
+      "target_selections": 12,
+      "suggestion_adoptions": 0,
+      "amount_fills": 12,
+      "reason_fills": 8,
+      "explicit_saves": 8,
+      "queries": 0
+    },
+    "total_actions": 40,
+    "correct_complete_plans": 8,
+    "distinct_idempotency_keys": 8,
+    "page_errors": 0,
+    "unexpected_requests": 0,
+    "allocation_page_sha256": "d0489b5696700e31d791e28ac2d95e397e2b9db2c1cae41d287f42de3b552872",
+    "allocation_model_sha256": "9451e8d3dbc3225c47bb74ac3f2a060f9048b2910ab3b1b718f2e4f26a6d58a0",
+    "script_sha256": "70732d73649cb085840868641732604fae8e8342800d994b063792b716581eb3",
+    "raw_result_sha256": "8938830a50fd496dc54f84d1ebbccc1eceec86c5e1136da37e4e5216e90e81b8"
+  },
+  "candidate": {
+    "fixture_version": "allocation-suggestion-fixtures/1",
+    "scenarios": 8,
+    "counts": {
+      "target_selections": 2,
+      "suggestion_adoptions": 6,
+      "amount_fills": 3,
+      "reason_fills": 8,
+      "explicit_saves": 8,
+      "queries": 0
+    },
+    "total_actions": 27,
+    "correct_complete_plans": 8,
+    "distinct_idempotency_keys": 8,
+    "page_errors": 0,
+    "unexpected_requests": 0,
+    "actual_model_evaluated": false,
+    "human_time_measured": false
+  },
+  "comparison": {
+    "actions_removed": 13,
+    "action_reduction_percent": 32.5,
+    "reason_fills_before": 8,
+    "reason_fills_after": 8,
+    "explicit_save_decisions_before": 8,
+    "explicit_save_decisions_after": 8,
+    "complete_plans_equal": true
+  },
+  "validation": {
+    "contract_generation": "passed_no_generated_diff",
+    "typecheck": "passed",
+    "lint": "passed",
+    "format_check": "passed",
+    "production_build": "passed",
+    "unit": {
+      "test_files": 13,
+      "passed": 115,
+      "failed": 0,
+      "new_suggestion_and_draft_cases": 59
+    },
+    "mock_browser": {
+      "spec_files": 16,
+      "passed": 150,
+      "failed": 0,
+      "skipped": 0,
+      "flaky": 0,
+      "workers": 1,
+      "new_allocation_cases": 14,
+      "started_at": "2026-09-05T19:35:58.282Z",
+      "raw_report_sha256": "96ec9512dc1327bb59429359e4fae84fce9cf69e36dcbb64b211fd75f44dc3a6"
+    },
+    "focused_browser": {
+      "passed": 14,
+      "failed": 0,
+      "raw_report_sha256": "38b48817ab28ddd2eddc61d98d055e59a8cf777d52b42013016919e58dad7629"
+    },
+    "coverage": [
+      "单个等额与多个同名候选全量合计等额，不贪心或求子集",
+      "部分目标采用后金额留空，输入实际金额并显示本次上限",
+      "采用前零写入、拒绝或修改，手工目标与金额不覆盖、理由不代写",
+      "完整 desired_allocations 保留窗口外当前 Link 与金额",
+      "初始分页不完整与搜索/翻页后不假装候选全量唯一",
+      "仅候选集合变化不算脏，刷新和离开明确提示未保存输入",
+      "409 旧建议失效，保留草稿但刷新后才能重新确认",
+      "未知结果冻结输入，只显式重发原请求与原幂等键",
+      "提交中冻结编辑、查询、刷新和应用内导航，会话失效可离开",
+      "已保存后读取失败明确披露，重试只读而非再提交",
+      "迟到读取与退出后的迟到写响应完成后均不能恢复旧页",
+      "原有跨期手工、撤销全部、替换和权限路径回归"
+    ],
+    "responsive": {
+      "widths": [
+        384,
+        768,
+        1024,
+        1440
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "new_screenshots": 16,
+      "horizontal_overflow": false,
+      "minimum_action_button_text_contrast": 4.5,
+      "contrast_states": [
+        "normal",
+        "hover"
+      ],
+      "contrast_targets": [
+        "采用建议",
+        "不采用草案",
+        "最终保存"
+      ],
+      "keyboard_adoption_and_focus": "passed",
+      "visual_inspection": "已查看移动端与桌面端的采用前/后浅深主题截图；无重叠、裁切或不可达按钮。",
+      "screenshots": [
+        {
+          "name": "allocation-suggestion-adopted-dark-1024.png",
+          "sha256": "f1514e323808365953a16cc02a81ea97b73f5d0557973045f10062e899393c78"
+        },
+        {
+          "name": "allocation-suggestion-adopted-dark-1440.png",
+          "sha256": "140b00b4eac7aa93f68ac318bc5257931e16f5811e7591c1049615d59bd06417"
+        },
+        {
+          "name": "allocation-suggestion-adopted-dark-384.png",
+          "sha256": "b9e048a9520fc8e7b02ae94714578ac6e9c1ae55eecec4d85cb745e6c1791834"
+        },
+        {
+          "name": "allocation-suggestion-adopted-dark-768.png",
+          "sha256": "5344e218b1c5281a0fceb48b98aad9a06d3ad3529aa8f2265916bd80a2610f57"
+        },
+        {
+          "name": "allocation-suggestion-adopted-light-1024.png",
+          "sha256": "2344c8347bf8345abfbcb1206192991c5666e32cfd71886f8a0dc686434e1ec7"
+        },
+        {
+          "name": "allocation-suggestion-adopted-light-1440.png",
+          "sha256": "a7f7c53759b18e0094581b3726a50e63b27e0202123ff4aa54fe226396201918"
+        },
+        {
+          "name": "allocation-suggestion-adopted-light-384.png",
+          "sha256": "4bb6e0b1709c1ea7cfe0a5c3efecb0fa147b2d69aa871e860c4ec5389641dd64"
+        },
+        {
+          "name": "allocation-suggestion-adopted-light-768.png",
+          "sha256": "19af26812bb5c330ef6b88f30031b82bd9843ee7871fcef3e5612ef480993c7c"
+        },
+        {
+          "name": "allocation-suggestion-preview-dark-1024.png",
+          "sha256": "12a3fb40a5cb770aea9fd7568b77ceb3774b740a20c1dd750c20b55e16a18727"
+        },
+        {
+          "name": "allocation-suggestion-preview-dark-1440.png",
+          "sha256": "d5aec7d7b3e22ac969eadad31704be88563060aa0d75fb0718b62afa33e2deff"
+        },
+        {
+          "name": "allocation-suggestion-preview-dark-384.png",
+          "sha256": "3443a277807f93d0ac32c494e476ede04947955276ee50d1b1b20f905cbc51a8"
+        },
+        {
+          "name": "allocation-suggestion-preview-dark-768.png",
+          "sha256": "425adaa704406a69d67af1d2bb649ec5f310086a154c3e9eaab5801ee3c21a37"
+        },
+        {
+          "name": "allocation-suggestion-preview-light-1024.png",
+          "sha256": "406bf9abdfa01b5762beeeed0f6a24a105d8c0ad5c82e234905bf660c9a88847"
+        },
+        {
+          "name": "allocation-suggestion-preview-light-1440.png",
+          "sha256": "1f37cff15b1208e69b28429c3446ef40274236d882273d62fa447a8b9a3cd5b7"
+        },
+        {
+          "name": "allocation-suggestion-preview-light-384.png",
+          "sha256": "fe9aeb0361d8f1d3997ee1dbda611a4beb9b91aa80841d80f67f22f21c87038e"
+        },
+        {
+          "name": "allocation-suggestion-preview-light-768.png",
+          "sha256": "6a79d359822c0b55e328e64d84e4338b5cc528a6f3c9afb0266f60a328d5a71b"
+        }
+      ]
+    }
+  },
+  "resolved_validation_findings": [
+    {
+      "attempt": "initial_focused_browser",
+      "passed": 12,
+      "failed": 2,
+      "raw_report_sha256": "78c4dc28251613470ceca36fc8b161e3a1caae40c09c621b923821e6c41e5815",
+      "findings": [
+        "部分金额为空时确认按钮提前禁用，已改为允许修改过的草稿触发校验；真正 POST 仍只接受唯一校验器产出的合法请求。",
+        "迟到读取测试标题选择器不符合实际支付管理页面，修正选择器和 Mock 列表 next_cursor；等待旧响应完成后再断言隔离。"
+      ],
+      "final_status": "fixed_and_reverified_in_focused_and_full_mock_runs"
+    }
+  ],
+  "source_sha256": {
+    "apps/web/src/features/allocations/AllocationPage.vue": "dd632e87ecb7454b10a6af1e10264075fa0b1cff3446116ff3428a06b9605d2f",
+    "apps/web/src/features/allocations/AllocationSuggestion.vue": "0fcc78e12e9ceea26b97f64806eec87dadcd42970a7af482e1f8f2b8724570d1",
+    "apps/web/src/features/allocations/suggestion.ts": "a4e52905a8f2ecac88b513190fc11ddcefd3e861a6b1eb74820115532dd8cf97",
+    "apps/web/src/features/allocations/model.ts": "6f33777d1c27e4974a833fcff3d7f558ba8376b7dcf7b9d71ba91e0418530a83",
+    "apps/web/src/features/allocations/suggestion.test.ts": "7b90e8d57fbd6030dc7752c1f4a7853d30d207dc2a3317039dbeeb03a6c4cbb5",
+    "apps/web/e2e/allocation-suggestion-fixtures.ts": "cfafa7de4dab8d3a77e458d51c83bf29303beb74f2b3f5db438d1ebdaf1577bc",
+    "apps/web/e2e/allocation-suggestion.spec.ts": "58271e20f8ce34f67ea3d56df64edcec4b78d7ae7fad4f7f9ef434394bb71602",
+    "apps/web/e2e/visual-review.ts": "8ad64f29f55817914b7668f2f95906618d35205b18d81b11d6f3921799c7fed5"
+  },
+  "boundaries": {
+    "backend_changed": false,
+    "api_or_schema_changed": false,
+    "initial_review_association_changed": false,
+    "new_model_or_provider": false,
+    "actual_model_evaluated": false,
+    "human_time_measured": false,
+    "real_provider_or_postgresql_integration_rerun": false,
+    "user_instance_upgraded": false,
+    "committed": false,
+    "published": false
+  },
+  "isolation": {
+    "synthetic_only": true,
+    "loopback_static_preview": true,
+    "api_proxy_enabled": false,
+    "unmocked_preview_api_status": 501,
+    "new_mock_unexpected_requests": 0,
+    "raw_artifacts_generated_only_in_private_temporary_directory": true,
+    "owned_static_preview_stopped": true,
+    "temporary_resources_cleaned": true,
+    "temporary_builds_reports_screenshots_removed": true,
+    "safe_aggregate_retained": true
+  },
+  "limitations": [
+    "8 个固定合成场景不是总体使用分布，也不是用户耗时评测；不推导真实 30% 时间减负目标已达成。",
+    "Mock 只验证真实 Web 组件交互、客户端请求与失败状态，不证明数据库事务、真实模型质量或真实部署联合行为。",
+    "初始完整 30 天范围内的名称/日期/余额均为读取时快照，不证明属于同一交易；plan_hash 不锁定全部匹配依据。",
+    "本次没有后端、契约或持久化改动；未重新执行真实 Provider、PostgreSQL 集成或用户实例升级。"
+  ]
+}

@@ -1,0 +1,447 @@
+{
+  "schema_version": 1,
+  "report_kind": "review-allocation-throughflow",
+  "status": "passed_local_combined_runtime_with_explicit_conflict_recovery",
+  "measured_on": "2026-09-06",
+  "measurement_timezone": "Asia/Singapore",
+  "captured_at": "2026-09-05T20:40:20.374Z",
+  "scope": {
+    "adr": "docs/decisions/0036-review-allocation-throughflow.md",
+    "current_web_with_existing_backend_image": true,
+    "new_product_logic": false,
+    "api_responses_mocked": false,
+    "direct_business_table_writes": false,
+    "real_model_called": false,
+    "user_instance_touched": false,
+    "new_image_built": false,
+    "image_pulled_or_retagged": false,
+    "commit_or_publish": false
+  },
+  "runtime_identity": {
+    "head": "32afe1e3dc6dcadcbff0ad69f482942436ccdd27",
+    "release_input_sha256": "58d693a9f4aec8829ff9f754b951b7393293a7fa12be9267d3e1762fccd1ce72",
+    "files": 370,
+    "bytes": 3467021,
+    "backend_contract_infra_unchanged": true,
+    "previousProofs": [
+      {
+        "path": "tests/evidence/review-reduction/continuous-review.json",
+        "checked_sources": 8,
+        "sha256": "81a4238ba7f2dc3c9d4306a60d0018fa35e3f735b542415812854350fa412014"
+      },
+      {
+        "path": "tests/evidence/allocation-suggestion/allocation-draft.json",
+        "checked_sources": 8,
+        "sha256": "5b84e0d62b889195ae2a04b09a97b6fd908e0ebce40df9e7bdeb348985dfef05"
+      }
+    ],
+    "application_image_id": "sha256:4f675e1b085a55397dc2a1ec09abae3a55c361a2940355137bfc2daea2424385",
+    "application_image_revision_label": "70d3518860a61ccb2ea6164b81db83e0d603a5fa",
+    "image_release_input_matches_head": true,
+    "identity_note": "镜像 revision 为构建前基线；以当前 HEAD 的 370 个发布输入内容摘要与镜像标签相等，且当前后端/契约/infra 无未提交差异，证明本轮复用范围。当前 Web 来自只读挂载，不是镜像内旧 Web。",
+    "database_image_id": "sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73",
+    "provider_image_id": "sha256:244cc2b53f46f9e876304391d17682b0ddae9ac33491f4857e25e35a36ba7995",
+    "served_web": [
+      {
+        "path": "index.html",
+        "sha256": "693739a17acab28e6453b2f02e68e82556cdb4e0c502ee6242e8ca1a39d60564",
+        "served_exact": true
+      },
+      {
+        "path": "assets/index-C3klWkH1.js",
+        "sha256": "6431acac91858fb16765f8a32f9bdf622db385713ecd242ea3ddcad2f5d0f305",
+        "served_exact": true
+      },
+      {
+        "path": "assets/ReviewPage-CDqugMWH.js",
+        "sha256": "c9c4787f713074f651559a111e2f0391663f2b895242f3256de03b833cd5c431",
+        "served_exact": true
+      },
+      {
+        "path": "assets/AllocationPage-CS1YYZ5H.js",
+        "sha256": "fedd63653f6f1dc8603786c86bcdd22d0381df9b8a4fd2cc4a1dee9471acecf5",
+        "served_exact": true
+      }
+    ],
+    "node_version": "24.20.0",
+    "private_configuration_sha256": {
+      "control.mjs": "d0cfe4d1ad41569ef8522908fb068b55851ba4ca758ac4b3d69931d39187fd14",
+      "override.json": "0501af00dced0ac09629cd1d0a65b79380e85470b077448f7f195fee1961e1c1",
+      "bridge.mjs": "3ba30676531544b20da3776fbdb85c7bd0d314a36a897a1962ab1b3e6c7f2726",
+      "aggregate.sql": "71ec07e830f4cfa8f34f7fd03d5167e0697a4cf06b7c80ae2f6e1e24dbb4d6ed"
+    }
+  },
+  "isolation": {
+    "fresh_database_for_each_attempt": true,
+    "fresh_named_object_volume_for_each_attempt": true,
+    "docker_endpoint": "unix:///var/run/docker.sock",
+    "internal_networks": 2,
+    "database_published_ports": 0,
+    "application_loopback_only": true,
+    "loopback_bridge": "Docker 声明的回环端口未映射；核实本轮容器/镜像/网络身份后，仅临时转发该容器的应用端口，真实 HTTP 不变。",
+    "provider_network": "与 app 共享网络命名空间，127.0.0.1:19086",
+    "browser_same_origin_only": true,
+    "build_environment": "允许清单进程环境及空 envDir，不加载用户 .env",
+    "compose_environment": "--env-file /dev/null，允许清单及本轮保护凭据文件",
+    "configured_all_five_containers_memory_mib": 3840,
+    "observed_memory_before_approx_gib": 9.5,
+    "observed_memory_after_kib": 9911328,
+    "memory_note": "宿主可用内存仅为前后检查，不是峰值、性能或内存压力门禁。"
+  },
+  "validation": {
+    "web_unit_tests": {
+      "passed": 115,
+      "files": 13,
+      "failed": 0
+    },
+    "provider_unit_tests": {
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    "web_typecheck": "passed",
+    "web_eslint": "passed",
+    "web_and_provider_prettier": "passed",
+    "production_web_build": "passed",
+    "real_browser": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "workers": 1,
+      "retries": 0,
+      "reported_duration_seconds": 13.7,
+      "attempt": 4
+    },
+    "historical_mock_browser_tests": {
+      "adr35_passed": 150,
+      "rerun_this_round": false,
+      "prior_16_recorded_source_hashes_unchanged": true
+    },
+    "commands": {
+      "web_units": "apps/web: node node_modules/vitest/vitest.mjs run",
+      "provider_units": "node --test tools/synthetic-provider.test.mjs",
+      "web_typecheck": "apps/web: node node_modules/vue-tsc/bin/vue-tsc.js --noEmit",
+      "web_eslint": "apps/web: node node_modules/eslint/bin/eslint.js . --max-warnings 0",
+      "format": "apps/web: node node_modules/prettier/bin/prettier.cjs --check . ../../tools/synthetic-provider.mjs ../../tools/synthetic-provider.test.mjs",
+      "runtime": "apps/web: node node_modules/@playwright/test/cli.js test --config e2e-runtime/playwright.config.ts",
+      "runtime_prerequisites": "apps/web/e2e-runtime/README.md"
+    }
+  },
+  "runtime": {
+    "report_kind": "review-allocation-throughflow",
+    "protocol_version": 1,
+    "synthetic_only": true,
+    "api_responses_mocked": false,
+    "passed": true,
+    "provider_mode": "review-allocation",
+    "expected_provider_extractions": 3,
+    "provider_metrics_verified_by_browser": false,
+    "fixture_sha256": "767dd05412b8f718f8673425da6c17cf7cf3353cd5e667318e2fcd4ad1e5d77f",
+    "documents": [
+      {
+        "sample": "P",
+        "file": "throughflow-payment.png",
+        "sha256": "af52e4c4fceef3bd4da9784ef7a1c3ef80873ed7d7adca075a06d04ea206d78d"
+      },
+      {
+        "sample": "A",
+        "file": "throughflow-invoice-a.png",
+        "sha256": "f81efc3081856eef0a34d5227c4ad9bc8db64dfff75717feced35006970bc360"
+      },
+      {
+        "sample": "B",
+        "file": "throughflow-invoice-b.png",
+        "sha256": "8f4bf028f5b489dcc03e757e90f086d98a7d9ba6823f65fa15a59e70e28b8eb8"
+      }
+    ],
+    "source_chains": [
+      {
+        "sample": "B",
+        "origin_kind": "ai",
+        "revision": 1,
+        "original_sha256": "8f4bf028f5b489dcc03e757e90f086d98a7d9ba6823f65fa15a59e70e28b8eb8",
+        "normalized_page_sha256": "fc37c140232220d98cf2d0b1311fd179a12efb52d5da77be184f02443cfcdcb6",
+        "linked_document_claim_review": true
+      },
+      {
+        "sample": "A",
+        "origin_kind": "ai",
+        "revision": 2,
+        "original_sha256": "f81efc3081856eef0a34d5227c4ad9bc8db64dfff75717feced35006970bc360",
+        "normalized_page_sha256": "49a114ae75bc21af8bc7818abfa020770bbcbae4dccaac889f3fd386008e82d3",
+        "linked_document_claim_review": true
+      },
+      {
+        "sample": "P",
+        "origin_kind": "ai",
+        "revision": 1,
+        "original_sha256": "af52e4c4fceef3bd4da9784ef7a1c3ef80873ed7d7adca075a06d04ea206d78d",
+        "normalized_page_sha256": "2a038f58828a412245e3415dbbd31c8815a18a2d9c54f8ad9253c2ab761f2660",
+        "linked_document_claim_review": true
+      }
+    ],
+    "continuous_review": {
+      "confirmed": 3,
+      "review_order": ["B", "A", "P"],
+      "confirmation_requests": 4,
+      "expected_duplicate_candidate_set_stale_409": 1,
+      "explicit_revisions": 1,
+      "duplicate_conflict_recovery": {
+        "sample": "A",
+        "before_revision": 1,
+        "after_revision": 2,
+        "fields_and_evidence_unchanged": true,
+        "no_partial_writes": true
+      },
+      "initial_links_created": 0,
+      "duplicate_decisions": 2
+    },
+    "submitted_plans": [
+      {
+        "anchor": "A",
+        "desired_allocations": [
+          {
+            "target": "P",
+            "allocated_minor": 4000
+          }
+        ],
+        "expected_plan_hash": "5b9cacd45157aadd1a2bbb4e0f791986f6ce1902885cd0b2c570fb5419a4385d",
+        "reason_provided": true
+      },
+      {
+        "anchor": "P",
+        "desired_allocations": [
+          {
+            "target": "A",
+            "allocated_minor": 4000
+          },
+          {
+            "target": "B",
+            "allocated_minor": 6000
+          }
+        ],
+        "expected_plan_hash": "e7f61af1c42498a0ffb1b4a7c10897791519e9a9076ddf728ae0e51356bb0707",
+        "reason_provided": true
+      }
+    ],
+    "balances": {
+      "initial": {
+        "P": {
+          "allocated_minor": 0,
+          "remaining_minor": 10000
+        },
+        "A": {
+          "allocated_minor": 0,
+          "remaining_minor": 6000
+        },
+        "B": {
+          "allocated_minor": 0,
+          "remaining_minor": 6000
+        }
+      },
+      "after_partial": {
+        "P": {
+          "allocated_minor": 4000,
+          "remaining_minor": 6000
+        },
+        "A": {
+          "allocated_minor": 4000,
+          "remaining_minor": 2000
+        },
+        "B": {
+          "allocated_minor": 0,
+          "remaining_minor": 6000
+        }
+      },
+      "final": {
+        "P": {
+          "allocated_minor": 10000,
+          "remaining_minor": 0
+        },
+        "A": {
+          "allocated_minor": 4000,
+          "remaining_minor": 2000
+        },
+        "B": {
+          "allocated_minor": 6000,
+          "remaining_minor": 0
+        }
+      }
+    },
+    "old_link_preserved": true,
+    "added_link_count": 1,
+    "ended_link_count": 0,
+    "distinct_mutation_keys": 6,
+    "browser_api_requests": {
+      "GET /api/v1/session": 5,
+      "POST /api/v1/session/login": 1,
+      "GET /api/v1/jobs": 8,
+      "GET /api/v1/provider-configs": 1,
+      "POST /api/v1/provider-configs": 1,
+      "POST /api/v1/provider-configs/:id/detect": 1,
+      "POST /api/v1/provider-configs/:id/activate": 1,
+      "POST /api/v1/documents": 3,
+      "GET /api/v1/reviews/:id": 3,
+      "GET /api/v1/documents/:id/pages/1/content": 3,
+      "POST /api/v1/reviews/:id/confirm": 4,
+      "POST /api/v1/reviews/:id/revisions": 1,
+      "GET /api/v1/allocations/payment/:id": 4,
+      "GET /api/v1/allocations/invoice/:id": 2,
+      "POST /api/v1/allocations/invoice/:id/adjustments": 1,
+      "POST /api/v1/allocations/payment/:id/adjustments": 1
+    },
+    "readback_api_requests": 85,
+    "expected_initial_session_401": 1,
+    "unexpected_api_responses": 0,
+    "external_requests": 0,
+    "page_errors": 0,
+    "failed_api_requests": 0,
+    "screenshots": [
+      {
+        "file": "continuous-review.png",
+        "sha256": "db52a50a2c4ebbf14688f806f8ecb1f6a9aeda96ce9ed614085dde4a589d957c"
+      },
+      {
+        "file": "continuous-review-duplicate-conflict.png",
+        "sha256": "1e5d20a46526d4ff4832b182c0502ae42220bb83559a25c680b4dcfa0e201933"
+      },
+      {
+        "file": "continuous-review-completed.png",
+        "sha256": "4bc12b3bc58096801f25009023ad7ce59f06009abc2cfa14c2abfc19cc790afc"
+      },
+      {
+        "file": "allocation-ambiguous.png",
+        "sha256": "7ea9fb1f6b3643cd83a03c5e91c02739c228ce1da6246d5f750b90d956b9d373"
+      },
+      {
+        "file": "allocation-partial-blank.png",
+        "sha256": "e1b132b8eee1ec3b2d0a7b92073ac93552beb95464a8a93675661f9a5abb1d5d"
+      },
+      {
+        "file": "allocation-exact-adopted.png",
+        "sha256": "9eafe2a3b0b67e88b505a064e489550c0e0367f3d012fb491c8ae6e0a9393aa5"
+      },
+      {
+        "file": "allocation-persisted-after-reload.png",
+        "sha256": "0fef85a705ebb28a5db820745fd382acb915bdccc7c47168d2809a322b029578"
+      }
+    ],
+    "limitations": [
+      "固定本地Mock不执行识别",
+      "未测量模型正确率、真实用户核对时间或总体操作收益",
+      "Provider实际请求计数由外部隔离控制器读取health和metrics核对"
+    ]
+  },
+  "database_before_counts": {
+    "jobs": 0,
+    "claims": 0,
+    "ai_runs": 0,
+    "invoices": 0,
+    "payments": 0,
+    "documents": 0,
+    "adjustments": 0,
+    "links_ended": 0,
+    "links_active": 0,
+    "review_decisions": 0,
+    "ai_runs_succeeded": 0,
+    "links_total_history": 0,
+    "adjustments_supplement": 0
+  },
+  "database_after": {
+    "counts": {
+      "jobs": 3,
+      "claims": 4,
+      "ai_runs": 3,
+      "invoices": 2,
+      "payments": 1,
+      "documents": 3,
+      "adjustments": 2,
+      "links_ended": 0,
+      "links_active": 2,
+      "review_decisions": 3,
+      "ai_runs_succeeded": 3,
+      "links_total_history": 2,
+      "adjustments_supplement": 2
+    },
+    "scope_matched": true,
+    "source_chain_complete": true,
+    "revision_origin_preserved": true,
+    "revision_fields_unchanged_ai": true,
+    "adjustment_link_chain_complete": true,
+    "revision_evidence_copied_exactly": true
+  },
+  "database_method": "仅对已核实的本轮唯一租户数据库执行 BEGIN READ ONLY/ROLLBACK 聚合；对象表引用不冒充磁盘文件校验。原件经真实授权 HTTP 回读并核对上传摘要；规范化页经授权读取、确认非空并记录摘要，不声称与独立预期摘要比较。",
+  "provider_actual": {
+    "mode": "review-allocation",
+    "requests": 4,
+    "probes": 1,
+    "extractions": 3
+  },
+  "provider_metrics_verified_by_controller": true,
+  "failed_attempts": [
+    {
+      "attempt": 1,
+      "raw_console_sha256": "d6447a6336bba80fb05e1331e8e0b2b99cefdfcd75046c1985f2d1ae65752799",
+      "failed_spec_sha256": "9d0f4c44b5989876779ee35ef48cfc447be9564757e4296c198269f907e69891",
+      "outcome": "failed_not_reclassified",
+      "reason": "测试把小写 normalized_value 与票面 value 混比；修正断言，不改规范化逻辑。",
+      "rerun_with_fresh_isolated_volumes": true
+    },
+    {
+      "attempt": 2,
+      "raw_console_sha256": "ddf6d6119facedc51f7729a5dd8c2064286b450f05009640c76b25aa6f51c21d",
+      "failed_spec_sha256": "93f490ed8e27346e3e0fd3f60f96e9e237ced889725da06d30033f7cdcc59741",
+      "outcome": "failed_not_reclassified",
+      "reason": "后上传 B 使 A 重复候选快照过期，确认返回 409 duplicate_candidate_set_stale。只读核对无部分 Fact/Link 写入；保留原图和既有规则，新增显式 UI 修订恢复验收。",
+      "rerun_with_fresh_isolated_volumes": true
+    },
+    {
+      "attempt": 3,
+      "raw_console_sha256": "6662a25cc4a65ddb80f59437446f296020603335ef6bee287db644484d45d863",
+      "failed_spec_sha256": "c9da62c56f905d15f9a74f8e966c62e99cca33df91b06333e84784f8d3077c84",
+      "outcome": "failed_not_reclassified",
+      "reason": "显式修订成功但测试误期望 200，实际 Handler/契约为 201；修正断言，半程结果不计完成。",
+      "rerun_with_fresh_isolated_volumes": true
+    }
+  ],
+  "safeguards": {
+    "same_three_images_all_four_attempts": true,
+    "owner_only_artifact_files_checked": 36,
+    "owner_password_or_provider_key_in_artifacts": false
+  },
+  "source_sha256": {
+    "apps/web/e2e-runtime/review-allocation.spec.ts": "4df3af294cdb74bae39f5ab9ee03d6b451969c2b1c5b45b68cf90fdcbbe7630e",
+    "apps/web/e2e-runtime/playwright.config.ts": "9a167f9c1f79b58cdedc3f5013ca5ab21794079552ec604c8a2910cd7c3a998c",
+    "apps/web/e2e-runtime/README.md": "37d890a500ff86c4b1453cf8d24b8d2bbca21222cb13298cbbdc19545c659f91",
+    "apps/web/tsconfig.json": "843c09cc7f9041973b7792af95141404e3eb19e50bc50abd223566f072026bc0",
+    "apps/web/eslint.config.js": "35ce9a0d07b9c3c88f7a1790165e223b229ee973efa376c7bbd624f317e98788",
+    "tools/synthetic-provider.mjs": "5422ace5c00531a0a504368a700102a035cd9976b358fc6b4ea49aa7f5c8ddc6",
+    "tools/synthetic-provider.test.mjs": "609393b5531241ab621ec4db393fa98787748c047af8b2e32218eff870744727"
+  },
+  "raw_pass_console_sha256": "60a85d9b305f2ad93d17d427d5253ef021eb9478dc0475512de4e96541b0122c",
+  "raw_pass_summary_sha256": "86bf4c8b01d905392865a81dc151aa5d0c43d3430dffa9680196bb76457f5f42",
+  "cleanup": {
+    "verified_at": "2026-09-05T20:45:12.574Z",
+    "removed_containers": 5,
+    "removed_named_volumes": 2,
+    "removed_networks": 2,
+    "containers_remaining": 0,
+    "volumes_remaining": 0,
+    "networks_remaining": 0,
+    "bridge_stopped": true,
+    "loopback_closed": true,
+    "private_root_removed": true,
+    "credentials_removed": true,
+    "synthetic_images_build_and_raw_reports_removed": true,
+    "existing_container_images_preserved": true,
+    "user_data_preserved": true
+  },
+  "limitations": [
+    "本轮固定合成 Provider 不执行图片识别，不能证明模型质量、真实用户核对时间或 30% 时间减负。",
+    "最终运行包含一次明确预期的 409 和已有 UI 的人工修订恢复；不是首次直接成功或零错误。failed_api_requests 仅指传输失败。",
+    "前三次失败保留为失败，不合并为最终通过；四次完整运行使用相同三张图片并每次重建独立数据卷。",
+    "只补齐当前 Web 与既有后端的组合链路，不代表新镜像、全场景、性能、备份恢复或发布门禁。",
+    "截图仅核对关键业务状态；滚动后的 fullPage 固定导航位置不作为新响应式视觉门禁。",
+    "原始报告、截图、图片与临时配置已按约定清理；仓库保留其摘要，不包含凭据、原件内容或原始业务 ID。"
+  ]
+}

@@ -20,6 +20,7 @@
     "src/**/*.ts",
     "src/**/*.vue",
     "e2e/**/*.ts",
+    "e2e-runtime/**/*.ts",
     "vite.config.ts",
     "playwright.config.ts"
   ]

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { ApiError, api, type JobSummary } from '../../data/client'
 import {
   batchUploadStateMeta,
@@ -13,6 +13,14 @@ import { canCancel, canRetry, canReview, jobStatusMeta } from './status'
 import AppIcon from '../../components/AppIcon.vue'
 import ManualReviewStart from './ManualReviewStart.vue'
 import { sessionStore } from '../../app/session'
+import { continuousReviewLocation, reviewQueue, reviewQueueScope } from '../review/queue'
+
+const router = useRouter()
+const queueScope = computed(() => reviewQueueScope(sessionStore.current.value))
+const activeReviewQueue = computed(() => reviewQueue.forScope(queueScope.value))
+const pendingReviewId = computed(
+  () => activeReviewQueue.value?.jobIds[activeReviewQueue.value.index],
+)
 
 const manualJob = ref<JobSummary | null>(null)
 let manualTrigger: HTMLElement | null = null
@@ -64,6 +72,22 @@ const filteredJobs = computed(() => {
     return jobs.value.filter((job) => ['completed', 'cancelled', 'rejected'].includes(job.status))
   return jobs.value
 })
+const reviewableJobs = computed(() => filteredJobs.value.filter((job) => canReview(job.status)))
+
+async function startContinuousReview() {
+  if (!queueScope.value || offline.value || loading.value || error.value) return
+  try {
+    const id =
+      pendingReviewId.value ??
+      reviewQueue.start(
+        queueScope.value,
+        reviewableJobs.value.map((job) => job.id),
+      )
+    await router.push(continuousReviewLocation(id))
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : '无法开启连续审核，请刷新后重试。'
+  }
+}
 
 async function load(silent = false) {
   if (offline.value) return
@@ -259,9 +283,36 @@ onUnmounted(() => {
             {{ item[1] }}
           </button>
         </div>
-        <span class="queue-count"
-          >{{ jobs.length }} 个任务<span v-if="refreshing"> · 正在同步</span></span
-        >
+        <div class="queue-actions">
+          <span class="queue-count"
+            >{{ jobs.length }} 个任务<span v-if="refreshing"> · 正在同步</span></span
+          >
+          <template v-if="queueScope">
+            <button
+              class="button button-small button-primary"
+              type="button"
+              :disabled="
+                loading || offline || Boolean(error) || (!pendingReviewId && !reviewableJobs.length)
+              "
+              @click="startContinuousReview"
+            >
+              {{ pendingReviewId ? '继续本轮审核' : '开始连续审核' }}
+              （{{
+                pendingReviewId && activeReviewQueue
+                  ? activeReviewQueue.jobIds.length - activeReviewQueue.index
+                  : reviewableJobs.length
+              }}）
+            </button>
+            <button
+              v-if="pendingReviewId"
+              class="text-button"
+              type="button"
+              @click="reviewQueue.clear()"
+            >
+              结束本轮
+            </button>
+          </template>
+        </div>
       </div>
 
       <div v-if="loading" class="state-layout" role="status">
@@ -384,3 +435,12 @@ onUnmounted(() => {
     </p>
   </div>
 </template>
+
+<style scoped>
+.queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+</style>

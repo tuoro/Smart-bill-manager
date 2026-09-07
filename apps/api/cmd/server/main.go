@@ -101,6 +101,15 @@ func run(logger *slog.Logger) error {
 func runApplication(ctx context.Context, config config, logger *slog.Logger) error {
 	status, err := postgresqladapter.InspectMigrations(ctx, config.database)
 	if err != nil {
+		if databaseFromStoredSettings {
+			return fmt.Errorf(
+				"无法使用已保存的数据库连接（%s:%d/%s）。该配置由初始化页写入 %s；"+
+					"数据库地址变化时可用 SBM_POSTGRES_HOST、SBM_POSTGRES_USER、"+
+					"SBM_POSTGRES_PASSWORD 等环境变量覆盖它，或删除该文件后重新配置。原始错误：%w",
+				config.database.Host, config.database.Port, config.database.Database,
+				postgresqladapter.SettingsFilePath(settingsDirectory()), err,
+			)
+		}
 		return err
 	}
 	switch {
@@ -315,11 +324,16 @@ func resolveDatabase() (postgresqladapter.Config, error) {
 	if err != nil {
 		return postgresqladapter.Config{}, err
 	}
+	databaseFromStoredSettings = true
 	return settings.Config(
 		postgresqladapter.PasswordFilePath(directory),
 		os.Getenv("SBM_MIGRATIONS_DIR"),
 	), nil
 }
+
+// databaseFromStoredSettings 记录本次连接配置是否来自初始化页写入的文件，
+// 用于在连接失败时给出针对性的修复指引。
+var databaseFromStoredSettings bool
 
 func loadConfig() (config, error) {
 	database, err := resolveDatabase()

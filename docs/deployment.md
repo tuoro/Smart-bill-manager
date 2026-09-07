@@ -50,6 +50,32 @@ docker run -d --name smart-bill-manager --network my-net \
 
 也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。环境变量优先于页面写入的配置。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
 
+### 2.1 不建自定义网络（用 IP 对接）
+
+数据库连接只需要地址、端口、账号和密码四项，地址填 IP 完全可以。省掉 `docker network create`：两个容器都留在默认 `bridge` 网络，用 `docker inspect` 取数据库 IP 填进初始化页即可。
+
+```bash
+docker run -d --name smart-bill-manager-db \
+  -e POSTGRES_USER=sbm_app -e POSTGRES_DB=smart_bill_manager \
+  -e POSTGRES_PASSWORD=<数据库密码> \
+  -v sbm-postgres:/var/lib/postgresql/data postgres:17-alpine
+
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' smart-bill-manager-db
+```
+
+默认 bridge 上容器之间按 IP 是互通的，只是**不解析容器名**。
+
+代价是 IP 不稳定：`docker restart` 不变，但**删除重建会变**（实测 `172.22.0.2` → `172.22.0.3`）。数据库容器重建后应用会连不上，需要按下面的方式改配置。用自定义网络加容器名则不受影响，这是默认推荐它的唯一原因。
+
+### 2.2 修改已保存的数据库连接
+
+初始化页写入的配置在 `/var/lib/sbm/config/database.json`，页面完成后不再提供修改入口。数据库地址或密码变化时有两种办法：
+
+- **用环境变量覆盖**（推荐）：`-e SBM_POSTGRES_HOST=<新地址>` 等变量优先级高于该文件，重建应用容器即可生效；
+- **删除该文件**后重启应用容器，会重新进入初始化页的数据库配置这一步（已创建的管理员账号不受影响）。
+
+连接失败时应用拒绝启动，错误信息会给出当前使用的地址、配置文件路径和上述两种修复方式。
+
 ### 3. 使用已有的 PostgreSQL
 
 数据库连接的四项都是普通环境变量，指向任意可达实例即可——同一台机器上已有的 Postgres、NAS 上的共用实例或另一台主机。此时不需要 4.1，也不需要自定义网络：

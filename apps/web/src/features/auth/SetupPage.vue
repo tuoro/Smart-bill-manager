@@ -102,7 +102,7 @@ async function submit() {
         <form v-else-if="ready" class="login-form" @submit.prevent="submit">
           <div>
             <h2 id="setup-title">创建 Owner 账号</h2>
-            <p>这些信息之后都可以在设置里修改。</p>
+            <p>这是本机自托管的部署，下面的信息只保存在你自己的数据库里。</p>
           </div>
 
           <div v-if="error" id="setup-error" class="notice notice-danger" role="alert">
@@ -112,6 +112,7 @@ async function submit() {
 
           <label class="field-stack">
             <span>邮箱</span>
+            <small class="field-hint">登录时用的账号名。本系统不发送任何邮件，填一个你记得住的即可。</small>
             <input
               v-model.trim="email"
               class="input"
@@ -127,6 +128,9 @@ async function submit() {
 
           <label class="field-stack">
             <span>工作区名称</span>
+            <small class="field-hint"
+              >你所有账单、发票、行程和报销的归属，显示在界面左上角。邀请成员后大家共用它。</small
+            >
             <input
               v-model.trim="tenant"
               class="input"
@@ -139,6 +143,7 @@ async function submit() {
 
           <label class="field-stack">
             <span>设置密码</span>
+            <small class="field-hint">至少 12 个字符。忘记后只能通过服务器上的命令行恢复。</small>
             <span class="password-control">
               <input
                 v-model="password"
@@ -189,6 +194,7 @@ async function submit() {
           <template v-if="advanced">
             <label class="field-stack">
               <span>姓名</span>
+              <small class="field-hint">显示在界面右上角和成员列表里，用来区分是谁。</small>
               <input
                 v-model.trim="name"
                 class="input"
@@ -200,12 +206,14 @@ async function submit() {
             </label>
             <label class="field-stack">
               <span>默认币种</span>
+              <small class="field-hint">新建单据时的默认币种，每张单据仍可单独修改。</small>
               <select v-model="currency" class="input" :disabled="pending">
                 <option v-for="item in currencies" :key="item" :value="item">{{ item }}</option>
               </select>
             </label>
             <label class="field-stack">
               <span>时区</span>
+              <small class="field-hint">用于判断单据日期和跨期分配，已按浏览器时区预填。</small>
               <input
                 v-model.trim="timezone"
                 class="input"
@@ -230,6 +238,14 @@ async function submit() {
 </template>
 
 <style scoped>
+.field-hint {
+  margin-top: -2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
 .setup-more {
   display: flex;
   align-items: center;

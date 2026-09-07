@@ -43,15 +43,20 @@ chmod 0710 "$target_dir" || fail secret_target_permissions
 if [ "$needs_objects" = true ]; then
   # 应用自身写入的首启配置目录。它与放主密钥的 secrets 目录分开：secrets 由
   # root 管理、应用只能穿越，避免被攻破的应用覆盖主密钥。
+  #
+  # 只在 /var/lib/sbm 可写时创建。Compose 契约只挂载 objects 子目录，
+  # /var/lib/sbm 位于只读根上；那条路径的数据库连接来自环境变量，不需要该目录，
+  # 因此创建失败不视为错误。
   config_dir=/var/lib/sbm/config
   [ ! -L "$config_dir" ] || fail config_directory_invalid
-  mkdir -p "$config_dir" || fail config_directory_unavailable
-  [ -d "$config_dir" ] || fail config_directory_invalid
-  # 与 objects 目录同一顺序：先取回属主再改权限，最后交给 sbm。
-  # --cap-drop ALL 去掉了 CAP_FOWNER，root 无法 chmod 非自有目录。
-  chown root:root "$config_dir" || fail config_directory_permissions
-  chmod 0700 "$config_dir" || fail config_directory_permissions
-  chown sbm:sbm "$config_dir" || fail config_directory_permissions
+  if mkdir -p "$config_dir" 2>/dev/null; then
+    [ -d "$config_dir" ] || fail config_directory_invalid
+    # 与 objects 目录同一顺序：先取回属主再改权限，最后交给 sbm。
+    # --cap-drop ALL 去掉了 CAP_FOWNER，root 无法 chmod 非自有目录。
+    chown root:root "$config_dir" || fail config_directory_permissions
+    chmod 0700 "$config_dir" || fail config_directory_permissions
+    chown sbm:sbm "$config_dir" || fail config_directory_permissions
+  fi
 
   data_dir=/var/lib/sbm/objects
   [ ! -L "$data_dir" ] || fail data_directory_invalid

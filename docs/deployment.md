@@ -221,6 +221,17 @@ Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍�
 
 为避免密钥写进容器可写层后随容器一起丢失，入口脚本要求 `/var/lib/sbm` 或 `/var/lib/sbm/secrets` 确实来自挂载卷，否则以 `master_key_storage_not_persistent` 失败。上面的 `-v sbm-data:/var/lib/sbm` 满足该条件。
 
+**升级。** 换用新版本镜像重建应用容器即可，但**迁移不会自动执行**。检测到未执行的迁移时应用拒绝启动，并给出待执行条数：
+
+```
+检测到 1 条未执行的数据库迁移（已应用 8 / 共 9）。迁移会原地修改现有数据且不可回滚，
+请先创建并验证备份，然后设置 SBM_ALLOW_MIGRATION=true 重新启动以应用它们
+```
+
+请先按[备份与恢复说明](backup-restore.md)创建并独立验证备份——把数据目录映射到宿主机只提供持久化，不构成可恢复的备份，迁移改坏的数据会被原样保留。确认备份可用后加上 `-e SBM_ALLOW_MIGRATION=true` 重建容器，应用会先执行迁移再启动。迁移完成后可以去掉该变量。
+
+这道门禁等价于 Compose 路径的 `sbm-deploy.sh upgrade --backup-confirmed`。镜像比数据库旧（数据库里有镜像不认识的迁移）时始终拒绝启动，不受该变量影响。
+
 **首启初始化。** 应用启动时检查目标库有没有 `schema_migrations`。没有就自行应用全部迁移——此时把运行账号同时当作迁移身份使用，因此该账号需要建表权限，这就是本节开头所说的单角色模式。已有 Schema 则完全不触发：Compose 路径下 app 总在独立的 `migrate` 入口之后启动，硬化路径因此不受影响。
 
 **创建管理员。** 没有任何环境变量参与，全部在浏览器完成。首次访问任意页面都会被引导到一次性初始化页 `/setup`，填写管理员用户名和密码即可；姓名、工作区名称、币种和时区在「更多设置」里可选。登录标识符可以是纯用户名（如 `admin`），系统不发送任何邮件，不要求可收信的邮箱地址。创建成功后 `GET /api/v1/setup` 永久返回 `required: false`，该页面不再出现，重复提交被拒绝。
@@ -243,7 +254,7 @@ Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍�
 
 `--read-only` 与两条 `--tmpfs` 必须同时使用：入口脚本要写 `/run/sbm-secrets`，应用要写 `/tmp`。保留 `--cap-drop ALL` 时必须补回那四个 capability，入口脚本要用它们修正 secret 与对象目录属主后再降权到 `sbm`。
 
-其余差异：数据库角色不做权限分离；网络非 internal，数据库容器也具备出站访问；升级只是替换镜像 tag 重建应用容器，迁移在首启时自动应用，但没有 `upgrade --backup-confirmed` 的备份门禁——升级前请自行按[备份与恢复说明](backup-restore.md)完成备份。
+其余差异：数据库角色不做权限分离；网络非 internal，数据库容器也具备出站访问。升级的备份门禁由 `SBM_ALLOW_MIGRATION` 承担，见上文「升级」。
 
 ## 首次登录后
 

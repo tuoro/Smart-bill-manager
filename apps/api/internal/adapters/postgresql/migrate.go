@@ -253,3 +253,51 @@ func migrationVersion(name string) (int, error) {
 	}
 	return version, nil
 }
+
+// MigrationStatus 报告目标库相对镜像内迁移集合的状态，供启动流程判断
+// 「全新库」「已就绪」「有未执行迁移」三种情形。
+type MigrationStatus struct {
+	LedgerMissing bool
+	Applied       int
+	Expected      int
+}
+
+// Pending 报告是否存在尚未执行的迁移。
+func (s MigrationStatus) Pending() bool {
+	return !s.LedgerMissing && s.Applied < s.Expected
+}
+
+// InspectMigrations 只读地检查迁移状态。已应用集合必须是镜像内集合的前缀，
+// 否则返回错误——多出未知迁移或身份不匹配意味着镜像与数据库不配对，
+// 此时不允许继续，也不允许自动修复。
+func InspectMigrations(ctx context.Context, config Config) (MigrationStatus, error) {
+	migrations, err := loadMigrations(config.MigrationsDir)
+	if err != nil {
+		return MigrationStatus{}, err
+	}
+	db, err := openDatabase(config)
+	if err != nil {
+		return MigrationStatus{}, err
+	}
+	defer db.Close()
+	if err := db.PingContext(ctx); err != nil {
+		return MigrationStatus{}, fmt.Errorf("ping PostgreSQL for migration inspection: %w", err)
+	}
+	var ledgerExists bool
+	if err := db.QueryRowContext(
+		ctx, "SELECT to_regclass('public.schema_migrations') IS NOT NULL",
+	).Scan(&ledgerExists); err != nil {
+		return MigrationStatus{}, fmt.Errorf("inspect PostgreSQL migration ledger: %w", err)
+	}
+	if !ledgerExists {
+		return MigrationStatus{LedgerMissing: true, Expected: len(migrations)}, nil
+	}
+	applied, err := readAppliedMigrations(ctx, db)
+	if err != nil {
+		return MigrationStatus{}, err
+	}
+	if err := validateAppliedMigrations(migrations, applied, true); err != nil {
+		return MigrationStatus{}, err
+	}
+	return MigrationStatus{Applied: len(applied), Expected: len(migrations)}, nil
+}

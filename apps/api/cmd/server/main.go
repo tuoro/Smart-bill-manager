@@ -99,11 +99,29 @@ func run(logger *slog.Logger) error {
 }
 
 func runApplication(ctx context.Context, config config, logger *slog.Logger) error {
-	absent, err := postgresqladapter.SchemaAbsent(ctx, config.database)
+	status, err := postgresqladapter.InspectMigrations(ctx, config.database)
 	if err != nil {
 		return err
 	}
-	if absent {
+	switch {
+	case status.LedgerMissing:
+		// 全新数据库：没有任何数据可能被迁移损坏，直接初始化。
+		if err := autoInitializeSchema(ctx, config, logger); err != nil {
+			return err
+		}
+	case status.Pending():
+		// 已有数据的库上执行迁移会原地修改数据，且无法回滚到迁移前的状态。
+		// 因此要求显式声明，等价于 Compose 路径的 upgrade --backup-confirmed。
+		if !allowMigration() {
+			return fmt.Errorf(
+				"检测到 %d 条未执行的数据库迁移（已应用 %d / 共 %d）。"+
+					"迁移会原地修改现有数据且不可回滚，请先创建并验证备份，"+
+					"然后设置 SBM_ALLOW_MIGRATION=true 重新启动以应用它们",
+				status.Expected-status.Applied, status.Applied, status.Expected,
+			)
+		}
+		logger.Info("applying pending migrations",
+			"applied", status.Applied, "expected", status.Expected)
 		if err := autoInitializeSchema(ctx, config, logger); err != nil {
 			return err
 		}
@@ -378,6 +396,11 @@ func autoInitializeSchema(ctx context.Context, value config, logger *slog.Logger
 	return nil
 }
 
+
+// allowMigration 是升级前的确认门禁：迁移不可回滚，必须由部署者显式声明。
+func allowMigration() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("SBM_ALLOW_MIGRATION")), "true")
+}
 
 func environmentOrDefault(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {

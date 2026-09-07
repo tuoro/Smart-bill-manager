@@ -266,6 +266,24 @@ prompt_required() {
 [ -n "$runtime_directory" ] || runtime_directory=$default_runtime_directory
 [ -n "$http_port" ] || http_port=$(select_http_port 8080)
 
+# 没有控制终端时无法确认（例如 CI，或 ssh host 'curl ... | sh'）。用户既然主动
+# 执行了安装命令，就按默认值继续，而不是打印「已取消」让他不知所措。
+interactive_install=true
+if [ "$use_controlling_terminal" = false ] && [ ! -t 0 ]; then
+  interactive_install=false
+fi
+
+if [ "$assume_yes" = false ] && [ "$interactive_install" = false ] \
+  && [ -z "$explicit_runtime_directory" ]; then
+  printf '\n' >&2
+  printf '%s\n' "当前环境没有可交互的终端，按默认值继续安装：" >&2
+  printf '  数据保存在  %s\n' "$runtime_directory" >&2
+  printf '  安装后访问  http://127.0.0.1:%s\n' "$http_port" >&2
+  printf '%s\n' "如需指定其他位置，请加 --runtime-directory <绝对路径> 重新运行。" >&2
+  printf '\n' >&2
+  assume_yes=true
+fi
+
 if [ "$assume_yes" = false ] && [ -z "$explicit_runtime_directory" ]; then
   printf '\n' >&2
   printf '%s\n' "即将安装 Smart Bill Manager：" >&2
@@ -280,7 +298,7 @@ if [ "$assume_yes" = false ] && [ -z "$explicit_runtime_directory" ]; then
   printf '\n' >&2
   printf '%s' "按 Enter 开始安装；如需换个位置，请直接输入完整路径：" >&2
   read_install_input || {
-    printf '\n%s\n' "已取消安装。" >&2
+    printf '\n%s\n' "已取消安装。未创建任何目录。" >&2
     exit 1
   }
   [ -z "$prompt_value" ] || runtime_directory=$prompt_value

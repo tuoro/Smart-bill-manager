@@ -9,9 +9,9 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 ## 安装
 
-前置条件：`linux/amd64`、Docker Engine、Docker Compose 2.24.4 或更新版本、`curl`、`sha256sum`、`tar`，至少 6 GiB 可用内存。
+前置条件：`linux/amd64` 主机、Docker Engine、Docker Compose 2.24.4 或更新版本，以及至少 6 GiB 可用内存。不满足时安装器会在开始前明确指出。
 
-一条命令完成安装：
+在终端里执行：
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
@@ -19,9 +19,19 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   | sh -s -- --release-version v0.4.0
 ```
 
-安装器会校验同版本部署包，再依次询问运行目录、三类数据目录和本机端口（直接回车用默认值），然后自动完成拉取镜像、部署 PostgreSQL、初始化结构和启动。
+安装器会显示一屏确认信息（数据存在哪、装完访问哪个地址），**按一次 Enter 即可**；想换位置就直接输入完整路径。随后它自动下载镜像、部署 PostgreSQL、初始化结构并启动，全程四步进度。
 
-完成后打开 <http://127.0.0.1:8080>，按页面提示创建管理员账号（用户名 + 密码）即可开始使用。
+- 数据默认保存在 `~/smart-bill-manager`，请勿随意删除；
+- 访问端口默认 `8080`，被占用时自动改用下一个空闲端口并在确认信息里说明；
+- 无人值守场景（脚本、CI）加 `--yes` 跳过确认；没有可交互终端时也会自动按默认值继续。
+
+装完打开提示的地址，页面会引导你创建管理员账号（用户名 + 密码），之后即可使用。
+
+日常管理不需要记长路径：
+
+```bash
+~/smart-bill-manager/sbm status
+```
 
 离线部署包安装、手工分步安装、纯 Docker CLI 部署（两条 `docker run` 起数据库和应用，Owner 在浏览器里创建）和日常运维命令见[部署指南](docs/deployment.md)。
 

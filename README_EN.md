@@ -9,9 +9,9 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 ## Installation
 
-Requirements: `linux/amd64`, Docker Engine, Docker Compose 2.24.4 or newer, `curl`, `sha256sum`, `tar`, and at least 6 GiB of available memory.
+Requirements: a `linux/amd64` host, Docker Engine, Docker Compose 2.24.4 or newer, and at least 6 GiB of available memory. The installer checks all of these before it starts.
 
-One command installs everything:
+Run this in a terminal:
 
 ```bash
 curl -fsSL --proto '=https' --tlsv1.2 \
@@ -19,9 +19,19 @@ curl -fsSL --proto '=https' --tlsv1.2 \
   | sh -s -- --release-version v0.4.0
 ```
 
-The installer verifies the matching deployment bundle, then asks for the runtime directory, the three data directories, and the local port (press Enter for defaults). It pulls images, deploys PostgreSQL, initializes the schema, and starts the app.
+The installer shows one confirmation screen — where the data goes and which address to open — and **a single Enter starts it**; type a full path instead to store the data elsewhere. It then downloads the images, deploys PostgreSQL, initializes the schema, and starts the app in four reported steps.
 
-When it finishes, open <http://127.0.0.1:8080> and follow the page to create the administrator account with a username and password.
+- Data is stored in `~/smart-bill-manager` by default; do not delete it.
+- The port defaults to `8080`; if it is taken, the next free port is chosen and reported.
+- For unattended use add `--yes`. Without an interactive terminal the installer proceeds with the defaults on its own.
+
+When it finishes, open the printed address and follow the page to create the administrator account with a username and password.
+
+Day-to-day management does not require long paths:
+
+```bash
+~/smart-bill-manager/sbm status
+```
 
 Offline bundle installation, manual step-by-step setup, a pure Docker CLI deployment (two `docker run` commands for the database and the app, with the owner created in the browser), and day-to-day operations are covered in the [deployment guide](docs/deployment.md); the detailed guide is maintained in Chinese.
 

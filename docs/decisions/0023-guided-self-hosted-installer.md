@@ -12,7 +12,9 @@ ADR-0022 已提供固定镜像摘要、Compose 部署包和宿主持久化目录
 - PostgreSQL 17 与应用继续作为两个独立容器运行；不把数据库进程、数据目录或升级生命周期并入应用镜像。
 - 新增一个引导式安装入口，交互收集运行目录、三类持久化目录、Owner 身份和监听配置，然后复用现有准备器与部署 wrapper 完成镜像拉取、数据库 provision、Schema migration、Owner bootstrap 和应用启动。
 - 同一安装器支持从固定 Git Tag 流式启动：只接受显式语义版本，下载该 GitHub Release 的版本化 Bundle 与 sidecar，在 owner-only 临时目录通过 SHA-256 后调用包内安装器并回收临时文件。它不解析 `latest`、不查询 API，也不执行未校验 Bundle。
-- PostgreSQL 数据、对象文件和备份目录可分别指定绝对路径；缺省时仍位于运行目录的 `data/postgres`、`data/objects` 和 `backups`。三个目标必须彼此独立、尚不存在且位于 Git 仓库外，安装器不会接管或覆盖已有目录。
+- 交互只收集数据保存位置与访问端口两项。默认数据保存位置取自用户主目录（`~/smart-bill-manager`），不再由部署包位置推导——流式安装的部署包位于安装结束即被清理的临时目录，以它为基准会让整个部署连同数据一起被删除。安装器额外拒绝落在部署包目录内的运行目录。
+- 安装完成后把部署包复制到运行目录下的 `bundle/`，使 `sbm-deploy.sh` 与其管理的数据同处一地；否则流式安装给出的日常管理命令在临时目录清理后即失效。
+- PostgreSQL 数据、对象文件和备份目录可分别指定绝对路径；缺省时仍位于运行目录的 `data/postgres`、`data/objects` 和 `backups`，不再逐项提问。三个目标必须彼此独立、尚不存在且位于 Git 仓库外，安装器不会接管或覆盖已有目录。
 - Secret 仍只写入 Owner 可读文件，不进入命令参数、普通环境、日志或仓库。
 - Owner 不再由安装器创建：安装器只做目录、secret、镜像、provision、migration 和启动，Owner 通过应用内一次性初始化页 `/setup` 创建。安装器因此不再询问邮箱、显示名、工作区名、币种和时区，也不再生成需要用户手工抄录的一次性密码。该页面在存在 Owner 后永久关闭，唯一性由 `BootstrapOwner` 的 Serializable 事务保证。`/app/bootstrap-owner` 二进制保留，供 ADR-0033 的恢复身份校验契约与内部门禁使用。
 - 安装器只是唯一 Compose 契约的易用入口。升级、备份、恢复、日志和停止继续使用版本化部署包内的 `sbm-deploy.sh`，不增加第二运行配置或隐藏自动更新器。

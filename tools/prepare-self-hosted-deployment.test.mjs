@@ -230,6 +230,11 @@ test("streamed installer downloads and verifies a versioned release bundle befor
     assert.match(stdout, /smart-bill-manager-docker-v9\.8\.7\.tar\.gz: OK/);
     assert.match(stdout, /http:\/\/127\.0\.0\.1:7476/);
     assert.equal((await readdir(parent)).some((name) => name.startsWith("sbm-release-install.")), false);
+    // 运行目录不得落在被清理的临时解压目录内，否则整个部署会随之消失。
+    await stat(join(target, "deployment.env"));
+    // 日常管理工具随部署包复制进运行目录；临时目录清理后仍可用。
+    await stat(join(target, "bundle", "tools", "sbm-deploy.sh"));
+    await stat(join(target, "bundle", "infra", "compose", "compose.yaml"));
   } finally {
     await rm(parent, { recursive: true, force: true });
   }

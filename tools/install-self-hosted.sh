@@ -168,7 +168,13 @@ if [ -r /proc/meminfo ]; then
   esac
 fi
 
-default_runtime_directory=$(dirname -- "$bundle_root")/smart-bill-manager-runtime
+# 默认运行目录必须独立于部署包位置。流式安装时部署包解压在 /tmp 的临时目录里，
+# 安装结束会被 rm -rf；把运行目录默认到它旁边会让整个部署连同数据一起被删除。
+if [ -n "${HOME:-}" ] && [ -d "$HOME" ] && [ -w "$HOME" ]; then
+  default_runtime_directory=${HOME}/smart-bill-manager
+else
+  default_runtime_directory=$(pwd -P)/smart-bill-manager
+fi
 use_controlling_terminal=false
 if [ ! -t 0 ] && ( : </dev/tty ) 2>/dev/null; then
   use_controlling_terminal=true
@@ -211,7 +217,20 @@ prompt_required() {
   printf '%s\n' "$prompt_value"
 }
 
-[ -n "$runtime_directory" ] || runtime_directory=$(prompt_default "运行目录" "$default_runtime_directory")
+if [ -z "$runtime_directory" ]; then
+  printf '%s\n' "数据保存位置：数据库、上传的单据和备份都会放在这个目录下。" >&2
+  printf '%s\n' "请把它放在你不会误删的地方；直接回车使用默认值。" >&2
+  runtime_directory=$(prompt_default "数据保存位置" "$default_runtime_directory")
+fi
+
+# 防御性检查：运行目录落在部署包内时，流式安装结束的清理会把数据一并删除。
+case "$runtime_directory" in
+  "$bundle_root"|"$bundle_root"/*|"$(dirname -- "$bundle_root")"/smart-bill-manager-runtime)
+    printf '%s\n' "数据保存位置不能放在部署包目录内：${runtime_directory}" >&2
+    printf '%s\n' "该目录在安装结束后会被清理，数据会一并丢失。请改用其他位置。" >&2
+    exit 2
+    ;;
+esac
 
 # 已存在的运行目录：配置齐全时视为上次未装完，沿用原配置继续，不再重复提问；
 # 否则明确拒绝，并说明它不是本安装器创建的。
@@ -230,10 +249,12 @@ if [ -e "$runtime_directory" ] || [ -L "$runtime_directory" ]; then
 fi
 
 if [ "$resume_installation" = false ]; then
-  [ -n "$postgres_directory" ] || postgres_directory=$(prompt_default "PostgreSQL 数据目录" "$runtime_directory/data/postgres")
-  [ -n "$objects_directory" ] || objects_directory=$(prompt_default "附件对象目录" "$runtime_directory/data/objects")
-  [ -n "$backups_directory" ] || backups_directory=$(prompt_default "备份目录" "$runtime_directory/backups")
-  [ -n "$http_port" ] || http_port=$(prompt_default "本机 HTTP 端口" "8080")
+  # 数据库、附件与备份默认都放在运行目录下，普通安装无需过问。需要分盘或 NAS 时
+  # 用 --postgres-directory / --objects-directory / --backups-directory 指定。
+  [ -n "$postgres_directory" ] || postgres_directory=${runtime_directory}/data/postgres
+  [ -n "$objects_directory" ] || objects_directory=${runtime_directory}/data/objects
+  [ -n "$backups_directory" ] || backups_directory=${runtime_directory}/backups
+  [ -n "$http_port" ] || http_port=$(prompt_default "浏览器访问端口" "8080")
 
   for required_value in "$runtime_directory" "$postgres_directory" "$objects_directory" \
     "$backups_directory" "$http_port"; do
@@ -273,7 +294,18 @@ if [ "$resume_installation" = false ]; then
   "${tools_directory}/prepare-self-hosted-deployment.sh" "$@"
 fi
 
-deploy=${tools_directory}/sbm-deploy.sh
+# 流式安装时部署包解压在临时目录，安装结束即被清理。把它复制进运行目录，
+# 使 sbm-deploy.sh 与它管理的数据同处一地，日常管理命令在清理后依然可用。
+installed_bundle=${runtime_directory}/bundle
+if [ "$(CDPATH= cd -- "$bundle_root" && pwd -P)" != "$(CDPATH= cd -- "$runtime_directory" 2>/dev/null && pwd -P || printf '%s' "$runtime_directory")/bundle" ]; then
+  rm -rf -- "$installed_bundle"
+  mkdir -p -- "$installed_bundle"
+  chmod 0700 -- "$installed_bundle"
+  (cd -- "$bundle_root" && tar -cf - .) | (cd -- "$installed_bundle" && tar -xf -)
+fi
+
+deploy=${installed_bundle}/tools/sbm-deploy.sh
+[ -x "$deploy" ] || deploy=${tools_directory}/sbm-deploy.sh
 "$deploy" "$runtime_directory" pull
 "$deploy" "$runtime_directory" bootstrap
 "$deploy" "$runtime_directory" start

@@ -111,6 +111,19 @@ docker version >/dev/null 2>&1 || {
   printf '%s\n' "无法连接 Docker daemon。请确认它正在运行，且当前用户有权限访问。" >&2
   exit 1
 }
+# 应用镜像只发布 linux/amd64。在 ARM 主机上失败信息会出现在拉取或启动阶段，
+# 且不易看出根因，因此在这里显式判断 Docker 实际运行的架构。
+server_architecture=$(docker version --format '{{.Server.Arch}}' 2>/dev/null)
+case "$server_architecture" in
+  amd64|x86_64|'') ;;
+  *)
+    printf 'Docker 运行在 %s 架构上，而当前版本只发布 linux/amd64 镜像。\n' \
+      "$server_architecture" >&2
+    printf '%s\n' "本机无法运行该镜像。请改用 x86_64 主机。" >&2
+    exit 1
+    ;;
+esac
+
 compose_version=$(docker compose version --short 2>/dev/null) || {
   printf '%s\n' "docker compose 不可用。需要 Docker Compose 2.24.4 或更新版本。" >&2
   exit 1

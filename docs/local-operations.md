@@ -12,9 +12,13 @@
 2. 用 `node tools/check-release-image.mjs digest --repository-root <rebirth-absolute-path>` 计算发布输入摘要。摘要覆盖实际镜像输入，证据、文档和原始报告不进入该集合。
 3. 将 HEAD 与 64 位发布输入摘要分别写入仓库外的运行环境文件，字段为 `SBM_BUILD_SHA` 与 `SBM_RELEASE_INPUT_SHA256`。其他字段从 `infra/compose/.env.example` 复制后按本机情况填写；不得修改或提交示例文件来保存本地值。
 4. 用 `docker image inspect` 核对本机 `golang:1.26.7` 与 `golang:1.26.7-alpine3.23` 的固定 image ID；只能在 ID 精确匹配后，用本地 `docker tag` 将前者别名为 `smart-bill-manager:go-glibc-source-local`。不得 `pull`、解析新标签或从其他镜像替代。
-5. 在 owner-only `/tmp` 隔离父目录中运行 `node tools/prepare-local-release-artifacts.mjs --output-directory <new-artifact-dir> --expected-head <HEAD> --expected-release-input-sha256 <digest> --npm-cache <existing-npm-cache-root> --go-module-cache <existing-complete-pkg/mod> --poppler-bundle <existing-audited-poppler-bundle-root>`。准备器会在独立工作区执行固定 Node 24.19.0 的 `npm ci --offline` 和生产构建，在固定 Go 1.26.7 禁网容器中执行 `go mod verify` 与八个二进制构建（七个运行 CLI，另一个 `recovery-exercise` 仅供演练，不进入发布镜像），并校验 Poppler 26.05.0 manifest、来源 SHA 和逐文件 SHA-256；它不会复用现有 `node_modules`。将成功目录写入仓库外环境文件的 `SBM_RELEASE_ARTIFACTS_SOURCE`。
-6. `SBM_MASTER_KEY_SOURCE` 必须指向仓库外、owner-only、单硬链接的普通文件。允许 32 字节原始值、64 位十六进制或 padded base64。Owner 密码与 synthetic Provider key 必须使用彼此独立的文件，不能复用主密钥或彼此复用。
-7. 当前验收只复用本机已有的固定镜像、Poppler bundle 和依赖缓存。Compose 构建网络为 `none`；IANA 时区库只从已固定 image ID 的 glibc 来源镜像复制，至少核验 `Asia/Shanghai` 与 `zone.tab`。Dockerfile 会复核运行 contract、产物身份、工具来源、精确文件清单、全部 SHA-256 和实际 PDF 工具版本；缓存或产物不完整时必须失败并另行申请下载授权，不能临时改成联网构建。
+5. Poppler bundle 由 `tools/build-poppler-bundle.sh --output-directory <new-dir>` 构建。它按固定 URL 取源码并强制核对 SHA-256，在按 digest 钉死的 Debian 13 容器内编译，只保留 `pdfinfo` 与 `pdftoppm` 及其完整依赖闭包，最后在只读、UID 10001、无网络、无 capability 且不设 `LD_LIBRARY_PATH` 的条件下自检。bundle 可跨发布复用；仅当 Poppler 版本或源码摘要变化时才需重建。
+
+   三处约束由脚本保证，手工组装极易遗漏：`lib` 内必须全部是真实文件（符号链接不计入 `listRegularFiles`，会报 `artifact_tree_invalid`）；库的 RUNPATH 是 `$ORIGIN` 而可执行文件是 `$ORIGIN/../lib`（库与依赖同目录，设错会在运行时报 `cannot open shared object file`）；依赖闭包需迭代求解（只对可执行文件求一次 `ldd` 会漏掉 libpoppler 自身及 freetype/fontconfig 的二级依赖）。
+
+6. 在 owner-only `/tmp` 隔离父目录中运行 `node tools/prepare-local-release-artifacts.mjs --output-directory <new-artifact-dir> --expected-head <HEAD> --expected-release-input-sha256 <digest> --npm-cache <existing-npm-cache-root> --go-module-cache <existing-complete-pkg/mod> --poppler-bundle <existing-audited-poppler-bundle-root>`。准备器会在独立工作区执行固定 Node 24.19.0 的 `npm ci --offline` 和生产构建，在固定 Go 1.26.7 禁网容器中执行 `go mod verify` 与八个二进制构建（七个运行 CLI，另一个 `recovery-exercise` 仅供演练，不进入发布镜像），并校验 Poppler 26.05.0 manifest、来源 SHA 和逐文件 SHA-256；它不会复用现有 `node_modules`。将成功目录写入仓库外环境文件的 `SBM_RELEASE_ARTIFACTS_SOURCE`。
+7. `SBM_MASTER_KEY_SOURCE` 必须指向仓库外、owner-only、单硬链接的普通文件。允许 32 字节原始值、64 位十六进制或 padded base64。Owner 密码与 synthetic Provider key 必须使用彼此独立的文件，不能复用主密钥或彼此复用。
+8. 当前验收只复用本机已有的固定镜像、Poppler bundle 和依赖缓存。Compose 构建网络为 `none`；IANA 时区库只从已固定 image ID 的 glibc 来源镜像复制，至少核验 `Asia/Shanghai` 与 `zone.tab`。Dockerfile 会复核运行 contract、产物身份、工具来源、精确文件清单、全部 SHA-256 和实际 PDF 工具版本；缓存或产物不完整时必须失败并另行申请下载授权，不能临时改成联网构建。
 
 构建完成后必须用 `tools/check-release-image.mjs check` 核验标签、必需/禁止资产、Go/Node 工具链与包管理器缺席、Compose 规范化配置和 acceptance 内部网络。正式原始报告只允许写入 `/tmp` 下 owner-only 隔离目录。
 

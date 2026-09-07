@@ -66,6 +66,8 @@ async function fixture(
     const reply = (json: unknown) => route.fulfill({ json })
     const failure = (status: number, code: string, message: string) =>
       route.fulfill({ status, json: { error: { code, message } } })
+    // 无会话时路由守卫会询问部署是否仍需初始化，再决定放行登录页还是跳初始化页。
+    if (path === '/api/v1/setup') return reply({ required: false, database_required: false })
     if (path === '/api/v1/session') {
       if (method === 'DELETE') {
         state.authenticated = false
@@ -183,7 +185,7 @@ async function fixture(
 }
 
 async function fillInvite(page: Page) {
-  await page.getByLabel('受邀邮箱').fill('new@example.invalid')
+  await page.getByLabel('受邀用户名或邮箱').fill('new@example.invalid')
   await page.getByLabel('邀请理由').fill('合成团队加入')
   await page.getByRole('button', { name: '创建邀请', exact: true }).click()
 }
@@ -230,7 +232,7 @@ test('邀请创建网络结果不明时复用同一请求，不显示伪造代�
   const state = await fixture(page, { uncertain: true, total: 2 })
   await page.goto('/settings/members')
   await fillInvite(page)
-  await expect(page.getByLabel('受邀邮箱')).toBeDisabled()
+  await expect(page.getByLabel('受邀用户名或邮箱')).toBeDisabled()
   await page.getByRole('button', { name: '核对上次邀请请求' }).click()
   await expect(
     page.getByText('邀请已创建，但代码只在首次响应中返回。请在列表撤销该邀请后重新创建。'),
@@ -355,7 +357,7 @@ test('公开加入不依赖 Session；已有账号不会被替换，成功不自
 test('验证密码后显式选择工作区；失效会话退出没有未处理异常', async ({ page }) => {
   const state = await fixture(page, { public: true })
   await page.goto('/login?redirect=/settings/account')
-  await page.getByLabel('邮箱', { exact: true }).fill('owner@example.invalid')
+  await page.getByLabel('用户名或邮箱', { exact: true }).fill('owner@example.invalid')
   await page.getByLabel('密码', { exact: true }).fill('synthetic-current-password')
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByLabel('选择工作区')).toHaveValue('')
@@ -375,7 +377,7 @@ test('验证密码后显式选择工作区；失效会话退出没有未处理�
 test('新账号加入与成员、账号页面四尺寸双主题检查', async ({ page }, testInfo) => {
   const state = await fixture(page, { total: 2 })
   await page.goto('/settings/members')
-  await expect(page.getByLabel('受邀邮箱')).toBeVisible()
+  await expect(page.getByLabel('受邀用户名或邮箱')).toBeVisible()
   await captureResponsiveReview(page, testInfo, 'members')
   await page.goto('/settings/account')
   await expect(page.getByLabel('当前密码', { exact: true })).toBeVisible()

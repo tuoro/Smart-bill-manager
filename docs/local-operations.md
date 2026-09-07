@@ -20,14 +20,25 @@
 
 ## 首次 Owner 初始化
 
-空数据库只能由镜像内 `/app/bootstrap-owner` 初始化一次。密码只通过外部 owner-only `/run/secrets/sbm_owner_password` 文件传入；本地 Compose 的文件型 secret 不支持 `uid/gid/mode` 重映射，因此 root entrypoint 只在该一次性命令下把密码安全材料化为 UID/GID 10001、`0600` 的 `/run/sbm-secrets/owner-password`，正常 server 启动不会创建该文件。密码值不得出现在命令参数、环境变量或日志中。标准顺序是：
+正常部署不再通过命令行创建 Owner。数据库结构就绪、应用启动后，在浏览器打开部署地址即可：未初始化的部署会把任意入口引导到一次性初始化页 `/setup`，填写邮箱、姓名、工作区名称、币种、时区和密码完成创建。密码只经由该表单提交，不出现在命令参数、环境变量、`deployment.env` 或日志中。
 
-1. 在应用未运行时执行一次 Compose `run --rm --no-deps --pull never app /app/bootstrap-owner`，显式提供数据库、迁移、邮箱、显示名、租户名、币种、时区和材料化密码文件路径 `/run/sbm-secrets/owner-password`；
-2. 在仍未启动应用时立刻重复同一命令，确认非空数据库被拒绝且没有新增第二个 Owner；
-3. 使用 `docker compose up -d --no-build` 启动当前镜像；
-4. `/api/v1/ready` 返回 `200` 后，用 Owner 完成一次登录、当前会话读取、退出和旧会话 `401` 验证。
+创建成功后 `GET /api/v1/setup` 永久返回 `required: false`，页面不再出现，重复提交被拒绝。唯一性由 `BootstrapOwner` 的 Serializable 事务保证：它在同一事务内统计 `users`、`tenants`、`memberships`，非空即回滚，因此并发与重放都无法绕过接口层的预检查。
 
-`tools/run-bootstrap-owner-gate.mjs` 与 `tools/check-release-runtime.mjs` 固化了上述安全检查。它们只接受限定的本地 project 身份、回环 URL、受保护文件和 synthetic exercise；输出冲突、远端 URL、未知参数或宽权限目录都会在业务写入前失败。
+标准验证顺序是：
+
+1. 数据库结构就绪后启动应用，等待 `/api/v1/ready` 返回 `200`；
+2. `GET /api/v1/setup` 应返回 `required: true`；
+3. 通过 `/setup` 页面或 `POST /api/v1/setup` 创建 Owner，确认返回 `204`；
+4. 再次 `GET /api/v1/setup` 应返回 `required: false`，且重复 `POST` 被拒绝、不产生第二个 Owner；
+5. 用该 Owner 完成一次登录、当前会话读取、退出和旧会话 `401` 验证。
+
+### 非交互入口
+
+镜像内仍保留 `/app/bootstrap-owner`。它不是常规安装路径，只服务两个用途：ADR-0033 的恢复身份校验契约（`server`、`bootstrap-owner`、`recover-account` 三个入口共享同一校验），以及发布前的自动化门禁。
+
+该入口的密码只通过外部 owner-only `/run/secrets/sbm_owner_password` 文件传入；本地 Compose 的文件型 secret 不支持 `uid/gid/mode` 重映射，因此 root entrypoint 只在该一次性命令下把密码安全材料化为 UID/GID 10001、`0600` 的 `/run/sbm-secrets/owner-password`，正常 server 启动不会创建该文件。
+
+`tools/run-bootstrap-owner-gate.mjs` 通过 acceptance overlay 执行该命令并立刻重复一次，确认非空数据库被拒绝；它与 `tools/check-release-runtime.mjs` 一起固化上述安全检查。两者只接受限定的本地 project 身份、回环 URL、受保护文件和 synthetic exercise；输出冲突、远端 URL、未知参数或宽权限目录都会在业务写入前失败。
 
 ## 日常启动与停止
 

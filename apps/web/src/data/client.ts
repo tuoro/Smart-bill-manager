@@ -268,6 +268,32 @@ export const api = {
   }): Promise<void> {
     return request('/setup', { method: 'POST', body: JSON.stringify(input) })
   },
+  databaseSettings(): Promise<{
+    editable: boolean
+    host: string
+    port: number
+    database: string
+    user: string
+    reason?: string
+  }> {
+    return request('/settings/database')
+  },
+  saveDatabaseSettings(
+    input: {
+      host: string
+      port: string
+      database: string
+      user: string
+      password: string
+      ssl_mode: string
+    },
+    testOnly = false,
+  ): Promise<{ connected?: boolean; restart_required?: boolean }> {
+    return request(`/settings/database${testOnly ? '?test=1' : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  },
   checkInvitation(code: string): Promise<InvitationView> {
     return request('/invitations/check', { method: 'POST', body: JSON.stringify({ code }) })
   },

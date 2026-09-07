@@ -18,6 +18,11 @@ const router = createRouter({
       component: () => import('../features/settings/AccountSettingsPage.vue'),
     },
     {
+      path: '/settings/database',
+      name: 'settings-database',
+      component: () => import('../features/settings/DatabaseSettingsPage.vue'),
+    },
+    {
       path: '/settings/members',
       name: 'settings-members',
       component: () => import('../features/settings/MembersSettingsPage.vue'),

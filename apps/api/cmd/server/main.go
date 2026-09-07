@@ -256,6 +256,13 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 		exportService,
 		bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}),
 		store,
+		httpapi.DatabaseSettingsStore{
+			Directory:     settingsDirectory(),
+			MigrationsDir: os.Getenv("SBM_MIGRATIONS_DIR"),
+			// 连接由环境变量固定时页面只读：改文件不会生效，环境变量优先级更高。
+			Managed: databaseFromStoredSettings,
+		},
+		config.database,
 		store,
 		runtimeReadiness{store: store, worker: worker},
 		logger,

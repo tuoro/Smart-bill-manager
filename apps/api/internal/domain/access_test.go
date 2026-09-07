@@ -6,6 +6,7 @@ func TestRoleCapabilityMatrix(t *testing.T) {
 	t.Parallel()
 
 	capabilities := []Capability{
+		CapabilityDeploymentManage,
 		CapabilityMembersManage,
 		CapabilityProvidersManage,
 		CapabilityDocumentsProcess,
@@ -23,7 +24,9 @@ func TestRoleCapabilityMatrix(t *testing.T) {
 	}
 	allowed := map[Role]map[Capability]bool{
 		RoleOwner: {
-			CapabilityMembersManage: true, CapabilityProvidersManage: true,
+			// 部署级设置（数据库连接）只有 Owner 可改。
+			CapabilityDeploymentManage: true,
+			CapabilityMembersManage:    true, CapabilityProvidersManage: true,
 			CapabilityDocumentsProcess: true, CapabilityClaimsReview: true,
 			CapabilityReviewSourceRead: true, CapabilityFactsRead: true,
 			CapabilityAllocationsManage:     true,

@@ -33,9 +33,11 @@ docker run -d --name smart-bill-manager --network my-net \
 
 打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接——地址、端口、库名都已按上面的命令预填好，只需补上账号密码（可先点「检测连接」）——验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
 
-数据库连接也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步；这几个变量也优先于页面保存的配置，是之后修改连接的方式。已经有 PostgreSQL 的话不需要起第一个容器，直接指向它即可。
+数据库连接也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步；这几个变量优先于页面保存的配置。已经有 PostgreSQL 的话不需要起第一个容器，直接指向它即可。
 
 不想建网络也行——两个容器留在默认 `bridge`，用 `docker inspect` 取数据库 IP 填进页面即可，代价是数据库容器重建后 IP 会变。见[部署指南](docs/deployment.md)。
+
+装好之后，数据库连接可以在「系统 → 数据库连接」里查看和修改（仅 Owner），改完重启应用容器生效。
 
 升级时换用新的镜像 tag 重建应用容器。存在未执行的数据库迁移时应用会拒绝启动并提示——迁移原地修改数据且不可回滚，请先按[备份与恢复](docs/backup-restore.md)创建并验证备份，再加 `-e SBM_ALLOW_MIGRATION=true` 重建。
 

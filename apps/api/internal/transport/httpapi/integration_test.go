@@ -1216,7 +1216,7 @@ func newHTTPTestFixtureWithOwner(t *testing.T, withOwner bool) *httpTestFixture 
 			t.Error(err)
 		}
 	})
-	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, DatabaseSettingsStore{Directory: root, MigrationsDir: projectPath(t, "infra", "migrations"), Managed: true}, postgresqladapter.Config{Host: "127.0.0.1", Port: 5432, Database: "test", User: "test"}, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

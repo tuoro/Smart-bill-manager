@@ -57,6 +57,12 @@ const groups = [
       { to: '/settings/ai', label: 'AI 配置', icon: 'settings', capability: 'providers.manage' },
       { to: '/settings/members', label: '成员管理', icon: 'users', capability: 'members.manage' },
       { to: '/settings/account', label: '账号与密码', icon: 'shield', capability: '' },
+      {
+        to: '/settings/database',
+        label: '数据库连接',
+        icon: 'settings',
+        capability: 'deployment.manage',
+      },
     ],
   },
 ] as const

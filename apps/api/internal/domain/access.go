@@ -28,10 +28,13 @@ const (
 	CapabilityReimbursementsManage  Capability = "reimbursements.manage"
 	CapabilityInsightsRead          Capability = "insights.read"
 	CapabilityResourcesDelete       Capability = "resources.delete"
+	// CapabilityDeploymentManage 覆盖数据库连接等部署级设置，只授予 Owner。
+	CapabilityDeploymentManage Capability = "deployment.manage"
 )
 
 var roleCapabilities = map[Role][]Capability{
 	RoleOwner: {
+		CapabilityDeploymentManage,
 		CapabilityMembersManage,
 		CapabilityProvidersManage,
 		CapabilityDocumentsProcess,

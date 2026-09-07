@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	postgresqladapter "github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/accounts"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
@@ -47,30 +48,32 @@ type Config struct {
 }
 
 type Server struct {
-	accounts         accounts.Service
-	auth             auth.Service
-	health           HealthChecker
-	readiness        ReadinessChecker
-	ids              system.IDGenerator
-	logger           *slog.Logger
-	config           Config
-	upload           documents.UploadService
-	documents        documents.QueryService
-	jobActions       documents.ActionService
-	deletions        documents.DeletionService
-	providers        providers.Service
-	reviews          reviews.Service
-	facts            reviews.FactService
-	invoiceMaterials invoicematerials.Service
-	allocations      allocations.Service
-	emails           applicationemails.Service
-	trips            trips.Service
-	reimbursements   reimbursements.Service
-	insights         insights.Service
-	exports          *materialexports.Service
-	setup            bootstrap.Service
-	setupInspector   SetupInspector
-	spa              http.Handler
+	accounts           accounts.Service
+	auth               auth.Service
+	health             HealthChecker
+	readiness          ReadinessChecker
+	ids                system.IDGenerator
+	logger             *slog.Logger
+	config             Config
+	upload             documents.UploadService
+	documents          documents.QueryService
+	jobActions         documents.ActionService
+	deletions          documents.DeletionService
+	providers          providers.Service
+	reviews            reviews.Service
+	facts              reviews.FactService
+	invoiceMaterials   invoicematerials.Service
+	allocations        allocations.Service
+	emails             applicationemails.Service
+	trips              trips.Service
+	reimbursements     reimbursements.Service
+	insights           insights.Service
+	exports            *materialexports.Service
+	setup              bootstrap.Service
+	setupInspector     SetupInspector
+	databaseSettings   DatabaseSettingsStore
+	databaseConnection postgresqladapter.Config
+	spa                http.Handler
 }
 
 func NewServer(
@@ -92,6 +95,8 @@ func NewServer(
 	exportService *materialexports.Service,
 	setupService bootstrap.Service,
 	setupInspector SetupInspector,
+	databaseSettings DatabaseSettingsStore,
+	databaseConnection postgresqladapter.Config,
 	health HealthChecker,
 	readiness ReadinessChecker,
 	logger *slog.Logger,
@@ -102,30 +107,32 @@ func NewServer(
 		return nil, fmt.Errorf("configure web application: %w", err)
 	}
 	return &Server{
-		accounts:         accountService,
-		auth:             authService,
-		upload:           uploadService,
-		documents:        documentQueries,
-		jobActions:       jobActions,
-		deletions:        documentDeletions,
-		providers:        providerService,
-		reviews:          reviewService,
-		facts:            factService,
-		invoiceMaterials: invoiceMaterialService,
-		allocations:      allocationService,
-		emails:           emailService,
-		trips:            tripService,
-		reimbursements:   reimbursementService,
-		insights:         insightService,
-		exports:          exportService,
-		setup:            setupService,
-		setupInspector:   setupInspector,
-		health:           health,
-		readiness:        readiness,
-		ids:              system.IDGenerator{},
-		logger:           logger,
-		config:           config,
-		spa:              spa,
+		accounts:           accountService,
+		auth:               authService,
+		upload:             uploadService,
+		documents:          documentQueries,
+		jobActions:         jobActions,
+		deletions:          documentDeletions,
+		providers:          providerService,
+		reviews:            reviewService,
+		facts:              factService,
+		invoiceMaterials:   invoiceMaterialService,
+		allocations:        allocationService,
+		emails:             emailService,
+		trips:              tripService,
+		reimbursements:     reimbursementService,
+		insights:           insightService,
+		exports:            exportService,
+		setup:              setupService,
+		setupInspector:     setupInspector,
+		databaseSettings:   databaseSettings,
+		databaseConnection: databaseConnection,
+		health:             health,
+		readiness:          readiness,
+		ids:                system.IDGenerator{},
+		logger:             logger,
+		config:             config,
+		spa:                spa,
 	}, nil
 }
 
@@ -146,6 +153,8 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("GET /api/v1/member-invitations/{invitation_id}", s.requireSession(http.HandlerFunc(s.invitationHandler)))
 	router.Handle("POST /api/v1/member-invitations", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createInvitationHandler))))
 	router.Handle("POST /api/v1/member-invitations/{invitation_id}/revoke", s.requireSession(s.requireCSRF(http.HandlerFunc(s.revokeInvitationHandler))))
+	router.Handle("GET /api/v1/settings/database", s.requireSession(http.HandlerFunc(s.databaseSettingsHandler)))
+	router.Handle("POST /api/v1/settings/database", s.requireSession(s.requireCSRF(http.HandlerFunc(s.updateDatabaseSettingsHandler))))
 	router.Handle("POST /api/v1/account/password", s.requireSession(s.requireCSRF(http.HandlerFunc(s.changePasswordHandler))))
 	router.Handle("GET /api/v1/session", s.requireSession(http.HandlerFunc(s.sessionHandler)))
 	router.Handle("DELETE /api/v1/session", s.requireSession(s.requireCSRF(http.HandlerFunc(s.logoutHandler))))

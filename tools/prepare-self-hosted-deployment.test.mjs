@@ -146,7 +146,7 @@ test("guided installer preserves custom mappings and invokes the deployment life
     const fakeDocker = join(binaryDirectory, "docker");
     await writeFile(
       fakeDocker,
-      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
+      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nif [ "$1" = version ]; then exit 0; fi\nif [ "$1" = image ]; then exit 1; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
       { mode: 0o755 },
     );
     const environment = {
@@ -177,6 +177,10 @@ test("guided installer preserves custom mappings and invokes the deployment life
     assert.ok(pull >= 0 && provision > pull && migrate > provision && start > migrate && status > start);
     // 安装器不再创建 Owner；该步骤已移入浏览器中的一次性初始化页。
     assert.equal(calls.includes("/app/bootstrap-owner"), false);
+    // 镜像必须先于任何目录创建被拉取：拉取是最常见的失败点，
+    // 失败时不应在磁盘上留下运行目录。
+    const imagePull = calls.indexOf("pull --quiet");
+    assert.ok(imagePull >= 0 && imagePull < provision);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
@@ -204,7 +208,7 @@ test("streamed installer downloads and verifies a versioned release bundle befor
     );
     await writeFile(
       join(binaryDirectory, "docker"),
-      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
+      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nif [ "$1" = version ]; then exit 0; fi\nif [ "$1" = image ]; then exit 1; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
       { mode: 0o755 },
     );
     const environment = {
@@ -344,7 +348,7 @@ test("upgrade requires backup confirmation and runs the ordered schema upgrade",
     const fakeDocker = join(binaryDirectory, "docker");
     await writeFile(
       fakeDocker,
-      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
+      '#!/bin/sh\nif [ "$1" = compose ] && [ "$2" = version ]; then printf "%s\\n" "2.24.4"; exit 0; fi\nif [ "$1" = version ]; then exit 0; fi\nif [ "$1" = image ]; then exit 1; fi\nprintf "%s\\n" "$*" >>"$FAKE_DOCKER_LOG"\n',
       { mode: 0o755 },
     );
     const environment = {

@@ -95,6 +95,66 @@ else
   exit 0
 fi
 
+# 前置检查放在提问之前：不满足条件时立即失败，不让用户先回答一轮问题、
+# 也不在磁盘上留下任何目录。
+release_environment=${bundle_root}/infra/compose/release.env
+[ -f "$release_environment" ] || {
+  printf '%s\n' "deployment bundle is incomplete: infra/compose/release.env is missing" >&2
+  exit 1
+}
+
+command -v docker >/dev/null 2>&1 || {
+  printf '%s\n' "docker 未安装或不在 PATH 中。请先安装 Docker Engine。" >&2
+  exit 1
+}
+docker version >/dev/null 2>&1 || {
+  printf '%s\n' "无法连接 Docker daemon。请确认它正在运行，且当前用户有权限访问。" >&2
+  exit 1
+}
+compose_version=$(docker compose version --short 2>/dev/null) || {
+  printf '%s\n' "docker compose 不可用。需要 Docker Compose 2.24.4 或更新版本。" >&2
+  exit 1
+}
+compose_major=${compose_version%%.*}
+compose_rest=${compose_version#*.}
+compose_minor=${compose_rest%%.*}
+compose_patch=${compose_rest#*.}
+compose_patch=${compose_patch%%[!0-9]*}
+[ -n "$compose_patch" ] || compose_patch=0
+compose_supported=false
+if [ "$compose_major" -gt 2 ] 2>/dev/null; then
+  compose_supported=true
+elif [ "$compose_major" -eq 2 ] 2>/dev/null; then
+  if [ "$compose_minor" -gt 24 ] 2>/dev/null; then
+    compose_supported=true
+  elif [ "$compose_minor" -eq 24 ] && [ "$compose_patch" -ge 4 ] 2>/dev/null; then
+    compose_supported=true
+  fi
+fi
+[ "$compose_supported" = true ] || {
+  printf '当前 Docker Compose 版本为 %s，需要 2.24.4 或更新版本。\n' "$compose_version" >&2
+  exit 1
+}
+
+if [ -r /proc/meminfo ]; then
+  available_kib=$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)
+  case "$available_kib" in
+    ''|*[!0-9]*) ;;
+    *)
+      if [ "$available_kib" -lt 6291456 ]; then
+        printf '可用内存约 %s MiB，低于建议的 6144 MiB。安装可能因内存不足失败。\n' \
+          "$((available_kib / 1024))" >&2
+        printf '%s' "仍要继续请按 Enter，或按 Ctrl+C 停止：" >&2
+        if [ ! -t 0 ] && ( : </dev/tty ) 2>/dev/null; then
+          IFS= read -r _ </dev/tty || exit 1
+        else
+          IFS= read -r _ || exit 1
+        fi
+      fi
+      ;;
+  esac
+fi
+
 default_runtime_directory=$(dirname -- "$bundle_root")/smart-bill-manager-runtime
 use_controlling_terminal=false
 if [ ! -t 0 ] && ( : </dev/tty ) 2>/dev/null; then
@@ -139,27 +199,66 @@ prompt_required() {
 }
 
 [ -n "$runtime_directory" ] || runtime_directory=$(prompt_default "运行目录" "$default_runtime_directory")
-[ -n "$postgres_directory" ] || postgres_directory=$(prompt_default "PostgreSQL 数据目录" "$runtime_directory/data/postgres")
-[ -n "$objects_directory" ] || objects_directory=$(prompt_default "附件对象目录" "$runtime_directory/data/objects")
-[ -n "$backups_directory" ] || backups_directory=$(prompt_default "备份目录" "$runtime_directory/backups")
-[ -n "$http_port" ] || http_port=$(prompt_default "本机 HTTP 端口" "8080")
 
-for required_value in "$runtime_directory" "$postgres_directory" "$objects_directory" \
-  "$backups_directory" "$http_port"; do
-  case "$required_value" in
-    *'
+# 已存在的运行目录：配置齐全时视为上次未装完，沿用原配置继续，不再重复提问；
+# 否则明确拒绝，并说明它不是本安装器创建的。
+resume_installation=false
+if [ -e "$runtime_directory" ] || [ -L "$runtime_directory" ]; then
+  if [ -f "${runtime_directory}/deployment.env" ] && [ ! -L "${runtime_directory}/deployment.env" ]; then
+    resume_installation=true
+    http_port=$(awk -F= '/^SBM_HTTP_PORT=/ { print $2 }' "${runtime_directory}/deployment.env")
+    [ -n "$http_port" ] || http_port=8080
+    printf '%s\n' "检测到未完成的安装，沿用已有配置继续：${runtime_directory}" >&2
+  else
+    printf '%s\n' "运行目录已存在且不包含 deployment.env：${runtime_directory}" >&2
+    printf '%s\n' "请换一个尚不存在的目录，或先移除该目录后重试。" >&2
+    exit 1
+  fi
+fi
+
+if [ "$resume_installation" = false ]; then
+  [ -n "$postgres_directory" ] || postgres_directory=$(prompt_default "PostgreSQL 数据目录" "$runtime_directory/data/postgres")
+  [ -n "$objects_directory" ] || objects_directory=$(prompt_default "附件对象目录" "$runtime_directory/data/objects")
+  [ -n "$backups_directory" ] || backups_directory=$(prompt_default "备份目录" "$runtime_directory/backups")
+  [ -n "$http_port" ] || http_port=$(prompt_default "本机 HTTP 端口" "8080")
+
+  for required_value in "$runtime_directory" "$postgres_directory" "$objects_directory" \
+    "$backups_directory" "$http_port"; do
+    case "$required_value" in
+      *'
 '*) printf '%s\n' "installation values must not contain newlines" >&2; exit 2 ;;
-  esac
+    esac
+  done
+fi
+
+# 先拉镜像。这是最常见的失败点（需要访问 ghcr.io），放在创建任何目录之前，
+# 失败后磁盘上不留痕迹，重跑即可。
+application_image=$(awk -F= '/^SBM_IMAGE=/ { print substr($0, index($0, "=") + 1) }' "$release_environment")
+database_image=$(awk -F= '/^SBM_POSTGRES_IMAGE=/ { print substr($0, index($0, "=") + 1) }' "$release_environment")
+for image in "$application_image" "$database_image"; do
+  [ -n "$image" ] || {
+    printf '%s\n' "deployment bundle is incomplete: release.env does not pin both images" >&2
+    exit 1
+  }
+  docker image inspect "$image" >/dev/null 2>&1 && continue
+  printf '正在拉取镜像：%s\n' "${image%%@*}" >&2
+  docker pull --quiet "$image" >/dev/null || {
+    printf '%s\n' "镜像拉取失败。请检查网络是否可以访问 ghcr.io 与 Docker Hub 后重试；" >&2
+    printf '%s\n' "本次未创建任何目录，直接重新运行安装器即可。" >&2
+    exit 1
+  }
 done
 
-set -- "$runtime_directory" --http-port "$http_port"
-[ "$postgres_directory" = "$runtime_directory/data/postgres" ] || \
-  set -- "$@" --postgres-directory "$postgres_directory"
-[ "$objects_directory" = "$runtime_directory/data/objects" ] || \
-  set -- "$@" --objects-directory "$objects_directory"
-[ "$backups_directory" = "$runtime_directory/backups" ] || \
-  set -- "$@" --backups-directory "$backups_directory"
-"${tools_directory}/prepare-self-hosted-deployment.sh" "$@"
+if [ "$resume_installation" = false ]; then
+  set -- "$runtime_directory" --http-port "$http_port"
+  [ "$postgres_directory" = "$runtime_directory/data/postgres" ] || \
+    set -- "$@" --postgres-directory "$postgres_directory"
+  [ "$objects_directory" = "$runtime_directory/data/objects" ] || \
+    set -- "$@" --objects-directory "$objects_directory"
+  [ "$backups_directory" = "$runtime_directory/backups" ] || \
+    set -- "$@" --backups-directory "$backups_directory"
+  "${tools_directory}/prepare-self-hosted-deployment.sh" "$@"
+fi
 
 deploy=${tools_directory}/sbm-deploy.sh
 "$deploy" "$runtime_directory" pull

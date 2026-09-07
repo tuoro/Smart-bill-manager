@@ -123,11 +123,17 @@ async function setupRequired() {
 
 router.beforeEach(async (to) => {
   if (to.name === 'join') return true
-  if (to.name !== 'setup' && (await setupRequired())) return { name: 'setup' }
   // 初始化页不解析会话：数据库尚未配置时 /api/v1/session 不可用，
   // 在这里解析会抛错并中断导航，把用户留在空的应用外壳上。
   if (to.name === 'setup') return true
-  const session = await sessionStore.resolve()
+  // 未初始化时会话接口不可用，失败按「无会话」处理，再去判断是否需要初始化。
+  const session = await sessionStore.resolve().catch(() => null)
+  if (session) {
+    // 能拿到会话即证明部署已初始化，无需再询问服务端。
+    setupSettled = true
+  } else if (await setupRequired()) {
+    return { name: 'setup' }
+  }
   if (to.meta.public) {
     if (to.name === 'login' && session) return { name: 'inbox' }
     return true

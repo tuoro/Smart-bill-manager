@@ -100,6 +100,9 @@ ENV SBM_POSTGRES_HOST=database \
     SBM_MASTER_KEY_FILE=/run/sbm-secrets/master-key \
     SBM_EXTRACTION_SCHEMA_PATH=/app/contracts/bill-visible-text.schema.json \
     SBM_WEB_DIST_PATH=/app/web \
+    SBM_DEPLOYMENT_MODE=local \
+    SBM_SESSION_TTL=168h \
+    SBM_AI_CONCURRENCY=2 \
     FONTCONFIG_FILE=/opt/sbm-poppler/etc/fonts/fonts.conf \
     POPPLER_DATADIR=/opt/sbm-poppler/share/poppler
 

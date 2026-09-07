@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/accounts"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
@@ -31,6 +34,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/trips"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/transport/httpapi"
 )
 
@@ -49,6 +53,7 @@ type config struct {
 	aiConcurrency        int
 	webDistPath          string
 	deploymentMode       string
+	autoInitialize       bool
 }
 
 type runtimeReadiness struct {
@@ -81,6 +86,11 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	if config.autoInitialize {
+		if err := autoInitializeSchema(ctx, config, logger); err != nil {
+			return err
+		}
+	}
 	store, err := postgresqladapter.Open(ctx, config.database)
 	if err != nil {
 		return err
@@ -92,6 +102,11 @@ func run(logger *slog.Logger) error {
 	hasher, err := cryptography.NewPasswordHasher(cryptography.DefaultArgon2Params)
 	if err != nil {
 		return err
+	}
+	if config.autoInitialize {
+		if err := autoInitializeOwner(ctx, store, hasher, logger); err != nil {
+			return err
+		}
 	}
 	authService, err := auth.NewService(
 		store,
@@ -258,10 +273,11 @@ func loadConfig() (config, error) {
 		extractionSchemaPath: os.Getenv("SBM_EXTRACTION_SCHEMA_PATH"),
 		webDistPath:          os.Getenv("SBM_WEB_DIST_PATH"),
 		deploymentMode:       os.Getenv("SBM_DEPLOYMENT_MODE"),
+		// 交出 Owner 凭据即表示要求自初始化；Compose 硬化路径从不设置它。
+		autoInitialize: strings.TrimSpace(os.Getenv("SBM_OWNER_EMAIL")) != "",
 	}
 	for name, entry := range map[string]string{
 		"SBM_HTTP_ADDRESS":           value.httpAddress,
-		"SBM_COOKIE_SECURE":          os.Getenv("SBM_COOKIE_SECURE"),
 		"SBM_SESSION_TTL":            os.Getenv("SBM_SESSION_TTL"),
 		"SBM_OBJECTS_PATH":           value.objectsPath,
 		"SBM_PDFINFO_PATH":           value.pdfInfoPath,
@@ -276,21 +292,26 @@ func loadConfig() (config, error) {
 			return config{}, fmt.Errorf("%s is required", name)
 		}
 	}
-	cookieSecure, err := strconv.ParseBool(os.Getenv("SBM_COOKIE_SECURE"))
-	if err != nil {
-		return config{}, errors.New("SBM_COOKIE_SECURE must be true or false")
-	}
 	sessionTTL, err := time.ParseDuration(os.Getenv("SBM_SESSION_TTL"))
 	if err != nil {
 		return config{}, fmt.Errorf("parse SBM_SESSION_TTL: %w", err)
 	}
-	value.cookieSecure = cookieSecure
 	if value.deploymentMode != "local" && value.deploymentMode != "production" {
 		return config{}, errors.New("SBM_DEPLOYMENT_MODE must be local or production")
 	}
-	if value.deploymentMode == "production" && !cookieSecure {
-		return config{}, errors.New("SBM_COOKIE_SECURE must be true in production mode")
+	// Secure cookie 默认由部署模式推导：local 走明文回环，production 必须经 TLS。
+	// 只有在 local 模式下由外部反向代理终止 TLS 时才需要显式覆盖。
+	cookieSecure := value.deploymentMode == "production"
+	if raw := strings.TrimSpace(os.Getenv("SBM_COOKIE_SECURE")); raw != "" {
+		cookieSecure, err = strconv.ParseBool(raw)
+		if err != nil {
+			return config{}, errors.New("SBM_COOKIE_SECURE must be true or false")
+		}
+		if value.deploymentMode == "production" && !cookieSecure {
+			return config{}, errors.New("SBM_COOKIE_SECURE must be true in production mode")
+		}
 	}
+	value.cookieSecure = cookieSecure
 	value.sessionTTL = sessionTTL
 	aiConcurrency, err := strconv.Atoi(os.Getenv("SBM_AI_CONCURRENCY"))
 	if err != nil || aiConcurrency < 1 || aiConcurrency > 8 {
@@ -298,4 +319,107 @@ func loadConfig() (config, error) {
 	}
 	value.aiConcurrency = aiConcurrency
 	return value, nil
+}
+
+// autoInitializeSchema 在单角色部署里用运行身份直接应用未执行的迁移。
+// 硬化部署仍由独立的 provision 与 migrate 入口按最小权限顺序完成。
+func autoInitializeSchema(ctx context.Context, value config, logger *slog.Logger) error {
+	migrationConfig := value.database
+	migrationConfig.RuntimeRole = value.database.User
+	migrationCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	if err := postgresqladapter.Migrate(migrationCtx, migrationConfig); err != nil {
+		return fmt.Errorf("auto initialize schema: %w", err)
+	}
+	logger.Info("auto initialize: schema is up to date")
+	return nil
+}
+
+// autoInitializeOwner 只在数据库仍为空时创建唯一 Owner；已初始化的部署重启不受影响。
+func autoInitializeOwner(
+	ctx context.Context,
+	store *postgresqladapter.Store,
+	hasher cryptography.PasswordHasher,
+	logger *slog.Logger,
+) error {
+	email := strings.TrimSpace(os.Getenv("SBM_OWNER_EMAIL"))
+	if email == "" {
+		return nil
+	}
+	ownerCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	empty, err := store.IdentityIsEmpty(ownerCtx)
+	if err != nil {
+		return fmt.Errorf("auto initialize owner: %w", err)
+	}
+	if !empty {
+		logger.Info("auto initialize: an owner already exists, skipping owner creation")
+		return nil
+	}
+	password, err := autoInitializeOwnerPassword()
+	if err != nil {
+		return err
+	}
+	defer clear(password)
+	service := bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{})
+	_, err = service.Execute(ownerCtx, bootstrap.Input{
+		Email:           email,
+		Password:        password,
+		DisplayName:     environmentOrDefault("SBM_OWNER_DISPLAY_NAME", "Owner"),
+		TenantName:      environmentOrDefault("SBM_TENANT_NAME", "My Workspace"),
+		DefaultCurrency: domain.Currency(environmentOrDefault("SBM_DEFAULT_CURRENCY", "CNY")),
+		Timezone:        environmentOrDefault("SBM_TIMEZONE", "Asia/Shanghai"),
+	})
+	if errors.Is(err, domain.ErrBootstrapNotEmpty) {
+		logger.Info("auto initialize: an owner already exists, skipping owner creation")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("auto initialize owner: %w", err)
+	}
+	logger.Info("auto initialize: owner created", "email", email)
+	return nil
+}
+
+func autoInitializeOwnerPassword() ([]byte, error) {
+	if path := strings.TrimSpace(os.Getenv("SBM_OWNER_PASSWORD_FILE")); path != "" {
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, fmt.Errorf("inspect owner password file: %w", err)
+		}
+		if !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
+			return nil, errors.New("owner password file must be regular and accessible only by its owner")
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open owner password file: %w", err)
+		}
+		defer file.Close()
+		password, err := io.ReadAll(io.LimitReader(file, 1026))
+		if err != nil {
+			return nil, fmt.Errorf("read owner password file: %w", err)
+		}
+		if len(password) > 1025 {
+			return nil, errors.New("owner password file exceeds 1024 bytes")
+		}
+		if len(password) > 0 && password[len(password)-1] == '\n' {
+			password = password[:len(password)-1]
+			if len(password) > 0 && password[len(password)-1] == '\r' {
+				password = password[:len(password)-1]
+			}
+		}
+		return password, nil
+	}
+	password := os.Getenv("SBM_OWNER_PASSWORD")
+	if strings.TrimSpace(password) == "" {
+		return nil, errors.New("SBM_OWNER_PASSWORD or SBM_OWNER_PASSWORD_FILE is required when SBM_OWNER_EMAIL is set")
+	}
+	return []byte(password), nil
+}
+
+func environmentOrDefault(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
 }

@@ -86,6 +86,24 @@ func migrate(ctx context.Context, db *sql.DB, migrationsDir, runtimeRole string)
 }
 
 func applyRuntimePrivileges(ctx context.Context, tx *sql.Tx, runtimeRole string) error {
+	var sessionUser string
+	if err := tx.QueryRowContext(ctx, "SELECT current_user").Scan(&sessionUser); err != nil {
+		return fmt.Errorf("read PostgreSQL session user: %w", err)
+	}
+	// 单角色部署里迁移身份与运行身份相同。此时授予是多余的，而针对
+	// schema_migrations 的 REVOKE 会撤销自己的写权限，使后续迁移无法记录版本。
+	if sessionUser == runtimeRole {
+		for _, statement := range []string{
+			"REVOKE CREATE ON SCHEMA public FROM PUBLIC",
+			"REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC",
+			"ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
+		} {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("apply PostgreSQL runtime privileges: %w", err)
+			}
+		}
+		return nil
+	}
 	role := pgx.Identifier{runtimeRole}.Sanitize()
 	statements := []string{
 		"REVOKE CREATE ON SCHEMA public FROM PUBLIC",

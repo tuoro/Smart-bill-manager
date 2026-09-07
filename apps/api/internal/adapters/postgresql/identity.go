@@ -11,6 +11,20 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
 
+// IdentityIsEmpty 报告数据库是否尚未创建任何身份记录。首启自动初始化用它判断
+// 是否真的需要 Owner 凭据，从而允许已完成初始化的部署移除密码后正常重启。
+func (s *Store) IdentityIsEmpty(ctx context.Context) (bool, error) {
+	var records int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT (SELECT count(*) FROM users)
+		     + (SELECT count(*) FROM tenants)
+		     + (SELECT count(*) FROM memberships)
+	`).Scan(&records); err != nil {
+		return false, fmt.Errorf("inspect bootstrap state: %w", err)
+	}
+	return records == 0, nil
+}
+
 func (s *Store) BootstrapOwner(ctx context.Context, owner ports.BootstrapOwner) error {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {

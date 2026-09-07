@@ -7,8 +7,14 @@ fail() {
 }
 
 source_file=/run/secrets/sbm_master_key
+persisted_secrets_dir=/var/lib/sbm/secrets
+persisted_master_key=${persisted_secrets_dir}/master-key
 target_dir=/run/sbm-secrets
 target_file=${target_dir}/master-key
+
+is_mountpoint() {
+  awk -v path="$1" '$2 == path { found = 1 } END { exit !found }' /proc/self/mounts
+}
 
 [ "$#" -gt 0 ] || fail command_required
 
@@ -42,6 +48,28 @@ if [ "$needs_objects" = true ]; then
   chown root:root "$data_dir" || fail data_directory_permissions
   chmod 0700 "$data_dir" || fail data_directory_permissions
   chown sbm:sbm "$data_dir" || fail data_directory_permissions
+fi
+
+if [ "$needs_master" = true ] && [ ! -e "$source_file" ] && [ ! -L "$source_file" ]; then
+  # 未挂载 secret 时使用持久卷内的主密钥；不存在则首次生成。
+  # 仅在该目录确实来自挂载卷时允许，避免密钥写进容器可写层后随容器一起丢失。
+  if ! is_mountpoint /var/lib/sbm && ! is_mountpoint "$persisted_secrets_dir"; then
+    fail master_key_storage_not_persistent
+  fi
+  mkdir -p "$persisted_secrets_dir" || fail master_key_storage_unavailable
+  chown root:sbm "$persisted_secrets_dir" || fail master_key_storage_permissions
+  chmod 0710 "$persisted_secrets_dir" || fail master_key_storage_permissions
+  if [ ! -e "$persisted_master_key" ] && [ ! -L "$persisted_master_key" ]; then
+    generated=$(mktemp "${persisted_secrets_dir}/master-key.tmp.XXXXXX") || fail master_key_generate_unavailable
+    chmod 0600 "$generated" || fail master_key_generate_permissions
+    od -An -N 32 -tx1 /dev/urandom | tr -d ' \n' >"$generated" || fail master_key_generate_failed
+    [ "$(wc -c <"$generated" | tr -d ' ')" = "64" ] || fail master_key_generate_failed
+    chown sbm:sbm "$generated" || fail master_key_generate_permissions
+    mv -f "$generated" "$persisted_master_key" || fail master_key_generate_unavailable
+    printf '%s\n' "entrypoint: generated a new master key at ${persisted_master_key}" >&2
+    printf '%s\n' "entrypoint: BACK IT UP SEPARATELY -- losing it makes stored Provider API keys unrecoverable" >&2
+  fi
+  source_file=$persisted_master_key
 fi
 
 if [ "$needs_master" = true ]; then
@@ -112,6 +140,32 @@ candidate=
 trap - EXIT HUP INT TERM
 fi
 
+materialize_secret_from_env() {
+  database_value=$1
+  database_target=$2
+  database_label=$3
+
+  database_candidate=$(mktemp "${target_dir}/${database_label}.tmp.XXXXXX") || fail "${database_label}_target_unavailable"
+  chmod 0600 "$database_candidate" || fail "${database_label}_target_permissions"
+  printf '%s' "$database_value" >"$database_candidate" || fail "${database_label}_target_unavailable"
+  chown sbm:sbm "$database_candidate" || fail "${database_label}_target_permissions"
+  mv -f "$database_candidate" "$database_target" || fail "${database_label}_target_unavailable"
+}
+
+# 与 SBM_POSTGRES_PASSWORD_FILE 并存时文件优先，沿用官方镜像的 file_env 约定。
+materialize_runtime_password() {
+  if [ -n "${SBM_POSTGRES_PASSWORD:-}" ] \
+    && [ ! -e /run/secrets/sbm_postgres_runtime_password ] \
+    && [ ! -L /run/secrets/sbm_postgres_runtime_password ]; then
+    materialize_secret_from_env "$SBM_POSTGRES_PASSWORD" \
+      "${target_dir}/postgres-runtime-password" postgres-runtime-password
+    unset SBM_POSTGRES_PASSWORD
+    return
+  fi
+  materialize_secret /run/secrets/sbm_postgres_runtime_password \
+    "${target_dir}/postgres-runtime-password" postgres-runtime-password
+}
+
 materialize_secret() {
   database_source=$1
   database_target=$2
@@ -151,14 +205,14 @@ case "$1" in
     materialize_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
     ;;
   /app/server|/app/bootstrap-owner|/app/recover-account)
-    materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
+    materialize_runtime_password
     ;;
   /app/backup)
     materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
     materialize_secret /run/secrets/sbm_postgres_migration_password "${target_dir}/postgres-migration-password" postgres-migration-password
     ;;
   *)
-    materialize_secret /run/secrets/sbm_postgres_runtime_password "${target_dir}/postgres-runtime-password" postgres-runtime-password
+    materialize_runtime_password
     ;;
 esac
 

@@ -12,58 +12,53 @@
 
 首次进入 Clean Slate 新架构只支持全新数据库和对象目录，不读取或迁移 `v0.2.4` 及更早版本数据。完成首次安装后，后续新架构版本默认保留当前 PostgreSQL 数据并执行版本化结构升级。
 
-## 1. 获取固定部署包
+## 1. 一条命令安装（推荐）
 
-从所选 GitHub Release 下载同版本的以下两个附件：
-
-- `smart-bill-manager-docker-v0.4.0.tar.gz`；
-- `smart-bill-manager-docker-v0.4.0.tar.gz.sha256`。
-
-在同一目录校验并展开：
+安装器从固定 Tag 流式取得，随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
 
 ```bash
-sha256sum -c smart-bill-manager-docker-v0.4.0.tar.gz.sha256
-tar -xzf smart-bill-manager-docker-v0.4.0.tar.gz
-cd smart-bill-manager-docker
-```
-
-部署包只包含当前 Compose、版本镜像清单、部署工具和必要文档，不包含源码、凭据或运行数据。也可以使用固定源码 Tag：
-
-```bash
-git clone https://github.com/tuoro/Smart-bill-manager.git
-cd Smart-bill-manager
-git checkout v0.4.0
-```
-
-使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
-
-## 2. 一条命令或引导式安装
-
-可从固定 Tag 流式取得安装器；安装器随后下载同版本 Bundle 和 sidecar，在本地验证 SHA-256 后才执行 Bundle 内入口：
-
-```bash
-version=v0.4.0; curl -fsSL --proto '=https' --tlsv1.2 "https://raw.githubusercontent.com/tuoro/Smart-bill-manager/${version}/tools/install-self-hosted.sh" | sh -s -- --release-version "$version"
-```
-
-部署包根目录也提供安装器：
-
-```bash
-./install.sh
-```
-
-固定源码 Tag 使用：
-
-```bash
-./tools/install-self-hosted.sh
+curl -fsSL --proto '=https' --tlsv1.2 \
+  https://raw.githubusercontent.com/tuoro/Smart-bill-manager/v0.4.0/tools/install-self-hosted.sh \
+  | sh -s -- --release-version v0.4.0
 ```
 
 安装器依次询问运行目录、PostgreSQL 数据目录、附件对象目录、备份目录、Owner 登录信息和本机 HTTP 端口。直接回车采用默认值；例如可把三类持久化目录分别设置为独立数据盘下尚不存在的子目录。路径必须是绝对路径，父目录必须已存在，三个目标不能相同；安装器不会覆盖或接管已有目录。
 
 配置完成后，安装器创建 owner-only secret，暂停提示保存一次性 Owner 密码，再按固定顺序完成镜像拉取、PostgreSQL provision、Schema migration、Owner bootstrap、应用启动和状态检查。PostgreSQL 与应用始终是两个独立容器，数据库不发布宿主端口。
 
-引导式安装完成后可直接跳到“日常操作”。
+完成后打开 <http://127.0.0.1:8080>（或安装时填写的端口），使用初始化邮箱和已记录的 Owner 密码登录。安装到此结束，后续参见“首次登录后”和“日常操作”。
 
-## 3. 手工创建仓库外运行目录
+## 2. 离线部署包或固定源码 Tag 安装
+
+无法从主机直接流式取得安装器时，先获取部署包再运行其中的安装器。从所选 GitHub Release 下载同版本的两个附件，在同一目录校验并展开：
+
+```bash
+sha256sum -c smart-bill-manager-docker-v0.4.0.tar.gz.sha256
+tar -xzf smart-bill-manager-docker-v0.4.0.tar.gz
+cd smart-bill-manager-docker
+./install.sh
+```
+
+部署包只包含当前 Compose、版本镜像清单、部署工具和必要文档，不包含源码、凭据或运行数据。
+
+也可以使用固定源码 Tag：
+
+```bash
+git clone https://github.com/tuoro/Smart-bill-manager.git
+cd Smart-bill-manager
+git checkout v0.4.0
+./tools/install-self-hosted.sh
+```
+
+使用源码 Tag 时不要运行根目录遗留的 `docker-compose.yml` 或 `Dockerfile`；它们属于旧系统。新系统只通过 `tools/sbm-deploy.sh` 编排 `infra/compose/` 下的当前契约。
+
+两种方式进入的引导流程与第 1 步完全相同。
+
+## 3. 手工分步安装（高级）
+
+只有需要逐步检查或脚本化每一步时才使用本节；第 1、2 步的安装器已经按相同顺序执行下列全部命令。
+
+### 3.1 创建仓库外运行目录
 
 下面的示例把运行材料放在仓库同级目录。目标目录必须是绝对路径、尚不存在且位于 Git 仓库外。
 
@@ -105,7 +100,7 @@ deployment/
 
 初始化前请从 `$runtime_directory/owner-password` 把 Owner 密码录入密码管理器；初始化成功后部署工具会删除该一次性文件。主密钥和三个数据库密码必须持续保留并独立备份，丢失后无法恢复现有数据或 Provider 密文。
 
-## 4. 拉取固定镜像
+### 3.2 拉取固定镜像
 
 ```bash
 ./tools/sbm-deploy.sh "$runtime_directory" pull
@@ -113,7 +108,7 @@ deployment/
 
 部署配置固定 Smart Bill Manager 和 PostgreSQL 17 的内容摘要，不使用 `latest`。当前应用镜像为 `linux/amd64`；其他架构会明确失败，不做模拟或自动替换。
 
-## 5. 初始化数据库结构和唯一 Owner
+### 3.3 初始化数据库结构和唯一 Owner
 
 以下示例使用测试身份，请按需替换显示名称、租户名称、币种和 IANA 时区：
 
@@ -128,14 +123,118 @@ deployment/
 
 Compose 会自动部署内部 PostgreSQL 17，普通用户无需填写数据库地址、账户或端口，也不需要手工运行 SQL。该命令依次等待 PostgreSQL 健康、创建最小权限角色、在空数据库执行 Clean Slate `0001` 结构初始化、创建唯一 Owner，并在成功后删除一次性 Owner 密码文件。命令失败时不要反复重试；先按终端中的稳定错误定位根因。
 
-## 6. 启动并登录
+### 3.4 启动并登录
 
 ```bash
 ./tools/sbm-deploy.sh "$runtime_directory" start
 ./tools/sbm-deploy.sh "$runtime_directory" status
 ```
 
-浏览器打开 <http://127.0.0.1:8080>，使用初始化邮箱和已记录的 Owner 密码登录。登录后在“AI 配置”页面创建配置，依次完成能力检测和激活；API Key 只通过页面提交并加密保存，不要写入 `deployment.env`、Compose 或命令行。
+浏览器打开 <http://127.0.0.1:8080>，使用初始化邮箱和已记录的 Owner 密码登录。
+
+## 4. 纯 Docker CLI 部署（不使用 Compose）
+
+不想引入 Compose 时，用两条 `docker run` 起 PostgreSQL 和应用即可。只要提供了 `SBM_OWNER_EMAIL`，应用容器首次启动时就会自行完成 Schema 初始化和 Owner 创建，不需要单独执行 provision、migrate 和 bootstrap-owner。
+
+本节走的是**单角色**模式：应用使用的数据库账号同时具备建表权限，`sbm_admin` / `sbm_migration` / `sbm_runtime` 三层权限分离在这条路径上不成立。应用被攻破时攻击者可以直接修改表结构。需要权限分离时使用第 1、2 步的安装器，或按第 3 步分步执行。
+
+同时它没有 Compose 的依赖顺序、健康等待和升级编排，升级和恢复仍以安装器与 `sbm-deploy.sh` 为权威入口。
+
+### 4.1 网络与数据库
+
+网络名和容器名随意，应用那边用 `SBM_POSTGRES_HOST` 指过去即可。唯一要求是使用**自定义网络**——Docker 默认的 `bridge` 网络不提供按容器名解析。
+
+```bash
+docker network create my-net
+
+docker run -d --name my-postgres --network my-net \
+  --restart unless-stopped \
+  -e POSTGRES_USER=sbm_app \
+  -e POSTGRES_DB=smart_bill_manager \
+  -e POSTGRES_PASSWORD=<数据库密码> \
+  -v sbm-postgres:/var/lib/postgresql/data \
+  postgres:17-alpine
+```
+
+数据库不需要发布宿主端口。
+
+### 4.2 应用
+
+```bash
+docker run -d --name smart-bill-manager --network my-net \
+  --restart unless-stopped --init --stop-timeout 20 \
+  -p 127.0.0.1:8080:8080 \
+  -e SBM_POSTGRES_HOST=my-postgres \
+  -e SBM_POSTGRES_USER=sbm_app \
+  -e SBM_POSTGRES_PASSWORD=<数据库密码> \
+  -e SBM_OWNER_EMAIL=owner@example.com \
+  -e SBM_OWNER_PASSWORD=<Owner 登录密码> \
+  -v sbm-data:/var/lib/sbm \
+  ghcr.io/tuoro/smart-bill-manager:v0.4.0
+```
+
+打开 <http://127.0.0.1:8080>，用上面填的邮箱和 Owner 密码登录。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
+
+### 4.2.1 使用已有的 PostgreSQL
+
+数据库连接的四项都是普通环境变量，指向任意可达实例即可——同一台机器上已有的 Postgres、NAS 上的共用实例或另一台主机。此时不需要 4.1，也不需要自定义网络：
+
+```bash
+  -e SBM_POSTGRES_HOST=192.168.1.10 \
+  -e SBM_POSTGRES_PORT=5432 \
+  -e SBM_POSTGRES_DATABASE=smart_bill_manager \
+  -e SBM_POSTGRES_USER=sbm_app \
+  -e SBM_POSTGRES_PASSWORD=<数据库密码> \
+```
+
+该账号需要能在目标库建表（首启要应用迁移）。跨主机连接应把 `SBM_POSTGRES_SSL_MODE` 设为 `verify-full` 并通过 `SBM_POSTGRES_ROOT_CERTIFICATE_FILE` 挂载根证书；默认的 `disable` 只适合同机或可信内网。
+
+### 4.3 参数说明
+
+**`SBM_DEPLOYMENT_MODE`（默认 `local`，通常不用传）。** 声明这个部署跑在明文回环还是 TLS 之后。
+
+- `local`：会话 Cookie 不带 `Secure` 标志，不发送 HSTS 头。**明文 HTTP 必须用这个**——`Secure` Cookie 浏览器只在 HTTPS 下回传，在 `http://127.0.0.1` 上设了就会登录不上。
+- `production`：Cookie 自动带 `Secure`，并发送 `Strict-Transport-Security`。
+
+镜像默认 `local`，本节的明文回环部署不需要传。`SBM_COOKIE_SECURE` 同样不用传，默认由模式推导。只有一种情况需要显式覆盖：`local` 模式但由外部反向代理终止 TLS，此时设 `SBM_COOKIE_SECURE=true`。`production` 模式下设成 `false` 会被拒绝启动。
+
+Compose 路径不受影响：[compose.yaml](../infra/compose/compose.yaml) 仍强制显式声明这两项，安装器生成的 `deployment.env` 也照旧写入。
+
+**其余有默认值，按需覆盖。** `SBM_POSTGRES_HOST`（`database`）、`SBM_POSTGRES_PORT`（`5432`）、`SBM_POSTGRES_DATABASE`（`smart_bill_manager`）、`SBM_POSTGRES_USER`（`sbm_runtime`）、`SBM_POSTGRES_SSL_MODE`（`disable`）、`SBM_SESSION_TTL`（`168h`）、`SBM_AI_CONCURRENCY`（`2`）。objects 路径、poppler 路径和迁移目录由镜像固定，正常不需要改。
+
+**数据库密码。** `SBM_POSTGRES_PASSWORD` 是明文回退，仅在未挂载 `/run/secrets/sbm_postgres_runtime_password` 时生效；两者并存时文件优先。入口脚本把它写入受限文件后即从环境中移除，应用进程的 `/proc/self/environ` 里不会保留。硬化部署继续使用文件。
+
+**主密钥。** 未挂载 `/run/secrets/sbm_master_key` 时，入口脚本在 `/var/lib/sbm/secrets/master-key` 生成一份并在日志中提示。**必须把它单独备份出去**——丢失后已保存的 Provider API Key 无法恢复。注意它和数据在同一个卷里，这与安装器路径下"主密钥独立托管"的边界不同；备份时需要把它复制到另一处保管。
+
+为避免密钥写进容器可写层后随容器一起丢失，入口脚本要求 `/var/lib/sbm` 或 `/var/lib/sbm/secrets` 确实来自挂载卷，否则以 `master_key_storage_not_persistent` 失败。上面的 `-v sbm-data:/var/lib/sbm` 满足该条件。
+
+**首启初始化。** 设置了 `SBM_OWNER_EMAIL` 即进入自初始化：应用在开始服务前先应用未执行的迁移，随后在数据库仍为空时用 `SBM_OWNER_PASSWORD`（或 `SBM_OWNER_PASSWORD_FILE`）创建唯一 Owner。这一步同时把数据库账号当作迁移身份使用，因此需要建表权限——这就是本节开头所说的单角色模式。
+
+不设 `SBM_OWNER_EMAIL` 则完全不触发，应用像 Compose 路径一样要求 Schema 已由独立的 `migrate` 入口准备好。Compose 从不设置这个变量，硬化路径因此不受影响。
+
+已存在 Owner 时跳过，且**不再要求密码**——初始化完成后可以把 `SBM_OWNER_PASSWORD` 从 `docker run` 命令里删掉，重启照常。`SBM_OWNER_DISPLAY_NAME`、`SBM_TENANT_NAME`、`SBM_DEFAULT_CURRENCY`、`SBM_TIMEZONE` 可选，默认 `Owner` / `My Workspace` / `CNY` / `Asia/Shanghai`。
+
+### 4.4 与 Compose 契约的差异
+
+本节有意省略了下面这组加固约束，需要对齐时按 [`infra/compose/compose.yaml`](../infra/compose/compose.yaml) 的 `app` 服务补上：
+
+```bash
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=268435456 \
+  --tmpfs /run/sbm-secrets:rw,noexec,nosuid,nodev,size=65536,mode=0700 \
+  --cap-drop ALL \
+  --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add SETGID --cap-add SETUID \
+  --security-opt no-new-privileges:true \
+  --pids-limit 256 --cpus 2 --memory 3584m
+```
+
+`--read-only` 与两条 `--tmpfs` 必须同时使用：入口脚本要写 `/run/sbm-secrets`，应用要写 `/tmp`。保留 `--cap-drop ALL` 时必须补回那四个 capability，入口脚本要用它们修正 secret 与对象目录属主后再降权到 `sbm`。
+
+其余差异：数据库角色不做权限分离；网络非 internal，数据库容器也具备出站访问；升级只是替换镜像 tag 重建应用容器，迁移在首启时自动应用，但没有 `upgrade --backup-confirmed` 的备份门禁——升级前请自行按[备份与恢复说明](backup-restore.md)完成备份。
+
+## 首次登录后
+
+登录后在“AI 配置”页面创建配置，依次完成能力检测和激活；API Key 只通过页面提交并加密保存，不要写入 `deployment.env`、Compose 或命令行。
 
 真实模型正确率尚未完成正式评测。实测时应使用清晰、完整、无遮挡且关键字段可直接辨读的原始图片，并始终人工审核 Claim 后再确认 Fact。
 
@@ -165,14 +264,6 @@ docker compose --project-name smart-bill-manager \
 ```
 
 不要在全新数据库上直接执行该命令来替代安装器；首次安装还需要按顺序执行 database health、provision、migration 和 Owner bootstrap。
-
-### `docker run` 风格
-
-README 中的 `docker run -d` 示例是已初始化部署的“应用容器启动等价式”，不是完整安装器。它要求 Compose 已创建 PostgreSQL 容器、`smart-bill-manager_database` internal 网络、最小权限角色、Schema、Owner 和受保护 secret 文件；应用启动后还需连接默认 bridge，才能调用用户后续配置的 Provider。
-
-切换前先用 `./tools/sbm-deploy.sh "$runtime_directory" stop` 停止 Compose app，避免容器和端口冲突。直接容器必须保留 README 示例中的只读根、受限 tmpfs、capability、PID、CPU、内存和停止窗口；主密钥与运行数据库密码仍使用只读文件挂载，不能改成 `-e` 明文环境变量。
-
-直接 Docker CLI 不会获得 Compose 的声明式 lifecycle、依赖顺序和升级编排，因此首次安装、升级和恢复仍以一键安装器与 Compose wrapper 为权威入口。不得为了把命令压缩成单个容器而把 PostgreSQL、管理员密码或 migration 权限放进应用容器。
 
 ## 新架构版本升级
 

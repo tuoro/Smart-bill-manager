@@ -1,0 +1,185 @@
+name: CI
+
+# 本工作流只跑能在托管 runner 上如实复现的检查。
+#
+# 不在这里跑的是发布门禁：镜像与运行时校验、bootstrap-owner、备份恢复、
+# 性能/内存/Lighthouse，以及需要真实后端和真实模型服务的端到端流程。
+# 它们依赖本地已审计的 Poppler bundle、按 digest 钉死的 network: none 可复现
+# 构建，以及只存在于本地的凭据与隔离证据目录，托管 runner 无法复现，
+# 仍按 docs/local-operations.md 在发版时本地执行。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # 仅供 job 内一次性 PostgreSQL 服务容器使用。该容器只监听 runner 本机，
+  # 随 job 一起销毁，不承载任何真实数据，因此是明文常量而非仓库机密。
+  # services 块不能引用 env 上下文，两个数据库 job 的服务定义里是同一常量的字面量副本。
+  CI_POSTGRES_PASSWORD: ci-throwaway-postgres-password
+
+jobs:
+  web:
+    name: 前端检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      # contract、typecheck、lint、format:check、vitest 与 vite build 的合集。
+      - run: npm run check
+        working-directory: apps/web
+
+  tools:
+    name: 工具脚本测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      # run-quality-runners 会 import apps/web/e2e 下的运行器，那里依赖
+      # chrome-launcher 与 lighthouse，所以这个 job 也需要前端依赖。
+      - run: npm ci
+        working-directory: apps/web
+      - run: node --test tools/*.test.mjs
+
+  api:
+    name: 后端测试
+    runs-on: ubuntu-latest
+    # runner 实测约 7 分钟（go test ./... 加 245 项关键不变量矩阵）。
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - name: 准备 PostgreSQL 测试配置
+        run: .github/scripts/write-postgres-test-config.sh
+      - name: go test
+        working-directory: apps/api
+        env:
+          SBM_TEST_POSTGRES_CONFIG_FILE: ${{ runner.temp }}/postgres-test.json
+        run: go test ./...
+      - name: 关键不变量矩阵
+        env:
+          SBM_TEST_POSTGRES_CONFIG_FILE: ${{ runner.temp }}/postgres-test.json
+        run: tools/check-critical-invariants.sh
+
+  coverage:
+    name: 后端覆盖率
+    runs-on: ubuntu-latest
+    # 两层各跑一遍带插桩的全量测试，runner 实测约 4 分钟。
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+        env:
+          POSTGRES_PASSWORD: ci-throwaway-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - name: 准备 PostgreSQL 测试配置
+        run: .github/scripts/write-postgres-test-config.sh
+      # 分层阈值：domain+application >= 85%，adapters+transport >= 70%。
+      # 缺少数据库时 PostgreSQL 集成测试会跳过，覆盖率会掉到阈值以下，
+      # 所以这个 job 同样依赖上面的服务容器。
+      - name: 覆盖率门槛
+        env:
+          SBM_TEST_POSTGRES_CONFIG_FILE: ${{ runner.temp }}/postgres-test.json
+        run: tools/check-go-coverage.sh
+
+  e2e:
+    name: 端到端（纯合成）
+    runs-on: ubuntu-latest
+    # runner 实测约 3 分钟，含 npm ci、浏览器安装与构建。
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+        working-directory: apps/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npm run build
+        working-directory: apps/web
+      # 规格自己拦截 /api/**，只需要一个伺服构建产物、支持 history 回退的源。
+      # 服务器和测试放在同一个步骤里，退出时由 trap 负责收掉。
+      - name: 运行 Playwright
+        working-directory: apps/web
+        env:
+          CI: '1'
+          SBM_E2E_SYNTHETIC_ONLY: '1'
+        run: |
+          set -euo pipefail
+          npx vite preview --port 18084 --host 127.0.0.1 >"${RUNNER_TEMP}/preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "${preview_pid}" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:18084/; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "${ready}" != 1 ]; then
+            echo "预览服务器未就绪" >&2
+            cat "${RUNNER_TEMP}/preview.log" >&2
+            exit 1
+          fi
+          npx playwright test
+      - name: 上传失败截图
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-failures
+          path: apps/web/test-results/playwright
+          retention-days: 7
+          if-no-files-found: ignore

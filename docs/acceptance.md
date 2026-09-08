@@ -593,6 +593,10 @@ M2 首切片以本节替换 M1 的“金额完全一致、每端最多一条活�
 
 覆盖率不能替代关键场景测试；删除测试或降低门槛必须作为单独决策审查。
 
+托管 CI（`.github/workflows/ci.yml`）在每次向 `main` 推送和每个 Pull Request 上运行：前端契约、类型、Lint、格式、单元测试与生产构建；`apps/api` 全量 Go 测试；关键不变量矩阵；两层覆盖率门槛；`tools/*.test.mjs`；以及限定为纯合成规格的浏览器矩阵。PostgreSQL 由一次性服务容器提供，浏览器只访问伺服构建产物的本机源。
+
+托管 CI 是回归护栏，不构成发布证据。镜像与运行时门禁、bootstrap-owner、备份恢复、性能/内存/Lighthouse 和真实后端 E2E 依赖本地已审计的 Poppler bundle、按 digest 钉死的 `network: none` 可复现构建，以及只存在于本地的凭据与隔离证据目录，托管 runner 无法复现，仍按 `docs/local-operations.md` 在发版时本地执行；CI 通过不能替代其中任何一项。
+
 覆盖率包边界固定如下：领域层为 `apps/api/internal/domain/...`，应用层为 `apps/api/internal/application/...`，基础设施层为 `apps/api/internal/adapters/...` 与 `apps/api/internal/transport/...`；生成代码、迁移文件、装配入口和纯数据声明不计入分母，排除清单必须由覆盖工具配置显式列出。关键不变量分支固定为：租户隔离、Claim 完整 revision 快照与 actor 检查、Validation 阻断、Review 才能创建 Fact、重复确认幂等、Document SHA-256 与规范化发票号精确判重、关联候选显式分配决定、同币种正数分配、双方余额不超额、同一活动对唯一、并发争用无部分写入、币种 exponent 与金额整数运算、文件签名/MIME 一致、Job 租约恢复、只允许无 ClaimSet 的失败 Job 重试、取消后禁止写入、重复模型字段路径以单一候选和 blocked Validation 持久化、Provider Schema 投影不削弱本地权威校验、Provider 原始响应先满足当前传输契约，以及能力检测 Schema 身份过期时禁止激活或调用模型。上述分支逐项 100%，不能被包级平均值掩盖。
 
 M2 第二切片新增关键分支为：视觉指纹确定性及批准的重新编码/等比缩放、宽高比与双哈希边界、同租户 band 检索、整份近似优先、同文档页对、Payment/Invoice 字段组合、精确发票号优先、50 项上限、完整且规范的 `keep_distinct` 计划、目标删除陈旧回滚、并发确认串行化、同一确认决定数据库约束、重复决定不可变和 Reject 无 Fact。它们同样逐项 100%，并进入 `tests/critical-invariants.tsv` 唯一映射。

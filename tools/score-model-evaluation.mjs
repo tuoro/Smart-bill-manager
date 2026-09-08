@@ -381,14 +381,18 @@ export function scoreRun(manifest, run) {
         );
       }
     }
+    // 名称按 acceptance「冻结与计分协议」的确定性规范化比较，其中包含
+    // 「只包住整个值的可见中英文括号可视为等价」。该规则由 normalizeBusinessText
+    // 实现，契约比对与证据匹配都用它；此处此前误用了不含括号规则的
+    // normalizeExact，同一条规则在同一文件里出现两种口径。
     for (const path of ["merchant", "seller_name", "buyer_name"]) {
       if (Object.hasOwn(expected.expected_fields, path)) {
         const field = fieldMap.get(path);
         count(
           counters.name_normalization_exact_rate,
           typeof field?.value === "string" &&
-            normalizeExact(field.value) ===
-              normalizeExact(expected.expected_fields[path]),
+            normalizeBusinessText(field.value) ===
+              normalizeBusinessText(expected.expected_fields[path]),
           expected.sample_id,
         );
       }

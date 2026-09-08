@@ -109,3 +109,58 @@ test("only the approved provenance identifiers grant the exemption", () => {
   assert.ok(productDefaultProvenance.has("m1-payment-timezone/1"));
   assert.ok(criticalFields.payment.includes("currency"));
 });
+
+// 名称与契约比对、证据匹配必须用同一条规范化规则。此前名称指标误用了不含括号
+// 规则的 normalizeExact，导致「（某某公司）」与「某某公司」在契约比对里判相等、
+// 在名称指标里判不等，同一条 acceptance 规则在同一文件里出现两种口径。
+test("name comparison applies the same enclosing-parenthesis rule as the rest", () => {
+  const sample = {
+    sample_id: "S-1",
+    document_type: "payment",
+    model_stage_eligible: true,
+    expected_review_state: "needs_review",
+    expected_fields: { merchant: "合成商户" },
+    expected_missing_fields: [],
+    expected_evidence: { merchant: { page: 1, quote: "合成商户" } },
+    derived_field_provenance: {},
+    expected_events: [],
+  };
+  const observed = (value) => ({
+    run_id: "test",
+    samples: [
+      {
+        sample_id: "S-1",
+        outcome: "local_claim_accepted",
+        schema_valid: true,
+        job_status: "needs_review",
+        claim: {
+          document_type: "payment",
+          claim_status: "needs_review",
+          fields: [
+            {
+              path: "merchant",
+              presence: "present",
+              value,
+              value_type: "string",
+              evidence: [{ page: 1, quote: value }],
+            },
+          ],
+        },
+      },
+    ],
+  });
+  for (const value of [
+    "合成商户",
+    "（合成商户）",
+    "(合成商户)",
+    " 合成商户 ",
+  ]) {
+    const metric = scoreRun({ samples: [sample] }, observed(value)).metrics
+      .name_normalization_exact_rate;
+    assert.equal(metric.numerator, 1, `${value} 应判为一致`);
+  }
+  // 括号只在包住整个值时等价，内部括号仍是值的一部分。
+  const inner = scoreRun({ samples: [sample] }, observed("合成（商户）"))
+    .metrics.name_normalization_exact_rate;
+  assert.equal(inner.numerator, 0);
+});

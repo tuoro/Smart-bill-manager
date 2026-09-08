@@ -1,0 +1,160 @@
+{
+  "report_kind": "m1-real-visible-text-preflight-safe-summary",
+  "dataset_version": "m1-real-dev-v6",
+  "dataset_manifest_sha256": "0abdcbeb3740596d48b82ebd83e6a5832036679e160e22618c242a542076d3d7",
+  "eligible_for_release_evidence": false,
+  "protocol_satisfied": false,
+  "protocol_note": "验收协议要求完整数据集独立运行三次并取最差；本轮第 1 轮在能力检测阶段即因 Provider 认证失败未开始，第 2 轮运行中仍有认证失败余波。因此本文件不构成三次运行结果，任何指标都不得据此宣称达标或未达标。",
+  "configuration": {
+    "provider_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+    "model": "qwen3.8-flash",
+    "output_mode": "json_schema",
+    "prompt_version": "bill-visible-text-cn/2",
+    "extraction_schema_version": "bill-visible-text/2",
+    "provider_schema_version": "bill-visible-text-provider/2",
+    "claim_schema_version": "document-claim/3",
+    "claim_mapper_version": "claim-mapper/4",
+    "input_processing_version": "document-normalize/2"
+  },
+  "rounds": {
+    "round_1": {
+      "status": "not_started",
+      "reason": "provider_capability_detection_auth_failed"
+    },
+    "round_2": {
+      "completed": 12,
+      "total": 16,
+      "error_codes": {
+        "provider_auth_failed": 2,
+        "schema_validation_failed": 2
+      },
+      "metrics": {
+        "model_completion_rate": {
+          "percentage": 75,
+          "numerator": 12,
+          "denominator": 16
+        },
+        "claim_contract_rate": {
+          "percentage": 31.25,
+          "numerator": 5,
+          "denominator": 16
+        },
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 12,
+          "denominator": 12
+        },
+        "classification_accuracy": {
+          "percentage": 75,
+          "numerator": 12,
+          "denominator": 16
+        },
+        "amount_exact_rate": {
+          "percentage": 75,
+          "numerator": 12,
+          "denominator": 16
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 66.67,
+          "numerator": 4,
+          "denominator": 6
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 75,
+          "numerator": 12,
+          "denominator": 16
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 59.09,
+          "numerator": 13,
+          "denominator": 22
+        },
+        "critical_evidence_coverage": {
+          "percentage": 90.2,
+          "numerator": 46,
+          "denominator": 51
+        },
+        "missing_conflict_recall": {
+          "percentage": 0,
+          "numerator": 0,
+          "denominator": 0
+        },
+        "manifest_assertion_rate": {
+          "percentage": 90.57,
+          "numerator": 48,
+          "denominator": 53
+        }
+      }
+    },
+    "round_3": {
+      "completed": 14,
+      "total": 16,
+      "error_codes": {
+        "schema_validation_failed": 2
+      },
+      "metrics": {
+        "model_completion_rate": {
+          "percentage": 87.5,
+          "numerator": 14,
+          "denominator": 16
+        },
+        "claim_contract_rate": {
+          "percentage": 43.75,
+          "numerator": 7,
+          "denominator": 16
+        },
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 14,
+          "denominator": 14
+        },
+        "classification_accuracy": {
+          "percentage": 87.5,
+          "numerator": 14,
+          "denominator": 16
+        },
+        "amount_exact_rate": {
+          "percentage": 87.5,
+          "numerator": 14,
+          "denominator": 16
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 50,
+          "numerator": 3,
+          "denominator": 6
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 87.5,
+          "numerator": 14,
+          "denominator": 16
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 68.18,
+          "numerator": 15,
+          "denominator": 22
+        },
+        "critical_evidence_coverage": {
+          "percentage": 94.44,
+          "numerator": 51,
+          "denominator": 54
+        },
+        "missing_conflict_recall": {
+          "percentage": 0,
+          "numerator": 0,
+          "denominator": 0
+        },
+        "manifest_assertion_rate": {
+          "percentage": 94.34,
+          "numerator": 50,
+          "denominator": 53
+        }
+      }
+    }
+  },
+  "attributed_findings": [
+    "归一化按编码字节预算降采样：V5-INV-006 由 16327872 字节降为 2785311 字节，修复前三轮均为 provider_invalid_response，修复后多轮完成。该结论由字节级本地实测支持，不依赖任何 Provider 调用。",
+    "默认币种与方向符号修复后，model_field_invalid_money_value 由 10 降为 1、missing_field_evidence 由 9 降为 0、通过校验的 Claim 由 4 增至 11。",
+    "json_schema 输出模式的独立贡献未获证实：一次观测为 16/16，但在认证正常的第 3 轮仍出现 2 次 schema_validation_failed。"
+  ],
+  "privacy_note": "本文件不含原始图片、真实字段值、来源定位、凭据或个人财务信息。"
+}

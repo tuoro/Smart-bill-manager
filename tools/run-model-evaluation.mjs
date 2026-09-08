@@ -30,12 +30,18 @@ const approvedTuningManifestSHA256 = new Map([
   ],
   // v5 阻断说明要求的修正后继：补齐 supplementary_fields Claim 路径，
   // 并按 ADR-0037 把币种改为产品默认来源、移除其冻结证据期望。
+  // V5-INV-004 已从 v6 剔除：原始截图 603x900，票面发票号人眼不可辨认，
+  // 不存在可靠的冻结期望值。
   [
-    "m1-real-dev-v6",
-    "0abdcbeb3740596d48b82ebd83e6a5832036679e160e22618c242a542076d3d7",
+    "m1-real-dev-v7",
+    "51ed88cb4f402ba81fec559de134be3f6f6785d1a6bdf11772af0231be4d79e9",
   ],
 ]);
 const blockedRealTuningDatasets = new Map([
+  [
+    "m1-real-dev-v6",
+    "m1-real-dev-v6 含 V5-INV-004：原始截图分辨率下发票号人眼不可辨认，不存在可靠的冻结期望值；使用 m1-real-dev-v7",
+  ],
   [
     "m1-real-dev-v5",
     "m1-real-dev-v5 is frozen diagnostic evidence; its copied v4 labels do not represent the visible-text currency boundary or the fixed supplementary_fields Claim path, so a corrected successor must be approved before another Provider preflight",
@@ -423,7 +429,7 @@ async function validateManifest(manifest, manifestPath, options) {
     );
     const approvedIdentityValid = approvedHash === manifestHash;
     const commonTuningIdentityValid =
-      manifest.samples?.length === 16 &&
+      manifest.samples?.length === 15 &&
       manifest.excluded_from_release_evidence === true &&
       manifest.intended_use === "prompt_provider_contract_tuning_only" &&
       Array.isArray(manifest.source_dataset_versions) &&
@@ -433,10 +439,10 @@ async function validateManifest(manifest, manifestPath, options) {
       manifest.synthetic_only === true &&
       manifest.supersedes_dataset_version === "m1-prompt-dev-v1";
     const realIdentityValid =
-      manifest.dataset_version === "m1-real-dev-v6" &&
+      manifest.dataset_version === "m1-real-dev-v7" &&
       manifest.synthetic_only === false &&
       manifest.real_world === true &&
-      manifest.supersedes_dataset_version === "m1-real-dev-v5" &&
+      manifest.supersedes_dataset_version === "m1-real-dev-v6" &&
       manifest.prompt_contract === currentPromptVersion &&
       manifest.extraction_schema_contract === extractionSchemaVersion &&
       manifest.provider_schema_contract === providerSchemaVersion &&

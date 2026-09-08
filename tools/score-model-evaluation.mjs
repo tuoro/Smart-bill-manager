@@ -30,6 +30,10 @@ const tuningManifestSHA256 = new Map([
     "m1-real-dev-v6",
     "0abdcbeb3740596d48b82ebd83e6a5832036679e160e22618c242a542076d3d7",
   ],
+  [
+    "m1-real-dev-v7",
+    "51ed88cb4f402ba81fec559de134be3f6f6785d1a6bdf11772af0231be4d79e9",
+  ],
 ]);
 
 const thresholds = {
@@ -652,16 +656,16 @@ function validateTuningDatasetShape(manifest) {
     !Array.isArray(manifest.source_dataset_versions) ||
     manifest.source_dataset_versions.length !== 0 ||
     manifest.excluded_from_release_evidence !== true ||
-    manifest.samples?.length !== 16;
+    manifest.samples?.length !== 15;
   const syntheticIdentityValid =
     manifest.dataset_version === "m1-prompt-dev-v2" &&
     manifest.synthetic_only === true &&
     manifest.supersedes_dataset_version === "m1-prompt-dev-v1";
   const realIdentityValid =
-    manifest.dataset_version === "m1-real-dev-v6" &&
+    manifest.dataset_version === "m1-real-dev-v7" &&
     manifest.synthetic_only === false &&
     manifest.real_world === true &&
-    manifest.supersedes_dataset_version === "m1-real-dev-v5" &&
+    manifest.supersedes_dataset_version === "m1-real-dev-v6" &&
     manifest.prompt_contract === "bill-visible-text-cn/2" &&
     manifest.extraction_schema_contract === "bill-visible-text/2" &&
     manifest.provider_schema_contract === "bill-visible-text-provider/2" &&
@@ -693,7 +697,7 @@ function validateTuningDatasetShape(manifest) {
   }
   const distributionValid = realIdentityValid
     ? counts.get("payment") === 10 &&
-      counts.get("invoice") === 6 &&
+      counts.get("invoice") === 5 &&
       (counts.get("unknown") ?? 0) === 0
     : counts.get("payment") === 6 &&
       counts.get("invoice") === 8 &&
@@ -711,12 +715,12 @@ function validateTuningDatasetShape(manifest) {
   }
   if (
     realIdentityValid &&
-    ((tags.get("bill_visible_text_v1") ?? 0) !== 16 ||
+    ((tags.get("bill_visible_text_v1") ?? 0) !== 15 ||
       (manifest.composition?.wechat_pay_detail ?? 0) !== 5 ||
       (manifest.composition?.alipay_detail ?? 0) !== 5 ||
-      (manifest.composition?.invoice ?? 0) !== 6)
+      (manifest.composition?.invoice ?? 0) !== 5)
   ) {
-    throw new Error("real tuning v5 scenario distribution is invalid");
+    throw new Error("real tuning scenario distribution is invalid");
   }
 }
 

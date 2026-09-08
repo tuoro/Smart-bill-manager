@@ -271,7 +271,12 @@ func validateField(validated *ValidatedClaim, field *FieldCandidate, spec ClaimF
 		}
 	}
 	if field.Path != "document_type" {
-		requiresEvidence := field.Path != "source_timezone" && !strings.HasSuffix(field.Path, "].sort_order")
+		// source_timezone 与 currency 可以来自产品默认值（ADR-0037），产品默认值
+		// 没有票面证据可言；要求它提供证据只会逼出伪造的证据。模型返回的币种始终
+		// 经 mapVisibleField 生成证据，因此这条豁免在实际链路上不放过模型输出。
+		requiresEvidence := field.Path != "source_timezone" &&
+			field.Path != "currency" &&
+			!strings.HasSuffix(field.Path, "].sort_order")
 		if len(field.Evidence) == 0 && requiresEvidence {
 			if field.ValueType == "supplementary" {
 				validated.add(field.Path, "missing_supplementary_evidence", "warning", "warning", "补充识别字段没有逐项证据，仅供人工复核")

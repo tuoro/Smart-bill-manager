@@ -289,20 +289,59 @@ func TestMapPreservesContractAndNormalizationFailuresAsBlockedFields(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	// 票面与金额文本都没有币种标记时套用产品默认 CNY，金额照常换算为最小单位。
+	// 该默认不附 Evidence：它是产品默认值，不能伪装成票面逐字证据。见 ADR-0037。
 	amount := fieldByPath(t, claim, "amount_minor")
-	if !contains(amount.Issues, "money_currency_unavailable") || string(amount.Value) != `"28.80"` {
-		t.Fatalf("unconvertible amount = %#v", amount)
+	if contains(amount.Issues, "money_currency_unavailable") || string(amount.Value) != `2880` {
+		t.Fatalf("default currency did not convert the amount: %#v", amount)
 	}
+	currency := fieldByPath(t, claim, "currency")
+	if string(currency.Value) != `"CNY"` || len(currency.Evidence) != 0 {
+		t.Fatalf("default currency must carry no visible-text evidence: %#v", currency)
+	}
+	// 契约边界本身不放宽：退役的裸标量与非法页码仍然保持 blocked。
 	merchant := fieldByPath(t, claim, "merchant")
 	if !contains(merchant.Issues, "invalid_visible_text_shape") {
 		t.Fatalf("retired bare scalar shape was accepted: %#v", merchant)
 	}
 	validated := domain.ValidateClaim(claim, 1)
 	if validated.Status != domain.ClaimBlocked ||
-		!hasValidation(validated, "model_field_money_currency_unavailable") ||
+		hasValidation(validated, "model_field_money_currency_unavailable") ||
 		!hasValidation(validated, "model_field_invalid_visible_text_shape") ||
 		!hasValidation(validated, "model_field_invalid_visible_text_page") {
 		t.Fatalf("field failures were not explicit: %#v", validated.Validations)
+	}
+}
+
+// 默认币种只在完全没有币种信号时兜底：金额文本自带外币标记时必须按票面解析，
+// 不能被默认值覆盖，否则会把外币金额悄悄记成人民币。
+func TestDefaultCurrencyNeverOverridesAnExplicitVisibleMarker(t *testing.T) {
+	t.Parallel()
+	for text, want := range map[string]string{
+		"$100.00": `"USD"`,
+		"€100.00": `"EUR"`,
+		"¥28.80":  `"CNY"`,
+	} {
+		claim, err := Map(domain.BillVisibleTextEnvelope{
+			SchemaVersion: ExtractionSchemaVersion,
+			DocumentType:  "payment",
+			Payment: raw(`{
+				"amount":{"text":"` + text + `","page":1},
+				"currency":null,"merchant":null,"transaction_time":null,
+				"timezone":null,"payment_method":null,"order_number":null,"category":null
+			}`),
+			Invoice: raw(`null`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		currency := fieldByPath(t, claim, "currency")
+		if string(currency.Value) != want {
+			t.Fatalf("%s resolved to %s, want %s", text, currency.Value, want)
+		}
+		if len(currency.Evidence) == 0 {
+			t.Fatalf("%s was inferred from visible text and must keep its evidence", text)
+		}
 	}
 }
 
@@ -610,4 +649,53 @@ func contains(values []string, expected string) bool {
 		}
 	}
 	return false
+}
+
+// 中文钱包支出明细的票面金额带前导负号，按 ADR-0038 取绝对值；负号出现在其它
+// 位置不属于方向标记，仍须按非法金额阻断，不能悄悄接受。
+func TestMoneyAcceptsALeadingDirectionSignAndRejectsOtherSigns(t *testing.T) {
+	t.Parallel()
+	for text, want := range map[string]string{
+		"-440.00":    `44000`,
+		"−19.90":     `1990`,
+		"-¥5,900.00": `590000`,
+		"¥23.00":     `2300`,
+	} {
+		claim, err := Map(domain.BillVisibleTextEnvelope{
+			SchemaVersion: ExtractionSchemaVersion,
+			DocumentType:  "payment",
+			Payment: raw(`{
+				"amount":{"text":"` + text + `","page":1},
+				"currency":null,"merchant":null,"transaction_time":null,
+				"timezone":null,"payment_method":null,"order_number":null,"category":null
+			}`),
+			Invoice: raw(`null`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		amount := fieldByPath(t, claim, "amount_minor")
+		if string(amount.Value) != want || len(amount.Issues) != 0 {
+			t.Fatalf("%s = %s issues %v, want %s", text, amount.Value, amount.Issues, want)
+		}
+	}
+	for _, text := range []string{"4-40.00", "440.00-", "--440.00", "4 - 40"} {
+		claim, err := Map(domain.BillVisibleTextEnvelope{
+			SchemaVersion: ExtractionSchemaVersion,
+			DocumentType:  "payment",
+			Payment: raw(`{
+				"amount":{"text":"` + text + `","page":1},
+				"currency":null,"merchant":null,"transaction_time":null,
+				"timezone":null,"payment_method":null,"order_number":null,"category":null
+			}`),
+			Invoice: raw(`null`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		amount := fieldByPath(t, claim, "amount_minor")
+		if !contains(amount.Issues, "invalid_money_value") {
+			t.Fatalf("%q was accepted as money: %#v", text, amount)
+		}
+	}
 }

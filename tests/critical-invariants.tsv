@@ -90,7 +90,8 @@ provider-database-schema-identity	数据库只允许激活与当前 Provider Sch
 visible-text-claim-mapping	Payment 只接收票面原文与页码；Evidence、本地时区默认和最终 Claim 均由 Mapper 确定性组装	./internal/application/claimmapping	TestMapPaymentBuildsEvidenceAndAppliesChineseTimezoneDefault
 visible-text-claim-mapping	Invoice 只把价税合计映射为 total，保留不含税金额供审核，且不计算空白单价	./internal/application/claimmapping	TestMapInvoiceUsesGrossTotalAndDoesNotCalculateBlankValues
 visible-text-money-boundary	票面金额支持批准币种的常见小数与千分位写法，并无浮点地转成内部整数	./internal/application/claimmapping	TestMapMoneyHandlesVisibleLocaleWithoutFloatingPoint
-visible-text-contract-boundary	旧裸标量、无币种金额和非法页码保留为 blocked 字段，不进入兼容分支	./internal/application/claimmapping	TestMapPreservesContractAndNormalizationFailuresAsBlockedFields
+visible-text-contract-boundary	旧裸标量和非法页码保留为 blocked 字段，不进入兼容分支；无币种金额按 ADR-0037 套用无证据的产品默认币种	./internal/application/claimmapping	TestMapPreservesContractAndNormalizationFailuresAsBlockedFields
+visible-text-contract-boundary	金额文本自带外币标记时按票面解析，产品默认币种不得覆盖	./internal/application/claimmapping	TestDefaultCurrencyNeverOverridesAnExplicitVisibleMarker
 supplementary-review-only	模型额外字段可审核但永不成为 Fact 字段来源	./internal/application/reviews	TestSupplementaryFieldsNeverBecomeFactOrigins
 visible-text-worker-boundary	本地发现文档类型与业务区段冲突时只持久化一个完整 blocked Claim，不产生 Fact	./internal/application/processing	TestWorkerPersistsLocalDocumentConflictAsOneBlockedClaim
 trip-visible-text-contract	Trip 严格根成员与三业务区段身份由 Provider-facing Schema 和本地根校验共同固定	./internal/adapters/openaicompatible	TestBillExtractionAcceptsStrictTripRoot

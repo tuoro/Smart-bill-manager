@@ -22,6 +22,11 @@ const (
 	ExtractionSchemaVersion = "bill-visible-text/2"
 	ClaimSchemaVersion      = "document-claim/3"
 	defaultSourceTimezone   = "Asia/Shanghai"
+	// 中文钱包支付截图通常不印任何币种标记，模型按约定返回 null，金额文本里也没有
+	// 符号可推导。此时套用产品默认币种，与 defaultSourceTimezone 同一性质：
+	// 它是产品默认值而非票面证据，因此不附 Evidence。仅在显式字段与金额文本
+	// 推导都拿不到币种时才生效，票面出现 $ / € / USD 等标记时不会走到这里。
+	defaultPaymentCurrency = domain.CurrencyCNY
 )
 
 type valueNormalizer func(string) (any, string)
@@ -131,6 +136,10 @@ func mapPayment(raw json.RawMessage) ([]domain.FieldCandidate, []string) {
 		if inferred, ok := inferCurrencyField(section["amount"]); ok {
 			currencyField = inferred
 			currency = domain.Currency(rawStringValue(inferred.Value))
+			hasCurrency = true
+		} else {
+			currencyField = defaultCurrencyField()
+			currency = defaultPaymentCurrency
 			hasCurrency = true
 		}
 	}
@@ -441,8 +450,15 @@ func normalizeMoney(text string, currency domain.Currency) (any, string) {
 	return money.MinorUnits, ""
 }
 
+// 中文钱包的支出明细把方向印成前导负号（`-440.00`），金额本身仍是票面数值。
+// 按 ADR-0038 取其绝对值：Payment 的 amount 是支付金额，方向由单据类型表达。
+// 只剥离前导符号，不改变数字本身；正负号出现在其它位置一律仍按非法金额处理。
+var moneyDirectionPrefix = regexp.MustCompile(`^[-\x{2212}]\s*`)
+
 func moneyComponents(text string) (string, domain.Currency, bool, string) {
-	match := moneyTextPattern.FindStringSubmatch(norm.NFKC.String(strings.TrimSpace(text)))
+	normalized := moneyDirectionPrefix.ReplaceAllString(
+		norm.NFKC.String(strings.TrimSpace(text)), "")
+	match := moneyTextPattern.FindStringSubmatch(normalized)
 	if match == nil {
 		return "", "", false, "invalid_money_value"
 	}
@@ -613,6 +629,16 @@ func normalizeDecimal(text string) (any, string) {
 		return whole, ""
 	}
 	return whole + "." + fraction, ""
+}
+
+func defaultCurrencyField() domain.FieldCandidate {
+	return domain.FieldCandidate{
+		Path:      "currency",
+		ValueType: "string",
+		Presence:  "present",
+		Value:     mustJSON(string(defaultPaymentCurrency)),
+		Issues:    []string{},
+	}
 }
 
 func inferCurrencyField(raw json.RawMessage) (domain.FieldCandidate, bool) {

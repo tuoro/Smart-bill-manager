@@ -58,6 +58,12 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      # run-quality-runners 会 import apps/web/e2e 下的运行器，那里依赖
+      # chrome-launcher 与 lighthouse，所以这个 job 也需要前端依赖。
+      - run: npm ci
+        working-directory: apps/web
       - run: node --test tools/*.test.mjs
 
   api:

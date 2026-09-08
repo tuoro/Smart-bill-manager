@@ -3,6 +3,10 @@ import test from "node:test";
 
 import { buildSafeEvidence } from "./write-local-release-evidence.mjs";
 import { requiredImageFiles } from "./check-release-image.mjs";
+import {
+  minimumPlaywrightScenarios,
+  requiredPlaywrightSpecFiles,
+} from "./run-playwright-gate.mjs";
 
 const identity = {
   baseline_head: "a".repeat(40),
@@ -232,16 +236,16 @@ function reports() {
       report_kind: "m4-playwright-result",
       passed: true,
       build_identity: browserIdentity,
-      required_spec_files: 15,
-      minimum_passed_scenarios: 120,
+      required_spec_files: requiredPlaywrightSpecFiles,
+      minimum_passed_scenarios: minimumPlaywrightScenarios,
       network_policy: {
         loopback_origin_only: true,
         closed_loopback_proxy: true,
         background_networking_disabled: true,
       },
-      spec_files: 15,
-      total_scenarios: 120,
-      passed_scenarios: 120,
+      spec_files: requiredPlaywrightSpecFiles,
+      total_scenarios: minimumPlaywrightScenarios,
+      passed_scenarios: minimumPlaywrightScenarios,
       failed_scenarios: 0,
       skipped_scenarios: 0,
       failed_gates: [],

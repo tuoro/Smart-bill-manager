@@ -35,7 +35,7 @@ jobs:
   web:
     name: 前端检查
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -52,7 +52,7 @@ jobs:
   tools:
     name: 工具脚本测试
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -69,9 +69,8 @@ jobs:
   api:
     name: 后端测试
     runs-on: ubuntu-latest
-    # 本机实测：go test ./... 约 5 分钟，245 项关键不变量矩阵（230 次独立
-    # go test 调用）约 12 分钟。托管 runner 只有 2 核，留 3 倍余量。
-    timeout-minutes: 75
+    # runner 实测约 7 分钟（go test ./... 加 245 项关键不变量矩阵）。
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
@@ -105,8 +104,8 @@ jobs:
   coverage:
     name: 后端覆盖率
     runs-on: ubuntu-latest
-    # 两层各跑一遍带插桩的全量测试，本机实测单遍约 5 分钟。
-    timeout-minutes: 75
+    # 两层各跑一遍带插桩的全量测试，runner 实测约 4 分钟。
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
@@ -138,7 +137,8 @@ jobs:
   e2e:
     name: 端到端（纯合成）
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # runner 实测约 3 分钟，含 npm ci、浏览器安装与构建。
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

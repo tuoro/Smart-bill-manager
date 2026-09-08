@@ -23,7 +23,17 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
 
-const normalizedLongestEdge = 8000
+const (
+	// 上限从 8000 下调：手机翻拍的单据普遍在 4000px 量级，8000 对它们形同虚设。
+	normalizedLongestEdge = 3000
+	// 仅靠像素上限不足以控制体积——PNG 大小取决于图像内容。实测一张 4032x3024
+	// 的翻拍发票在 2400px 下仍有 7.1 MB（base64 约 9.5 MB），会被 Provider 直接
+	// 拒收且不重试。因此按编码后字节数逐级降采样，直到进入预算或触及下限。
+	normalizedPageByteBudget = 4 << 20
+	// 降采样下限：低于此值票面文字开始不可读，宁可超预算也不再缩小，
+	// 由 Provider 显式拒绝而不是本地悄悄产出一张认不出的页面。
+	normalizedFloorEdge = 1024
+)
 
 type Normalizer struct {
 	store        *Store
@@ -109,14 +119,13 @@ func (n Normalizer) normalizeImage(
 	if closeErr != nil {
 		return ports.NormalizedPage{}, fmt.Errorf("close source page: %w", closeErr)
 	}
-	decoded = resizeImage(decoded, normalizedLongestEdge)
-	providerImage := toEightBitRGBA(decoded)
-	bounds := providerImage.Bounds()
-	fingerprint := pageVisualFingerprint(providerImage)
-	var encoded bytes.Buffer
-	if err := png.Encode(&encoded, providerImage); err != nil {
+	providerImage, encodedBytes, err := encodeNormalizedPage(decoded)
+	if err != nil {
 		return ports.NormalizedPage{}, fmt.Errorf("encode normalized page: %w", err)
 	}
+	bounds := providerImage.Bounds()
+	fingerprint := pageVisualFingerprint(providerImage)
+	encoded := bytes.NewBuffer(encodedBytes)
 	if err := ctx.Err(); err != nil {
 		return ports.NormalizedPage{}, err
 	}
@@ -200,6 +209,24 @@ func (n Normalizer) renderPDF(ctx context.Context, location string, expectedPage
 		return nil, func() {}, domain.NewRuleError("pdf_page_count_changed", "PDF 渲染页数与上传检查不一致", domain.ErrInvalidInput)
 	}
 	return files, cleanup, nil
+}
+
+// encodeNormalizedPage 在像素上限之上再按编码后字节数逐级降采样。视觉指纹按
+// 冻结算法对等比缩放不变（见 duplicate-visual-fingerprint 不变量），因此降采样
+// 不改变判重结果。同一输入始终得到同一结果：步长与下限都是固定的。
+func encodeNormalizedPage(source image.Image) (*image.RGBA, []byte, error) {
+	edge := normalizedLongestEdge
+	for {
+		candidate := toEightBitRGBA(resizeImage(source, edge))
+		var buffer bytes.Buffer
+		if err := png.Encode(&buffer, candidate); err != nil {
+			return nil, nil, err
+		}
+		if buffer.Len() <= normalizedPageByteBudget || edge <= normalizedFloorEdge {
+			return candidate, buffer.Bytes(), nil
+		}
+		edge = max(normalizedFloorEdge, edge*4/5)
+	}
 }
 
 func resizeImage(source image.Image, longestEdge int) image.Image {

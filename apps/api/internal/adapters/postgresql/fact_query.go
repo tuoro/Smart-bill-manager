@@ -12,7 +12,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
 
-const paymentColumns = `f.id, f.amount_minor, a.allocated_minor, f.currency, f.merchant,
+const paymentColumns = `f.id, f.amount_minor, a.allocated_minor, f.currency, f.merchant, f.merchant_full_name,
  f.transaction_time, f.source_timezone, f.business_date::text, f.payment_method, f.order_number, f.category, f.created_at, sbm_fact_bad_debt(f.tenant_id,'payment',f.id)`
 const invoiceColumns = `f.id, f.invoice_number, f.invoice_date::text, f.total_minor, a.allocated_minor,
  f.tax_minor, f.currency, f.seller_name, f.buyer_name, f.created_at,
@@ -113,11 +113,12 @@ func readFactPage[T any](ctx context.Context, q reimbursementQueryer, statement 
 
 func scanPayment(row factScanner) (ports.Payment, error) {
 	var item ports.Payment
-	var method, order, category sql.NullString
+	var fullName, method, order, category sql.NullString
 	var created string
-	if err := row.Scan(&item.ID, &item.AmountMinor, &item.AllocatedMinor, &item.Currency, &item.Merchant, &item.TransactionTime, &item.SourceTimezone, &item.BusinessDate, &method, &order, &category, &created, &item.BadDebt); err != nil {
+	if err := row.Scan(&item.ID, &item.AmountMinor, &item.AllocatedMinor, &item.Currency, &item.Merchant, &fullName, &item.TransactionTime, &item.SourceTimezone, &item.BusinessDate, &method, &order, &category, &created, &item.BadDebt); err != nil {
 		return item, err
 	}
+	item.MerchantFullName = nullableString(fullName)
 	item.PaymentMethod, item.OrderNumber, item.Category = nullableString(method), nullableString(order), nullableString(category)
 	item.RemainingMinor = item.AmountMinor - item.AllocatedMinor
 	item.AllocationStatus = allocationStatus(item.AmountMinor, item.AllocatedMinor)

@@ -46,6 +46,7 @@ const paymentSpecs: FieldSpec[] = [
   { path: 'amount_minor', valueType: 'money_minor', required: true, label: '支付金额（最小单位）' },
   { path: 'currency', valueType: 'string', required: true, label: '币种' },
   { path: 'merchant', valueType: 'string', required: true, label: '商户' },
+  { path: 'merchant_full_name', valueType: 'string', required: false, label: '商户全称' },
   { path: 'transaction_time', valueType: 'instant', required: true, label: '交易时间' },
   { path: 'source_timezone', valueType: 'string', required: true, label: '来源时区' },
   { path: 'payment_method', valueType: 'string', required: false, label: '支付方式' },

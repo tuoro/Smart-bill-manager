@@ -33,7 +33,7 @@ func EmptyManualClaim(kind DocumentType, pageCount int) (ValidatedClaim, error) 
 		fields = append(fields, FieldCandidate{Path: path, ValueType: spec.ValueType, Presence: "absent", Issues: []string{}})
 	}
 	sort.Slice(fields, func(i, j int) bool { return fields[i].Path < fields[j].Path })
-	return ValidateClaim(ClaimEnvelope{SchemaVersion: "document-claim/3", DocumentType: string(kind), Fields: fields, DocumentIssues: []string{}}, pageCount), nil
+	return ValidateClaim(ClaimEnvelope{SchemaVersion: "document-claim/4", DocumentType: string(kind), Fields: fields, DocumentIssues: []string{}}, pageCount), nil
 }
 
 type ManualEvidenceInput struct {

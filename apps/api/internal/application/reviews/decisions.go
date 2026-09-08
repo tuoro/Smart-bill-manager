@@ -418,6 +418,7 @@ func (s Service) buildPaymentDraft(snapshot ports.ReviewSnapshot) (*ports.Paymen
 	if draft.Merchant, err = fieldString(fields, "merchant"); err != nil {
 		return nil, nil, err
 	}
+	draft.MerchantFullName = optionalFieldString(fields, "merchant_full_name")
 	if draft.TransactionTime, err = fieldString(fields, "transaction_time"); err != nil {
 		return nil, nil, err
 	}

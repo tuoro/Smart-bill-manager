@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	promptVersion           = "bill-visible-text-cn/2"
+	promptVersion           = "bill-visible-text-cn/3"
 	extractionSchemaVersion = "bill-visible-text/2"
 	inputProcessingVersion  = "document-normalize/2"
 )

@@ -106,7 +106,7 @@ func (s Service) Revise(
 		return ports.ReviewSnapshot{}, err
 	}
 	validated := domain.ValidateClaim(domain.ClaimEnvelope{
-		SchemaVersion:  "document-claim/3",
+		SchemaVersion:  "document-claim/4",
 		DocumentType:   string(input.DocumentType),
 		Fields:         candidates,
 		DocumentIssues: []string{},

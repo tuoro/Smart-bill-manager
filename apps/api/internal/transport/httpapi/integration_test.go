@@ -191,7 +191,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	}
 	if runPromptVersion != "bill-visible-text-cn/2" || runExtractionSchemaVersion != "bill-visible-text/2" ||
 		runProviderSchemaVersion != "bill-visible-text-provider/2" || runProviderSchemaSHA256 != strings.Repeat("c", 64) ||
-		runClaimMapperVersion != "claim-mapper/4" {
+		runClaimMapperVersion != "claim-mapper/5" {
 		t.Fatalf("frozen AI run schema identity = %s/%s/%s/%s/%s", runPromptVersion, runExtractionSchemaVersion, runProviderSchemaVersion, runProviderSchemaSHA256, runClaimMapperVersion)
 	}
 	reviewResponse := fixture.request(http.MethodGet, "/api/v1/reviews/"+firstUpload["job_id"], nil, ownerSession, false, "")

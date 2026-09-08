@@ -398,9 +398,9 @@ func (t transaction) insertPayment(ctx context.Context, command ports.ConfirmCom
 	_, err := t.tx.ExecContext(ctx, `
 		INSERT INTO payments (
 			id, tenant_id, source_review_decision_id, amount_minor, currency,
-			merchant, transaction_time, source_timezone, business_date, payment_method,
+			merchant, merchant_full_name, transaction_time, source_timezone, business_date, payment_method,
 			order_number, category, created_at, updated_at, version
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 	`,
 		payment.ID,
 		command.TenantID,
@@ -408,6 +408,7 @@ func (t transaction) insertPayment(ctx context.Context, command ports.ConfirmCom
 		payment.AmountMinor,
 		payment.Currency,
 		payment.Merchant,
+		payment.MerchantFullName,
 		payment.TransactionTime,
 		payment.SourceTimezone,
 		payment.BusinessDate,

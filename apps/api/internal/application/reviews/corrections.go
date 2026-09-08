@@ -160,7 +160,7 @@ func (s Service) prepareCorrection(ctx context.Context, tx ports.Transaction, te
 	if err != nil {
 		return preview, domain.ValidatedClaim{}, nil, nil, err
 	}
-	validated := domain.ValidateClaim(domain.ClaimEnvelope{SchemaVersion: "document-claim/3", DocumentType: string(workspace.State.FactType), Fields: candidates, DocumentIssues: []string{}}, current.PageCount)
+	validated := domain.ValidateClaim(domain.ClaimEnvelope{SchemaVersion: "document-claim/4", DocumentType: string(workspace.State.FactType), Fields: candidates, DocumentIssues: []string{}}, current.PageCount)
 	proposedTime := ""
 	for _, field := range validated.Fields {
 		if field.Path == "transaction_time" && field.Presence == "present" && validated.Status.CanConfirm() {

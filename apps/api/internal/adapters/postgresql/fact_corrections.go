@@ -218,7 +218,7 @@ func (t transaction) updateCorrectionProjection(ctx context.Context, command por
 		if p.ID != state.FactID {
 			return domain.ErrInvalidInput
 		}
-		changed, err = t.tx.ExecContext(ctx, `UPDATE payments SET amount_minor = ?, currency = ?, merchant = ?, transaction_time = ?, source_timezone = ?, business_date = ?, payment_method = ?, order_number = ?, category = ?, current_review_decision_id = ?, version = version + 1, updated_at = ? WHERE tenant_id = ? AND id = ? AND version = ? AND deleted_at IS NULL`, p.AmountMinor, p.Currency, p.Merchant, p.TransactionTime, p.SourceTimezone, p.BusinessDate, p.PaymentMethod, p.OrderNumber, p.Category, c.ReviewDecisionID, createdAt, c.TenantID, state.FactID, state.Version)
+		changed, err = t.tx.ExecContext(ctx, `UPDATE payments SET amount_minor = ?, currency = ?, merchant = ?, merchant_full_name = ?, transaction_time = ?, source_timezone = ?, business_date = ?, payment_method = ?, order_number = ?, category = ?, current_review_decision_id = ?, version = version + 1, updated_at = ? WHERE tenant_id = ? AND id = ? AND version = ? AND deleted_at IS NULL`, p.AmountMinor, p.Currency, p.Merchant, p.MerchantFullName, p.TransactionTime, p.SourceTimezone, p.BusinessDate, p.PaymentMethod, p.OrderNumber, p.Category, c.ReviewDecisionID, createdAt, c.TenantID, state.FactID, state.Version)
 	case domain.DocumentInvoice:
 		i := c.Invoice
 		if i.ID != state.FactID {

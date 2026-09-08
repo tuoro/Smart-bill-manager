@@ -1791,7 +1791,7 @@ func newReviewFixtureInStore(t *testing.T, store *postgresqladapter.Store) revie
 			ProviderConfigVersion: 1, ProviderConfigFingerprint: "test-fingerprint", Model: "test-model",
 			PromptVersion: "bill-visible-text-cn/2", ExtractionSchemaVersion: "bill-visible-text/2",
 			ProviderSchemaVersion: "bill-visible-text-provider/2", ProviderSchemaSHA256: strings.Repeat("c", 64),
-			ClaimSchemaVersion: "document-claim/3", ClaimMapperVersion: "claim-mapper/4",
+			ClaimSchemaVersion: "document-claim/4", ClaimMapperVersion: "claim-mapper/5",
 			InputProcessingVersion: "document-normalize/1", RequestHash: "request-hash",
 			Outcome: "running", StartedAt: now,
 		}); err != nil {
@@ -1960,7 +1960,7 @@ func seedAdditionalReviewWithFingerprint(
 			ProviderConfigFingerprint: "test-fingerprint", Model: "test-model",
 			PromptVersion: "bill-visible-text-cn/2", ExtractionSchemaVersion: "bill-visible-text/2",
 			ProviderSchemaVersion: "bill-visible-text-provider/2", ProviderSchemaSHA256: strings.Repeat("c", 64),
-			ClaimSchemaVersion: "document-claim/3", ClaimMapperVersion: "claim-mapper/4",
+			ClaimSchemaVersion: "document-claim/4", ClaimMapperVersion: "claim-mapper/5",
 			InputProcessingVersion: "document-normalize/1", RequestHash: "request-" + label,
 			Outcome: "running", StartedAt: now,
 		}); err != nil {
@@ -2038,7 +2038,7 @@ func paymentEnvelope() domain.ClaimEnvelope {
 		return []domain.CandidateEvidence{{Page: 1, Quote: quote}}
 	}
 	return domain.ClaimEnvelope{
-		SchemaVersion: "document-claim/3",
+		SchemaVersion: "document-claim/4",
 		DocumentType:  "payment",
 		Fields: []domain.FieldCandidate{
 			{Path: "amount_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence("123.45"), Issues: []string{}},
@@ -2071,7 +2071,7 @@ func invoiceEnvelope(number string) domain.ClaimEnvelope {
 		return []domain.CandidateEvidence{{Page: 1, Quote: quote}}
 	}
 	return domain.ClaimEnvelope{
-		SchemaVersion: "document-claim/3",
+		SchemaVersion: "document-claim/4",
 		DocumentType:  "invoice",
 		Fields: []domain.FieldCandidate{
 			{Path: "invoice_number", ValueType: "string", Presence: "present", Value: json.RawMessage(strconv.Quote(number)), Evidence: evidence(number), Issues: []string{}},

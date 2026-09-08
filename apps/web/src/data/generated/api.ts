@@ -1911,6 +1911,7 @@ export interface components {
             allocation_status: "unallocated" | "partial" | "allocated";
             currency: components["schemas"]["Currency"];
             merchant: string;
+            merchant_full_name?: string;
             /** Format: date-time */
             transaction_time: string;
             source_timezone: string;

@@ -47,6 +47,7 @@ const rows = computed<[string, string][]>(() => {
   if (p)
     return [
       ['商户', p.merchant],
+      ['商户全称', p.merchant_full_name ?? '—'],
       ['金额', formatMinorUnits(p.amount_minor, p.currency)],
       ['交易时间', p.transaction_time],
       ['业务日期', p.business_date],

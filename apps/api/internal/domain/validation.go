@@ -37,9 +37,12 @@ type ClaimFieldSpec struct {
 }
 
 var paymentFieldSpecs = map[string]ClaimFieldSpec{
-	"amount_minor":         {ValueType: "money_minor", Required: true},
-	"currency":             {ValueType: "string", Required: true},
-	"merchant":             {ValueType: "string", Required: true, Normalize: true},
+	"amount_minor": {ValueType: "money_minor", Required: true},
+	"currency":     {ValueType: "string", Required: true},
+	"merchant":     {ValueType: "string", Required: true, Normalize: true},
+	// 票面同时印出显示名与全称时分别保存：merchant 供账单列表辨认，
+	// merchant_full_name 供报销对账。并非所有截图都印全称，故可选。见 ADR-0039。
+	"merchant_full_name":   {ValueType: "string", Normalize: true},
 	"transaction_time":     {ValueType: "instant", Required: true},
 	"source_timezone":      {ValueType: "string", Required: true},
 	"payment_method":       {ValueType: "string", Normalize: true},
@@ -122,7 +125,7 @@ func StabilizeItemPaths(envelope ClaimEnvelope, newID func() (string, error)) (C
 
 func ValidateClaim(envelope ClaimEnvelope, pageCount int) ValidatedClaim {
 	validated := ValidatedClaim{DocumentType: DocumentType(envelope.DocumentType), Status: ClaimReadyForReview}
-	if envelope.SchemaVersion != "document-claim/3" || !validated.DocumentType.Valid() {
+	if envelope.SchemaVersion != "document-claim/4" || !validated.DocumentType.Valid() {
 		validated.add("", "invalid_claim_envelope", "blocked", "blocked", "Claim 版本或文档类型不受支持")
 		validated.Status = ClaimBlocked
 		return validated

@@ -128,16 +128,17 @@ type RevisionCommand struct {
 }
 
 type PaymentDraft struct {
-	ID              string
-	AmountMinor     int64
-	Currency        string
-	Merchant        string
-	TransactionTime string
-	SourceTimezone  string
-	BusinessDate    string
-	PaymentMethod   *string
-	OrderNumber     *string
-	Category        *string
+	ID               string
+	AmountMinor      int64
+	Currency         string
+	Merchant         string
+	MerchantFullName *string
+	TransactionTime  string
+	SourceTimezone   string
+	BusinessDate     string
+	PaymentMethod    *string
+	OrderNumber      *string
+	Category         *string
 }
 
 type InvoiceItemDraft struct {
@@ -284,6 +285,7 @@ type Payment struct {
 	AllocationStatus string    `json:"allocation_status"`
 	Currency         string    `json:"currency"`
 	Merchant         string    `json:"merchant"`
+	MerchantFullName *string   `json:"merchant_full_name,omitempty"`
 	TransactionTime  string    `json:"transaction_time"`
 	SourceTimezone   string    `json:"source_timezone"`
 	PaymentMethod    *string   `json:"payment_method,omitempty"`

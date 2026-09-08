@@ -3302,6 +3302,7 @@ components:
           { type: string, enum: [unallocated, partial, allocated] }
         currency: { $ref: "#/components/schemas/Currency" }
         merchant: { type: string }
+        merchant_full_name: { type: string }
         transaction_time: { type: string, format: date-time }
         source_timezone: { type: string }
         business_date: { type: string, format: date }

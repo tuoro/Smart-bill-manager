@@ -256,7 +256,7 @@ func TestExpiredLeaseIsRecoveredAndRunningAIRunIsClosed(t *testing.T) {
 			ProviderConfigVersion: 1, ProviderConfigFingerprint: "fingerprint", Model: "model",
 			PromptVersion: "bill-visible-text-cn/2", ExtractionSchemaVersion: "bill-visible-text/2",
 			ProviderSchemaVersion: "bill-visible-text-provider/2", ProviderSchemaSHA256: fmt.Sprintf("%064x", 1),
-			ClaimSchemaVersion: "document-claim/3", ClaimMapperVersion: "claim-mapper/4",
+			ClaimSchemaVersion: "document-claim/4", ClaimMapperVersion: "claim-mapper/5",
 			InputProcessingVersion: "document-normalize/1", Outcome: "running", StartedAt: now,
 		})
 	}); err != nil {

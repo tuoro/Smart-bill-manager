@@ -94,11 +94,11 @@ const frozenComparisonManifests = [
     sha256: "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
   },
 ];
-const currentPromptVersion = "bill-visible-text-cn/2";
+const currentPromptVersion = "bill-visible-text-cn/3";
 const extractionSchemaVersion = "bill-visible-text/2";
 const providerSchemaVersion = "bill-visible-text-provider/2";
-const claimSchemaVersion = "document-claim/3";
-const claimMapperVersion = "claim-mapper/4";
+const claimSchemaVersion = "document-claim/4";
+const claimMapperVersion = "claim-mapper/5";
 const providerOutputRetryPolicy = "schema_validation_single_retry/1";
 const terminalJobStates = new Set([
   "needs_review",

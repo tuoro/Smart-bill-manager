@@ -487,7 +487,7 @@ func tripEnvelope(origin, destination, startDate, endDate string) domain.ClaimEn
 		return []domain.CandidateEvidence{{Page: 1, Quote: quote}}
 	}
 	return domain.ClaimEnvelope{
-		SchemaVersion: "document-claim/3",
+		SchemaVersion: "document-claim/4",
 		DocumentType:  string(domain.DocumentTrip),
 		Fields: []domain.FieldCandidate{
 			{Path: "origin", ValueType: "string", Presence: "present", Value: json.RawMessage(`"` + origin + `"`), Evidence: evidence(origin), Issues: []string{}},

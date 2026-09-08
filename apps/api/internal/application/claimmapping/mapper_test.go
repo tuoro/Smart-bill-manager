@@ -32,7 +32,7 @@ func TestMapPaymentBuildsEvidenceAndAppliesChineseTimezoneDefault(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if claim.SchemaVersion != ClaimSchemaVersion || claim.DocumentType != "payment" || len(claim.Fields) != 9 {
+	if claim.SchemaVersion != ClaimSchemaVersion || claim.DocumentType != "payment" || len(claim.Fields) != 10 {
 		t.Fatalf("claim identity = %#v", claim)
 	}
 	amount := fieldByPath(t, claim, "amount_minor")

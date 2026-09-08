@@ -114,7 +114,12 @@ describe('review model', () => {
   it('creates a complete editable payment field set', () => {
     const fields = editableFields(reviewFixture(), 'payment')
 
-    expect(fields).toHaveLength(9)
+    expect(fields).toHaveLength(10)
+    // 商户全称为可选字段：票面只印一个名称时留空，不复制显示名。见 ADR-0039。
+    expect(fields.find((field) => field.path === 'merchant_full_name')).toMatchObject({
+      presence: 'absent',
+      textValue: '',
+    })
     expect(fields[0]).toMatchObject({
       path: 'amount_minor',
       presence: 'present',

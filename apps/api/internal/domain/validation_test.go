@@ -11,12 +11,12 @@ func TestValidatePaymentClaim(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/3",
+		SchemaVersion: "document-claim/4",
 		DocumentType:  "payment",
 		Fields: []FieldCandidate{
 			present("amount_minor", "money_minor", int64(1234)),
 			present("currency", "string", "CNY"),
-			present("merchant", "string", "  ACME   Store "),
+			present("merchant", "string", "  ACME   Store "), absent("merchant_full_name", "string"),
 			present("transaction_time", "instant", "2026-08-27T08:30:00+08:00"),
 			present("source_timezone", "string", "Asia/Shanghai"),
 			absent("payment_method", "string"),
@@ -47,12 +47,12 @@ func TestValidateClaimBlocksIncompleteSnapshotAndBadEvidence(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/3",
+		SchemaVersion: "document-claim/4",
 		DocumentType:  "payment",
 		Fields: []FieldCandidate{
 			presentWithPage("amount_minor", "money_minor", int64(1234), 2),
 			present("currency", "string", "CNY"),
-			present("merchant", "string", "ACME"),
+			present("merchant", "string", "ACME"), absent("merchant_full_name", "string"),
 			present("transaction_time", "instant", "2026-08-27T08:30:00Z"),
 			present("source_timezone", "string", "UTC"),
 		},
@@ -103,7 +103,7 @@ func TestStabilizeInvoiceItemsAndTotalValidation(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/3",
+		SchemaVersion: "document-claim/4",
 		DocumentType:  "invoice",
 		Fields: []FieldCandidate{
 			present("invoice_number", "string", " INV 001 "),
@@ -160,13 +160,13 @@ func TestValidateClaimRejectsEnvelopeAndFieldBoundaryViolations(t *testing.T) {
 		{"unknown path", func(value *ClaimEnvelope) {
 			value.Fields = append(value.Fields, present("surprise", "string", "value"))
 		}, "unknown_field_path"},
-		{"wrong type", func(value *ClaimEnvelope) { value.Fields[2].ValueType = "integer" }, "field_type_mismatch"},
-		{"invalid presence", func(value *ClaimEnvelope) { value.Fields[2].Presence = "maybe" }, "invalid_presence"},
-		{"absent payload", func(value *ClaimEnvelope) { value.Fields[5].Value = json.RawMessage(`"value"`) }, "absent_field_payload"},
-		{"present without value", func(value *ClaimEnvelope) { value.Fields[2].Value = nil }, "present_field_without_value"},
-		{"missing evidence", func(value *ClaimEnvelope) { value.Fields[2].Evidence = nil }, "missing_field_evidence"},
-		{"empty evidence", func(value *ClaimEnvelope) { value.Fields[2].Evidence = []CandidateEvidence{{Page: 1}} }, "empty_field_evidence"},
-		{"required absent", func(value *ClaimEnvelope) { value.Fields[2] = absent("merchant", "string") }, "required_field_absent"},
+		{"wrong type", func(value *ClaimEnvelope) { fieldAt(value, "merchant").ValueType = "integer" }, "field_type_mismatch"},
+		{"invalid presence", func(value *ClaimEnvelope) { fieldAt(value, "merchant").Presence = "maybe" }, "invalid_presence"},
+		{"absent payload", func(value *ClaimEnvelope) { fieldAt(value, "payment_method").Value = json.RawMessage(`"value"`) }, "absent_field_payload"},
+		{"present without value", func(value *ClaimEnvelope) { fieldAt(value, "merchant").Value = nil }, "present_field_without_value"},
+		{"missing evidence", func(value *ClaimEnvelope) { fieldAt(value, "merchant").Evidence = nil }, "missing_field_evidence"},
+		{"empty evidence", func(value *ClaimEnvelope) { fieldAt(value, "merchant").Evidence = []CandidateEvidence{{Page: 1}} }, "empty_field_evidence"},
+		{"required absent", func(value *ClaimEnvelope) { *fieldAt(value, "merchant") = absent("merchant", "string") }, "required_field_absent"},
 	}
 	for _, test := range tests {
 		test := test
@@ -188,7 +188,7 @@ func TestValidateClaimPersistsOneBlockedCandidatePerDuplicatePath(t *testing.T) 
 
 	envelope := validPaymentEnvelope()
 	envelope.Fields = append(envelope.Fields,
-		present("merchant", "string", "Duplicate Merchant"),
+		present("merchant", "string", "Duplicate Merchant"), absent("merchant_full_name", "string"),
 		present("document_type", "document_type", "invoice"),
 	)
 	validated := ValidateClaim(envelope, 1)
@@ -320,7 +320,7 @@ func TestInvoiceTaxAndItemPathFailures(t *testing.T) {
 	t.Parallel()
 
 	envelope := ClaimEnvelope{
-		SchemaVersion: "document-claim/3", DocumentType: "invoice",
+		SchemaVersion: "document-claim/4", DocumentType: "invoice",
 		Fields: []FieldCandidate{
 			present("invoice_number", "string", "INV-2"), present("invoice_date", "date", "2026-08-27"),
 			present("total_minor", "money_minor", int64(100)), present("tax_minor", "money_minor", int64(101)),
@@ -342,12 +342,22 @@ func TestInvoiceTaxAndItemPathFailures(t *testing.T) {
 	}
 }
 
+// 按路径定位字段，避免夹具随字段增删而按下标错位。
+func fieldAt(value *ClaimEnvelope, path string) *FieldCandidate {
+	for index := range value.Fields {
+		if value.Fields[index].Path == path {
+			return &value.Fields[index]
+		}
+	}
+	panic("fixture is missing field path " + path)
+}
+
 func validPaymentEnvelope() ClaimEnvelope {
 	return ClaimEnvelope{
-		SchemaVersion: "document-claim/3", DocumentType: "payment", DocumentIssues: []string{},
+		SchemaVersion: "document-claim/4", DocumentType: "payment", DocumentIssues: []string{},
 		Fields: []FieldCandidate{
 			present("amount_minor", "money_minor", int64(1234)), present("currency", "string", "CNY"),
-			present("merchant", "string", "ACME"), present("transaction_time", "instant", "2026-08-27T08:30:00Z"),
+			present("merchant", "string", "ACME"), absent("merchant_full_name", "string"), present("transaction_time", "instant", "2026-08-27T08:30:00Z"),
 			present("source_timezone", "string", "UTC"), absent("payment_method", "string"),
 			absent("order_number", "string"), absent("category", "string"),
 			absent("supplementary_fields", "supplementary"),
@@ -357,7 +367,7 @@ func validPaymentEnvelope() ClaimEnvelope {
 
 func validTripEnvelope() ClaimEnvelope {
 	return ClaimEnvelope{
-		SchemaVersion: "document-claim/3", DocumentType: "trip", DocumentIssues: []string{},
+		SchemaVersion: "document-claim/4", DocumentType: "trip", DocumentIssues: []string{},
 		Fields: []FieldCandidate{
 			presentWithPage("origin", "string", "上海", 1),
 			presentWithPage("destination", "string", "北京", 2),

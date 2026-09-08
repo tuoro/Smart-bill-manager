@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	Version                 = "claim-mapper/4"
+	Version                 = "claim-mapper/5"
 	ExtractionSchemaVersion = "bill-visible-text/2"
-	ClaimSchemaVersion      = "document-claim/3"
+	ClaimSchemaVersion      = "document-claim/4"
 	defaultSourceTimezone   = "Asia/Shanghai"
 	// 中文钱包支付截图通常不印任何币种标记，模型按约定返回 null，金额文本里也没有
 	// 符号可推导。此时套用产品默认币种，与 defaultSourceTimezone 同一性质：
@@ -148,6 +148,7 @@ func mapPayment(raw json.RawMessage) ([]domain.FieldCandidate, []string) {
 		mapMoneyField("amount_minor", section["amount"], currency, hasCurrency),
 		currencyField,
 		mapVisibleField("merchant", "string", section["merchant"], normalizeLiteral),
+		mapVisibleField("merchant_full_name", "string", section["merchant_full_name"], normalizeLiteral),
 		mapInstantField(section["transaction_time"], location, hasLocation),
 		timezoneField,
 		mapVisibleField("payment_method", "string", section["payment_method"], normalizeLiteral),
@@ -155,7 +156,8 @@ func mapPayment(raw json.RawMessage) ([]domain.FieldCandidate, []string) {
 		mapVisibleField("category", "string", section["category"], normalizeLiteral),
 	}
 	known := stringSet(
-		"amount", "currency", "merchant", "transaction_time", "timezone",
+		"amount", "currency", "merchant", "merchant_full_name",
+		"transaction_time", "timezone",
 		"payment_method", "order_number", "category",
 	)
 	supplementary := collectObjectExtras("payment", section, known)

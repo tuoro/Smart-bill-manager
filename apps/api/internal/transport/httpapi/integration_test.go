@@ -189,7 +189,7 @@ func TestHTTPWorkflowAndTenantIsolation(t *testing.T) {
 	`, fixture.owner.TenantID).Scan(&runPromptVersion, &runExtractionSchemaVersion, &runProviderSchemaVersion, &runProviderSchemaSHA256, &runClaimMapperVersion); err != nil {
 		t.Fatal(err)
 	}
-	if runPromptVersion != "bill-visible-text-cn/2" || runExtractionSchemaVersion != "bill-visible-text/2" ||
+	if runPromptVersion != "bill-visible-text-cn/5" || runExtractionSchemaVersion != "bill-visible-text/2" ||
 		runProviderSchemaVersion != "bill-visible-text-provider/2" || runProviderSchemaSHA256 != strings.Repeat("c", 64) ||
 		runClaimMapperVersion != "claim-mapper/5" {
 		t.Fatalf("frozen AI run schema identity = %s/%s/%s/%s/%s", runPromptVersion, runExtractionSchemaVersion, runProviderSchemaVersion, runProviderSchemaSHA256, runClaimMapperVersion)

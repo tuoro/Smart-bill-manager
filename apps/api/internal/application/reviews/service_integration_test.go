@@ -28,7 +28,7 @@ func TestConfirmPaymentIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if review.Status != domain.ClaimReadyForReview || len(review.Fields) != 10 {
+	if review.Status != domain.ClaimReadyForReview || len(review.Fields) != 11 {
 		t.Fatalf("initial review = %#v", review)
 	}
 	input := ConfirmInput{
@@ -2044,6 +2044,7 @@ func paymentEnvelope() domain.ClaimEnvelope {
 			{Path: "amount_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence("123.45"), Issues: []string{}},
 			{Path: "currency", ValueType: "string", Presence: "present", Value: json.RawMessage(`"CNY"`), Evidence: evidence("CNY"), Issues: []string{}},
 			{Path: "merchant", ValueType: "string", Presence: "present", Value: json.RawMessage(`"Example Merchant"`), Evidence: evidence("Example Merchant"), Issues: []string{}},
+			{Path: "merchant_full_name", ValueType: "string", Presence: "absent", Issues: []string{}},
 			{Path: "transaction_time", ValueType: "instant", Presence: "present", Value: json.RawMessage(`"2026-08-27T12:00:00+08:00"`), Evidence: evidence("2026-08-27 12:00"), Issues: []string{}},
 			{Path: "source_timezone", ValueType: "string", Presence: "present", Value: json.RawMessage(`"Asia/Shanghai"`), Evidence: evidence("北京时间"), Issues: []string{}},
 			{Path: "payment_method", ValueType: "string", Presence: "absent", Issues: []string{}},

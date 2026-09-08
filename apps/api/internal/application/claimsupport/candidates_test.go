@@ -104,6 +104,7 @@ func candidatePaymentEnvelope() domain.ClaimEnvelope {
 		{Path: "amount_minor", ValueType: "money_minor", Presence: "present", Value: json.RawMessage(`12345`), Evidence: evidence, Issues: []string{}},
 		{Path: "currency", ValueType: "string", Presence: "present", Value: json.RawMessage(`"CNY"`), Evidence: evidence, Issues: []string{}},
 		{Path: "merchant", ValueType: "string", Presence: "present", Value: json.RawMessage(`"Example Merchant"`), Evidence: evidence, Issues: []string{}},
+		{Path: "merchant_full_name", ValueType: "string", Presence: "absent", Issues: []string{}},
 		{Path: "transaction_time", ValueType: "instant", Presence: "present", Value: json.RawMessage(`"2026-08-27T23:30:00+08:00"`), Evidence: evidence, Issues: []string{}},
 		{Path: "source_timezone", ValueType: "string", Presence: "present", Value: json.RawMessage(`"Asia/Shanghai"`), Evidence: evidence, Issues: []string{}},
 		{Path: "payment_method", ValueType: "string", Presence: "absent", Issues: []string{}},

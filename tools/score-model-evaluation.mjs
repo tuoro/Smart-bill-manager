@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const toolDirectory = dirname(fileURLToPath(import.meta.url));
 const projectDirectory = resolve(toolDirectory, "..");
@@ -25,6 +25,10 @@ const tuningManifestSHA256 = new Map([
   [
     "m1-real-dev-v5",
     "30680f8547da883d93f4850c2ec43720f470d2ea16a70a7f036461152b96bee4",
+  ],
+  [
+    "m1-real-dev-v6",
+    "0abdcbeb3740596d48b82ebd83e6a5832036679e160e22618c242a542076d3d7",
   ],
 ]);
 
@@ -48,7 +52,22 @@ const preflightThresholds = {
 
 const providerOutputRetryPolicy = "schema_validation_single_retry/1";
 
-const criticalFields = {
+// 产品默认值来源标识。这些字段的值由本地按产品规则确定，不是模型从票面读出的，
+// 因此不进入关键字段证据覆盖率的分母：要求它们提供票面证据只会逼出伪造的证据。
+// 时区默认见 acceptance「冻结与计分协议」，币种默认见 ADR-0037。
+export const productDefaultProvenance = new Set([
+  "m1-payment-timezone/1",
+  "m1-payment-currency/1",
+]);
+
+// 产品默认值没有票面证据可言，既不进证据覆盖分母，也不要求契约比对提供证据。
+function isProductDefaultField(expected, path) {
+  return productDefaultProvenance.has(
+    (expected.derived_field_provenance ?? {})[path],
+  );
+}
+
+export const criticalFields = {
   payment: ["amount_minor", "currency", "merchant", "transaction_time"],
   invoice: [
     "invoice_number",
@@ -297,7 +316,7 @@ function scorePreflight(manifest, run, manifestHash) {
   };
 }
 
-function scoreRun(manifest, run) {
+export function scoreRun(manifest, run) {
   const resultByID = new Map(
     run.samples.map((sample) => [sample.sample_id, sample]),
   );
@@ -378,6 +397,7 @@ function scoreRun(manifest, run) {
       for (const path of criticalFields[claim.document_type] ?? []) {
         const field = fieldMap.get(path);
         if (field?.presence !== "present") continue;
+        if (isProductDefaultField(expected, path)) continue;
         const frozenEvidence = expected.expected_evidence[path];
         count(
           counters.critical_evidence_coverage,
@@ -468,17 +488,17 @@ function validateReleaseRun(manifest, run, manifestHash) {
   const promptVersion = run.frozen_configuration?.prompt_version;
   const outputMode = run.frozen_configuration?.output_mode;
   const deterministicConfiguration =
-    promptVersion === "bill-visible-text-cn/1" &&
+    promptVersion === "bill-visible-text-cn/2" &&
     run.frozen_configuration?.temperature === 0 &&
     new Set(["json_schema", "json_object"]).has(outputMode);
   if (
     !deterministicConfiguration ||
     run.frozen_configuration?.extraction_schema_version !==
-      "bill-visible-text/1" ||
+      "bill-visible-text/2" ||
     run.frozen_configuration?.provider_schema_version !==
-      "bill-visible-text-provider/1" ||
-    run.frozen_configuration?.claim_schema_version !== "document-claim/2" ||
-    run.frozen_configuration?.claim_mapper_version !== "claim-mapper/3" ||
+      "bill-visible-text-provider/2" ||
+    run.frozen_configuration?.claim_schema_version !== "document-claim/3" ||
+    run.frozen_configuration?.claim_mapper_version !== "claim-mapper/4" ||
     run.frozen_configuration?.provider_output_retry_policy !==
       providerOutputRetryPolicy ||
     !/^[a-f0-9]{64}$/.test(
@@ -524,13 +544,13 @@ function validatePreflightRun(manifest, run, manifestHash) {
   }
   const currentConfiguration =
     tuningManifestSHA256.has(manifest.dataset_version) &&
-    run.frozen_configuration?.prompt_version === "bill-visible-text-cn/1" &&
+    run.frozen_configuration?.prompt_version === "bill-visible-text-cn/2" &&
     run.frozen_configuration?.extraction_schema_version ===
-      "bill-visible-text/1" &&
+      "bill-visible-text/2" &&
     run.frozen_configuration?.provider_schema_version ===
-      "bill-visible-text-provider/1" &&
-    run.frozen_configuration?.claim_schema_version === "document-claim/2" &&
-    run.frozen_configuration?.claim_mapper_version === "claim-mapper/3" &&
+      "bill-visible-text-provider/2" &&
+    run.frozen_configuration?.claim_schema_version === "document-claim/3" &&
+    run.frozen_configuration?.claim_mapper_version === "claim-mapper/4" &&
     run.frozen_configuration?.temperature === 0 &&
     new Set(["json_schema", "json_object"]).has(
       run.frozen_configuration?.output_mode,
@@ -634,15 +654,15 @@ function validateTuningDatasetShape(manifest) {
     manifest.synthetic_only === true &&
     manifest.supersedes_dataset_version === "m1-prompt-dev-v1";
   const realIdentityValid =
-    manifest.dataset_version === "m1-real-dev-v5" &&
+    manifest.dataset_version === "m1-real-dev-v6" &&
     manifest.synthetic_only === false &&
     manifest.real_world === true &&
-    manifest.supersedes_dataset_version === "m1-real-dev-v4" &&
-    manifest.prompt_contract === "bill-visible-text-cn/1" &&
-    manifest.extraction_schema_contract === "bill-visible-text/1" &&
-    manifest.provider_schema_contract === "bill-visible-text-provider/1" &&
-    manifest.authoritative_schema_contract === "document-claim/2" &&
-    manifest.claim_mapper_contract === "claim-mapper/3" &&
+    manifest.supersedes_dataset_version === "m1-real-dev-v5" &&
+    manifest.prompt_contract === "bill-visible-text-cn/2" &&
+    manifest.extraction_schema_contract === "bill-visible-text/2" &&
+    manifest.provider_schema_contract === "bill-visible-text-provider/2" &&
+    manifest.authoritative_schema_contract === "document-claim/3" &&
+    manifest.claim_mapper_contract === "claim-mapper/4" &&
     manifest.input_processing_contract === "document-normalize/2";
   if (
     commonIdentityInvalid ||
@@ -780,13 +800,13 @@ function perfectRun(manifest, runId, manifestHash) {
     frozen_configuration: {
       safe_fingerprint: "scorer-self-test-only",
       output_mode: "json_schema",
-      prompt_version: "bill-visible-text-cn/1",
-      extraction_schema_version: "bill-visible-text/1",
-      provider_schema_version: "bill-visible-text-provider/1",
+      prompt_version: "bill-visible-text-cn/2",
+      extraction_schema_version: "bill-visible-text/2",
+      provider_schema_version: "bill-visible-text-provider/2",
       provider_schema_sha256:
         "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      claim_schema_version: "document-claim/2",
-      claim_mapper_version: "claim-mapper/3",
+      claim_schema_version: "document-claim/3",
+      claim_mapper_version: "claim-mapper/4",
       provider_output_retry_policy: providerOutputRetryPolicy,
       temperature: 0,
     },
@@ -844,11 +864,11 @@ function perfectPreflightRun(manifest, manifestHash) {
     frozen_configuration: {
       safe_fingerprint: "preflight-scorer-self-test-only",
       output_mode: "json_schema",
-      prompt_version: "bill-visible-text-cn/1",
-      extraction_schema_version: "bill-visible-text/1",
-      provider_schema_version: "bill-visible-text-provider/1",
-      claim_schema_version: "document-claim/2",
-      claim_mapper_version: "claim-mapper/3",
+      prompt_version: "bill-visible-text-cn/2",
+      extraction_schema_version: "bill-visible-text/2",
+      provider_schema_version: "bill-visible-text-provider/2",
+      claim_schema_version: "document-claim/3",
+      claim_mapper_version: "claim-mapper/4",
       provider_schema_sha256:
         "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       provider_output_retry_policy: providerOutputRetryPolicy,
@@ -960,6 +980,7 @@ function claimMatchesTuningContract(expected, observed) {
           valueType,
         ) ||
         (path !== "source_timezone" &&
+          !isProductDefaultField(expected, path) &&
           !evidenceMatches(field.evidence, expected.expected_evidence[path], {
             path,
             valueType,
@@ -1030,8 +1051,10 @@ function normalizeTuningFieldPaths(rawFields) {
 function sameExpectedValue(actual, expected, valueType) {
   if (valueType === "instant") return sameInstant(actual, expected);
   if (valueType === "decimal")
-    return canonicalDecimal(actual) !== null &&
-      canonicalDecimal(actual) === canonicalDecimal(expected);
+    return (
+      canonicalDecimal(actual) !== null &&
+      canonicalDecimal(actual) === canonicalDecimal(expected)
+    );
   if (valueType === "string")
     return normalizeBusinessText(actual) === normalizeBusinessText(expected);
   return actual === expected;
@@ -1192,11 +1215,7 @@ function evidenceSupportsExpectedValue(quote, context) {
     );
   }
   if (valueType === "money_minor") {
-    return moneyEvidenceMatches(
-      quote,
-      expectedValue,
-      expectedFields.currency,
-    );
+    return moneyEvidenceMatches(quote, expectedValue, expectedFields.currency);
   }
   if (valueType === "date") {
     return visibleDate(quote) === expectedValue;
@@ -1210,7 +1229,8 @@ function evidenceSupportsExpectedValue(quote, context) {
   }
   if (valueType === "integer") {
     return numericTokens(quote).some(
-      (token) => Number.isSafeInteger(expectedValue) && token === String(expectedValue),
+      (token) =>
+        Number.isSafeInteger(expectedValue) && token === String(expectedValue),
     );
   }
   return false;
@@ -1228,7 +1248,11 @@ function currencyEvidenceValues(quote) {
 }
 
 function numericTokens(value) {
-  return String(value).normalize("NFKC").match(/[0-9][0-9.,]*/g) ?? [];
+  return (
+    String(value)
+      .normalize("NFKC")
+      .match(/[0-9][0-9.,]*/g) ?? []
+  );
 }
 
 function moneyEvidenceMatches(quote, expectedMinor, currency) {
@@ -1270,7 +1294,8 @@ function normalizeLocalizedNumber(value, exponent) {
   }
   const separator = dotCount > 0 ? "." : commaCount > 0 ? "," : "";
   const count = separator === "." ? dotCount : commaCount;
-  if (separator === "") return /^[0-9]+$/.test(value) ? canonicalWhole(value) : null;
+  if (separator === "")
+    return /^[0-9]+$/.test(value) ? canonicalWhole(value) : null;
   if (count > 1) return normalizeGroupedNumber(value, separator);
   const parts = value.split(separator);
   if (parts.length !== 2 || !parts.every((part) => /^[0-9]+$/.test(part)))
@@ -1444,9 +1469,14 @@ function round(value) {
   return Math.round(value * 100) / 100;
 }
 
-main().catch((error) => {
-  process.stderr.write(
-    `${error instanceof Error ? error.message : String(error)}\n`,
-  );
-  process.exitCode = 1;
-});
+if (
+  process.argv[1] &&
+  pathToFileURL(process.argv[1]).href === import.meta.url
+) {
+  main().catch((error) => {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    process.exitCode = 1;
+  });
+}

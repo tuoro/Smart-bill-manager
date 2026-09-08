@@ -28,6 +28,12 @@ const approvedTuningManifestSHA256 = new Map([
     "m1-prompt-dev-v2",
     "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
   ],
+  // v5 阻断说明要求的修正后继：补齐 supplementary_fields Claim 路径，
+  // 并按 ADR-0037 把币种改为产品默认来源、移除其冻结证据期望。
+  [
+    "m1-real-dev-v6",
+    "0abdcbeb3740596d48b82ebd83e6a5832036679e160e22618c242a542076d3d7",
+  ],
 ]);
 const blockedRealTuningDatasets = new Map([
   [
@@ -82,11 +88,11 @@ const frozenComparisonManifests = [
     sha256: "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
   },
 ];
-const currentPromptVersion = "bill-visible-text-cn/1";
-const extractionSchemaVersion = "bill-visible-text/1";
-const providerSchemaVersion = "bill-visible-text-provider/1";
-const claimSchemaVersion = "document-claim/2";
-const claimMapperVersion = "claim-mapper/3";
+const currentPromptVersion = "bill-visible-text-cn/2";
+const extractionSchemaVersion = "bill-visible-text/2";
+const providerSchemaVersion = "bill-visible-text-provider/2";
+const claimSchemaVersion = "document-claim/3";
+const claimMapperVersion = "claim-mapper/4";
 const providerOutputRetryPolicy = "schema_validation_single_retry/1";
 const terminalJobStates = new Set([
   "needs_review",
@@ -427,10 +433,10 @@ async function validateManifest(manifest, manifestPath, options) {
       manifest.synthetic_only === true &&
       manifest.supersedes_dataset_version === "m1-prompt-dev-v1";
     const realIdentityValid =
-      manifest.dataset_version === "m1-real-dev-v5" &&
+      manifest.dataset_version === "m1-real-dev-v6" &&
       manifest.synthetic_only === false &&
       manifest.real_world === true &&
-      manifest.supersedes_dataset_version === "m1-real-dev-v4" &&
+      manifest.supersedes_dataset_version === "m1-real-dev-v5" &&
       manifest.prompt_contract === currentPromptVersion &&
       manifest.extraction_schema_contract === extractionSchemaVersion &&
       manifest.provider_schema_contract === providerSchemaVersion &&

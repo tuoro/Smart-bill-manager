@@ -222,6 +222,7 @@ test.describe('全站导航：纯合成布局、权限与键盘验收', () => {
       await expect(expand).toHaveAttribute('aria-expanded', 'false')
       await expect(expand).toBeFocused()
       await expect(page.locator('.app-frame')).toHaveAttribute('data-sidebar-collapsed', 'true')
+      await expect(navigation).toHaveCSS('width', '64px')
       expect((await navigation.boundingBox())?.width).toBe(64)
       await expect(navigation).toBeVisible()
       await expect(expand).toBeInViewport({ ratio: 1 })

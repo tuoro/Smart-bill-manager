@@ -33,6 +33,10 @@ const approvedTuningManifestSHA256 = new Map([
   // V5-INV-004 已从 v6 剔除：原始截图 603x900，票面发票号人眼不可辨认，
   // 不存在可靠的冻结期望值。
   [
+    "m1-real-dev-v8",
+    "73f81fa0b87d339733c66a05b16021d14e6c258712bbffa2c33e62cb7fd38bd6",
+  ],
+  [
     "m1-real-dev-v7",
     "51ed88cb4f402ba81fec559de134be3f6f6785d1a6bdf11772af0231be4d79e9",
   ],
@@ -94,7 +98,7 @@ const frozenComparisonManifests = [
     sha256: "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
   },
 ];
-const currentPromptVersion = "bill-visible-text-cn/3";
+const currentPromptVersion = "bill-visible-text-cn/4";
 const extractionSchemaVersion = "bill-visible-text/2";
 const providerSchemaVersion = "bill-visible-text-provider/2";
 const claimSchemaVersion = "document-claim/4";
@@ -439,10 +443,10 @@ async function validateManifest(manifest, manifestPath, options) {
       manifest.synthetic_only === true &&
       manifest.supersedes_dataset_version === "m1-prompt-dev-v1";
     const realIdentityValid =
-      manifest.dataset_version === "m1-real-dev-v7" &&
+      manifest.dataset_version === "m1-real-dev-v8" &&
       manifest.synthetic_only === false &&
       manifest.real_world === true &&
-      manifest.supersedes_dataset_version === "m1-real-dev-v6" &&
+      manifest.supersedes_dataset_version === "m1-real-dev-v7" &&
       manifest.prompt_contract === currentPromptVersion &&
       manifest.extraction_schema_contract === extractionSchemaVersion &&
       manifest.provider_schema_contract === providerSchemaVersion &&

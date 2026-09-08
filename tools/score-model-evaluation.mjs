@@ -31,6 +31,10 @@ const tuningManifestSHA256 = new Map([
     "0abdcbeb3740596d48b82ebd83e6a5832036679e160e22618c242a542076d3d7",
   ],
   [
+    "m1-real-dev-v8",
+    "73f81fa0b87d339733c66a05b16021d14e6c258712bbffa2c33e62cb7fd38bd6",
+  ],
+  [
     "m1-real-dev-v7",
     "51ed88cb4f402ba81fec559de134be3f6f6785d1a6bdf11772af0231be4d79e9",
   ],
@@ -496,7 +500,7 @@ function validateReleaseRun(manifest, run, manifestHash) {
   const promptVersion = run.frozen_configuration?.prompt_version;
   const outputMode = run.frozen_configuration?.output_mode;
   const deterministicConfiguration =
-    promptVersion === "bill-visible-text-cn/3" &&
+    promptVersion === "bill-visible-text-cn/4" &&
     run.frozen_configuration?.temperature === 0 &&
     new Set(["json_schema", "json_object"]).has(outputMode);
   if (
@@ -552,7 +556,7 @@ function validatePreflightRun(manifest, run, manifestHash) {
   }
   const currentConfiguration =
     tuningManifestSHA256.has(manifest.dataset_version) &&
-    run.frozen_configuration?.prompt_version === "bill-visible-text-cn/3" &&
+    run.frozen_configuration?.prompt_version === "bill-visible-text-cn/4" &&
     run.frozen_configuration?.extraction_schema_version ===
       "bill-visible-text/2" &&
     run.frozen_configuration?.provider_schema_version ===
@@ -662,11 +666,11 @@ function validateTuningDatasetShape(manifest) {
     manifest.synthetic_only === true &&
     manifest.supersedes_dataset_version === "m1-prompt-dev-v1";
   const realIdentityValid =
-    manifest.dataset_version === "m1-real-dev-v7" &&
+    manifest.dataset_version === "m1-real-dev-v8" &&
     manifest.synthetic_only === false &&
     manifest.real_world === true &&
-    manifest.supersedes_dataset_version === "m1-real-dev-v6" &&
-    manifest.prompt_contract === "bill-visible-text-cn/3" &&
+    manifest.supersedes_dataset_version === "m1-real-dev-v7" &&
+    manifest.prompt_contract === "bill-visible-text-cn/4" &&
     manifest.extraction_schema_contract === "bill-visible-text/2" &&
     manifest.provider_schema_contract === "bill-visible-text-provider/2" &&
     manifest.authoritative_schema_contract === "document-claim/4" &&
@@ -808,7 +812,7 @@ function perfectRun(manifest, runId, manifestHash) {
     frozen_configuration: {
       safe_fingerprint: "scorer-self-test-only",
       output_mode: "json_schema",
-      prompt_version: "bill-visible-text-cn/3",
+      prompt_version: "bill-visible-text-cn/4",
       extraction_schema_version: "bill-visible-text/2",
       provider_schema_version: "bill-visible-text-provider/2",
       provider_schema_sha256:
@@ -872,7 +876,7 @@ function perfectPreflightRun(manifest, manifestHash) {
     frozen_configuration: {
       safe_fingerprint: "preflight-scorer-self-test-only",
       output_mode: "json_schema",
-      prompt_version: "bill-visible-text-cn/3",
+      prompt_version: "bill-visible-text-cn/4",
       extraction_schema_version: "bill-visible-text/2",
       provider_schema_version: "bill-visible-text-provider/2",
       claim_schema_version: "document-claim/4",

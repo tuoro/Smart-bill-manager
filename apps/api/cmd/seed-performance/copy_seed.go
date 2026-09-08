@@ -110,7 +110,7 @@ func seedPerformanceData(ctx context.Context, tx pgx.Tx, tenantID, userID, provi
 		createdAt := now.Add(time.Duration(index) * time.Second)
 		return []any{
 			makeID(0x30000001, index), tenantID, jobID, providerID, int64(1), "synthetic-performance-fingerprint",
-			"synthetic-performance-model", "bill-visible-text-cn/3", "bill-visible-text/2", "bill-visible-text-provider/2",
+			"synthetic-performance-model", "bill-visible-text-cn/4", "bill-visible-text/2", "bill-visible-text-provider/2",
 			strings.Repeat("c", 64), "document-claim/4", "claim-mapper/5", "document-normalize/2",
 			hashString("request-" + jobID), hashString("response-" + jobID), int64(10), int64(10), int64(1), "succeeded",
 			createdAt, createdAt.Add(time.Millisecond),

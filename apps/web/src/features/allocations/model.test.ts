@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+
+// 分配金额按币种精度输入十进制；期望值仍是最小单位。
 import type { AllocationWorkspace } from '../../data/client'
 import { allocationModeLabel, createAllocationDraft, validateAllocationDraft } from './model'
 
@@ -7,7 +9,7 @@ describe('allocation adjustment model', () => {
     const workspace = allocationWorkspace()
     const rows = createAllocationDraft(workspace)
     rows[1].selected = true
-    rows[1].amountText = '300'
+    rows[1].amountText = '3.00'
     const result = validateAllocationDraft(workspace, rows, '  补充第二张发票  ', false)
 
     expect(result.request).toEqual({
@@ -42,7 +44,7 @@ describe('allocation adjustment model', () => {
       '分配计划没有变化',
     )
 
-    rows[0].amountText = '601'
+    rows[0].amountText = '6.01'
     expect(allocationModeLabel(workspace, rows)).toBe('替换分配')
     expect(
       validateAllocationDraft(workspace, rows, '替换', false).targetErrors[invoiceA],
@@ -50,10 +52,10 @@ describe('allocation adjustment model', () => {
     rows[0].amountText = 'abc'
     expect(
       validateAllocationDraft(workspace, rows, '替换', false).targetErrors[invoiceA],
-    ).toContain('正整数')
-    rows[0].amountText = '400'
+    ).toContain('格式不正确')
+    rows[0].amountText = '4.00'
     rows[1].selected = true
-    rows[1].amountText = '700'
+    rows[1].amountText = '7.00'
     expect(validateAllocationDraft(workspace, rows, '超出 anchor', false).planError).toContain(
       '账单总额',
     )
@@ -63,7 +65,7 @@ describe('allocation adjustment model', () => {
     const workspace = allocationWorkspace()
     const rows = createAllocationDraft(workspace)
     rows[1].selected = true
-    rows[1].amountText = '1'
+    rows[1].amountText = '0.01'
     expect(validateAllocationDraft(workspace, rows, '  ', false).reasonError).toContain('请填写')
     expect(validateAllocationDraft(workspace, rows, '理'.repeat(501), false).reasonError).toContain(
       '500',
@@ -77,7 +79,7 @@ describe('allocation adjustment model', () => {
       ...base,
       target: { ...base.target, id: `synthetic-target-${index}` },
       selected: true,
-      amountText: '1',
+      amountText: '0.01',
     }))
     expect(
       validateAllocationDraft(workspace, rows.slice(0, 200), '合成完整计划', false).request,

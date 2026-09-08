@@ -1,4 +1,5 @@
 import type { ConfirmRequest, Review, RevisionRequest } from '../../data/client'
+import { minorToDecimalInput, parseDecimalToMinor } from '../facts/money'
 
 export type DocumentType = Review['document_type']
 export type ClaimField = Review['fields'][number]
@@ -43,7 +44,7 @@ export type DuplicateResolutionDecision = {
 type FieldSpec = { path: string; valueType: string; required: boolean; label: string }
 
 const paymentSpecs: FieldSpec[] = [
-  { path: 'amount_minor', valueType: 'money_minor', required: true, label: '支付金额（最小单位）' },
+  { path: 'amount_minor', valueType: 'money_minor', required: true, label: '支付金额' },
   { path: 'currency', valueType: 'string', required: true, label: '币种' },
   { path: 'merchant', valueType: 'string', required: true, label: '商户' },
   { path: 'merchant_full_name', valueType: 'string', required: false, label: '商户全称' },
@@ -63,8 +64,8 @@ const paymentSpecs: FieldSpec[] = [
 const invoiceSpecs: FieldSpec[] = [
   { path: 'invoice_number', valueType: 'string', required: true, label: '发票号码' },
   { path: 'invoice_date', valueType: 'date', required: true, label: '开票日期' },
-  { path: 'total_minor', valueType: 'money_minor', required: true, label: '价税合计（最小单位）' },
-  { path: 'tax_minor', valueType: 'money_minor', required: false, label: '税额（最小单位）' },
+  { path: 'total_minor', valueType: 'money_minor', required: true, label: '价税合计' },
+  { path: 'tax_minor', valueType: 'money_minor', required: false, label: '税额' },
   { path: 'currency', valueType: 'string', required: true, label: '币种' },
   { path: 'seller_name', valueType: 'string', required: true, label: '销售方' },
   { path: 'buyer_name', valueType: 'string', required: true, label: '购买方' },
@@ -112,7 +113,14 @@ export function editableFields(review: Review, documentType: DocumentType): Edit
         : documentType === 'trip'
           ? tripSpecs
           : []
-  const result = specs.map((spec) => toEditable(current.get(spec.path), spec))
+  // 金额显示为十进制需要知道币种精度；币种取自同一份 Claim 的 currency 字段，
+  // 缺失时退回 CNY——与 ADR-0037 的产品默认币种一致。
+  const currencyField = current.get('currency')
+  const currency =
+    currencyField?.presence === 'present' && typeof currencyField.value === 'string'
+      ? currencyField.value
+      : 'CNY'
+  const result = specs.map((spec) => toEditable(current.get(spec.path), spec, currency))
   if (documentType === 'invoice') {
     const itemKeys = new Set<string>()
     for (const span of review.invoice_item_spans) itemKeys.add(span.item_key)
@@ -124,12 +132,11 @@ export function editableFields(review: Review, documentType: DocumentType): Edit
       for (const spec of invoiceItemSpecs) {
         const path = `items[${itemKey}].${spec.property}`
         result.push(
-          toEditable(current.get(path), {
-            path,
-            valueType: spec.valueType,
-            required: spec.required,
-            label: spec.label,
-          }),
+          toEditable(
+            current.get(path),
+            { path, valueType: spec.valueType, required: spec.required, label: spec.label },
+            currency,
+          ),
         )
       }
     }
@@ -208,6 +215,13 @@ export function buildFieldPayload(
 ): { fields?: RevisionRequest['fields']; errors: Record<string, string> } {
   const errors: Record<string, string> = {}
   const payloadFields: RevisionRequest['fields'] = []
+  // 币种取用户当前编辑中的值而不是原始值：同一次修订里币种和金额可能一起改，
+  // 用旧币种换算会把金额记错一个数量级。
+  const currencyField = fields.find((entry) => entry.path === 'currency')
+  const submittedCurrency =
+    currencyField?.presence === 'present' && currencyField.textValue
+      ? currencyField.textValue
+      : 'CNY'
   for (const field of fields) {
     if (field.presence === 'absent') {
       payloadFields.push({ path: field.path, value_type: field.valueType, presence: 'absent' })
@@ -223,7 +237,16 @@ export function buildFieldPayload(
       continue
     }
     let value: unknown
-    if (['money_minor', 'integer'].includes(field.valueType)) {
+    if (field.valueType === 'money_minor') {
+      // 用户输入的是十进制金额，按当前币种精度换算回最小单位。
+      // 解析规则与后端 domain.ParseMoney 一致，避免前端放行、提交才被拒。
+      const parsed = parseDecimalToMinor(field.textValue, submittedCurrency)
+      if ('error' in parsed) {
+        errors[field.path] = parsed.error
+        continue
+      }
+      value = parsed.minor
+    } else if (field.valueType === 'integer') {
       if (!/^(0|[1-9][0-9]*)$/.test(field.textValue)) {
         errors[field.path] = '请输入非负整数，不使用小数或千位分隔符'
         continue
@@ -337,14 +360,21 @@ export function parseItemPath(path: string): { itemKey: string; property: string
   return match ? { itemKey: match[1], property: match[2] } : null
 }
 
+// 分配金额与字段金额同源：都按 Claim 当前币种的精度换算，避免两处口径不一。
+function reviewCurrency(review: Review): string {
+  const field = review.fields.find((entry) => entry.path === 'currency')
+  return field?.presence === 'present' && typeof field.value === 'string' ? field.value : 'CNY'
+}
+
 export function allocationEditors(review: Review): AllocationEditor[] {
   const factAmount = reviewFactAmount(review)
+  const currency = reviewCurrency(review)
   return review.candidates.map((candidate) => ({
     candidateId: candidate.id,
     selected: false,
     textValue:
       candidate.available && factAmount > 0
-        ? String(Math.min(candidate.remaining_minor, factAmount))
+        ? minorToDecimalInput(Math.min(candidate.remaining_minor, factAmount), currency)
         : '',
   }))
 }
@@ -386,6 +416,7 @@ export function buildAssociationDecision(
 ): AssociationDecision {
   const errors: Record<string, string> = {}
   const factAmountMinor = reviewFactAmount(review)
+  const allocationCurrency = reviewCurrency(review)
   if (review.candidates.length === 0) {
     if (mode !== 'no_candidate') errors.$association = '请确认当前没有关联候选'
     return {
@@ -423,13 +454,14 @@ export function buildAssociationDecision(
       errors[editor.candidateId] = '候选已删除或没有可分配余额'
       continue
     }
-    if (!/^[1-9][0-9]*$/.test(editor.textValue)) {
-      errors[editor.candidateId] = '请输入正整数最小单位金额'
+    const parsedAllocation = parseDecimalToMinor(editor.textValue, allocationCurrency)
+    if ('error' in parsedAllocation) {
+      errors[editor.candidateId] = parsedAllocation.error
       continue
     }
-    const allocatedMinor = Number(editor.textValue)
-    if (!Number.isSafeInteger(allocatedMinor)) {
-      errors[editor.candidateId] = '分配金额超出浏览器可安全提交范围'
+    const allocatedMinor = parsedAllocation.minor
+    if (allocatedMinor <= 0) {
+      errors[editor.candidateId] = '分配金额必须大于零'
       continue
     }
     if (allocatedMinor > candidate.remaining_minor) {
@@ -465,7 +497,11 @@ function reviewFactAmount(review: Review): number {
   return typeof value === 'number' && Number.isSafeInteger(value) ? value : -1
 }
 
-function toEditable(field: ClaimField | undefined, spec: FieldSpec): EditableField {
+function toEditable(
+  field: ClaimField | undefined,
+  spec: FieldSpec,
+  currency: string,
+): EditableField {
   if (!field) {
     return {
       path: spec.path,
@@ -487,7 +523,10 @@ function toEditable(field: ClaimField | undefined, spec: FieldSpec): EditableFie
         ? ''
         : field.value_type === 'supplementary'
           ? JSON.stringify(value, null, 2)
-          : String(value),
+          : field.value_type === 'money_minor' && typeof value === 'number'
+            ? // 金额按币种精度显示为十进制，最小单位是内部表示，不该要求人去换算。
+              minorToDecimalInput(value, currency)
+            : String(value),
     evidenceIds: field.evidence.map((evidence) => evidence.id),
     originalValue: value,
     originalPresence: field.presence,

@@ -92,7 +92,7 @@ describe('allocation suggestion', () => {
     expect(result.status).toBe('ready')
     expect(result.items).toEqual([{ target: candidate, amountMinor: 600, maximumMinor: 600 }])
     expect(draft).toEqual([
-      { target: current, selected: true, amountText: '400' },
+      { target: current, selected: true, amountText: '4.00' },
       { target: candidate, selected: false, amountText: '' },
     ])
     expect(input).toEqual(original)
@@ -349,7 +349,7 @@ describe('allocation draft change protection', () => {
     const input = workspace()
     const rows = [
       ...createAllocationDraft(input),
-      { target: target('searched-target'), selected: false, amountText: '125' },
+      { target: target('searched-target'), selected: false, amountText: '1.25' },
     ]
 
     expect(allocationDraftChanged(input, rows)).toBe(true)
@@ -357,7 +357,7 @@ describe('allocation draft change protection', () => {
 
   it.each([
     { selected: false, amountText: '' },
-    { selected: true, amountText: '399' },
+    { selected: true, amountText: '3.99' },
     { selected: true, amountText: '' },
   ])('protects edits to an existing allocation %j', (edit) => {
     const input = workspace([linkedTarget('existing-target', 400)])

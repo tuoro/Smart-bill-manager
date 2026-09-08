@@ -1,4 +1,5 @@
 import type { AllocationAdjustmentRequest, AllocationWorkspace } from '../../data/client'
+import { minorToDecimalInput, parseDecimalToMinor } from '../facts/money'
 
 const maxSafeMinorUnits = 9_007_199_254_740_991
 
@@ -22,7 +23,10 @@ export function createAllocationDraft(workspace: AllocationWorkspace): Allocatio
   return workspace.targets.map((target) => ({
     target,
     selected: Boolean(target.current_link_id),
-    amountText: target.current_link_id ? String(target.current_allocated_minor) : '',
+    // 与输入口径一致：显示为按币种精度的十进制，而不是最小单位整数。
+    amountText: target.current_link_id
+      ? minorToDecimalInput(target.current_allocated_minor, target.currency)
+      : '',
   }))
 }
 
@@ -51,12 +55,18 @@ export function validateAllocationDraft(
   let desiredTotalMinor = 0
   for (const row of rows) {
     if (!row.selected) continue
-    if (!/^[1-9][0-9]*$/.test(row.amountText)) {
-      targetErrors[row.target.id] = '请输入正整数最小单位金额'
+    // 与审核台同一口径：用户输入十进制，按币种精度换算回最小单位。
+    const parsedAmount = parseDecimalToMinor(row.amountText, row.target.currency)
+    if ('error' in parsedAmount) {
+      targetErrors[row.target.id] = parsedAmount.error
       continue
     }
-    const amount = Number(row.amountText)
-    if (!Number.isSafeInteger(amount) || amount > maxSafeMinorUnits) {
+    const amount = parsedAmount.minor
+    if (amount <= 0) {
+      targetErrors[row.target.id] = '分配金额必须大于零'
+      continue
+    }
+    if (amount > maxSafeMinorUnits) {
       targetErrors[row.target.id] = '金额超出浏览器可安全处理范围'
       continue
     }
@@ -120,12 +130,18 @@ export function allocationModeLabel(
   const selected = rows.filter((row) => row.selected)
   let ended = 0
   let created = 0
+  // amountText 是按币种精度的十进制，必须换算回最小单位再与既有分配比较；
+  // 直接 Number() 会把 "4.00" 当成 4，把未改动的分配误判成替换。
+  const minorOf = (row: AllocationDraftRow): number | null => {
+    const parsed = parseDecimalToMinor(row.amountText, row.target.currency)
+    return 'error' in parsed ? null : parsed.minor
+  }
   for (const [targetID, amount] of current) {
     const row = selected.find((entry) => entry.target.id === targetID)
-    if (!row || Number(row.amountText) !== amount) ended += 1
+    if (!row || minorOf(row) !== amount) ended += 1
   }
   for (const row of selected) {
-    const amount = Number(row.amountText)
+    const amount = minorOf(row)
     if (!current.has(row.target.id) || current.get(row.target.id) !== amount) created += 1
   }
   if (ended === 0 && created > 0) return '补充分配'

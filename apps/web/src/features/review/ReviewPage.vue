@@ -42,6 +42,7 @@ import {
   type DocumentType,
   type EditableField,
 } from './model'
+import { formatMinorUnits } from '../facts/money'
 
 const route = useRoute()
 const router = useRouter()
@@ -443,6 +444,16 @@ async function confirmReview() {
 
 function candidateFor(editor: AllocationEditor) {
   return review.value?.candidates.find((candidate) => candidate.id === editor.candidateId)
+}
+
+// 候选金额按其自身币种展示，与输入框的十进制口径一致。
+function candidateMoney(
+  editor: AllocationEditor,
+  key: 'amount_minor' | 'allocated_minor' | 'remaining_minor',
+) {
+  const candidate = candidateFor(editor)
+  if (!candidate) return ''
+  return formatMinorUnits(candidate[key], candidate.currency)
 }
 
 function selectAllocation(editor: AllocationEditor) {
@@ -1293,10 +1304,9 @@ watch(
                       {{ candidateFor(editor)?.display_name }}
                     </strong>
                     <small>
-                      总额 {{ candidateFor(editor)?.amount_minor }} · 已分配
-                      {{ candidateFor(editor)?.allocated_minor }} · 剩余
-                      {{ candidateFor(editor)?.remaining_minor }}
-                      {{ candidateFor(editor)?.currency }}（最小单位）
+                      总额 {{ candidateMoney(editor, 'amount_minor') }} · 已分配
+                      {{ candidateMoney(editor, 'allocated_minor') }} · 剩余
+                      {{ candidateMoney(editor, 'remaining_minor') }}
                     </small>
                     <small>
                       {{ candidateFor(editor)?.business_date }} ·
@@ -1311,7 +1321,9 @@ watch(
                   </span>
                 </label>
                 <div v-if="editor.selected" class="allocation-amount">
-                  <label :for="`allocation-${editor.candidateId}`">本次分配（最小单位）</label>
+                  <label :for="`allocation-${editor.candidateId}`"
+                    >本次分配（{{ candidateFor(editor)?.currency }}）</label
+                  >
                   <input
                     :id="`allocation-${editor.candidateId}`"
                     v-model="editor.textValue"

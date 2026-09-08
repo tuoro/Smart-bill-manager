@@ -546,7 +546,7 @@ onBeforeUnmount(() => {
               </div>
             </dl>
             <label class="field-stack allocation-amount">
-              <span>分配金额（最小单位）</span>
+              <span>分配金额</span>
               <input
                 v-model="row.amountText"
                 :id="`allocation-amount-${row.target.id}`"

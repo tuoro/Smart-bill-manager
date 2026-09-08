@@ -120,10 +120,11 @@ describe('review model', () => {
       presence: 'absent',
       textValue: '',
     })
+    // 金额按币种精度显示为十进制；最小单位是内部表示，不要求人去换算。
     expect(fields[0]).toMatchObject({
       path: 'amount_minor',
       presence: 'present',
-      textValue: '1234',
+      textValue: '12.34',
       evidenceIds: [evidenceId],
     })
     expect(fields.find((field) => field.path === 'merchant')).toMatchObject({
@@ -176,7 +177,8 @@ describe('review model', () => {
     const review = reviewFixture()
     const fields = editableFields(review, 'payment')
     const amount = fields.find((field) => field.path === 'amount_minor')!
-    amount.textValue = '5678'
+    // 输入十进制，提交为最小单位：56.78 元 -> 5678
+    amount.textValue = '56.78'
     amount.evidenceIds = []
 
     expect(buildRevisionRequest(review, 'payment', fields).errors.amount_minor).toContain('证据')
@@ -387,9 +389,10 @@ describe('review model', () => {
     })
     const editors = allocationEditors(withCandidates)
     editors[0].selected = true
-    editors[0].textValue = '500'
+    // 分配金额同样按币种精度输入十进制：5.00 元 -> 500 最小单位
+    editors[0].textValue = '5.00'
     editors[1].selected = true
-    editors[1].textValue = '700'
+    editors[1].textValue = '7.00'
     expect(
       buildAssociationDecision(withCandidates, 'allocate_candidates', editors).request,
     ).toEqual({
@@ -407,7 +410,7 @@ describe('review model', () => {
       buildAssociationDecision(withCandidates, 'no_candidate', editors).request,
     ).toBeUndefined()
 
-    editors[0].textValue = '1001'
+    editors[0].textValue = '10.01'
     expect(
       buildAssociationDecision(withCandidates, 'allocate_candidates', editors).errors[candidateId],
     ).toContain('剩余余额')
@@ -446,4 +449,38 @@ describe('review model', () => {
     review.duplicate_candidates[1].available = false
     expect(buildDuplicateResolutionDecision(review, [first, second]).error).toContain('不可用')
   })
+})
+
+// 同一次修订里币种和金额可能一起改。若换算时用旧币种，金额会被记错一个数量级——
+// JPY 精度为 0，"100" 是 100 而不是 10000。
+it('converts the amount with the currency being submitted, not the stored one', () => {
+  const review = reviewFixture()
+  const fields = editableFields(review, 'payment')
+  const amount = fields.find((field) => field.path === 'amount_minor')!
+  const currency = fields.find((field) => field.path === 'currency')!
+  amount.textValue = '100'
+  amount.evidenceIds = [evidenceId]
+  currency.presence = 'present'
+  currency.textValue = 'JPY'
+  currency.evidenceIds = [evidenceId]
+  const encoded = buildFieldPayload(review, fields)
+  expect(encoded.errors).toEqual({})
+  expect(encoded.fields?.find((field) => field.path === 'amount_minor')?.value).toBe(100)
+
+  // 同样的输入在 CNY 下是 10000 最小单位。
+  currency.textValue = 'CNY'
+  const asCNY = buildFieldPayload(review, fields)
+  expect(asCNY.fields?.find((field) => field.path === 'amount_minor')?.value).toBe(10000)
+})
+
+// 前端放行、后端拒绝是最差的组合：用户填完整页才收到一个本可当场说清的错误。
+it('rejects amounts the backend would reject, with the currency precision named', () => {
+  const review = reviewFixture()
+  const fields = editableFields(review, 'payment')
+  const amount = fields.find((field) => field.path === 'amount_minor')!
+  amount.evidenceIds = [evidenceId]
+  for (const bad of ['1,234.00', '1.234', ' 12', '+12', '']) {
+    amount.textValue = bad
+    expect(buildFieldPayload(review, fields).errors.amount_minor).toBeTruthy()
+  }
 })

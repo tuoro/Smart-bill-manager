@@ -381,7 +381,8 @@ watch(
           <section class="panel correction-section">
             <h2>完整字段</h2>
             <p class="quiet">
-              金额填写整数最小单位（CNY 为分）。修改字段后选择已有证据，或标注原件页码和实际摘录。
+              金额按票面币种填写十进制，例如 CNY 填
+              123.45。修改字段后选择已有证据，或标注原件页码和实际摘录。
             </p>
             <fieldset :disabled="busy || loading" class="correction-fields">
               <article v-for="field in fields" :key="field.path" class="correction-field">

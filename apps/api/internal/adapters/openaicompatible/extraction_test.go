@@ -63,7 +63,7 @@ func assertBillExtractionRequestContract(t *testing.T, body []byte) {
 	}
 	messages := request["messages"].([]any)
 	system := messages[0].(map[string]any)["content"].(string)
-	if !strings.Contains(system, "bill-visible-text-cn/4") || strings.Contains(system, "bill-extract/2") {
+	if !strings.Contains(system, "bill-visible-text-cn/5") || strings.Contains(system, "bill-extract/2") {
 		t.Fatalf("system instruction does not pin direct extraction contract: %q", system)
 	}
 	if temperature, ok := request["temperature"].(float64); !ok || temperature != 0 {
@@ -72,9 +72,10 @@ func assertBillExtractionRequestContract(t *testing.T, body []byte) {
 	content := messages[1].(map[string]any)["content"].([]any)
 	instruction := content[0].(map[string]any)["text"].(string)
 	for _, required := range []string{
-		"任务版本：bill-visible-text-cn/4",
+		"任务版本：bill-visible-text-cn/5",
 		"merchant 抄显示名，merchant_full_name 抄全称",
 		"两处名称恰好相同时如实各抄一份",
+		"去掉「扫二维码付款」「转账」这类动作说明、连字符以及紧邻名称的「给」字",
 		`"schema_version": "bill-visible-text/2"`,
 		`{"text":"只含值本身的原文","page":1}`,
 		"只抄我们需要的票面原文",

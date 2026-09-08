@@ -1,0 +1,369 @@
+{
+  "report_kind": "m1-real-visible-text-preflight-safe-summary",
+  "dataset_version": "m1-real-dev-v8",
+  "dataset_manifest_sha256": "d630178c4399b54dccc362079066f8aab0541d64a90c48439e4375e5853752ed",
+  "eligible_for_release_evidence": false,
+  "protocol_satisfied": true,
+  "protocol_note": "完整数据集独立运行三次，每次全新空库与空对象目录，三次均完整执行。按协议取三次最差判定。该数据集为调优开发集（15 份），不满足 M4 发布集至少 100 份的要求，因此不构成发布证据。",
+  "configuration": {
+    "provider_host": "ws-e0jyv25ziy7n7bg6.cn-beijing.maas.aliyuncs.com",
+    "model": "qwen3.8-flash",
+    "output_mode": "json_schema",
+    "prompt_version": "bill-visible-text-cn/5",
+    "extraction_schema_version": "bill-visible-text/2",
+    "provider_schema_version": "bill-visible-text-provider/2",
+    "claim_schema_version": "document-claim/4",
+    "claim_mapper_version": "claim-mapper/5",
+    "input_processing_version": "document-normalize/2"
+  },
+  "worst_of_three": {
+    "model_completion_rate": 93.33,
+    "claim_contract_rate": 40,
+    "schema_valid_rate": 100,
+    "classification_accuracy": 93.33,
+    "amount_exact_rate": 93.33,
+    "invoice_number_exact_rate": 80,
+    "date_normalization_exact_rate": 86.67,
+    "name_normalization_exact_rate": 75,
+    "critical_evidence_coverage": 92.73,
+    "missing_conflict_recall": 0,
+    "manifest_assertion_rate": 92.31
+  },
+  "thresholds": {
+    "model_completion_rate": 100,
+    "claim_contract_rate": 100,
+    "schema_valid_rate": 100,
+    "classification_accuracy": 97,
+    "amount_exact_rate": 98,
+    "invoice_number_exact_rate": 95,
+    "date_normalization_exact_rate": 95,
+    "name_normalization_exact_rate": 90,
+    "critical_evidence_coverage": 100,
+    "missing_conflict_recall": 100,
+    "manifest_assertion_rate": 100
+  },
+  "rounds": {
+    "round_1": {
+      "completed": 14,
+      "total": 15,
+      "error_codes": {
+        "schema_validation_failed": 1
+      },
+      "metrics": {
+        "model_completion_rate": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-WECHAT-002"
+          ]
+        },
+        "claim_contract_rate": {
+          "percentage": 40,
+          "numerator": 6,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-INV-001",
+            "V5-INV-002",
+            "V5-INV-003",
+            "V5-INV-005",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-002",
+            "V5-WECHAT-003",
+            "V5-WECHAT-005"
+          ]
+        },
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 14,
+          "denominator": 14,
+          "failed_sample_ids": []
+        },
+        "classification_accuracy": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-WECHAT-002"
+          ]
+        },
+        "amount_exact_rate": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-WECHAT-002"
+          ]
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 80,
+          "numerator": 4,
+          "denominator": 5,
+          "failed_sample_ids": [
+            "V5-INV-005"
+          ]
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 86.67,
+          "numerator": 13,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-WECHAT-002",
+            "V5-WECHAT-005"
+          ]
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 75,
+          "numerator": 15,
+          "denominator": 20,
+          "failed_sample_ids": [
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-002",
+            "V5-WECHAT-003",
+            "V5-WECHAT-005"
+          ]
+        },
+        "critical_evidence_coverage": {
+          "percentage": 92.73,
+          "numerator": 51,
+          "denominator": 55,
+          "failed_sample_ids": [
+            "V5-INV-005",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "missing_conflict_recall": {
+          "percentage": 0,
+          "numerator": 0,
+          "denominator": 0,
+          "failed_sample_ids": []
+        },
+        "manifest_assertion_rate": {
+          "percentage": 92.31,
+          "numerator": 48,
+          "denominator": 52,
+          "failed_sample_ids": [
+            "V5-INV-003",
+            "V5-INV-005",
+            "V5-WECHAT-002",
+            "V5-WECHAT-005"
+          ]
+        }
+      }
+    },
+    "round_2": {
+      "completed": 14,
+      "total": 15,
+      "error_codes": {
+        "schema_validation_failed": 1
+      },
+      "metrics": {
+        "model_completion_rate": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002"
+          ]
+        },
+        "claim_contract_rate": {
+          "percentage": 40,
+          "numerator": 6,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002",
+            "V5-ALIPAY-004",
+            "V5-INV-001",
+            "V5-INV-002",
+            "V5-INV-003",
+            "V5-INV-005",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 14,
+          "denominator": 14,
+          "failed_sample_ids": []
+        },
+        "classification_accuracy": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002"
+          ]
+        },
+        "amount_exact_rate": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002"
+          ]
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 80,
+          "numerator": 4,
+          "denominator": 5,
+          "failed_sample_ids": [
+            "V5-INV-005"
+          ]
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 93.33,
+          "numerator": 14,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002"
+          ]
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 80,
+          "numerator": 16,
+          "denominator": 20,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "critical_evidence_coverage": {
+          "percentage": 92.98,
+          "numerator": 53,
+          "denominator": 57,
+          "failed_sample_ids": [
+            "V5-INV-005",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "missing_conflict_recall": {
+          "percentage": 0,
+          "numerator": 0,
+          "denominator": 0,
+          "failed_sample_ids": []
+        },
+        "manifest_assertion_rate": {
+          "percentage": 94.23,
+          "numerator": 49,
+          "denominator": 52,
+          "failed_sample_ids": [
+            "V5-ALIPAY-002",
+            "V5-INV-005",
+            "V5-INV-006"
+          ]
+        }
+      }
+    },
+    "round_3": {
+      "completed": 15,
+      "total": 15,
+      "error_codes": {},
+      "metrics": {
+        "model_completion_rate": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "failed_sample_ids": []
+        },
+        "claim_contract_rate": {
+          "percentage": 53.33,
+          "numerator": 8,
+          "denominator": 15,
+          "failed_sample_ids": [
+            "V5-INV-001",
+            "V5-INV-002",
+            "V5-INV-003",
+            "V5-INV-005",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "schema_valid_rate": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "failed_sample_ids": []
+        },
+        "classification_accuracy": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "failed_sample_ids": []
+        },
+        "amount_exact_rate": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "failed_sample_ids": []
+        },
+        "invoice_number_exact_rate": {
+          "percentage": 80,
+          "numerator": 4,
+          "denominator": 5,
+          "failed_sample_ids": [
+            "V5-INV-005"
+          ]
+        },
+        "date_normalization_exact_rate": {
+          "percentage": 100,
+          "numerator": 15,
+          "denominator": 15,
+          "failed_sample_ids": []
+        },
+        "name_normalization_exact_rate": {
+          "percentage": 85,
+          "numerator": 17,
+          "denominator": 20,
+          "failed_sample_ids": [
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "critical_evidence_coverage": {
+          "percentage": 93.33,
+          "numerator": 56,
+          "denominator": 60,
+          "failed_sample_ids": [
+            "V5-INV-005",
+            "V5-INV-006",
+            "V5-WECHAT-001",
+            "V5-WECHAT-003"
+          ]
+        },
+        "missing_conflict_recall": {
+          "percentage": 0,
+          "numerator": 0,
+          "denominator": 0,
+          "failed_sample_ids": []
+        },
+        "manifest_assertion_rate": {
+          "percentage": 98.08,
+          "numerator": 51,
+          "denominator": 52,
+          "failed_sample_ids": [
+            "V5-INV-005"
+          ]
+        }
+      }
+    }
+  },
+  "remaining_gaps": [
+    "V5-WECHAT-001 / V5-WECHAT-003 / V5-INV-006 的名称字段三轮稳定错在固定字位，属生僻字与翻拍质量的字形识别错误，措辞无法解决。",
+    "V5-INV-005 发票号三轮均多读一位。",
+    "完成率上限由 schema_validation_failed 决定：模型返回的根对象结构不稳定，provider_schema 阶段校验失败，重试一次仍不通过。",
+    "missing_conflict_recall 分母为零：数据集不含缺失/冲突样本，该指标从未被评估。"
+  ],
+  "privacy_note": "本文件不含原始图片、真实字段值、来源定位、凭据或个人财务信息。"
+}

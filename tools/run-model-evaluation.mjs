@@ -34,7 +34,7 @@ const approvedTuningManifestSHA256 = new Map([
   // 不存在可靠的冻结期望值。
   [
     "m1-real-dev-v8",
-    "73f81fa0b87d339733c66a05b16021d14e6c258712bbffa2c33e62cb7fd38bd6",
+    "d630178c4399b54dccc362079066f8aab0541d64a90c48439e4375e5853752ed",
   ],
   [
     "m1-real-dev-v7",
@@ -98,7 +98,7 @@ const frozenComparisonManifests = [
     sha256: "76c9eee0672ecad26bdc2940c81c25c8def9918542259374e4d26b8d418acacd",
   },
 ];
-const currentPromptVersion = "bill-visible-text-cn/4";
+const currentPromptVersion = "bill-visible-text-cn/5";
 const extractionSchemaVersion = "bill-visible-text/2";
 const providerSchemaVersion = "bill-visible-text-provider/2";
 const claimSchemaVersion = "document-claim/4";

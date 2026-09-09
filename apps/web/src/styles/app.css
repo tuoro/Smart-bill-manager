@@ -1490,6 +1490,13 @@ input[type='radio'] {
   font-size: 12px;
 }
 
+/* 编辑框下方的换算提示：本身不是可编辑内容，弱化到与技术元信息同级。 */
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .field-evidence-count {
   margin: 6px 0 0;
 }

@@ -17,9 +17,11 @@ import {
   editableFields,
   fieldInputMode,
   fieldLabel,
+  instantInZone,
   newInvoiceItem,
   parseItemPath,
   refreshDraftFields,
+  sourceTimezone,
   type EditableField,
 } from '../review/model'
 import { formatMinorUnits } from './money'
@@ -280,6 +282,15 @@ async function confirm() {
   }
 }
 
+// 交易时间是绝对时刻，票面印的是来源时区的本地时间。把同一时刻按当前填写的
+// 来源时区显示出来，核对时不必再心算时差。
+function localInstant(field: EditableField) {
+  if (field.presence !== 'present' || field.valueType !== 'instant') return ''
+  const timezone = sourceTimezone(fields.value)
+  const local = instantInZone(field.textValue, timezone)
+  return local ? `${timezone} 当地时间 ${local}` : ''
+}
+
 function addItem() {
   fields.value.push(...newInvoiceItem(crypto.randomUUID(), itemKeys.value.length))
 }
@@ -415,6 +426,7 @@ watch(
                     :inputmode="fieldInputMode(field.valueType)"
                     :aria-invalid="Boolean(errors[field.path])"
                   />
+                  <p v-if="localInstant(field)" class="field-hint">{{ localInstant(field) }}</p>
                   <details>
                     <summary>来源证据 · 已选 {{ field.evidenceIds.length }} 条</summary>
                     <button

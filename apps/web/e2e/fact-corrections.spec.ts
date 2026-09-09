@@ -272,6 +272,8 @@ for (const kind of ['payment', 'invoice', 'trip'] as const) {
 test('分配冲突明确撤销，409 刷新保留草稿并重新核对', async ({ page }) => {
   const f = await setup(page, 'payment', { linked: true, conflict: true })
   await page.goto(`/facts/payment/${id}/correction`)
+  // 纠错页同样要替人换算：字段存的是绝对时刻，票面印的是来源时区的本地时间。
+  await expect(page.getByText('Asia/Shanghai 当地时间 2026-08-27 12:00:00')).toBeVisible()
   await page.getByRole('textbox', { name: '支付金额', exact: true }).fill('50.00')
   await page.getByRole('textbox', { name: '纠错理由' }).fill('保留纠错草稿')
   await page.getByRole('button', { name: '预览纠错', exact: true }).click()

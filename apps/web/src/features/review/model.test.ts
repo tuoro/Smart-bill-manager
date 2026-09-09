@@ -10,10 +10,12 @@ import {
   fieldPageNumbers,
   fieldVisibleOnPage,
   firstFieldPage,
+  instantInZone,
   itemPageLabel,
   newInvoiceItem,
   parseItemPath,
   refreshDraftFields,
+  sourceTimezone,
 } from './model'
 
 const evidenceId = '00000000-0000-4000-8000-000000000010'
@@ -483,4 +485,75 @@ it('rejects amounts the backend would reject, with the currency precision named'
     amount.textValue = bad
     expect(buildFieldPayload(review, fields).errors.amount_minor).toBeTruthy()
   }
+})
+
+// 交易时间与开票日期以前落在通用分支里，什么都不校验：手输一个 2026-9-4
+// 要等提交后才被后端拒绝，而那句拒绝并不说明正确写法。
+// 下面每一条都逐个对照过 Go 的 time.Parse(time.RFC3339Nano)，取舍一致。
+it('rejects instants and dates the backend would reject', () => {
+  const review = reviewFixture()
+  const fields = editableFields(review, 'payment')
+  const time = fields.find((field) => field.path === 'transaction_time')!
+  time.presence = 'present'
+  time.evidenceIds = [evidenceId]
+  for (const bad of [
+    '2026-9-4T08:00:00Z',
+    '2026-09-04 08:00:00Z',
+    '2026-09-04T08:00Z',
+    '2026-09-04T08:00:00+0800',
+    '2026-09-04T08:00:00',
+    '2026-02-30T08:00:00Z',
+    '2026-09-04t08:00:00Z',
+    '2026-09-04T08:00:00z',
+    '2026-09-04T24:00:00Z',
+    '2026-09-04T08:00:60Z',
+    '2026-09-04T08:00:00+25:00',
+    '',
+  ]) {
+    time.textValue = bad
+    expect(buildFieldPayload(review, fields).errors.transaction_time).toBeTruthy()
+  }
+  for (const good of [
+    '2026-09-04T08:00:00Z',
+    '2026-09-04T16:00:00+08:00',
+    '2026-09-04T08:00:00.5Z',
+  ]) {
+    time.textValue = good
+    expect(buildFieldPayload(review, fields).errors.transaction_time).toBeUndefined()
+  }
+
+  const invoiceFields = editableFields(reviewFixture(), 'invoice')
+  const date = invoiceFields.find((field) => field.path === 'invoice_date')!
+  date.presence = 'present'
+  date.evidenceIds = [evidenceId]
+  for (const bad of ['2026-9-4', '2026/09/04', '2026-02-30', '']) {
+    date.textValue = bad
+    expect(buildFieldPayload(review, invoiceFields).errors.invoice_date).toBeTruthy()
+  }
+  date.textValue = '2026-09-04'
+  expect(buildFieldPayload(review, invoiceFields).errors.invoice_date).toBeUndefined()
+})
+
+// 票面印的是本地时间，字段存的是绝对时刻；不换算一遍就要人自己心算时差。
+it('renders the instant in the source timezone', () => {
+  expect(instantInZone('2026-09-04T08:00:00Z', 'Asia/Shanghai')).toBe('2026-09-04 16:00:00')
+  expect(instantInZone('2026-09-04T08:00:00Z', 'UTC')).toBe('2026-09-04 08:00:00')
+  // 跨日：UTC 的 4 日晚上在上海已经是 5 日凌晨，业务日期因此不同。
+  expect(instantInZone('2026-09-04T20:00:00Z', 'Asia/Shanghai')).toBe('2026-09-05 04:00:00')
+  // 午夜按 00 显示，不是某些实现里的 24。
+  expect(instantInZone('2026-09-04T16:00:00Z', 'Asia/Shanghai')).toBe('2026-09-05 00:00:00')
+  // 时区名无效或时间无效时不猜，宁可不显示。
+  expect(instantInZone('2026-09-04T08:00:00Z', 'Mars/Olympus')).toBeNull()
+  expect(instantInZone('2026-9-4', 'UTC')).toBeNull()
+})
+
+// 时区和时间可能在同一次修订里一起改，显示要跟着当前填写的值走。
+it('reads the source timezone being edited, not the stored one', () => {
+  const review = reviewFixture()
+  const fields = editableFields(review, 'payment')
+  expect(sourceTimezone(fields)).toBe('UTC')
+  const timezone = fields.find((field) => field.path === 'source_timezone')!
+  timezone.presence = 'present'
+  timezone.textValue = 'Asia/Shanghai'
+  expect(sourceTimezone(fields)).toBe('Asia/Shanghai')
 })

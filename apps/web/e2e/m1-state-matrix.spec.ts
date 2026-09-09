@@ -1189,6 +1189,19 @@ test.describe('B1 显式人工录入', () => {
           .fill(label === '商户' ? '用户核对商户的实际摘录' : '用户核对的实际摘录')
       }
     }
+    // 交易时间存的是绝对时刻，票面印的是来源时区的本地时间；界面要替人换算。
+    await expect(page.getByText('Asia/Shanghai 当地时间 2026-08-28 16:00:00')).toBeVisible()
+    // 换时区后提示要跟着当前填写的值走，而不是停在已存值上。
+    await page.getByLabel('来源时区', { exact: true }).fill('UTC')
+    await expect(page.getByText('UTC 当地时间 2026-08-28 08:00:00')).toBeVisible()
+    await page.getByLabel('来源时区', { exact: true }).fill('Asia/Shanghai')
+    // 手输一个后端会拒的写法，应当在这里就说清正确格式，而不是等提交。
+    await page.getByLabel('交易时间', { exact: true }).fill('2026-8-28T08:00:00Z')
+    await page.getByRole('button', { name: '保存修订版本', exact: true }).click()
+    await expect(
+      page.getByText('时间必须是 RFC3339，例如 2026-09-04T16:00:00+08:00', { exact: true }),
+    ).toBeVisible()
+    await page.getByLabel('交易时间', { exact: true }).fill('2026-08-28T08:00:00Z')
     await captureResponsiveReview(page, testInfo, 'manual-review-edit')
     expect(confirmations).toBe(0)
     await page.getByRole('button', { name: '保存修订版本', exact: true }).click()

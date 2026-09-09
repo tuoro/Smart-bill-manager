@@ -34,11 +34,13 @@ import {
   fieldLabel,
   fieldVisibleOnPage,
   firstFieldPage,
+  instantInZone,
   itemPageLabel,
   newInvoiceItem,
   parseItemPath,
   refreshDraftFields,
   reviewCurrency,
+  sourceTimezone,
   type AllocationEditor,
   type AssociationMode,
   type DocumentType,
@@ -456,6 +458,15 @@ function candidateMoney(
   const candidate = candidateFor(editor)
   if (!candidate) return ''
   return formatMinorUnits(candidate[key], candidate.currency)
+}
+
+// 交易时间是绝对时刻，票面印的是来源时区的本地时间。把同一时刻按当前填写的
+// 来源时区显示出来，核对时不必再心算时差。
+function localInstant(field: EditableField) {
+  if (field.presence !== 'present' || field.valueType !== 'instant') return ''
+  const timezone = sourceTimezone(editors.value)
+  const local = instantInZone(field.textValue, timezone)
+  return local ? `${timezone} 当地时间 ${local}` : ''
 }
 
 // 合计与输入框同口径：都按 Claim 当前币种展示，不再暴露最小单位。
@@ -1033,6 +1044,7 @@ watch(
                       fieldErrors[field.path] ? `field-error-${field.path}` : undefined
                     "
                   />
+                  <p v-if="localInstant(field)" class="field-hint">{{ localInstant(field) }}</p>
                   <p
                     v-if="fieldErrors[field.path]"
                     :id="`field-error-${field.path}`"

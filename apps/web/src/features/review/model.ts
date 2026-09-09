@@ -343,6 +343,12 @@ export function refreshDraftFields(
   })
 }
 
+// 输入法提示随字段类型走：金额按币种精度输入十进制，需要小数点键盘。
+export function fieldInputMode(valueType: string): 'decimal' | 'numeric' | 'text' {
+  if (valueType === 'money_minor') return 'decimal'
+  return valueType === 'integer' ? 'numeric' : 'text'
+}
+
 export function fieldLabel(path: string): string {
   const direct = [...paymentSpecs, ...invoiceSpecs, ...tripSpecs].find((spec) => spec.path === path)
   if (direct) return direct.label
@@ -361,7 +367,7 @@ export function parseItemPath(path: string): { itemKey: string; property: string
 }
 
 // 分配金额与字段金额同源：都按 Claim 当前币种的精度换算，避免两处口径不一。
-function reviewCurrency(review: Review): string {
+export function reviewCurrency(review: Review): string {
   const field = review.fields.find((entry) => entry.path === 'currency')
   return field?.presence === 'present' && typeof field.value === 'string' ? field.value : 'CNY'
 }

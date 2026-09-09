@@ -14,9 +14,13 @@ describe('金额十进制与最小单位互转', () => {
   // 这些写法后端 domain.ParseMoney 一律拒绝；前端多接受一种，用户就会在提交时
   // 收到一个本可以在输入时说清楚的错误。
   it('拒绝后端同样拒绝的写法', () => {
-    for (const bad of ['', ' 1', '1 ', '+1', '1,234.00', '1.', '.5', '1.2.3', 'abc', '-1']) {
+    for (const bad of [' 1', '1 ', '+1', '1,234.00', '1.', '.5', '1.2.3', 'abc', '-1']) {
       expect(parseDecimalToMinor(bad, 'CNY')).toHaveProperty('error')
     }
+  })
+
+  it('留空说的是没填，而不是格式不对', () => {
+    expect(parseDecimalToMinor('', 'CNY')).toEqual({ error: '请填写金额' })
   })
 
   it('小数位超过币种精度时拒绝并说明精度', () => {

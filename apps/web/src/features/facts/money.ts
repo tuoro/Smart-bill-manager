@@ -1,6 +1,14 @@
-export function formatMinorUnits(value: number, currency: 'CNY' | 'USD' | 'EUR' | 'JPY'): string {
-  if (!Number.isSafeInteger(value)) return `${currency} ${String(value)}`
-  const exponent = currency === 'JPY' ? 0 : 2
+export type SupportedCurrency = 'CNY' | 'USD' | 'EUR' | 'JPY'
+
+export function currencyExponent(currency: string): number | null {
+  if (currency === 'JPY') return 0
+  if (currency === 'CNY' || currency === 'USD' || currency === 'EUR') return 2
+  return null
+}
+
+export function formatMinorUnits(value: number, currency: string): string {
+  const exponent = currencyExponent(currency)
+  if (exponent === null || !Number.isSafeInteger(value)) return `${currency} ${String(value)}`
   const negative = value < 0
   const digits = BigInt(Math.abs(value))
     .toString()
@@ -8,14 +16,6 @@ export function formatMinorUnits(value: number, currency: 'CNY' | 'USD' | 'EUR' 
   const amount =
     exponent === 0 ? digits : `${digits.slice(0, -exponent)}.${digits.slice(-exponent)}`
   return `${currency} ${negative ? '-' : ''}${amount}`
-}
-
-export type SupportedCurrency = 'CNY' | 'USD' | 'EUR' | 'JPY'
-
-export function currencyExponent(currency: string): number | null {
-  if (currency === 'JPY') return 0
-  if (currency === 'CNY' || currency === 'USD' || currency === 'EUR') return 2
-  return null
 }
 
 // 把用户输入的十进制金额转成最小单位。规则与后端 domain.ParseMoney 一一对应：
@@ -27,7 +27,9 @@ export function parseDecimalToMinor(
 ): { minor: number } | { error: string } {
   const exponent = currencyExponent(currency)
   if (exponent === null) return { error: '仅支持 CNY、USD、EUR 和 JPY' }
-  if (decimal === '' || decimal.trim() !== decimal || decimal.startsWith('+'))
+  // 留空是最常见的一种，单独给一句能直接照做的提示，不要混进格式说明里。
+  if (decimal === '') return { error: '请填写金额' }
+  if (decimal.trim() !== decimal || decimal.startsWith('+'))
     return { error: '金额必须是普通非负十进制数，不使用空格或正号' }
   const parts = decimal.split('.')
   if (parts.length > 2 || parts[0] === '' || !/^[0-9]+$/.test(parts[0]))

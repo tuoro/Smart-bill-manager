@@ -20,6 +20,7 @@ import {
   validateAllocationDraft,
   type AllocationDraftRow,
 } from './model'
+import { minorToDecimalInput } from '../facts/money'
 
 const route = useRoute()
 const factType = computed(() => route.params.factType as AllocationFactType)
@@ -177,7 +178,11 @@ async function adoptSuggestion() {
       ? {
           ...row,
           selected: true,
-          amountText: item.amountMinor === null ? '' : String(item.amountMinor),
+          // 与输入框同一口径：按币种精度写入十进制，而不是最小单位整数。
+          amountText:
+            item.amountMinor === null
+              ? ''
+              : minorToDecimalInput(item.amountMinor, row.target.currency),
         }
       : row
   })
@@ -197,7 +202,9 @@ function toggleRow(row: AllocationDraftRow) {
     return
   }
   if (row.selected && !row.amountText) {
-    row.amountText = row.target.current_link_id ? String(row.target.current_allocated_minor) : ''
+    row.amountText = row.target.current_link_id
+      ? minorToDecimalInput(row.target.current_allocated_minor, row.target.currency)
+      : ''
   }
   if (selectedCount.value > 0) withdrawAllConfirmed.value = false
   attempted.value = false
@@ -552,8 +559,7 @@ onBeforeUnmount(() => {
                 :id="`allocation-amount-${row.target.id}`"
                 class="input numeric"
                 type="text"
-                inputmode="numeric"
-                pattern="[0-9]*"
+                inputmode="decimal"
                 :disabled="locked || !row.selected"
                 :aria-invalid="attempted && Boolean(validation?.targetErrors[row.target.id])"
                 :aria-describedby="

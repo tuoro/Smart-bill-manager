@@ -15,6 +15,7 @@ import {
 import {
   buildFieldPayload,
   editableFields,
+  fieldInputMode,
   fieldLabel,
   newInvoiceItem,
   parseItemPath,
@@ -411,9 +412,7 @@ watch(
                     v-model="field.textValue"
                     class="input"
                     :aria-label="fieldLabel(field.path)"
-                    :inputmode="
-                      ['money_minor', 'integer'].includes(field.valueType) ? 'numeric' : 'text'
-                    "
+                    :inputmode="fieldInputMode(field.valueType)"
                     :aria-invalid="Boolean(errors[field.path])"
                   />
                   <details>

@@ -357,9 +357,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await page.goto(`/reviews/${review.job.id}`)
     await page.getByRole('checkbox', { name: /第一发票/ }).check()
     await page.getByRole('checkbox', { name: /第二发票/ }).check()
-    await page.getByLabel('本次分配（最小单位）').nth(0).fill('10000')
-    await page.getByLabel('本次分配（最小单位）').nth(1).fill('12000')
-    await expect(page.getByText('本次合计 22000')).toBeVisible()
+    await page.getByLabel('本次分配（CNY）').nth(0).fill('100.00')
+    await page.getByLabel('本次分配（CNY）').nth(1).fill('120.00')
+    await expect(page.getByText('本次合计 CNY 220.00')).toBeVisible()
     await page.getByRole('button', { name: '确认并保存记录' }).click()
 
     expect(submitted).toMatchObject({
@@ -393,9 +393,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(page.getByText('第 3 / 3 页')).toBeVisible()
     await expect(page.getByAltText(/第 3 页规范化审核图/)).toBeVisible()
     await expect(page.getByRole('button', { name: '下一页' })).toBeDisabled()
-    await expect(
-      page.getByRole('button', { name: /支付金额（最小单位） amount_minor/ }),
-    ).toBeVisible()
+    await expect(page.getByRole('button', { name: /支付金额 amount_minor/ })).toBeVisible()
     expect(pageErrors).toEqual([])
   })
 
@@ -605,9 +603,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
 
     const invoiceARow = page.locator('.allocation-target-row').filter({ hasText: '合成发票 A' })
     const invoiceBRow = page.locator('.allocation-target-row').filter({ hasText: '合成发票 B' })
-    await invoiceARow.getByLabel('分配金额（最小单位）').fill('500')
+    await invoiceARow.getByLabel('分配金额').fill('5.00')
     await invoiceBRow.getByRole('checkbox').check()
-    await invoiceBRow.getByLabel('分配金额（最小单位）').fill('300')
+    await invoiceBRow.getByLabel('分配金额').fill('3.00')
     await page.getByLabel('调整理由').fill('  人工核对后替换计划  ')
     await page.getByRole('button', { name: '确认替换分配' }).click()
 
@@ -1160,7 +1158,7 @@ test.describe('B1 显式人工录入', () => {
     await expect(page.getByText('AI 提取', { exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '修订字段', exact: true }).click()
     for (const [label, value] of [
-      ['支付金额（最小单位）', '32109'],
+      ['支付金额', '321.09'],
       ['币种', 'CNY'],
       ['商户', '合成人工商户'],
       ['交易时间', '2026-08-28T08:00:00Z'],

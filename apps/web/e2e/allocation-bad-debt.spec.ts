@@ -104,7 +104,7 @@ test('跨期搜索、翻页保留草稿、理由与失败重试幂等', async ({
   await page.getByRole('button', { name: '查询单据' }).click()
   const chosen = page.locator('.allocation-target-row').filter({ hasText: '合成跨期发票 21' })
   await chosen.getByRole('checkbox').check()
-  await chosen.getByLabel('分配金额（最小单位）').fill('2000')
+  await chosen.getByLabel('分配金额').fill('20.00')
   await page.getByRole('button', { name: '下一页候选' }).click()
   await expect(chosen.getByRole('checkbox')).toBeChecked()
   await expect(
@@ -121,7 +121,7 @@ test('跨期搜索、翻页保留草稿、理由与失败重试幂等', async ({
   await captureResponsiveReview(page, info, 'b7-cross-period-allocation')
   await page.getByRole('button', { name: '确认补充分配' }).click()
   await expect(page.getByText('合成失败，请重试')).toBeVisible()
-  await expect(chosen.getByLabel('分配金额（最小单位）')).toHaveValue('2000')
+  await expect(chosen.getByLabel('分配金额')).toHaveValue('20.00')
   await page.getByRole('button', { name: '重试原分配' }).click()
   await expect(page.getByText('补充分配已保存，余额已刷新')).toBeVisible()
   expect(bodies).toHaveLength(2)

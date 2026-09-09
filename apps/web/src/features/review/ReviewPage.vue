@@ -30,6 +30,7 @@ import {
   buildDuplicateResolutionDecision,
   buildRevisionRequest,
   editableFields,
+  fieldInputMode,
   fieldLabel,
   fieldVisibleOnPage,
   firstFieldPage,
@@ -37,6 +38,7 @@ import {
   newInvoiceItem,
   parseItemPath,
   refreshDraftFields,
+  reviewCurrency,
   type AllocationEditor,
   type AssociationMode,
   type DocumentType,
@@ -454,6 +456,11 @@ function candidateMoney(
   const candidate = candidateFor(editor)
   if (!candidate) return ''
   return formatMinorUnits(candidate[key], candidate.currency)
+}
+
+// 合计与输入框同口径：都按 Claim 当前币种展示，不再暴露最小单位。
+function allocationMoney(minor: number) {
+  return review.value ? formatMinorUnits(minor, reviewCurrency(review.value)) : String(minor)
 }
 
 function selectAllocation(editor: AllocationEditor) {
@@ -1019,9 +1026,7 @@ watch(
                     v-else-if="field.presence === 'present'"
                     v-model="field.textValue"
                     class="input"
-                    :inputmode="
-                      ['money_minor', 'integer'].includes(field.valueType) ? 'numeric' : 'text'
-                    "
+                    :inputmode="fieldInputMode(field.valueType)"
                     :aria-label="fieldLabel(field.path)"
                     :aria-invalid="Boolean(fieldErrors[field.path])"
                     :aria-describedby="
@@ -1328,7 +1333,7 @@ watch(
                     :id="`allocation-${editor.candidateId}`"
                     v-model="editor.textValue"
                     class="input"
-                    inputmode="numeric"
+                    inputmode="decimal"
                     :aria-invalid="Boolean(associationDecision?.errors[editor.candidateId])"
                   />
                   <small v-if="associationDecision?.errors[editor.candidateId]" class="danger-text">
@@ -1337,19 +1342,22 @@ watch(
                 </div>
               </div>
               <div class="review-allocation-summary" aria-live="polite">
-                <span>单据总额 {{ associationDecision?.factAmountMinor ?? 0 }}</span>
-                <span>本次合计 {{ associationDecision?.totalMinor ?? 0 }}</span>
+                <span
+                  >单据总额 {{ allocationMoney(associationDecision?.factAmountMinor ?? 0) }}</span
+                >
+                <span>本次合计 {{ allocationMoney(associationDecision?.totalMinor ?? 0) }}</span>
                 <span>
                   分配后剩余
                   {{
-                    Math.max(
-                      (associationDecision?.factAmountMinor ?? 0) -
-                        (associationDecision?.totalMinor ?? 0),
-                      0,
+                    allocationMoney(
+                      Math.max(
+                        (associationDecision?.factAmountMinor ?? 0) -
+                          (associationDecision?.totalMinor ?? 0),
+                        0,
+                      ),
                     )
                   }}
                 </span>
-                <small>以上金额均为最小货币单位</small>
               </div>
               <label>
                 <input

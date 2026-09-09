@@ -14,6 +14,11 @@ const adopt = (page: Page) => page.getByRole('button', { name: '采用到编辑�
 const save = (page: Page) => page.getByRole('button', { name: '确认补充分配', exact: true })
 const row = (page: Page, name: string) =>
   page.locator('.allocation-target-row').filter({ hasText: name })
+// 界面按币种精度显示与接受十进制金额；夹具里的期望值是最小单位，需换算后比较。
+function decimalCNY(minor: number): string {
+  return `${Math.trunc(minor / 100)}.${String(minor % 100).padStart(2, '0')}`
+}
+
 function gate() {
   let release = () => {}
   const promise = new Promise<void>((resolve) => (release = resolve))
@@ -76,12 +81,12 @@ test('相同 8 个固定场景：实际采用与手工输入，完整计划一�
         await targetRow.getByRole('checkbox').check()
         counts.target_selections++
       }
-      const amount = targetRow.getByLabel('分配金额（最小单位）', { exact: true })
+      const amount = targetRow.getByLabel('分配金额', { exact: true })
       if (scenario.kind !== 'exact') {
         await expect(amount).toHaveValue('')
-        await amount.fill(String(desired.allocated_minor))
+        await amount.fill(decimalCNY(desired.allocated_minor))
         counts.amount_fills++
-      } else await expect(amount).toHaveValue(String(desired.allocated_minor))
+      } else await expect(amount).toHaveValue(decimalCNY(desired.allocated_minor))
     }
     expect(state.writes).toHaveLength(index)
     await page.getByLabel(/调整理由/).fill('合成核对理由')
@@ -137,12 +142,12 @@ test('部分金额留空并聚焦，不默认填满上限', async ({ page }) => 
   const state = await setup(page, [scenario])
   await open(page, scenario)
   await page.getByRole('button', { name: '采用目标，金额由我填写', exact: true }).click()
-  const amount = page.getByLabel('分配金额（最小单位）', { exact: true })
+  const amount = page.getByLabel('分配金额', { exact: true })
   await expect(amount).toHaveValue('')
   await expect(amount).toBeFocused()
   await page.getByLabel(/调整理由/).fill('合成部分分配')
   await save(page).click()
-  await expect(page.getByText('请输入正整数最小单位金额', { exact: true })).toBeVisible()
+  await expect(page.getByText('请填写金额', { exact: true })).toBeVisible()
   expect(state.writes).toHaveLength(0)
 })
 
@@ -152,7 +157,7 @@ test('采用后修改金额，保留预先填写的人工理由', async ({ page 
   await page.getByLabel(/调整理由/).fill('我的合成核对理由')
   await adopt(page).click()
   await expect(page.getByLabel(/调整理由/)).toHaveValue('我的合成核对理由')
-  await page.getByLabel('分配金额（最小单位）', { exact: true }).fill('2300')
+  await page.getByLabel('分配金额', { exact: true }).fill('23.00')
   await save(page).click()
   await expect(page.getByText('补充分配已保存，余额已刷新', { exact: true })).toBeVisible()
   expect(state.writes[0]!.body.desired_allocations[0]!.allocated_minor).toBe(2300)
@@ -164,13 +169,13 @@ test('手工目标或金额不被覆盖，可拒绝建议继续手工编辑', as
   await open(page)
   const target = page.locator('.allocation-target-row')
   await target.getByRole('checkbox').check()
-  await target.getByLabel('分配金额（最小单位）', { exact: true }).fill('1700')
+  await target.getByLabel('分配金额', { exact: true }).fill('17.00')
   await expect(adopt(page)).toBeDisabled()
   await target.getByRole('checkbox').uncheck()
   await expect(adopt(page)).toBeDisabled()
   await page.getByRole('button', { name: '不采用草案', exact: true }).click()
   await expect(page.getByText('本次未采用草案，可在下方手工分配。')).toBeVisible()
-  await expect(target.getByLabel('分配金额（最小单位）', { exact: true })).toHaveValue('1700')
+  await expect(target.getByLabel('分配金额', { exact: true })).toHaveValue('17.00')
   expect(state.writes).toHaveLength(0)
 })
 
@@ -251,7 +256,7 @@ test('未知结果冻结输入，显式重试使用原完整请求与原键', as
   await save(page).click()
   await expect(page.getByText(/上次保存结果未知/)).toBeVisible()
   await expect(page.getByLabel(/调整理由/)).toBeDisabled()
-  await expect(page.getByLabel('分配金额（最小单位）', { exact: true })).toBeDisabled()
+  await expect(page.getByLabel('分配金额', { exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '重试原分配', exact: true }).click()
   await expect(page.getByText('补充分配已保存，余额已刷新', { exact: true })).toBeVisible()

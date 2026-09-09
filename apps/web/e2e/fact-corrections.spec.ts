@@ -272,7 +272,7 @@ for (const kind of ['payment', 'invoice', 'trip'] as const) {
 test('分配冲突明确撤销，409 刷新保留草稿并重新核对', async ({ page }) => {
   const f = await setup(page, 'payment', { linked: true, conflict: true })
   await page.goto(`/facts/payment/${id}/correction`)
-  await page.getByRole('textbox', { name: '支付金额（最小单位）', exact: true }).fill('5000')
+  await page.getByRole('textbox', { name: '支付金额', exact: true }).fill('50.00')
   await page.getByRole('textbox', { name: '纠错理由' }).fill('保留纠错草稿')
   await page.getByRole('button', { name: '预览纠错', exact: true }).click()
   await expect(page.getByRole('button', { name: '确认纠错', exact: true })).toBeDisabled()
@@ -282,9 +282,7 @@ test('分配冲突明确撤销，409 刷新保留草稿并重新核对', async (
   await page.getByRole('button', { name: '确认纠错', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('其他成员已修改关联')
   await page.getByRole('button', { name: '刷新并保留草稿' }).click()
-  await expect(
-    page.getByRole('textbox', { name: '支付金额（最小单位）', exact: true }),
-  ).toHaveValue('5000')
+  await expect(page.getByRole('textbox', { name: '支付金额', exact: true })).toHaveValue('50.00')
   await expect(page.getByRole('textbox', { name: '纠错理由' })).toHaveValue('保留纠错草稿')
   await expect(page.getByRole('button', { name: '预览纠错', exact: true })).toBeDisabled()
   await page.getByRole('checkbox', { name: '我已核对最新字段与关联' }).check()

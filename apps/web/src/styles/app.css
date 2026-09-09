@@ -437,7 +437,10 @@ dialog.sidebar::backdrop {
   min-width: 0;
 }
 
-.technical-meta {
+/* 页头与候选行下面的辅助说明。这里放的是人看得懂的话——版本、页数、判断依据
+   ——不是字段路径或 UUID 那类内部标识。 */
+.page-header-meta,
+.candidate-reasons {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 400;

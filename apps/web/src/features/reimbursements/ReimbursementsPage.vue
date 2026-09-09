@@ -365,6 +365,17 @@ function candidateSelectionDisabled(candidate: TripAttributionCandidate): boolea
   return submitting.value || !assignmentID || (!isSelected(candidate) && selectedCount.value >= 200)
 }
 
+// 政策提示指向哪一条记录，以前只给一串 UUID——人没法据此去核对。快照里带着
+// 同一个 fact_id 的条目，用它的名称与业务日期指路；找不到才退回类型加编号。
+function findingRecordLabel(finding: {
+  fact_type: 'payment' | 'invoice'
+  fact_id: string
+}): string {
+  const item = preview.value?.items.find((entry) => entry.fact_id === finding.fact_id)
+  if (!item) return `${factTypeLabel(finding.fact_type)} · ${finding.fact_id}`
+  return `${factTypeLabel(finding.fact_type)} · ${item.display_name} · ${item.business_date}`
+}
+
 function reimbursementFindingContext(finding: {
   code: 'missing_invoice' | 'amount_conflict' | 'duplicate_reimbursement'
   expected_minor?: number
@@ -551,7 +562,7 @@ onUnmounted(() => {
                 <strong
                   >{{ factTypeLabel(candidate.fact_type) }} · {{ candidate.display_name }}</strong
                 >
-                <small>{{ candidate.business_date }} · 记录编号 {{ candidate.fact_id }}</small>
+                <small>{{ candidate.business_date }}</small>
               </span>
               <strong class="numeric">{{
                 formatMinorUnits(candidate.amount_minor, candidate.currency)
@@ -605,7 +616,7 @@ onUnmounted(() => {
                     ><span aria-hidden="true">●</span
                     >{{ reimbursementFindingLabel(finding.code) }}</span
                   >
-                  <small>{{ factTypeLabel(finding.fact_type) }} · {{ finding.fact_id }}</small>
+                  <small>{{ findingRecordLabel(finding) }}</small>
                   <small>{{ reimbursementFindingContext(finding) }}</small>
                 </li>
               </ul>

@@ -359,10 +359,7 @@ onUnmounted(() => {
                   <span class="document-mark" aria-hidden="true">{{
                     job.detected_mime === 'application/pdf' ? 'PDF' : 'IMG'
                   }}</span
-                  ><span
-                    ><strong>{{ job.original_name }}</strong
-                    ><small>{{ job.id }}</small></span
-                  >
+                  ><strong>{{ job.original_name }}</strong>
                 </div>
               </td>
               <td>

@@ -19,7 +19,6 @@ defineEmits<{ locate: [fieldId: string] }>()
               : '需要处理'
         }}</strong>
         <p>{{ validation.safe_message }}</p>
-        <small class="technical-meta">{{ validation.rule_code }}</small>
         <button
           v-if="validation.status !== 'passed' && validation.field_claim_id"
           class="text-button validation-locate"

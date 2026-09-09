@@ -365,6 +365,31 @@ export function refreshDraftFields(
   })
 }
 
+// 重复检测的原因码是人判断「保留还是合并」的依据，必须让人看得懂，不能把
+// same_page_count 这样的内部标识原样摆出来。取值全集见 domain/duplicate.go，
+// duplicate-reasons.test.ts 逐条盯住，后端新增未映射的码会失败。
+const duplicateReasonLabels: Record<string, string> = {
+  visual_page_match: '页面图像一致',
+  within_document: '在同一个文件内',
+  other_document: '来自另一个文件',
+  same_page_count: '页数相同',
+  ordered_page_visual_match: '逐页图像按顺序一致',
+  amount_exact: '金额相同',
+  total_exact: '价税合计相同',
+  currency_exact: '币种相同',
+  merchant_exact: '商户相同',
+  transaction_time_within_5_minutes: '交易时间相差不到 5 分钟',
+  order_number_exact: '订单号相同',
+  invoice_date_exact: '开票日期相同',
+  seller_exact: '销售方相同',
+  buyer_exact: '购买方相同',
+}
+
+// 未映射的码原样返回：漏译时宁可露出内部标识，也好过让人看不到判断依据。
+export function duplicateReasonLabel(code: string): string {
+  return duplicateReasonLabels[code] ?? code
+}
+
 // 输入法提示随字段类型走：金额按币种精度输入十进制，需要小数点键盘。
 export function fieldInputMode(valueType: string): 'decimal' | 'numeric' | 'text' {
   if (valueType === 'money_minor') return 'decimal'

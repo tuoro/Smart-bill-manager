@@ -355,7 +355,7 @@ onUnmounted(() => {
                   <strong
                     >{{ insightFactTypeLabel(item.fact_type) }} · {{ item.display_name }}</strong
                   >
-                  <small>{{ item.business_date }} · 记录编号 {{ item.fact_id }}</small>
+                  <small>{{ item.business_date }}</small>
                 </div>
                 <strong class="numeric">{{
                   formatMinorUnits(item.amount_minor, item.currency)

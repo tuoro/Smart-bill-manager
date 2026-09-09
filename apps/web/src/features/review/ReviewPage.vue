@@ -29,6 +29,7 @@ import {
   buildAssociationDecision,
   buildDuplicateResolutionDecision,
   buildRevisionRequest,
+  duplicateReasonLabel,
   editableFields,
   fieldInputMode,
   fieldLabel,
@@ -782,10 +783,6 @@ watch(
             <dt>记录类型</dt>
             <dd>{{ documentTypeLabel(completed.fact_type) }}</dd>
           </div>
-          <div>
-            <dt>记录编号</dt>
-            <dd class="technical-meta">{{ completed.fact_id }}</dd>
-          </div>
           <div v-if="completed.link_ids.length">
             <dt>金额分配</dt>
             <dd>{{ completed.link_ids.length }} 条</dd>
@@ -831,9 +828,7 @@ watch(
         <div>
           <h1 ref="taskHeading" tabindex="-1">审核单据</h1>
           <p class="review-document-name">{{ review.job.original_name }}</p>
-          <p class="technical-meta">
-            版本 {{ review.revision }} · {{ review.page_count }} 页 · 任务 {{ review.job.id }}
-          </p>
+          <p class="page-header-meta">版本 {{ review.revision }} · 共 {{ review.page_count }} 页</p>
         </div>
         <div class="page-actions">
           <span class="status" :data-tone="review.claim_status === 'blocked' ? 'danger' : 'warning'"
@@ -1024,7 +1019,6 @@ watch(
                       @click="selectPath(field.path)"
                     >
                       <strong>{{ fieldLabel(field.path) }}</strong
-                      ><small class="technical-meta">{{ field.path }}</small
                       ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
                         itemPageLabel(review, field.path)
                       }}</small></button
@@ -1125,7 +1119,6 @@ watch(
                 <button class="claim-field-button" type="button" @click="selectPath(field.path)">
                   <span
                     ><strong>{{ fieldLabel(field.path) }}</strong
-                    ><small class="technical-meta">{{ field.path }}</small
                     ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
                       itemPageLabel(review, field.path)
                     }}</small></span
@@ -1147,13 +1140,13 @@ watch(
           <div v-if="editing && documentType === 'invoice'" class="item-actions">
             <button class="button button-small" type="button" @click="addItem">新增发票明细</button
             ><button
-              v-for="key in itemKeys"
+              v-for="(key, index) in itemKeys"
               :key="key"
               class="text-button danger-text"
               type="button"
               @click="removeItem(key)"
             >
-              删除明细 {{ key.slice(0, 8) }}
+              删除第 {{ index + 1 }} 条明细
             </button>
           </div>
           <div v-if="editing" class="editor-actions">
@@ -1280,8 +1273,10 @@ watch(
                         : '目标状态已变化，请保存修订版本'
                     }}
                   </small>
-                  <small class="technical-meta"
-                    >检测规则：{{ candidate.reason_codes.join(' · ') }}</small
+                  <small class="candidate-reasons"
+                    >判断依据：{{
+                      candidate.reason_codes.map(duplicateReasonLabel).join(' · ')
+                    }}</small
                   >
                 </span>
               </label>

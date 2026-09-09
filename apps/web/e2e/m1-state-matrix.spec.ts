@@ -300,7 +300,10 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     const completion = page.locator('section.completion-state')
     await expect(completion).toBeVisible()
     await expect(completion.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
-    await expect(completion).toContainText('00000000-0000-4000-8000-000000000702')
+    // 完成页给的是能用的东西：记录类型和一个通往正式记录的入口，不是一串 UUID。
+    await expect(completion).toContainText('记录类型')
+    await expect(completion.getByRole('link', { name: '查看正式记录' })).toBeVisible()
+    await expect(completion).not.toContainText('00000000-0000-4000-8000-000000000702')
     expect(pageErrors).toEqual([])
   })
 
@@ -393,7 +396,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(page.getByText('第 3 / 3 页')).toBeVisible()
     await expect(page.getByAltText(/第 3 页规范化审核图/)).toBeVisible()
     await expect(page.getByRole('button', { name: '下一页' })).toBeDisabled()
-    await expect(page.getByRole('button', { name: /支付金额 amount_minor/ })).toBeVisible()
+    // 字段按中文标签认，界面上不再挂 amount_minor 这样的内部路径。
+    await expect(page.getByRole('button', { name: /支付金额/ })).toBeVisible()
+    await expect(page.locator('.claim-fields')).not.toContainText('amount_minor')
     expect(pageErrors).toEqual([])
   })
 

@@ -416,7 +416,7 @@ onUnmounted(() => {
                   <strong
                     >{{ factTypeLabel(candidate.fact_type) }} · {{ candidate.display_name }}</strong
                   >
-                  <small>{{ candidate.business_date }} · 记录编号 {{ candidate.fact_id }}</small>
+                  <small>{{ candidate.business_date }}</small>
                 </div>
                 <strong class="numeric">{{
                   formatMinorUnits(candidate.amount_minor, candidate.currency)

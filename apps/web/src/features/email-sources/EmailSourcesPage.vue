@@ -17,6 +17,7 @@ import {
   emailSourceStatusMeta,
   formatArchiveBytes,
 } from './model'
+import { formatSystemTime } from '../facts/time'
 
 const session = sessionStore.current
 const canRead = computed(() => session.value?.capabilities.includes('email_archive.read') ?? false)
@@ -134,12 +135,6 @@ async function registerSource() {
 function setOnlineState() {
   offline.value = !navigator.onLine
   if (!offline.value && canRead.value) void loadSources(selectedSourceID.value)
-}
-
-function formatDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.valueOf())) return '时间未知'
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 onMounted(() => {
@@ -348,9 +343,9 @@ onUnmounted(() => {
               </header>
               <div class="email-message-meta">
                 <time :datetime="message.received_at"
-                  >接收 {{ formatDate(message.received_at) }}</time
+                  >接收 {{ formatSystemTime(message.received_at) }}</time
                 >
-                <span v-if="message.sent_at">发送 {{ formatDate(message.sent_at) }}</span>
+                <span v-if="message.sent_at">发送 {{ formatSystemTime(message.sent_at) }}</span>
                 <a
                   class="button button-small"
                   :href="api.emailMessageDownloadURL(message.id)"

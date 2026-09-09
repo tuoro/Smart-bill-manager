@@ -14,6 +14,7 @@ import AppIcon from '../../components/AppIcon.vue'
 import ManualReviewStart from './ManualReviewStart.vue'
 import { sessionStore } from '../../app/session'
 import { continuousReviewLocation, reviewQueue, reviewQueueScope } from '../review/queue'
+import { formatSystemTime } from '../facts/time'
 
 const router = useRouter()
 const queueScope = computed(() => reviewQueueScope(sessionStore.current.value))
@@ -154,12 +155,6 @@ function replaceJob(updated: JobSummary) {
 function setOnlineState() {
   offline.value = !navigator.onLine
   if (!offline.value) void load(true)
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(value),
-  )
 }
 
 function formatBytes(value: number) {
@@ -376,7 +371,7 @@ onUnmounted(() => {
                 >
               </td>
               <td class="numeric">
-                <time :datetime="job.created_at">{{ formatDate(job.created_at) }}</time
+                <time :datetime="job.created_at">{{ formatSystemTime(job.created_at) }}</time
                 ><small>尝试 {{ job.attempt_count }} 次</small>
               </td>
               <td>

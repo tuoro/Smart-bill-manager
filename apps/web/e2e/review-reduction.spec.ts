@@ -124,7 +124,7 @@ test('同组件连续切换：页码、证据、字段、焦点与播报不串�
   await current(page, reviews[1]!)
   await expect(page.locator('.page-position')).toHaveText('第 1 / 1 页')
   await expect(page.locator('.evidence-focus')).toContainText('合成第 2 单')
-  await expect(page.locator('[data-field-path="amount_minor"]')).toContainText('10002')
+  await expect(page.locator('[data-field-path="amount_minor"]')).toContainText('CNY 100.02')
   await expect(
     page.getByAltText(`${reviews[1]!.job.original_name} 的第 1 页规范化审核图`),
   ).toBeVisible()
@@ -471,7 +471,7 @@ test('离开加载中的旧任务：迟到响应不能覆盖新单据', async ({
   await cancelled
   await settled.promise
   await expect(page.getByRole('button', { name: '确认保存，不分配', exact: true })).toBeEnabled()
-  await expect(page.locator('[data-field-path="amount_minor"]')).toContainText('10002')
+  await expect(page.locator('[data-field-path="amount_minor"]')).toContainText('CNY 100.02')
 })
 
 test('队列只取开启时筛选内待审核项：新任务不追加，可继续或明确结束', async ({ page }) => {

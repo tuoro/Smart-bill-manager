@@ -17,7 +17,6 @@ import {
   editableFields,
   fieldInputMode,
   fieldLabel,
-  instantInZone,
   newInvoiceItem,
   parseItemPath,
   refreshDraftFields,
@@ -25,6 +24,7 @@ import {
   type EditableField,
 } from '../review/model'
 import { formatMinorUnits } from './money'
+import { instantInZone } from './time'
 
 const route = useRoute()
 const kind = computed(() =>

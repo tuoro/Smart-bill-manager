@@ -10,7 +10,6 @@ import {
   fieldPageNumbers,
   fieldVisibleOnPage,
   firstFieldPage,
-  instantInZone,
   itemPageLabel,
   newInvoiceItem,
   parseItemPath,
@@ -532,19 +531,6 @@ it('rejects instants and dates the backend would reject', () => {
   }
   date.textValue = '2026-09-04'
   expect(buildFieldPayload(review, invoiceFields).errors.invoice_date).toBeUndefined()
-})
-
-// 票面印的是本地时间，字段存的是绝对时刻；不换算一遍就要人自己心算时差。
-it('renders the instant in the source timezone', () => {
-  expect(instantInZone('2026-09-04T08:00:00Z', 'Asia/Shanghai')).toBe('2026-09-04 16:00:00')
-  expect(instantInZone('2026-09-04T08:00:00Z', 'UTC')).toBe('2026-09-04 08:00:00')
-  // 跨日：UTC 的 4 日晚上在上海已经是 5 日凌晨，业务日期因此不同。
-  expect(instantInZone('2026-09-04T20:00:00Z', 'Asia/Shanghai')).toBe('2026-09-05 04:00:00')
-  // 午夜按 00 显示，不是某些实现里的 24。
-  expect(instantInZone('2026-09-04T16:00:00Z', 'Asia/Shanghai')).toBe('2026-09-05 00:00:00')
-  // 时区名无效或时间无效时不猜，宁可不显示。
-  expect(instantInZone('2026-09-04T08:00:00Z', 'Mars/Olympus')).toBeNull()
-  expect(instantInZone('2026-9-4', 'UTC')).toBeNull()
 })
 
 // 时区和时间可能在同一次修订里一起改，显示要跟着当前填写的值走。

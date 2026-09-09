@@ -34,19 +34,21 @@ import {
   fieldLabel,
   fieldVisibleOnPage,
   firstFieldPage,
-  instantInZone,
   itemPageLabel,
   newInvoiceItem,
   parseItemPath,
   refreshDraftFields,
   reviewCurrency,
+  reviewSourceTimezone,
   sourceTimezone,
   type AllocationEditor,
+  type ClaimField,
   type AssociationMode,
   type DocumentType,
   type EditableField,
 } from './model'
 import { formatMinorUnits } from '../facts/money'
+import { instantInZone } from '../facts/time'
 
 const route = useRoute()
 const router = useRouter()
@@ -604,8 +606,21 @@ function validationForField(fieldId?: string) {
   )
 }
 
-function displayValue(value: unknown) {
+// 只读展示与编辑框同口径。以前这里直接 String(value)，于是金额显示成 32109、
+// 交易时间显示成 2026-08-28T08:00:00Z——人绝大多数时间处在只读态，内部表示
+// 恰恰泄漏在最常看的那一屏上。
+function displayValue(field: ClaimField) {
+  const value = field.value
   if (value === undefined || value === null || value === '') return '未提供'
+  if (field.value_type === 'money_minor' && typeof value === 'number' && review.value) {
+    return formatMinorUnits(value, reviewCurrency(review.value))
+  }
+  if (field.value_type === 'instant' && typeof value === 'string' && review.value) {
+    const timezone = reviewSourceTimezone(review.value)
+    const local = instantInZone(value, timezone)
+    // 时区无效或时刻不合法时退回原值，不显示一个错的本地时间。
+    if (local) return `${local}（${timezone}）`
+  }
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
@@ -873,7 +888,7 @@ watch(
           <dl>
             <template v-for="field in readFields" :key="field.path"
               ><dt>{{ fieldLabel(field.path) }}</dt>
-              <dd>{{ displayValue(field.value) }}</dd></template
+              <dd>{{ displayValue(field) }}</dd></template
             >
           </dl>
         </details>
@@ -1114,7 +1129,7 @@ watch(
                     ><small v-if="itemPageLabel(review, field.path)" class="field-page-meta">{{
                       itemPageLabel(review, field.path)
                     }}</small></span
-                  ><span class="claim-value">{{ displayValue(field.value) }}</span>
+                  ><span class="claim-value">{{ displayValue(field) }}</span>
                 </button>
                 <ul v-if="validationForField(field.id).length" class="inline-validations">
                   <li

@@ -6,6 +6,7 @@ import { ApiError, api, type FactDetail, type FactKind, type Review } from '../.
 import { fieldLabel } from '../review/model'
 import { factListPath, factReturnPath } from './list-model'
 import { formatMinorUnits } from './money'
+import { formatSystemTime, instantInZone } from './time'
 import InvoiceMaterialsPanel from './InvoiceMaterialsPanel.vue'
 
 const props = defineProps<{ kind: FactKind }>()
@@ -49,7 +50,8 @@ const rows = computed<[string, string][]>(() => {
       ['商户', p.merchant],
       ['商户全称', p.merchant_full_name ?? '—'],
       ['金额', formatMinorUnits(p.amount_minor, p.currency)],
-      ['交易时间', p.transaction_time],
+      // 票面印的是来源时区的本地时间；紧邻的「来源时区」一行已说明是哪个时区。
+      ['交易时间', instantInZone(p.transaction_time, p.source_timezone) ?? p.transaction_time],
       ['业务日期', p.business_date],
       ['来源时区', p.source_timezone],
       ['支付方式', p.payment_method || '未填写'],
@@ -57,7 +59,7 @@ const rows = computed<[string, string][]>(() => {
       ['分类', p.category || '未填写'],
       ['已分配', formatMinorUnits(p.allocated_minor, p.currency)],
       ['剩余', formatMinorUnits(p.remaining_minor, p.currency)],
-      ['确认入库时间', p.created_at],
+      ['确认入库时间', formatSystemTime(p.created_at)],
     ]
   if (i)
     return [
@@ -69,7 +71,7 @@ const rows = computed<[string, string][]>(() => {
       ['税额', i.tax_minor === undefined ? '未填写' : formatMinorUnits(i.tax_minor, i.currency)],
       ['已分配', formatMinorUnits(i.allocated_minor, i.currency)],
       ['剩余', formatMinorUnits(i.remaining_minor, i.currency)],
-      ['确认入库时间', i.created_at],
+      ['确认入库时间', formatSystemTime(i.created_at)],
     ]
   return []
 })

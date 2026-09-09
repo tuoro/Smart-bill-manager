@@ -512,6 +512,15 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await mockReview(page, review)
     await page.goto(`/reviews/${review.job.id}`)
     await expect(page.locator('.review-grid')).toBeVisible()
+    // 只读态是人待得最久的一屏：金额不能是最小单位整数，时刻不能是裸 RFC3339。
+    await expect(page.locator('[data-field-path="amount_minor"]')).toContainText('CNY 321.09')
+    await expect(page.locator('[data-field-path="amount_minor"]')).not.toContainText('32109')
+    await expect(page.locator('[data-field-path="transaction_time"]')).toContainText(
+      '2026-08-28 16:00:00（Asia/Shanghai）',
+    )
+    await expect(page.locator('[data-field-path="transaction_time"]')).not.toContainText(
+      '2026-08-28T08:00:00Z',
+    )
     const confirm = page
       .locator('section[aria-labelledby="final-title"]')
       .getByRole('button')

@@ -240,3 +240,4 @@ restore-activation	exact-database-object-pair	./internal/adapters/restorestate	T
 restore-activation	corruption-permission-and-link-rejection	./internal/adapters/restorestate	TestRestoreObjectIdentityRejectsCorruptionAndUnsafeFiles
 restore-activation	ordinary-object-root-precondition	./internal/adapters/restorestate	TestOrdinaryObjectRootMustExistWithoutRestoreIdentity
 restore-activation	raw-master-key-terminal-byte-preservation	./internal/adapters/cryptography	TestLoadMasterKeyPreservesEveryRawTerminalByte
+chat-intake-sender-binding	未绑定发送者、被停用成员与不受支持平台一律拒收且不写入任何 Document；已绑定成员按其真实角色投递并标记来源	./internal/application/chatintake	TestChatIntakeRejectsUnlinkedSenderWithoutWritingAnything

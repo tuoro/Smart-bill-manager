@@ -19,6 +19,8 @@ type UploadInput struct {
 	Name   string
 	MIME   string
 	Source io.Reader
+	// 留空即网页上传。聊天投递复用同一条管线与同一套能力判定，只是来源不同。
+	IngestionKind string
 }
 
 type UploadResult struct {
@@ -55,6 +57,10 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 		return UploadResult{}, err
 	}
 	name, staged, inspection := prepared.Name, prepared.Staged, prepared.Inspection
+	ingestionKind := input.IngestionKind
+	if ingestionKind == "" {
+		ingestionKind = domain.DocumentIngestionUpload
+	}
 	committed := false
 	defer func() {
 		if !committed {
@@ -82,7 +88,7 @@ func (s UploadService) Execute(ctx context.Context, input UploadInput) (UploadRe
 		SHA256:              staged.SHA256,
 		PageCount:           inspection.PageCount,
 		Status:              "stored",
-		IngestionKind:       domain.DocumentIngestionUpload,
+		IngestionKind:       ingestionKind,
 		OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
 		CreatedByUserID:     input.Tenant.UserID,
 		CreatedAt:           now,

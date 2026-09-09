@@ -24,6 +24,7 @@ const (
 	EmailAttachmentArchivedOnly          = "archived_only"
 	DocumentIngestionUpload              = "upload"
 	DocumentIngestionEmail               = "email_attachment"
+	DocumentIngestionDingTalk            = "dingtalk_message"
 	DocumentObjectOwnerDocument          = "document"
 	DocumentObjectOwnerEmail             = "email_attachment"
 	MaxEmailMessageBytes           int64 = 32 * 1024 * 1024

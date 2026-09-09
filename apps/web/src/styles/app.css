@@ -1228,6 +1228,27 @@ input[type='radio'] {
   align-items: center;
 }
 
+/* 展开原件：临时让整幅宽度归原件，其余面板落到下面。横版发票在三列里最多只能
+   画到 16%，展开后是 58%，够读而不必平移。收起即回到并排。 */
+.review-grid[data-source-expanded='true'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.review-grid[data-source-expanded='true'] .review-decision-column {
+  position: static;
+}
+
+.review-grid[data-source-expanded='true'] .document-stage {
+  height: clamp(520px, 78vh, 1000px);
+}
+
+.source-panel-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .review-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.92fr) minmax(390px, 1.08fr) minmax(300px, 340px);
@@ -1246,15 +1267,36 @@ input[type='radio'] {
   white-space: nowrap;
 }
 
+/* 可视区高度固定，才谈得上「整页放得下」。顶部框架从 300px 收到 201px 后，
+   省下的高度归这里。 */
 .document-stage {
   display: grid;
-  min-height: 520px;
-  /* 顶部框架从 300px 收到 201px，省下的高度归原件预览：这个页面的主体是原件。 */
-  max-height: 72vh;
+  /* 行轨道必须是容器高度而不是内容高度，否则图上的 max-height: 100% 没有参照，
+     「整页」就退化成「适应宽度」。 */
+  grid-template-rows: minmax(0, 1fr);
+  height: clamp(520px, 72vh, 880px);
   padding: 18px;
   overflow: auto;
   place-items: start center;
   background: #e8ebf0;
+}
+
+/* 原始大小时图会比可视区宽，居中会让左边缘滚不到，改为左上对齐。 */
+.document-stage[data-zoom='actual'] {
+  place-items: start;
+}
+
+/* 缩放按钮挂在分页工具条右端，与页码同一行。 */
+.document-zoom {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.document-zoom .button[aria-pressed='true'] {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .page-review-toolbar {
@@ -1312,15 +1354,31 @@ input[type='radio'] {
   background: #0e1217;
 }
 
-/* 不放大超过原始尺寸。原来写的是 width: 100%，一张 390px 宽的手机截图会被拉到
-   693px：字更糊，图元素高度随之涨到 1500px，而可视区只有 553px——一次只看得到
-   票据的三分之一。宽幅扫描件仍然按容器宽度缩小。 */
 .document-stage img {
-  max-width: 100%;
   border: 0;
   background: #ffffff;
   box-shadow: var(--shadow-paper);
   object-fit: contain;
+}
+
+/* 整页：完整放进可视区，不裁切也不必滚动，用来看全貌和定位。任何一边都不放大
+   超过原始尺寸——原来写的是 width: 100%，390px 宽的手机截图会被拉到 693px，
+   字更糊，图元素还高到必须在框里滚三屏。 */
+.document-stage[data-zoom='page'] img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* 适应宽度：横向填满，纵向滚动。竖版票据读细节用这个。 */
+.document-stage[data-zoom='width'] img {
+  width: 100%;
+}
+
+/* 原始大小：按扫描分辨率显示，双向平移。横版发票读 20 位号码只能靠这个——
+   1890px 的扫描件在 1366 屏上按整页只能画到 302px 宽。 */
+.document-stage[data-zoom='actual'] img {
+  width: auto;
+  max-width: none;
 }
 
 .evidence-focus {
@@ -3201,7 +3259,7 @@ input[type='radio'] {
   }
 
   .document-stage {
-    min-height: 430px;
+    height: clamp(430px, 64vh, 700px);
   }
 
   .login-layout {
@@ -3386,13 +3444,8 @@ input[type='radio'] {
   }
 
   .document-stage {
-    min-height: 360px;
-    max-height: none;
+    height: clamp(360px, 60vh, 560px);
     padding: 10px;
-  }
-
-  .document-stage img {
-    min-height: 330px;
   }
 
   .page-review-toolbar {

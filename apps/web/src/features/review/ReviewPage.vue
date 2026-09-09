@@ -70,6 +70,19 @@ const editors = ref<EditableField[]>([])
 const fieldErrors = ref<Record<string, string>>({})
 const selectedPath = ref('')
 const activePage = ref(1)
+// 原件缩放。固定列宽伺候不了两种版式：竖屏手机截图受限于高度，横版发票受限于
+// 宽度——1890px 的发票扫描件在 1366 屏上只能画到 302px（16%），20 位号码约
+// 3px 高，根本没法核对。默认整页看全貌与定位，读细节时切换到宽度或原始大小。
+const documentZoom = ref<'page' | 'width' | 'actual'>('page')
+// 横版发票即使按原始大小也要横向平移六屏才读得完。展开成整幅宽度后，1366 的
+// 屏上能画到 58%，够读 20 位号码而不必平移。这是临时动作，不是默认——默认仍是
+// 原件与识别结果并排。
+const sourceExpanded = ref(false)
+const zoomModes = [
+  { value: 'page', label: '整页' },
+  { value: 'width', label: '适应宽度' },
+  { value: 'actual', label: '原始大小' },
+] as const
 const associationMode = ref<AssociationMode>('')
 const allocationItems = ref<AllocationEditor[]>([])
 const duplicateResolutionIds = ref<string[]>([])
@@ -376,6 +389,8 @@ function selectPath(path: string) {
 function selectPage(pageNumber: number) {
   if (!review.value || pageNumber < 1 || pageNumber > review.value.page_count) return
   activePage.value = pageNumber
+  // 换页等于换一张图，上一页放大到哪里对下一页没有意义。
+  documentZoom.value = 'page'
 }
 
 function toggleEvidence(evidenceId: string) {
@@ -894,16 +909,26 @@ watch(
         >
       </section>
 
-      <div class="review-grid">
+      <div class="review-grid" :data-source-expanded="sourceExpanded">
         <section class="panel source-panel" aria-labelledby="source-title">
           <div class="panel-heading">
             <div>
               <h2 id="source-title">原始单据</h2>
               <p>原始文件保留不变，选择字段可定位原件依据。</p>
             </div>
-            <a class="text-button" :href="documentURL" target="_blank" rel="noreferrer"
-              >新窗口查看</a
-            >
+            <div class="source-panel-actions">
+              <button
+                class="button button-small"
+                type="button"
+                :aria-pressed="sourceExpanded"
+                @click="sourceExpanded = !sourceExpanded"
+              >
+                {{ sourceExpanded ? '收起原件' : '展开原件' }}
+              </button>
+              <a class="text-button" :href="documentURL" target="_blank" rel="noreferrer"
+                >新窗口查看</a
+              >
+            </div>
           </div>
           <nav class="page-review-toolbar" aria-label="单据分页">
             <button
@@ -938,8 +963,20 @@ watch(
             <strong class="page-position" aria-live="polite">
               第 {{ activePage }} / {{ review.page_count }} 页
             </strong>
+            <div class="document-zoom" role="group" aria-label="原件缩放">
+              <button
+                v-for="mode in zoomModes"
+                :key="mode.value"
+                class="button button-small"
+                type="button"
+                :aria-pressed="documentZoom === mode.value"
+                @click="documentZoom = mode.value"
+              >
+                {{ mode.label }}
+              </button>
+            </div>
           </nav>
-          <div class="document-stage">
+          <div class="document-stage" :data-zoom="documentZoom" tabindex="0" aria-label="原件预览">
             <img
               :src="pageURL"
               :alt="`${review.job.original_name} 的第 ${activePage} 页规范化审核图`"

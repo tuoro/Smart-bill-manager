@@ -111,6 +111,16 @@ async function openNavigation() {
   if (element instanceof HTMLDialogElement && !element.open) element.showModal()
 }
 
+// dialog 的 close 事件是异步派发的：closeNavigation 自己调用 close() 之后，
+// 事件可能晚到。若这期间抽屉已被重新打开（连按两下菜单按钮，或慢机器上的一次
+// 正常开关），这个迟到的事件会把刚打开的抽屉又关掉并把焦点抢回按钮。
+// 处理时如果 dialog 当前是开着的，这次 close 说的必然是上一轮的事，直接忽略。
+function handleDialogClose() {
+  const element = navigationElement.value
+  if (element instanceof HTMLDialogElement && element.open) return
+  closeNavigation(true)
+}
+
 function closeFromBackdrop(event: MouseEvent) {
   const element = navigationElement.value
   if (!navigationOpen.value || event.target !== element || !element) return
@@ -210,7 +220,7 @@ async function logout() {
         class="sidebar"
         aria-label="主导航"
         @cancel.prevent="closeNavigation(true)"
-        @close="closeNavigation(true)"
+        @close="handleDialogClose"
         @click="closeFromBackdrop"
       >
         <div v-if="isMobile" class="sidebar-heading">

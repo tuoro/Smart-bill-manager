@@ -147,6 +147,20 @@ test.describe('全站导航：纯合成布局、权限与键盘验收', () => {
           await expect(navigation).not.toBeVisible()
           await expect(page.locator('dialog:modal')).toHaveCount(0)
           await expect(page.locator('#main-content')).toBeFocused()
+
+          // dialog 的 close 事件异步派发：抽屉关掉又立刻打开时，上一轮的 close
+          // 会迟到。它一旦被当成真的关闭处理，刚打开的抽屉就会自己关上、焦点被
+          // 抢回菜单按钮——连按两下菜单键就能撞上，慢机器上是必然。
+          await expand.press('Enter')
+          await expect(navigation).toBeVisible()
+          await page.evaluate(() =>
+            document.querySelector('#primary-navigation')?.dispatchEvent(new Event('close')),
+          )
+          await expect(navigation).toBeVisible()
+          await expect(expand).toHaveAttribute('aria-expanded', 'true')
+          await page.keyboard.press('Escape')
+          await expect(navigation).not.toBeVisible()
+
           await assertNoOverflow(page)
         } else {
           const originalNavigationBox = await navigation.boundingBox()

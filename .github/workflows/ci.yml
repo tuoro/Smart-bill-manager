@@ -148,8 +148,17 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
         working-directory: apps/web
-      - run: npx playwright install --with-deps chromium
+      # --with-deps 会先 apt-get update，于是 runner 镜像里预置的 Google Chrome
+      # deb 源也被一起拉取。该源的索引出过 Hash Sum mismatch，一坏就把整步拖垮
+      # ——而我们根本不用它：Playwright 自带 Chromium，需要的系统库来自 Ubuntu
+      # 官方源。移掉这个用不到的源，别让它决定 CI 能不能跑。
+      - name: 安装 Chromium
         working-directory: apps/web
+        run: |
+          set -euo pipefail
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+                     /etc/apt/sources.list.d/google-chrome.sources
+          npx playwright install --with-deps chromium
       - run: npm run build
         working-directory: apps/web
       # 规格自己拦截 /api/**，只需要一个伺服构建产物、支持 history 回退的源。

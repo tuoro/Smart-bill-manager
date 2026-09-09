@@ -1511,7 +1511,10 @@ input[type='radio'] {
   justify-content: flex-end;
 }
 
+/* 决策栏跟着滚动：左侧面板再高，「完成审核」也始终留在视野里。 */
 .review-decision-column {
+  position: sticky;
+  top: calc(var(--topbar-height) + 16px);
   display: grid;
   gap: 12px;
 }
@@ -3093,17 +3096,27 @@ input[type='radio'] {
 }
 
 @media (max-width: 1439px) {
+  /* 三列在这里放不下：1280 宽只有 1001px 可用，三列最小需要 1042px。以前的做法
+     是把决策栏整列压到「原件」和「字段」下面，主操作因此落在折叠线以下 500-700px
+     ——而完成审核正是这个页面存在的唯一理由。改成左列纵向叠放两个面板、右列留给
+     决策栏，两列只需 706px，1024 宽也放得下。 */
   .review-grid {
-    grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1.1fr);
+    grid-template-columns: minmax(380px, 1fr) minmax(300px, 340px);
+  }
+
+  .source-panel {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  .fields-panel {
+    grid-row: 2;
+    grid-column: 1;
   }
 
   .review-decision-column {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .review-decision-column .final-actions {
-    align-self: stretch;
+    grid-row: 1 / span 2;
+    grid-column: 2;
   }
 }
 
@@ -3157,8 +3170,13 @@ input[type='radio'] {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* 单列下没有并排的位置可吸附，恢复成按阅读顺序纵向排列。 */
+  .source-panel,
+  .fields-panel,
   .review-decision-column {
-    grid-template-columns: minmax(0, 1fr);
+    position: static;
+    grid-row: auto;
+    grid-column: auto;
   }
 
   .document-stage {

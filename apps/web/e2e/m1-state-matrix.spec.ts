@@ -502,6 +502,40 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(pageErrors).toEqual([])
   })
 
+  // 完成审核是这个页面存在的唯一理由。1440px 以下曾把决策栏整列压到「原件」和
+  // 「字段」两个高面板下面，主操作落在折叠线以下 500-700px；1366×768 和
+  // 1280×800 正是最常见的笔记本分辨率。决策栏改为并排吸顶后必须始终可达。
+  test('审核工作台：窄屏下主操作不被推到折叠线以下', async ({ page }) => {
+    await mockSession(page)
+    const review = readyReview('job-sticky-action')
+    await mockDocumentContent(page, review.job.document_id)
+    await mockReview(page, review)
+    await page.goto(`/reviews/${review.job.id}`)
+    await expect(page.locator('.review-grid')).toBeVisible()
+    const confirm = page
+      .locator('section[aria-labelledby="final-title"]')
+      .getByRole('button')
+      .first()
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 1366, height: 768 },
+      { width: 1280, height: 800 },
+      { width: 1024, height: 768 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.evaluate(() => window.scrollTo(0, 400))
+      await expect(confirm).toBeInViewport({ ratio: 1 })
+      // 两列而不是三列：窄屏下横向不得溢出。
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+          ),
+        )
+        .toBe(true)
+    }
+  })
+
   test('审核工作台：阻断状态禁止确认', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)

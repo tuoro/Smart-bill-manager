@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -35,10 +36,96 @@ type Result struct {
 type Service struct {
 	tx      ports.TransactionManager
 	uploads documents.UploadService
+	tokens  ports.TokenGenerator
+	ids     ports.IDGenerator
+	clock   ports.Clock
 }
 
-func NewService(tx ports.TransactionManager, uploads documents.UploadService) Service {
-	return Service{tx: tx, uploads: uploads}
+func NewService(
+	tx ports.TransactionManager,
+	uploads documents.UploadService,
+	tokens ports.TokenGenerator,
+	ids ports.IDGenerator,
+	clock ports.Clock,
+) Service {
+	return Service{tx: tx, uploads: uploads, tokens: tokens, ids: ids, clock: clock}
+}
+
+type BindingCode struct {
+	Code      string
+	ExpiresAt time.Time
+}
+
+// IssueBindingCode 发一张一次性绑定码。持有它就证明持有者能登录网页、因而是在册
+// 成员——这正是聊天通道自己无法证明的那件事。
+//
+// 不要求 documents.process：绑定确立的是身份，不是权限。能不能投件在投递时按
+// 成员的真实角色判定，只读成员绑了也投不进来。把两件事分开，成员角色变化时不
+// 需要重新绑定。
+func (s Service) IssueBindingCode(
+	ctx context.Context,
+	tenant domain.TenantContext,
+	platform string,
+) (BindingCode, error) {
+	if !domain.ValidChatPlatform(platform) {
+		return BindingCode{}, fmt.Errorf("%w: unsupported platform", domain.ErrInvalidInput)
+	}
+	raw, hash, err := s.tokens.NewToken()
+	if err != nil {
+		return BindingCode{}, fmt.Errorf("generate chat binding code: %w", err)
+	}
+	id, err := s.ids.NewID()
+	if err != nil {
+		return BindingCode{}, fmt.Errorf("generate chat binding code id: %w", err)
+	}
+	now := s.clock.Now()
+	record := domain.ChatBindingCode{
+		ID:        id,
+		TenantID:  tenant.TenantID,
+		UserID:    tenant.UserID,
+		Platform:  platform,
+		CodeHash:  hash,
+		CreatedAt: now,
+		ExpiresAt: now.Add(domain.ChatBindingCodeTTL),
+	}
+	err = s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
+		return transaction.InsertChatBindingCode(ctx, record)
+	})
+	if err != nil {
+		return BindingCode{}, err
+	}
+	// 明文只在这里出现一次，库里只有哈希。
+	return BindingCode{Code: raw, ExpiresAt: record.ExpiresAt}, nil
+}
+
+// RedeemBindingCode 由连接器在收到一条文本消息时调用：把发送者的外部账号绑定到
+// 发码的那个成员。无效、过期、已用过对外是同一句话，不告诉尝试者猜到了哪一步。
+func (s Service) RedeemBindingCode(
+	ctx context.Context,
+	platform, externalUserID, code string,
+) (domain.ChatIdentity, error) {
+	if !domain.ValidChatPlatform(platform) {
+		return domain.ChatIdentity{}, fmt.Errorf("%w: unsupported platform", domain.ErrInvalidInput)
+	}
+	if externalUserID == "" || code == "" {
+		return domain.ChatIdentity{}, domain.InvalidChatBindingCode()
+	}
+	var identity domain.ChatIdentity
+	err := s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
+		var redeemErr error
+		identity, redeemErr = transaction.RedeemChatBindingCode(
+			ctx,
+			platform,
+			s.tokens.Hash(code),
+			externalUserID,
+			s.clock.Now(),
+		)
+		return redeemErr
+	})
+	if err != nil {
+		return domain.ChatIdentity{}, err
+	}
+	return identity, nil
 }
 
 // Receive 解析发送者后按该成员的真实身份投件。

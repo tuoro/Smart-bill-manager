@@ -1312,9 +1312,11 @@ input[type='radio'] {
   background: #0e1217;
 }
 
+/* 不放大超过原始尺寸。原来写的是 width: 100%，一张 390px 宽的手机截图会被拉到
+   693px：字更糊，图元素高度随之涨到 1500px，而可视区只有 553px——一次只看得到
+   票据的三分之一。宽幅扫描件仍然按容器宽度缩小。 */
 .document-stage img {
-  width: 100%;
-  min-height: 480px;
+  max-width: 100%;
   border: 0;
   background: #ffffff;
   box-shadow: var(--shadow-paper);
@@ -3119,32 +3121,27 @@ input[type='radio'] {
   border-top: 1px solid var(--border);
 }
 
+/* 「原件」和「识别结果」必须并排：审核这件事就是对着原件逐字段核对，两样不同屏
+   这个页面就没法用。决策栏是核完之后才需要的，让它先让位。
+   决策栏在第 2 步压成一行后只剩 260px 就够用，三列的最小宽度因此降到 932px，
+   1280 宽（可用 1001px）放得下。 */
 @media (max-width: 1439px) {
-  /* 三列在这里放不下：1280 宽只有 1001px 可用，三列最小需要 1042px。以前的做法
-     是把决策栏整列压到「原件」和「字段」下面，主操作因此落在折叠线以下 500-700px
-     ——而完成审核正是这个页面存在的唯一理由。改成左列纵向叠放两个面板、右列留给
-     决策栏，两列只需 706px，1024 宽也放得下。 */
   .review-grid {
-    grid-template-columns: minmax(380px, 1fr) minmax(300px, 340px);
-  }
-
-  .source-panel {
-    grid-row: 1;
-    grid-column: 1;
-  }
-
-  .fields-panel {
-    grid-row: 2;
-    grid-column: 1;
-  }
-
-  .review-decision-column {
-    grid-row: 1 / span 2;
-    grid-column: 2;
+    grid-template-columns: minmax(300px, 0.9fr) minmax(340px, 1.1fr) minmax(260px, 300px);
   }
 }
 
 @media (max-width: 1279px) {
+  /* 三列再也塞不下时，先保住并排的那两列，决策栏整列落到下面。 */
+  .review-grid {
+    grid-template-columns: minmax(300px, 0.9fr) minmax(340px, 1.1fr);
+  }
+
+  .review-decision-column {
+    position: static;
+    grid-column: 1 / -1;
+  }
+
   .reimbursement-history-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3205,10 +3202,6 @@ input[type='radio'] {
 
   .document-stage {
     min-height: 430px;
-  }
-
-  .document-stage img {
-    min-height: 390px;
   }
 
   .login-layout {

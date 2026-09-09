@@ -8,6 +8,13 @@ const transparentPNG = Buffer.from(
   'base64',
 )
 
+// 竖屏手机支付截图（390x844）是最常见的一类原件。宽屏扫描件按容器缩小即可，
+// 窄图一旦被拉伸到容器宽度，字会更糊，图元素也会高到必须在框内反复滚动。
+const portraitPNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAYYAAANMCAIAAADXDp1JAAAIiElEQVR42u3bsQ2AMAxFwWzESKzrxhKF9wkzIINkiTv9CVK8ylnHeZmZDdnyBGYmSWZmkmRmkmRmJklmJklmZpJkZpJkZiZJZiZJZmaSZGaSZGYmSWZmkmRmkmRmJklmJklmZpJkZpJkZiZJZiZJZmaSZGaSZGYmSWYmSWZmkmRmJklmJklmZpJkZpJkZiZJZiZJZmaSZGaSZGYmSWYmSWZmkmRmkmRmJklmZpJkZpJkZiZJZiZJZmaSZGaSZGYmSWYmSWZmkmRmkmRmJklmJklmZpJkZiZJZiZJZmaSZGaSZGYmSWYmSWZmkmRmkmRmJklmJklmZpJkZpJkZiZJZmaSZGaSZGYmSWYmSWZmkmRmkmRmJklmJklmZpJkZpJkZiZJZiZJZmaSZGYmSWYmSWZmkmRmkmRmJklmJklmZpJkZpJkZiZJZiZJZmaSZGa/TNIGGEOSAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAlAkgBJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJQJIASQKQJECSAB4kKbLMzIZMksxMkszMJMnMJMnMTJLMTJLMzCTJzCTJzOz1JLkWBXwoAZAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJQJIASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCUCSAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAlAkgBJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJQJIASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCUCSAEkCkCRAkgAkCZAkgHaSIsvMbMgkycwkycxMksxMkszMJMnMJMnMrJUkdxCAU0kASQIkCUCSAEkCkCRAkgAkCZAkAEkCJAlAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJAiQJQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQIkCUCSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCJAlAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJAiQJQJIAJAmQJABJAiQJQJIASQKQJECSAD5JUmSZmQ2ZJJmZJJmZSZKZSZKZmSSZmSSZmbWS5A4CcCoJIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkAUgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEmAJAFIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkAUgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEmAJAFIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkAUgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEmAJAFIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkAUgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEmAJAFIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkAUgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEmAJAFIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkAUgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEmAJAFIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJgCQBSBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSYAkeQJAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCQASQKQJECSACQJkCQASQIkCUCSAEkCkCRAkgAkCZAkAEkCkCRAkgAkCZAkAEkCJAlAkgBJApAkQJIAJAmQJABJApAkQJIAJAmQJABJAiQJQJIASQKQJECSACQJkCRPAEgSgCQBkgQgSYAkAUgSIEkAkgRIEoAkAZIEIEkAkgRIEoAkAZIEIEmAJAFIEiBJAJIESBKAJAGSBCBJAJIESBKAJAGSBCBJgCQBSBIgSQCSBEgSgCQBkgQgSQCSBIxyA7V+k2188pBTAAAAAElFTkSuQmCC',
+  'base64',
+)
+
 test.describe('M1/M2 真实组件状态矩阵', () => {
   test('登录：默认遵循系统深色，手动切换后刷新保留选择', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
@@ -537,14 +544,9 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       .locator('section[aria-labelledby="final-title"]')
       .getByRole('button')
       .first()
-    for (const viewport of [
-      { width: 1366, height: 768 },
-      { width: 1280, height: 800 },
-    ]) {
-      await page.setViewportSize(viewport)
-      await page.evaluate(() => window.scrollTo(0, 0))
-      await expect(confirm).toBeInViewport({ ratio: 1 })
-    }
+
+    // 审核就是对着原件逐字段核对：这两块不并排，这个页面就没法用。任何宽度下
+    // 都必须并排，且都在首屏——它优先于「主操作常驻」。
     for (const viewport of [
       { width: 1440, height: 900 },
       { width: 1366, height: 768 },
@@ -552,9 +554,16 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       { width: 1024, height: 768 },
     ]) {
       await page.setViewportSize(viewport)
-      await page.evaluate(() => window.scrollTo(0, 400))
-      await expect(confirm).toBeInViewport({ ratio: 1 })
-      // 两列而不是三列：窄屏下横向不得溢出。
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const source = await page.locator('.source-panel').boundingBox()
+      const fields = await page.locator('.fields-panel').boundingBox()
+      expect(
+        source!.x + source!.width,
+        `${viewport.width} 原件与识别结果应并排`,
+      ).toBeLessThanOrEqual(fields!.x + 1)
+      expect(Math.abs(source!.y - fields!.y), `${viewport.width} 两块应对齐同一行`).toBeLessThan(2)
+      expect(fields!.y, `${viewport.width} 识别结果应在首屏`).toBeLessThan(viewport.height)
+      // 窄屏下横向不得溢出。
       await expect
         .poll(() =>
           page.evaluate(
@@ -563,6 +572,44 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
         )
         .toBe(true)
     }
+
+    // 三列放得下的宽度上，主操作同屏可见；1280 以下决策栏整列落到下面，
+    // 让位给并排的两块，主操作需要滚动才能到达。
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 1366, height: 768 },
+      { width: 1280, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(confirm).toBeInViewport({ ratio: 1 })
+    }
+  })
+
+  test('审核工作台：竖屏原件不被拉伸放大', async ({ page }) => {
+    await mockSession(page)
+    const review = readyReview('job-portrait')
+    await mockReview(page, review)
+    await page.route(
+      (url) => url.pathname.includes(`/documents/${review.job.document_id}`),
+      (route) => route.fulfill({ status: 200, contentType: 'image/png', body: portraitPNG }),
+    )
+    // 用宽屏：只有当原件列比原图还宽时，拉伸才会发生。
+    await page.setViewportSize({ width: 1920, height: 1080 })
+    await page.goto(`/reviews/${review.job.id}`)
+    await expect(page.locator('.review-grid')).toBeVisible()
+    const image = page.locator('.document-stage img').first()
+    await expect(image).toBeVisible()
+    const rendered = await image.evaluate((element) => {
+      const node = element as HTMLImageElement
+      const box = node.getBoundingClientRect()
+      return { width: box.width, height: box.height, natural: node.naturalWidth }
+    })
+    expect(rendered.natural, '夹具应是 390px 宽的竖屏截图').toBe(390)
+    expect(rendered.width, '窄图不得被放大到容器宽度').toBeLessThanOrEqual(rendered.natural)
+    // 拉伸的直接后果是图元素高到一屏放不下，人得在框里反复滚动才能看完一张票据。
+    const stage = await page.locator('.document-stage').boundingBox()
+    expect(rendered.height / stage!.height, '一张竖屏票据不该需要滚两屏以上').toBeLessThan(1.5)
   })
 
   test('审核工作台：阻断状态禁止确认', async ({ page }) => {

@@ -327,6 +327,42 @@ test('人工来源与行程凭证共用连续审核，行程不发送金额分�
   expect(state.confirmations[1]!.body).toEqual({ expected_revision: 1, duplicate_resolutions: [] })
 })
 
+// 行程凭证走同一个审核台但少一列决策（不创建金额分配），此前没有布局层面的
+// 覆盖。原件列在三列布局下只有约 338px，分页加三档缩放不换行就会被压成竖排。
+test('行程审核台：少一块决策面板，工具条不被挤成竖排', async ({ page }) => {
+  const trip = reductionReview(1)
+  trip.document_type = 'trip'
+  trip.fields = trip.fields.slice(0, 4).map((field, index) => ({
+    ...field,
+    path: ['document_type', 'destination', 'start_date', 'end_date'][index]!,
+    value_type: index < 2 ? 'string' : 'date',
+    value: ['trip', '合成目的地', '2026-09-05', '2026-09-06'][index],
+  }))
+  trip.pages[0]!.field_paths = trip.fields.map((field) => field.path)
+  await setup(page, [trip])
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.goto(reviewPath(trip))
+  await expect(page.locator('.review-grid')).toBeVisible()
+
+  // 行程不创建金额分配，那一块不该出现；其余两块与完成审核照旧。
+  await expect(page.getByRole('heading', { name: '金额分配', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '规则校验', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '完成审核', exact: true })).toBeVisible()
+
+  // 原件与识别结果仍并排，且都在首屏。
+  const source = await page.locator('.source-panel').boundingBox()
+  const fields = await page.locator('.fields-panel').boundingBox()
+  expect(Math.abs(source!.y - fields!.y)).toBeLessThan(2)
+  expect(fields!.y).toBeLessThan(768)
+
+  // 工具条按钮不得被压到逐字换行：每个按钮的高度应接近单行。
+  const heights = await page
+    .locator('.page-review-toolbar .button')
+    .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
+  expect(heights.length).toBeGreaterThan(3)
+  for (const height of heights) expect(height, '工具条按钮被挤成竖排').toBeLessThan(44)
+})
+
 test('409 停留并刷新：新 revision 经再次明确确认才推进', async ({ page }) => {
   const reviews = [reductionReview(1), reductionReview(2)]
   const state = await setup(page, reviews)

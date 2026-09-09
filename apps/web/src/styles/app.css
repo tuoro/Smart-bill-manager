@@ -1281,6 +1281,20 @@ input[type='radio'] {
   background: #e8ebf0;
 }
 
+/* 加载失败的提示要占满可视区并居中，否则它会缩在灰底一角，看起来仍像空白。 */
+.document-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: center;
+  justify-self: center;
+  max-width: 100%;
+  padding: 16px;
+  color: var(--danger);
+  text-align: center;
+}
+
 /* 原始大小时图会比可视区宽，居中会让左边缘滚不到，改为左上对齐。 */
 .document-stage[data-zoom='actual'] {
   place-items: start;
@@ -1299,13 +1313,22 @@ input[type='radio'] {
   color: var(--brand);
 }
 
+/* 必须允许换行：原件列在三列布局下只有约 338px，分页加三档缩放放不进一行，
+   不换行的后果是按钮被压到逐字竖排（「上一页」竖成三行）。 */
 .page-review-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+}
+
+.page-review-toolbar .button,
+.page-review-toolbar .page-position {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .page-number-list {
@@ -3446,10 +3469,6 @@ input[type='radio'] {
   .document-stage {
     height: clamp(360px, 60vh, 560px);
     padding: 10px;
-  }
-
-  .page-review-toolbar {
-    flex-wrap: wrap;
   }
 
   .page-number-list {

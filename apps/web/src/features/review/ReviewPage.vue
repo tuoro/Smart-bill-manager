@@ -259,11 +259,21 @@ const documentURL = computed(() =>
     ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/content`
     : '',
 )
+// 原件加载失败必须说出来。这个页面的工作是「对着原件核字段」，加载失败时
+// 原来只是留一块空白，审核人分不清是没有原件、还在加载、还是失败了——可能在
+// 从未看到原件的情况下确认字段。重试用递增的序号强制重新取，而不是改 URL 语义。
+const documentLoadFailed = ref(false)
+const documentAttempt = ref(0)
 const pageURL = computed(() =>
   review.value
-    ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/pages/${activePage.value}/content`
+    ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/pages/${activePage.value}/content${documentAttempt.value ? `?retry=${documentAttempt.value}` : ''}`
     : '',
 )
+
+function retryDocument() {
+  documentLoadFailed.value = false
+  documentAttempt.value += 1
+}
 
 async function load() {
   if (busy.value || uncertainAction.value) return
@@ -391,6 +401,7 @@ function selectPage(pageNumber: number) {
   activePage.value = pageNumber
   // 换页等于换一张图，上一页放大到哪里对下一页没有意义。
   documentZoom.value = 'page'
+  documentLoadFailed.value = false
 }
 
 function toggleEvidence(evidenceId: string) {
@@ -978,9 +989,17 @@ watch(
           </nav>
           <div class="document-stage" :data-zoom="documentZoom" tabindex="0" aria-label="原件预览">
             <img
+              v-show="!documentLoadFailed"
               :src="pageURL"
               :alt="`${review.job.original_name} 的第 ${activePage} 页规范化审核图`"
+              @error="documentLoadFailed = true"
+              @load="documentLoadFailed = false"
             />
+            <p v-if="documentLoadFailed" class="document-load-error" role="alert">
+              <AppIcon name="alert" /><span
+                >原件加载失败，无法与识别结果核对。确认前请先看到原件。</span
+              ><button class="text-button" type="button" @click="retryDocument">重试</button>
+            </p>
           </div>
           <div class="page-review-summary">
             <span>本页 {{ activePageInfo?.field_paths.length ?? 0 }} 个证据字段</span>

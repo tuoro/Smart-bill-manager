@@ -703,6 +703,35 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     expect(await scale()).toBeCloseTo(并排, 2)
   })
 
+  // 这个页面的工作是对着原件核字段。原件加载失败时原来只留一块空白灰，审核人
+  // 分不清是没有原件、还在加载、还是失败了——可能在从未看到原件的情况下确认。
+  test('审核工作台：原件加载失败必须说明并可重试', async ({ page }) => {
+    await mockSession(page)
+    const review = readyReview('job-broken-image')
+    await mockReview(page, review)
+    let serveImage = false
+    await page.route(
+      (url) => url.pathname.includes(`/documents/${review.job.document_id}`),
+      (route) =>
+        serveImage
+          ? route.fulfill({ status: 200, contentType: 'image/png', body: portraitPNG })
+          : route.fulfill({ status: 404, contentType: 'text/plain', body: 'missing' }),
+    )
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await page.goto(`/reviews/${review.job.id}`)
+    await expect(page.locator('.review-grid')).toBeVisible()
+
+    const failure = page.locator('.document-load-error')
+    await expect(failure).toBeVisible()
+    await expect(failure).toContainText('原件加载失败')
+    await expect(page.getByAltText(/规范化审核图/)).toBeHidden()
+
+    serveImage = true
+    await failure.getByRole('button', { name: '重试', exact: true }).click()
+    await expect(failure).toHaveCount(0)
+    await expect(page.getByAltText(/规范化审核图/)).toBeVisible()
+  })
+
   test('审核工作台：阻断状态禁止确认', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
     await mockSession(page)

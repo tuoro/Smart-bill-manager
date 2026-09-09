@@ -832,8 +832,12 @@ watch(
       <header class="page-header review-header">
         <div>
           <h1 ref="taskHeading" tabindex="-1">审核单据</h1>
-          <p class="review-document-name">{{ review.job.original_name }}</p>
-          <p class="page-header-meta">版本 {{ review.revision }} · 共 {{ review.page_count }} 页</p>
+          <p class="review-document-meta">
+            <strong class="review-document-name">{{ review.job.original_name }}</strong
+            ><span>{{ review.entry_mode === 'manual' ? '已转人工' : 'AI 提取' }}</span
+            ><span>版本 {{ review.revision }}</span
+            ><span>共 {{ review.page_count }} 页</span>
+          </p>
         </div>
         <div class="page-actions">
           <span class="status" :data-tone="review.claim_status === 'blocked' ? 'danger' : 'warning'"
@@ -849,16 +853,6 @@ watch(
           </button>
         </div>
       </header>
-
-      <ol class="review-steps" aria-label="处理进度">
-        <li class="done"><span>1</span><strong>上传完成</strong></li>
-        <li class="done">
-          <span>2</span
-          ><strong>{{ review.entry_mode === 'manual' ? '已转人工' : 'AI 提取' }}</strong>
-        </li>
-        <li class="current"><span>3</span><strong>人工审核</strong></li>
-        <li><span>4</span><strong>保存记录</strong></li>
-      </ol>
 
       <p v-if="review.entry_mode === 'manual'" class="notice manual-source-notice">
         此单据由用户显式接管，字段及证据由人工填写，不代表 AI 识别成功。原件与识别失败历史保留。

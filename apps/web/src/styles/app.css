@@ -186,17 +186,24 @@ small {
   padding-right: 16px;
 }
 
+/* 与 .button 同一套记号：同样的边框、圆角与 hover 反馈，只是收成方形。
+   此前用的是更浅的 --border，而且没有 hover 与禁用表现。 */
 .icon-button {
   display: grid;
   width: 36px;
   height: 36px;
   padding: 0;
   place-items: center;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: transparent;
+  background: var(--surface);
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--brand);
 }
 
 .user-summary {
@@ -216,12 +223,6 @@ small {
 .user-summary span {
   color: var(--text-muted);
   font-size: 12px;
-}
-
-.topbar .button-quiet {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text-secondary);
 }
 
 .app-body {
@@ -489,7 +490,11 @@ dialog.sidebar::backdrop {
   color: var(--brand);
 }
 
+/* 三类按钮共用同一套禁用表现。此前只有 .button 受影响，十一个可禁用的文字按钮
+   和图标按钮禁用后毫无变化，看上去仍然可以点。 */
 .button:disabled,
+.text-button:disabled,
+.icon-button:disabled,
 .button[aria-disabled='true'],
 .upload-button[aria-disabled='true'] {
   cursor: not-allowed;
@@ -542,6 +547,18 @@ dialog.sidebar::backdrop {
 
 .text-button:hover:not(:disabled) {
   text-decoration: underline;
+}
+
+/* 无边框按钮。原来只在 .topbar 下有定义，别处写了这个类等于没写。 */
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.button-quiet:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .panel {

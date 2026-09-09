@@ -134,12 +134,7 @@ async function save() {
           />
         </label>
         <div v-if="editable" class="database-actions">
-          <button
-            class="button button-secondary"
-            type="button"
-            :disabled="pending || testing"
-            @click="test"
-          >
+          <button class="button" type="button" :disabled="pending || testing" @click="test">
             {{ testing ? '正在检测…' : '检测连接' }}
           </button>
           <button class="button button-primary" type="submit" :disabled="pending || testing">

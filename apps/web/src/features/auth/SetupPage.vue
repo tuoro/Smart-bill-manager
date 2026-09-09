@@ -252,7 +252,7 @@ async function submit() {
 
           <div class="setup-actions">
             <button
-              class="button button-secondary"
+              class="button"
               type="button"
               :disabled="pending || testing"
               @click="testDatabase"

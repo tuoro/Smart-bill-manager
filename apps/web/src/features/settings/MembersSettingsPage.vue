@@ -154,12 +154,7 @@ onBeforeUnmount(() => {
         <h1>成员管理</h1>
         <p>管理当前工作区成员，不会改写其在其他工作区的身份。</p>
       </div>
-      <button
-        v-if="canManage"
-        class="button button-secondary"
-        :disabled="busy || loading"
-        @click="load()"
-      >
+      <button v-if="canManage" class="button" :disabled="busy || loading" @click="load()">
         刷新成员
       </button>
     </header>
@@ -178,7 +173,7 @@ onBeforeUnmount(() => {
             >
           </div>
           <button
-            class="button button-secondary"
+            class="button"
             :aria-label="`管理 ${member.email}`"
             :disabled="busy || loading"
             @click="edit(member, $event)"
@@ -189,13 +184,13 @@ onBeforeUnmount(() => {
       </ul>
       <nav class="member-actions" aria-label="成员分页">
         <button
-          class="button button-secondary"
+          class="button"
           :disabled="busy || loading || !!target || !history.length"
           @click="previousPage"
         >
           上一页</button
         ><button
-          class="button button-secondary"
+          class="button"
           :disabled="busy || loading || !!target || !nextCursor"
           @click="nextPage"
         >
@@ -237,7 +232,7 @@ onBeforeUnmount(() => {
         <div v-if="stale" class="notice notice-stack">
           <p>请比较上方最新状态与保留的选择，再次确认。</p>
           <button
-            class="button button-secondary"
+            class="button"
             type="button"
             :disabled="busy || loading || !recheckReady"
             @click="stale = false"
@@ -262,9 +257,7 @@ onBeforeUnmount(() => {
             :disabled="busy || loading || stale || !draft.reason.trim()"
           >
             核对变更</button
-          ><button class="button button-secondary" type="button" :disabled="busy" @click="cancel">
-            取消编辑
-          </button>
+          ><button class="button" type="button" :disabled="busy" @click="cancel">取消编辑</button>
         </div>
       </form>
       <InvitationsPanel :disabled="pending" @busy="inviteBusy = $event" />

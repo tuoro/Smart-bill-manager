@@ -102,11 +102,7 @@ async function join() {
             required
             :disabled="pending"
         /></label>
-        <button
-          class="button button-secondary"
-          type="submit"
-          :disabled="pending || code.length !== 43"
-        >
+        <button class="button" type="submit" :disabled="pending || code.length !== 43">
           {{ view ? '重新检查邀请' : '检查邀请' }}
         </button>
       </form>

@@ -164,9 +164,7 @@ onBeforeUnmount(() => {
   <section class="invitations-panel" aria-labelledby="invitations-title">
     <header class="invitation-actions">
       <h2 id="invitations-title">邀请成员</h2>
-      <button class="button button-secondary" :disabled="busy || loading" @click="load()">
-        刷新邀请
-      </button>
+      <button class="button" :disabled="busy || loading" @click="load()">刷新邀请</button>
     </header>
     <p>
       邀请有效期为 48 小时。把一次性代码单独交给受邀人，由其在“加入工作区”页面填写；不会发送邮件。
@@ -212,8 +210,8 @@ onBeforeUnmount(() => {
         ><input :value="code" class="input" readonly autocomplete="off" spellcheck="false"
       /></label>
       <div class="invitation-actions">
-        <button class="button button-secondary" @click="copyCode">复制邀请代码</button
-        ><button class="button button-secondary" @click="closeCode">已保存，关闭代码</button>
+        <button class="button" @click="copyCode">复制邀请代码</button
+        ><button class="button" @click="closeCode">已保存，关闭代码</button>
       </div>
       <p v-if="copyMessage" role="status">{{ copyMessage }}</p>
     </div>
@@ -227,7 +225,7 @@ onBeforeUnmount(() => {
         </div>
         <button
           v-if="item.version === 1"
-          class="button button-secondary"
+          class="button"
           :disabled="busy || loading"
           :aria-label="`撤销 ${item.email} 的邀请`"
           @click="selectRevoke(item)"
@@ -238,13 +236,13 @@ onBeforeUnmount(() => {
     </ul>
     <div class="invitation-actions">
       <button
-        class="button button-secondary"
+        class="button"
         :disabled="busy || loading || !!revokeTarget || !history.length"
         @click="previousPage"
       >
         上一页邀请</button
       ><button
-        class="button button-secondary"
+        class="button"
         :disabled="busy || loading || !!revokeTarget || !nextCursor"
         @click="nextPage"
       >
@@ -271,12 +269,7 @@ onBeforeUnmount(() => {
           :disabled="busy || loading || revokeTarget.version !== 1"
         >
           确认撤销邀请</button
-        ><button
-          class="button button-secondary"
-          type="button"
-          :disabled="busy"
-          @click="revokeTarget = null"
-        >
+        ><button class="button" type="button" :disabled="busy" @click="revokeTarget = null">
           取消撤销
         </button>
       </div>

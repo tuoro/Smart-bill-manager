@@ -209,7 +209,20 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     await expect(page.getByRole('status')).toContainText('正在汇总单据')
     release()
     await expect(page.getByRole('alert')).toContainText('洞察服务暂时不可用')
-    await page.getByRole('button', { name: '重试' }).click()
+
+    // 禁用要看得出来。文字按钮此前不在禁用样式的选择器里：离线时「重试」确实
+    // 点不动，但外观和可点时一模一样。
+    const retry = page.getByRole('button', { name: '重试' })
+    await context.setOffline(true)
+    await page.evaluate(() => window.dispatchEvent(new Event('offline')))
+    await expect(retry).toBeDisabled()
+    await expect(retry).toHaveCSS('opacity', '0.52')
+    await context.setOffline(false)
+    await page.evaluate(() => window.dispatchEvent(new Event('online')))
+    await expect(retry).toBeEnabled()
+    await expect(retry).toHaveCSS('opacity', '1')
+
+    await retry.click()
     await expect(page.getByText('当前筛选没有汇总')).toBeVisible()
     await expect(page.getByText('当前筛选没有单据')).toBeVisible()
 

@@ -38,6 +38,14 @@ func ValidChatPlatform(platform string) bool {
 	return platform == ChatPlatformDingTalk
 }
 
+// ChatBinding 是展示给成员看的当前绑定。外部账号标识原样给出而不做遮罩：这是
+// 他自己的账号，看得见才好确认绑的是不是手上这一个。
+type ChatBinding struct {
+	Platform       string
+	ExternalUserID string
+	CreatedAt      time.Time
+}
+
 // ChatIdentity 把一个外部账号解析成确定的租户成员。一个外部账号最多对应一个
 // 成员，歧义在收单路径上不可接受。
 // ChatBindingCode 是待兑换的一次性凭据；只有哈希会落库。

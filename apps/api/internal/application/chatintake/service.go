@@ -171,3 +171,46 @@ func (s Service) Receive(ctx context.Context, message Message) (Result, error) {
 		JobID:      uploaded.JobID,
 	}, nil
 }
+
+func (s Service) ListBindings(
+	ctx context.Context,
+	tenant domain.TenantContext,
+) ([]domain.ChatBinding, error) {
+	var bindings []domain.ChatBinding
+	err := s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
+		var listErr error
+		bindings, listErr = transaction.ListChatIdentities(ctx, tenant.TenantID, tenant.UserID)
+		return listErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return bindings, nil
+}
+
+// Unbind 只解除自己名下的绑定。丢了手机、或者账号被别人接管时，这是把投件能力
+// 收回来的动作，因此不需要任何额外能力——本人随时可以断开自己的通道。
+func (s Service) Unbind(
+	ctx context.Context,
+	tenant domain.TenantContext,
+	platform string,
+) error {
+	if !domain.ValidChatPlatform(platform) {
+		return fmt.Errorf("%w: unsupported platform", domain.ErrInvalidInput)
+	}
+	return s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
+		removed, err := transaction.DeleteChatIdentity(
+			ctx,
+			platform,
+			tenant.TenantID,
+			tenant.UserID,
+		)
+		if err != nil {
+			return err
+		}
+		if !removed {
+			return domain.ErrNotFound
+		}
+		return nil
+	})
+}

@@ -56,6 +56,8 @@ async function fixture(
     errors: [] as string[],
     memberReads: 0,
     sessionReads: 0,
+    issuedCodes: 0,
+    chatBindings: [] as { platform: string; external_user_id: string; created_at: string }[],
   }
   page.on('pageerror', (error) => state.errors.push(error.name))
   await page.route('**/api/v1/**', async (route) => {
@@ -108,6 +110,24 @@ async function fixture(
     if (path === '/api/v1/invitations/accept') {
       if (req.postDataJSON().password === 'synthetic-wrong-password')
         return failure(401, 'invalid_credentials', '邮箱或密码不正确')
+      return route.fulfill({ status: 204 })
+    }
+    if (path === '/api/v1/chat-bindings' && method === 'GET')
+      return reply({ items: state.chatBindings })
+    if (path === '/api/v1/chat-binding-codes' && method === 'POST') {
+      state.issuedCodes++
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          platform: 'dingtalk',
+          code: `synthetic-binding-code-${state.issuedCodes}`,
+          expires_at: '2099-01-01T00:00:00Z',
+        }),
+      })
+    }
+    if (path.startsWith('/api/v1/chat-bindings/') && method === 'DELETE') {
+      state.chatBindings = []
       return route.fulfill({ status: 204 })
     }
     if (path === '/api/v1/account/password') {
@@ -398,4 +418,35 @@ test('新账号加入与成员、账号页面四尺寸双主题检查', async ({
   await expect(page.getByRole('heading', { name: '已加入工作区' })).toBeVisible()
   expect(state.errors).toEqual([])
   expect(state.unexpected).toEqual([])
+})
+
+// 绑定码是聊天通道唯一的身份来源：拿到它就证明本人能登录网页。它只显示这一次，
+// 界面必须把这一点说清楚，否则人会以为随时能回来再看。
+test('聊天投递：生成绑定码、显示当前绑定并可解除', async ({ page }) => {
+  const state = await fixture(page)
+  await page.goto('/settings/account')
+  const panel = page.locator('section[aria-labelledby="chat-binding-title"]')
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText('当前没有绑定任何聊天账号。')).toBeVisible()
+
+  await panel.getByRole('button', { name: '生成钉钉绑定码', exact: true }).click()
+  await expect(panel.locator('code')).toHaveText('synthetic-binding-code-1')
+  await expect(panel).toContainText('只能使用一次')
+  await expect(panel).toContainText('只显示这一次')
+
+  // 已经绑定过时，主按钮说的是「重新生成」，并且写明会替换当前账号。
+  state.chatBindings = [
+    {
+      platform: 'dingtalk',
+      external_user_id: 'ding-synthetic',
+      created_at: '2026-09-10T02:00:00Z',
+    },
+  ]
+  await page.reload()
+  await expect(panel.getByText('ding-synthetic')).toBeVisible()
+  await expect(panel.getByRole('button', { name: '重新生成绑定码', exact: true })).toBeVisible()
+
+  await panel.getByRole('button', { name: '解除绑定', exact: true }).click()
+  await expect(panel.getByText('当前没有绑定任何聊天账号。')).toBeVisible()
+  expect(state.errors).toEqual([])
 })

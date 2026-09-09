@@ -25,4 +25,11 @@ type ChatIdentityTransaction interface {
 		platform, codeHash, externalUserID string,
 		now time.Time,
 	) (domain.ChatIdentity, error)
+
+	ListChatIdentities(
+		ctx context.Context,
+		tenantID, userID string,
+	) ([]domain.ChatBinding, error)
+
+	DeleteChatIdentity(ctx context.Context, platform, tenantID, userID string) (bool, error)
 }

@@ -320,6 +320,69 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { description: unauthenticated 会话失效；invalid_credentials 当前密码不正确，不应清空表单 }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /chat-bindings:
+    get:
+      operationId: listChatBindings
+      tags: [accounts]
+      description: 当前成员自己的聊天账号绑定；只返回本人的，不返回其他成员的。
+      responses:
+        "200":
+          description: 当前成员的绑定列表
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/ChatBinding" }
+        "401": { description: 会话失效 }
+  /chat-bindings/{platform}:
+    delete:
+      operationId: deleteChatBinding
+      tags: [accounts]
+      description: 解除自己的绑定，收回该账号的投件能力。手机丢失或换号时使用。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+        - name: platform
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/ChatPlatform" }
+      responses:
+        "204": { description: 已解绑 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: 会话失效 }
+        "404": { description: 当前成员在该平台上没有绑定 }
+  /chat-binding-codes:
+    post:
+      operationId: createChatBindingCode
+      tags: [accounts]
+      description: >-
+        生成一次性绑定码。持有它即证明持有者能登录网页、因而是在册成员——这正是
+        聊天通道自身无法证明的事。明文只在本次响应返回，服务端只保存哈希，因此
+        不提供重新获取；忘记就重新生成一张。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [platform]
+              properties:
+                platform: { $ref: "#/components/schemas/ChatPlatform" }
+      responses:
+        "201":
+          description: 绑定码已生成，明文仅此一次返回
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatBindingCode" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: 会话失效 }
   /facts/{fact_type}/{fact_id}/correction:
     parameters:
       - $ref: "#/components/parameters/CorrectionFactType"
@@ -2630,6 +2693,32 @@ components:
         reason_codes:
           type: array
           items: { type: string }
+    ChatPlatform:
+      type: string
+      enum: [dingtalk]
+      description: >-
+        目前只有钉钉。它是唯一既能接收文件、又能用出站长连接接收事件的通道，
+        而本系统只监听回环，开不了公网回调。
+    ChatBinding:
+      type: object
+      additionalProperties: false
+      required: [platform, external_user_id, created_at]
+      properties:
+        platform: { $ref: "#/components/schemas/ChatPlatform" }
+        external_user_id:
+          type: string
+          description: 该平台上的账号标识。这是成员自己的账号，原样给出便于确认绑的是哪一个。
+        created_at: { type: string, format: date-time }
+    ChatBindingCode:
+      type: object
+      additionalProperties: false
+      required: [platform, code, expires_at]
+      properties:
+        platform: { $ref: "#/components/schemas/ChatPlatform" }
+        code:
+          type: string
+          description: 一次性明文绑定码，仅此一次返回。
+        expires_at: { type: string, format: date-time }
     DuplicateCandidate:
       type: object
       additionalProperties: false

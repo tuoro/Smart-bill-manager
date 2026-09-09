@@ -23,6 +23,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatintake"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
@@ -237,6 +238,13 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	reimbursementService := reimbursements.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	insightService := insights.NewService(store)
+	chatIntakeService := chatintake.NewService(
+		store,
+		uploadService,
+		cryptography.TokenGenerator{},
+		system.IDGenerator{},
+		system.Clock{},
+	)
 	httpServer, err := httpapi.NewServer(
 		authService,
 		accounts.NewService(store, hasher, cryptography.TokenGenerator{}, system.IDGenerator{}, system.Clock{}),
@@ -253,6 +261,7 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 		tripService,
 		reimbursementService,
 		insightService,
+		chatIntakeService,
 		exportService,
 		bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}),
 		store,
@@ -416,7 +425,6 @@ func autoInitializeSchema(ctx context.Context, value config, logger *slog.Logger
 	logger.Info("auto initialize: schema is up to date")
 	return nil
 }
-
 
 // allowMigration 是升级前的确认门禁：迁移不可回滚，必须由部署者显式声明。
 func allowMigration() bool {

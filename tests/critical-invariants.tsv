@@ -242,3 +242,4 @@ restore-activation	ordinary-object-root-precondition	./internal/adapters/restore
 restore-activation	raw-master-key-terminal-byte-preservation	./internal/adapters/cryptography	TestLoadMasterKeyPreservesEveryRawTerminalByte
 chat-intake-sender-binding	未绑定发送者、被停用成员与不受支持平台一律拒收且不写入任何 Document；已绑定成员按其真实角色投递并标记来源	./internal/application/chatintake	TestChatIntakeRejectsUnlinkedSenderWithoutWritingAnything
 chat-binding-code-single-use	绑定码一次性、有期限、猜错与用过同一句话；重新绑定替换旧账号；已绑到他人的账号拒绝换绑且不消耗码	./internal/application/chatintake	TestChatBindingCodeIsSingleUseAndExpires
+chat-binding-http-boundary	绑定码端点要求会话与 CSRF；不受支持平台在入口拒绝；只返回与解除本人绑定，无绑定时解绑为 404	./internal/transport/httpapi	TestChatBindingEndpointsRequireSessionCSRFAndOwnScope

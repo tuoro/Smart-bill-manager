@@ -142,3 +142,59 @@ func (t transaction) RedeemChatBindingCode(
 	}
 	return identity, nil
 }
+
+func (t transaction) ListChatIdentities(
+	ctx context.Context,
+	tenantID, userID string,
+) ([]domain.ChatBinding, error) {
+	rows, err := t.tx.QueryContext(
+		ctx,
+		`SELECT platform, external_user_id, created_at
+		FROM chat_identities WHERE tenant_id = ? AND user_id = ?
+		ORDER BY platform`,
+		tenantID,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list chat identities: %w", err)
+	}
+	defer rows.Close()
+	bindings := make([]domain.ChatBinding, 0)
+	for rows.Next() {
+		var binding domain.ChatBinding
+		if err := rows.Scan(
+			&binding.Platform,
+			&binding.ExternalUserID,
+			&binding.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan chat identity: %w", err)
+		}
+		bindings = append(bindings, binding)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate chat identities: %w", err)
+	}
+	return bindings, nil
+}
+
+// 只解绑自己名下的：租户与成员都写进 WHERE，不依赖调用方先查一次。
+func (t transaction) DeleteChatIdentity(
+	ctx context.Context,
+	platform, tenantID, userID string,
+) (bool, error) {
+	result, err := t.tx.ExecContext(
+		ctx,
+		`DELETE FROM chat_identities WHERE platform = ? AND tenant_id = ? AND user_id = ?`,
+		platform,
+		tenantID,
+		userID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("delete chat identity: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("delete chat identity rows: %w", err)
+	}
+	return affected > 0, nil
+}

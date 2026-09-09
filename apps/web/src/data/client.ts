@@ -87,6 +87,9 @@ export type AllocationTargetPage = components['schemas']['AllocationTargetPage']
 export type AllocationAdjustmentRequest = components['schemas']['AllocationAdjustmentRequest']
 export type AllocationAdjustmentResult = components['schemas']['AllocationAdjustmentResult']
 export type ProviderConfig = components['schemas']['ProviderConfig']
+export type ChatPlatform = components['schemas']['ChatPlatform']
+export type ChatBinding = components['schemas']['ChatBinding']
+export type ChatBindingCode = components['schemas']['ChatBindingCode']
 export type UploadResult = components['schemas']['UploadResult']
 export type EmailSourceRegistration = components['schemas']['EmailSourceRegistration']
 export type EmailSource = components['schemas']['EmailSource']
@@ -314,6 +317,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ current_password, new_password }),
     })
+  },
+  chatBindings(): Promise<{ items: ChatBinding[] }> {
+    return request('/chat-bindings')
+  },
+  createChatBindingCode(platform: ChatPlatform): Promise<ChatBindingCode> {
+    return request('/chat-binding-codes', {
+      method: 'POST',
+      body: JSON.stringify({ platform }),
+    })
+  },
+  deleteChatBinding(platform: ChatPlatform): Promise<void> {
+    return request(`/chat-bindings/${encodeURIComponent(platform)}`, { method: 'DELETE' })
   },
   invoiceMaterials(id: string): Promise<InvoiceMaterialWorkspace> {
     return request(`/invoices/${encodeURIComponent(id)}/materials`)

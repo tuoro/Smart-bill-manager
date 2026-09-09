@@ -33,6 +33,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatintake"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
@@ -1211,12 +1212,19 @@ func newHTTPTestFixtureWithOwner(t *testing.T, withOwner bool) *httpTestFixture 
 		t.Fatal(err)
 	}
 	exportService := materialexports.NewService(store, objects, objects, system.IDGenerator{})
+	chatIntakeService := chatintake.NewService(
+		store,
+		uploadService,
+		cryptography.TokenGenerator{},
+		system.IDGenerator{},
+		system.Clock{},
+	)
 	t.Cleanup(func() {
 		if err := exportService.Close(); err != nil {
 			t.Error(err)
 		}
 	})
-	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, DatabaseSettingsStore{Directory: root, MigrationsDir: projectPath(t, "infra", "migrations"), Managed: true}, postgresqladapter.Config{Host: "127.0.0.1", Port: 5432, Database: "test", User: "test"}, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, chatIntakeService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, DatabaseSettingsStore{Directory: root, MigrationsDir: projectPath(t, "infra", "migrations"), Managed: true}, postgresqladapter.Config{Host: "127.0.0.1", Port: 5432, Database: "test", User: "test"}, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

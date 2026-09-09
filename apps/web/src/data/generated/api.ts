@@ -223,6 +223,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 当前成员自己的聊天账号绑定；只返回本人的，不返回其他成员的。 */
+        get: operations["listChatBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-bindings/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description 解除自己的绑定，收回该账号的投件能力。手机丢失或换号时使用。 */
+        delete: operations["deleteChatBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-binding-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 生成一次性绑定码。持有它即证明持有者能登录网页、因而是在册成员——这正是 聊天通道自身无法证明的事。明文只在本次响应返回，服务端只保存哈希，因此 不提供重新获取；忘记就重新生成一张。 */
+        post: operations["createChatBindingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/facts/{fact_type}/{fact_id}/correction": {
         parameters: {
             query?: never;
@@ -1589,6 +1640,25 @@ export interface components {
             date_distance_days: number;
             reason_codes: string[];
         };
+        /**
+         * @description 目前只有钉钉。它是唯一既能接收文件、又能用出站长连接接收事件的通道， 而本系统只监听回环，开不了公网回调。
+         * @enum {string}
+         */
+        ChatPlatform: "dingtalk";
+        ChatBinding: {
+            platform: components["schemas"]["ChatPlatform"];
+            /** @description 该平台上的账号标识。这是成员自己的账号，原样给出便于确认绑的是哪一个。 */
+            external_user_id: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        ChatBindingCode: {
+            platform: components["schemas"]["ChatPlatform"];
+            /** @description 一次性明文绑定码，仅此一次返回。 */
+            code: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
         DuplicateCandidate: {
             /** Format: uuid */
             id: string;
@@ -2896,6 +2966,108 @@ export interface operations {
                 content?: never;
             };
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listChatBindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 当前成员的绑定列表 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ChatBinding"][];
+                    };
+                };
+            };
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deleteChatBinding: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已解绑 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 当前成员在该平台上没有绑定 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createChatBindingCode: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    platform: components["schemas"]["ChatPlatform"];
+                };
+            };
+        };
+        responses: {
+            /** @description 绑定码已生成，明文仅此一次返回 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatBindingCode"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getFactCorrection: {

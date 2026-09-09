@@ -705,31 +705,54 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
 
   // 这个页面的工作是对着原件核字段。原件加载失败时原来只留一块空白灰，审核人
   // 分不清是没有原件、还在加载、还是失败了——可能在从未看到原件的情况下确认。
-  test('审核工作台：原件加载失败必须说明并可重试', async ({ page }) => {
+  test('审核工作台：原件加载失败必须说明、拦住确认并可重试', async ({ page }) => {
     await mockSession(page)
     const review = readyReview('job-broken-image')
+    review.page_count = 2
+    review.pages = [
+      { page_number: 1, field_paths: review.fields.map((field) => field.path), item_keys: [] },
+      { page_number: 2, field_paths: [], item_keys: [] },
+    ]
     await mockReview(page, review)
-    let serveImage = false
+    const broken = new Set([1])
     await page.route(
       (url) => url.pathname.includes(`/documents/${review.job.document_id}`),
-      (route) =>
-        serveImage
-          ? route.fulfill({ status: 200, contentType: 'image/png', body: portraitPNG })
-          : route.fulfill({ status: 404, contentType: 'text/plain', body: 'missing' }),
+      (route) => {
+        const match = /\/pages\/(\d+)\//.exec(new URL(route.request().url()).pathname)
+        const number = match ? Number(match[1]) : 0
+        return broken.has(number)
+          ? route.fulfill({ status: 404, contentType: 'text/plain', body: 'missing' })
+          : route.fulfill({ status: 200, contentType: 'image/png', body: portraitPNG })
+      },
     )
     await page.setViewportSize({ width: 1366, height: 768 })
     await page.goto(`/reviews/${review.job.id}`)
     await expect(page.locator('.review-grid')).toBeVisible()
 
     const failure = page.locator('.document-load-error')
+    const confirm = page.getByRole('button', { name: /^确认/ })
     await expect(failure).toBeVisible()
     await expect(failure).toContainText('原件加载失败')
     await expect(page.getByAltText(/规范化审核图/)).toBeHidden()
+    // 看不到原件就不能确认：审核台的前提是「你看过原件了」。
+    await expect(confirm).toBeDisabled()
+    await expect(page.locator('.final-actions')).toContainText('第 1 页原件加载')
 
-    serveImage = true
+    // 翻到能显示的一页也不解锁——第 1 页的原件仍然没人看过。
+    await page.getByRole('button', { name: '下一页', exact: true }).click()
+    await expect(page.getByAltText(/第 2 页规范化审核图/)).toBeVisible()
+    await expect(confirm).toBeDisabled()
+    await expect(page.locator('.final-actions')).toContainText('第 1 页原件加载')
+
+    // 回到失败那页仍然失败；服务端恢复后，明确重试才解锁。
+    await page.getByRole('button', { name: '上一页', exact: true }).click()
+    await expect(failure).toBeVisible()
+    await expect(confirm).toBeDisabled()
+    broken.clear()
     await failure.getByRole('button', { name: '重试', exact: true }).click()
     await expect(failure).toHaveCount(0)
-    await expect(page.getByAltText(/规范化审核图/)).toBeVisible()
+    await expect(page.getByAltText(/第 1 页规范化审核图/)).toBeVisible()
+    await expect(confirm).toBeEnabled()
   })
 
   test('审核工作台：阻断状态禁止确认', async ({ page }) => {

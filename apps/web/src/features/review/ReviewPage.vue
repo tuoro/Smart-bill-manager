@@ -240,6 +240,24 @@ const duplicateDecision = computed(() =>
     : null,
 )
 const isTripReview = computed(() => review.value?.document_type === 'trip')
+// 原件加载失败必须说出来，并且拦住确认。这个页面的工作是「对着原件核字段」，
+// 看不到原件还能确认，等于这个前提可以被绕过。按页记住失败而不是只看当前页：
+// 否则翻到下一页就能把拦截甩掉，而那一页的原件仍然没人看过。
+const failedPages = ref(new Set<number>())
+const documentLoadFailed = computed(() => failedPages.value.has(activePage.value))
+const documentAttempt = ref(0)
+
+function markDocumentFailed() {
+  failedPages.value = new Set(failedPages.value).add(activePage.value)
+}
+
+function markDocumentLoaded() {
+  if (!failedPages.value.has(activePage.value)) return
+  const remaining = new Set(failedPages.value)
+  remaining.delete(activePage.value)
+  failedPages.value = remaining
+}
+
 const canConfirm = computed(() =>
   Boolean(
     review.value &&
@@ -250,6 +268,7 @@ const canConfirm = computed(() =>
     !editing.value &&
     !needsRefresh.value &&
     review.value.claim_status === 'ready_for_review' &&
+    failedPages.value.size === 0 &&
     (isTripReview.value || associationDecision.value?.request) &&
     duplicateDecision.value?.request,
   ),
@@ -259,11 +278,7 @@ const documentURL = computed(() =>
     ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/content`
     : '',
 )
-// 原件加载失败必须说出来。这个页面的工作是「对着原件核字段」，加载失败时
-// 原来只是留一块空白，审核人分不清是没有原件、还在加载、还是失败了——可能在
-// 从未看到原件的情况下确认字段。重试用递增的序号强制重新取，而不是改 URL 语义。
-const documentLoadFailed = ref(false)
-const documentAttempt = ref(0)
+
 const pageURL = computed(() =>
   review.value
     ? `/api/v1/documents/${encodeURIComponent(review.value.job.document_id)}/pages/${activePage.value}/content${documentAttempt.value ? `?retry=${documentAttempt.value}` : ''}`
@@ -271,7 +286,6 @@ const pageURL = computed(() =>
 )
 
 function retryDocument() {
-  documentLoadFailed.value = false
   documentAttempt.value += 1
 }
 
@@ -401,7 +415,6 @@ function selectPage(pageNumber: number) {
   activePage.value = pageNumber
   // 换页等于换一张图，上一页放大到哪里对下一页没有意义。
   documentZoom.value = 'page'
-  documentLoadFailed.value = false
 }
 
 function toggleEvidence(evidenceId: string) {
@@ -713,6 +726,10 @@ watch(
     fieldErrors.value = {}
     selectedPath.value = ''
     activePage.value = 1
+    // 换单据就是换一整份原件，上一份哪几页加载失败与这一份无关。
+    failedPages.value = new Set()
+    documentZoom.value = 'page'
+    sourceExpanded.value = false
     associationMode.value = ''
     allocationItems.value = []
     duplicateResolutionIds.value = []
@@ -992,8 +1009,8 @@ watch(
               v-show="!documentLoadFailed"
               :src="pageURL"
               :alt="`${review.job.original_name} 的第 ${activePage} 页规范化审核图`"
-              @error="documentLoadFailed = true"
-              @load="documentLoadFailed = false"
+              @error="markDocumentFailed"
+              @load="markDocumentLoaded"
             />
             <p v-if="documentLoadFailed" class="document-load-error" role="alert">
               <AppIcon name="alert" /><span
@@ -1476,6 +1493,10 @@ watch(
             </p>
             <p v-else-if="review.claim_status === 'blocked'" class="danger-text">
               当前识别结果未通过校验，请先修订字段并保存，再完成审核。
+            </p>
+            <p v-else-if="failedPages.size" class="danger-text">
+              第 {{ [...failedPages].sort((left, right) => left - right).join('、') }} 页原件加载
+              失败，尚未与识别结果核对过，不能确认。请在「原始单据」里重试加载。
             </p>
             <p v-else-if="duplicateDecision && !duplicateDecision.request">
               {{ duplicateDecision.error }}

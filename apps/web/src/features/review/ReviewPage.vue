@@ -137,6 +137,11 @@ const confirmLabel = computed(() => {
     return inQueue.value ? '确认保存，不分配并继续' : '确认保存，不分配'
   return inQueue.value ? '确认保存并继续' : '确认并保存记录'
 })
+// 决策栏里没有待办的面板压成一行。三张写着「没问题」的卡片和唯一那个决定性
+// 动作长得一模一样，等于告诉人它们同样重要——那就等于都不重要。
+const validationResolved = computed(() => actionableValidations.value.length === 0)
+const duplicatesResolved = computed(() => review.value?.duplicate_candidates.length === 0)
+
 const actionableValidations = computed(
   () => review.value?.validations.filter((validation) => validation.status !== 'passed') ?? [],
 )
@@ -1196,7 +1201,11 @@ watch(
             </p>
           </section>
 
-          <section class="panel decision-panel" aria-labelledby="validation-title">
+          <section
+            class="panel decision-panel"
+            :data-resolved="validationResolved"
+            aria-labelledby="validation-title"
+          >
             <div class="panel-heading">
               <div>
                 <h2 id="validation-title">规则校验</h2>
@@ -1204,7 +1213,7 @@ watch(
                   {{
                     actionableValidations.length
                       ? `${actionableValidations.length} 项需要留意，请核对后处理。`
-                      : '规则校验未发现问题，请核对原件。'
+                      : '未发现问题，仍请核对原件。'
                   }}
                 </p>
               </div>
@@ -1224,11 +1233,21 @@ watch(
             </details>
           </section>
 
-          <section class="panel decision-panel" aria-labelledby="duplicate-title">
+          <section
+            class="panel decision-panel"
+            :data-resolved="duplicatesResolved"
+            aria-labelledby="duplicate-title"
+          >
             <div class="panel-heading">
               <div>
                 <h2 id="duplicate-title">疑似重复</h2>
-                <p>逐项核对后决定是否保留，不会自动合并或删除。</p>
+                <p>
+                  {{
+                    duplicatesResolved
+                      ? '未发现近似文件、重复页面或字段组合候选。'
+                      : '逐项核对后决定是否保留，不会自动合并或删除。'
+                  }}
+                </p>
               </div>
             </div>
             <fieldset
@@ -1281,7 +1300,6 @@ watch(
                 </span>
               </label>
             </fieldset>
-            <p v-else class="quiet-block">未发现近似文件、重复页面或字段组合候选。</p>
             <p
               v-if="duplicateDecision?.error"
               id="duplicate-resolution-error"
@@ -1295,6 +1313,7 @@ watch(
           <section
             v-if="review.document_type !== 'trip'"
             class="panel decision-panel"
+            :data-resolved="noAssociationCandidates"
             aria-labelledby="association-title"
           >
             <div class="panel-heading">
@@ -1303,7 +1322,7 @@ watch(
                 <p>
                   {{
                     noAssociationCandidates
-                      ? '当前没有候选，确认保存时不创建金额分配。'
+                      ? '当前没有候选，确认保存时不创建。'
                       : '选择关联单据和金额，或明确不关联。'
                   }}
                 </p>

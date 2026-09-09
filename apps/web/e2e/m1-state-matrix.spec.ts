@@ -526,10 +526,25 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(page.locator('[data-field-path="transaction_time"]')).not.toContainText(
       '2026-08-28T08:00:00Z',
     )
+    // 无待办的三块压成一行后，决策栏矮了 160px，主操作在常见笔记本上首屏就能看到。
+    for (const title of ['validation-title', 'duplicate-title', 'association-title']) {
+      await expect(page.locator(`section[aria-labelledby="${title}"]`)).toHaveAttribute(
+        'data-resolved',
+        'true',
+      )
+    }
     const confirm = page
       .locator('section[aria-labelledby="final-title"]')
       .getByRole('button')
       .first()
+    for (const viewport of [
+      { width: 1366, height: 768 },
+      { width: 1280, height: 800 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await expect(confirm).toBeInViewport({ ratio: 1 })
+    }
     for (const viewport of [
       { width: 1440, height: 900 },
       { width: 1366, height: 768 },
@@ -560,6 +575,11 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await expect(page.locator('.review-grid')).toBeVisible()
     await expect(page.getByText('阻断，需修订')).toBeVisible()
     await expect(page.getByText('当前识别结果未通过校验')).toBeVisible()
+    // 有待办时校验面板必须保持完整形态，不能被当成「已核查」收起来。
+    await expect(page.locator('section[aria-labelledby="validation-title"]')).toHaveAttribute(
+      'data-resolved',
+      'false',
+    )
     await expect(page.locator('.inline-validations li')).toHaveAttribute('data-status', 'blocked')
     await expect(page.locator('.inline-validations li')).toHaveCSS(
       'color',

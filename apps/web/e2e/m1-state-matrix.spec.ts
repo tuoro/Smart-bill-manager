@@ -450,6 +450,18 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
         available: true,
         reason_codes: ['same_page_count', 'ordered_page_visual_match'],
       },
+      // 字段组合候选带金额；界面必须按候选自己的币种显示，而不是当前单据的币种。
+      {
+        id: '00000000-0000-4000-8000-000000000755',
+        kind: 'field_combination',
+        existing_payment_id: '00000000-0000-4000-8000-000000000756',
+        display_name: '同额同日同商户支付',
+        business_date: '2026-09-04',
+        amount_minor: 12345,
+        currency: 'JPY',
+        available: true,
+        reason_codes: ['same_amount_date_merchant'],
+      },
     ]
     await mockDocumentContent(page, review.job.document_id)
     await page.route(reviewURL(review.job.id), (route) => fulfillJSON(route, review))
@@ -475,12 +487,16 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       'duplicate-resolution-error',
     )
     await page.getByRole('checkbox', { name: /近似文件.*近似支付截图/ }).check()
+    // JPY 精度为 0：12345 就是 12345，不能按 2 位精度显示成 123.45。
+    await expect(page.getByText('2026-09-04 · JPY 12345')).toBeVisible()
+    await page.getByRole('checkbox', { name: /同额同日同商户支付/ }).check()
     await expect(page.getByRole('button', { name: '确认保存，不分配' })).toBeEnabled()
     await page.getByRole('button', { name: '确认保存，不分配' }).click()
 
     expect(submitted).toMatchObject({
       duplicate_resolutions: [
         { candidate_id: review.duplicate_candidates[0].id, action: 'keep_distinct' },
+        { candidate_id: review.duplicate_candidates[1].id, action: 'keep_distinct' },
       ],
     })
     expect(pageErrors).toEqual([])

@@ -1605,6 +1605,7 @@ export interface components {
             business_date?: string;
             /** Format: int64 */
             amount_minor?: number;
+            currency?: components["schemas"]["Currency"];
             current_page_number?: number;
             existing_page_number?: number;
             dhash_distance?: number;

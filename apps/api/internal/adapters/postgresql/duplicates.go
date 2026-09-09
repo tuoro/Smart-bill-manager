@@ -242,6 +242,7 @@ func (s *Store) listReviewDuplicateCandidates(
 		       coalesce(payment.business_date::text, invoice.invoice_date::text, ''),
 		       '',
 		       coalesce(payment.amount_minor, invoice.total_minor),
+		       coalesce(payment.currency, invoice.currency, ''),
 		       current_page.page_number, existing_page.page_number,
 		       candidate.dhash_distance, candidate.ahash_distance,
 		       CASE candidate.kind
@@ -293,6 +294,7 @@ func (s *Store) listReviewDuplicateCandidates(
 			&temporal,
 			&timezoneName,
 			&amount,
+			&item.Currency,
 			&currentPage,
 			&existingPage,
 			&dhashDistance,

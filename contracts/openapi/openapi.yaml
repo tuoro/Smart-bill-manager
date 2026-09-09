@@ -2649,6 +2649,9 @@ components:
             minimum: 0,
             maximum: 9007199254740991,
           }
+        # 与 amount_minor 同源：来自被比对的既有单据，可能与当前单据不同币种，
+        # 因此必须随金额一起返回，界面不能拿当前单据的币种去猜。
+        currency: { $ref: "#/components/schemas/Currency" }
         current_page_number: { type: integer, minimum: 1, maximum: 20 }
         existing_page_number: { type: integer, minimum: 1, maximum: 20 }
         dhash_distance: { type: integer, minimum: 0, maximum: 3 }

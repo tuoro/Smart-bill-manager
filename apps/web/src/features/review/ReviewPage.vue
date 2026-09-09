@@ -1241,8 +1241,10 @@ watch(
                     当前第 {{ candidate.current_page_number ?? '—' }} 页 · 目标第
                     {{ candidate.existing_page_number ?? '—' }} 页
                   </small>
-                  <small v-if="candidate.amount_minor !== undefined">
-                    {{ candidate.business_date }} · {{ candidate.amount_minor }} 最小货币单位
+                  <!-- 金额与币种来自同一个联结，要么都有要么都没有；缺币种就不显示裸数字。 -->
+                  <small v-if="candidate.amount_minor !== undefined && candidate.currency">
+                    {{ candidate.business_date }} ·
+                    {{ formatMinorUnits(candidate.amount_minor, candidate.currency) }}
                   </small>
                   <small>
                     {{

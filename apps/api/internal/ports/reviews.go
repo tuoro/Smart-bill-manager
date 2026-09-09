@@ -62,6 +62,7 @@ type DuplicateCandidate struct {
 	DisplayName        string
 	BusinessDate       string
 	AmountMinor        *int64
+	Currency           string
 	CurrentPageNumber  *int
 	ExistingPageNumber *int
 	DHashDistance      *int

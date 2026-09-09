@@ -117,6 +117,10 @@ func TestFieldDuplicateRequiresCompleteResolutionAndReplaysSameDecision(t *testi
 		!candidate.Available || candidate.DisplayName != "Example Merchant" {
 		t.Fatalf("field duplicate candidate = %#v", candidate)
 	}
+	// 金额与币种一起返回：只给最小单位整数，界面无从判断精度，也无法排除跨币种误判。
+	if candidate.AmountMinor == nil || *candidate.AmountMinor != 12345 || candidate.Currency != "CNY" {
+		t.Fatalf("field duplicate candidate money = %#v / %q", candidate.AmountMinor, candidate.Currency)
+	}
 	forged := ConfirmInput{
 		ExpectedRevision: second.Revision,
 		AssociationMode:  AssociationNoCandidate,

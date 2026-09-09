@@ -366,6 +366,10 @@ func duplicateCandidateResponses(items []ports.DuplicateCandidate) []map[string]
 		if candidate.AmountMinor != nil {
 			entry["amount_minor"] = *candidate.AmountMinor
 		}
+		// 金额与币种同进同出：只给数字的话界面无从判断精度与前缀。
+		if candidate.Currency != "" {
+			entry["currency"] = candidate.Currency
+		}
 		if candidate.CurrentPageNumber != nil {
 			entry["current_page_number"] = *candidate.CurrentPageNumber
 		}

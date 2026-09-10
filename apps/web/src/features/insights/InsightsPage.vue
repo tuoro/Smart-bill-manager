@@ -15,6 +15,7 @@ import {
   appendInsightItems,
   buildInsightFilter,
   defaultInsightFilterDraft,
+  gapPresetDraft,
   groupInsightAggregates,
   insightAllocationLabels,
   insightFactTypeLabel,
@@ -102,6 +103,19 @@ async function loadMore() {
   }
 }
 
+// 查漏是「整理报销」里最费神的一步：有没有哪笔支付忘了要发票。系统本来什么都
+// 不说，人只能自己对着流水一条条数。一键把筛选切到这个问题上。
+const gapOnly = computed(
+  () =>
+    appliedFilter.value?.fact_type === 'payment' &&
+    appliedFilter.value?.allocation_status === 'incomplete',
+)
+
+async function findGaps() {
+  draft.value = gapPresetDraft(draft.value)
+  await applyFilters()
+}
+
 async function fetchInsights(filter: InsightFilter, append: boolean) {
   const version = ++requestVersion
   const cursor = append ? nextCursor.value : ''
@@ -158,9 +172,17 @@ onUnmounted(() => {
         <h1>数据洞察</h1>
         <p>查看已确认单据的金额与分配情况，按币种和单据类型分别汇总。</p>
       </div>
-      <button v-if="canRead" class="button" type="button" :disabled="offline" @click="applyFilters">
-        刷新
-      </button>
+      <div v-if="canRead" class="page-actions">
+        <button
+          class="button button-primary"
+          type="button"
+          :disabled="offline || loading"
+          @click="findGaps"
+        >
+          只看还缺发票的支付
+        </button>
+        <button class="button" type="button" :disabled="offline" @click="applyFilters">刷新</button>
+      </div>
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
@@ -185,6 +207,13 @@ onUnmounted(() => {
     </div>
 
     <template v-else-if="canRead">
+      <p v-if="gapOnly" class="notice notice-warning" role="status">
+        <AppIcon name="alert" />
+        <span>
+          正在查漏：只列出还没有配齐发票的支付。下面每一条的「剩余」就是还缺多少发票，
+          按币种汇总的「剩余」是这次的缺口合计。收窄日期或选定行程，可以只看这次活动。
+        </span>
+      </p>
       <section class="panel insight-filter-panel" aria-labelledby="insight-filter-title">
         <div class="panel-heading">
           <div>

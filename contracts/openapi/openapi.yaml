@@ -1556,10 +1556,13 @@ paths:
           schema: { $ref: "#/components/schemas/Currency" }
         - name: allocation_status
           in: query
+          description: >-
+            incomplete 只用于筛选，同时命中 unallocated 与 partial——查漏时这两种
+            都是缺口。它不会作为某个 Fact 自己的 allocation_status 返回。
           schema:
             {
               type: string,
-              enum: [all, unallocated, partial, allocated],
+              enum: [all, unallocated, partial, allocated, incomplete],
               default: all,
             }
         - name: trip_scope
@@ -2946,7 +2949,9 @@ components:
       enum: [all, payment, invoice]
     InsightAllocationStatusFilter:
       type: string
-      enum: [all, unallocated, partial, allocated]
+      # 响应里会原样回显请求用的筛选值，因此这里也要接受 incomplete。
+      # 注意区分：Fact 自己的 allocation_status 只会是前三种具体状态之一。
+      enum: [all, unallocated, partial, allocated, incomplete]
     InsightTripScope:
       type: string
       enum: [all, assigned, unassigned]

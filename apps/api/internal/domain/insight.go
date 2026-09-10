@@ -7,15 +7,18 @@ import (
 )
 
 const (
-	InsightRuleVersion    = "fact-insights/1"
-	InsightFactTypeAll    = "all"
-	InsightStatusAll      = "all"
-	InsightStatusNone     = "unallocated"
-	InsightStatusPartial  = "partial"
-	InsightStatusFull     = "allocated"
-	InsightTripScopeAll   = "all"
-	InsightTripAssigned   = "assigned"
-	InsightTripUnassigned = "unassigned"
+	InsightRuleVersion   = "fact-insights/1"
+	InsightFactTypeAll   = "all"
+	InsightStatusAll     = "all"
+	InsightStatusNone    = "unallocated"
+	InsightStatusPartial = "partial"
+	InsightStatusFull    = "allocated"
+	// 只用于筛选，不会成为某个 Fact 自己的状态：它同时命中「一张发票都没有」
+	// 和「只配了一部分」。查漏时这两种都是缺口，分两次查会把分页搅乱。
+	InsightStatusIncomplete = "incomplete"
+	InsightTripScopeAll     = "all"
+	InsightTripAssigned     = "assigned"
+	InsightTripUnassigned   = "unassigned"
 )
 
 type InsightFilter struct {
@@ -119,7 +122,8 @@ func CanonicalInsightFilter(input InsightFilter) (InsightFilter, string, error) 
 	if canonical.AllocationStatus != InsightStatusAll &&
 		canonical.AllocationStatus != InsightStatusNone &&
 		canonical.AllocationStatus != InsightStatusPartial &&
-		canonical.AllocationStatus != InsightStatusFull {
+		canonical.AllocationStatus != InsightStatusFull &&
+		canonical.AllocationStatus != InsightStatusIncomplete {
 		return InsightFilter{}, "", invalidInsightFilter()
 	}
 	if canonical.TripScope != InsightTripScopeAll &&
@@ -364,7 +368,12 @@ func insightFactMatches(filter InsightFilter, item InsightFact) bool {
 	if filter.Currency != "" && item.Currency != filter.Currency {
 		return false
 	}
-	if filter.AllocationStatus != InsightStatusAll && item.AllocationStatus != filter.AllocationStatus {
+	if filter.AllocationStatus == InsightStatusIncomplete {
+		if item.AllocationStatus == InsightStatusFull {
+			return false
+		}
+	} else if filter.AllocationStatus != InsightStatusAll &&
+		item.AllocationStatus != filter.AllocationStatus {
 		return false
 	}
 	if filter.TripScope == InsightTripAssigned && item.Trip == nil {

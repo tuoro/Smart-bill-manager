@@ -1782,7 +1782,7 @@ export interface components {
         /** @enum {string} */
         InsightFactTypeFilter: "all" | "payment" | "invoice";
         /** @enum {string} */
-        InsightAllocationStatusFilter: "all" | "unallocated" | "partial" | "allocated";
+        InsightAllocationStatusFilter: "all" | "unallocated" | "partial" | "allocated" | "incomplete";
         /** @enum {string} */
         InsightTripScope: "all" | "assigned" | "unassigned";
         InsightFilter: {
@@ -4617,7 +4617,8 @@ export interface operations {
                 /** @description 必须与 date_from 同时提供，包含结束日。 */
                 date_to?: string;
                 currency?: components["schemas"]["Currency"];
-                allocation_status?: "all" | "unallocated" | "partial" | "allocated";
+                /** @description incomplete 只用于筛选，同时命中 unallocated 与 partial——查漏时这两种 都是缺口。它不会作为某个 Fact 自己的 allocation_status 返回。 */
+                allocation_status?: "all" | "unallocated" | "partial" | "allocated" | "incomplete";
                 trip_scope?: "all" | "assigned" | "unassigned";
                 /** @description 仅在 trip_scope=assigned 时可用。 */
                 trip_id?: string;

@@ -195,3 +195,43 @@ func TestBuildProjectedInsightPageValidatesDatabaseProjection(t *testing.T) {
 		t.Fatalf("missing group error = %v", err)
 	}
 }
+
+// 查漏问的是「还缺发票的支付有哪些」。「一张都没配」和「只配了一部分」都是缺口，
+// 分两次查会把分页与游标搅乱，因此需要一个能同时命中两者的筛选值。
+// 它只用于筛选，不会成为某个 Fact 自己的状态。
+func TestIncompleteFilterMatchesUnallocatedAndPartialButNotFull(t *testing.T) {
+	t.Parallel()
+
+	facts := []InsightFact{
+		{FactType: DocumentPayment, FactID: "none", BusinessDate: "2026-09-01", DisplayName: "全无发票", AmountMinor: 300, AllocatedMinor: 0, Currency: CurrencyCNY},
+		{FactType: DocumentPayment, FactID: "partial", BusinessDate: "2026-09-02", DisplayName: "只配了一半", AmountMinor: 200, AllocatedMinor: 120, Currency: CurrencyCNY},
+		{FactType: DocumentPayment, FactID: "full", BusinessDate: "2026-09-03", DisplayName: "已配齐", AmountMinor: 100, AllocatedMinor: 100, Currency: CurrencyCNY},
+	}
+
+	page, err := BuildInsightPage(
+		InsightFilter{FactType: string(DocumentPayment), AllocationStatus: InsightStatusIncomplete},
+		facts,
+		nil,
+		100,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("items = %#v", page.Items)
+	}
+	seen := map[string]string{}
+	for _, item := range page.Items {
+		seen[item.FactID] = item.AllocationStatus
+	}
+	if seen["none"] != InsightStatusNone || seen["partial"] != InsightStatusPartial {
+		t.Fatalf("statuses = %#v", seen)
+	}
+	if _, present := seen["full"]; present {
+		t.Fatal("fully allocated payment appeared in the gap list")
+	}
+	// 缺口合计要把两种都算进去：300 全缺 + 200 里还差 80。
+	if len(page.Groups) != 1 || page.Groups[0].RemainingMinor != 380 {
+		t.Fatalf("groups = %#v", page.Groups)
+	}
+}

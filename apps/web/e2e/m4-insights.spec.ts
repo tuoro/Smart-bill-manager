@@ -155,6 +155,35 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     })
   })
 
+  // 查漏是「整理报销」里最费神的一步：有没有哪笔支付忘了要发票。一键把筛选切到
+  // 这个问题上，并且要同时命中「一张都没配」和「只配了一部分」——两种都是缺口。
+  test('一键只看还缺发票的支付，命中未分配与部分分配', async ({ page }) => {
+    await mockSession(page, session('owner', ['facts.read', 'insights.read']))
+    await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
+    const requests: URLSearchParams[] = []
+    await page.route(insightsURL, async (route) => {
+      const query = new URL(route.request().url()).searchParams
+      requests.push(query)
+      await fulfillJSON(
+        route,
+        insightPage([payment], [aggregate('CNY', 'payment', 1, 12_345, 6_000)], undefined, query),
+      )
+    })
+    await page.goto('/insights')
+    await expect(page.getByText('合成交通支付')).toBeVisible()
+    await expect(page.getByText('正在查漏')).toHaveCount(0)
+
+    await page.getByRole('button', { name: '只看还缺发票的支付', exact: true }).click()
+    expect(Object.fromEntries(requests.at(-1)?.entries() ?? [])).toMatchObject({
+      fact_type: 'payment',
+      allocation_status: 'incomplete',
+    })
+    // 切过去之后要说清这一屏在回答什么问题，以及「剩余」就是缺口。
+    await expect(page.getByText('正在查漏')).toBeVisible()
+    await expect(page.getByText('还缺多少发票')).toBeVisible()
+    await expect(page.getByLabel('分配状态', { exact: true })).toHaveValue('incomplete')
+  })
+
   test('Viewer 可读，Reviewer 直接访问不发起 Fact 或 Trip 请求', async ({ page }) => {
     await mockSession(page, session('viewer', ['facts.read', 'insights.read']))
     await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
@@ -234,14 +263,22 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
   })
 })
 
+// 真实接口会把规范化后的筛选原样回显，界面据此判断当前这一屏在回答什么问题。
+// 夹具照做，否则「正在查漏」这类提示永远读到 all。
 function insightPage(
   items: InsightFact[],
   groups: InsightAggregate[] = [],
   nextCursor?: string,
+  query?: URLSearchParams,
 ): InsightPage {
   return {
     rule_version: 'fact-insights/1',
-    filter: { fact_type: 'all', allocation_status: 'all', trip_scope: 'all' },
+    filter: {
+      fact_type: (query?.get('fact_type') as InsightPage['filter']['fact_type']) ?? 'all',
+      allocation_status:
+        (query?.get('allocation_status') as InsightPage['filter']['allocation_status']) ?? 'all',
+      trip_scope: (query?.get('trip_scope') as InsightPage['filter']['trip_scope']) ?? 'all',
+    },
     groups,
     items,
     ...(nextCursor ? { next_cursor: nextCursor } : {}),

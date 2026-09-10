@@ -30,12 +30,21 @@ export const insightAllocationLabels: Record<InsightAllocationStatusFilter, stri
   unallocated: '未分配',
   partial: '部分分配',
   allocated: '已分配',
+  // 只用于筛选，同时命中未分配与部分分配。Fact 自己的状态不会是这个值。
+  incomplete: '尚未配齐（查漏）',
 }
 
 export const insightTripScopeLabels: Record<InsightTripScope, string> = {
   all: '全部行程范围',
   assigned: '已归属行程',
   unassigned: '未归属行程',
+}
+
+// 查漏用的预设：只看支付、只看还缺发票的。这是「有没有遗漏」最直接的信号——
+// 有一笔支付、却没有任何发票分配给它（或只配了一部分）。日期与行程范围留给
+// 使用者自己收窄，因为「这次活动」才是他心里的边界。
+export function gapPresetDraft(current: InsightFilterDraft): InsightFilterDraft {
+  return { ...current, fact_type: 'payment', allocation_status: 'incomplete' }
 }
 
 export function defaultInsightFilterDraft(): InsightFilterDraft {

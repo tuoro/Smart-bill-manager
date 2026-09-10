@@ -322,7 +322,11 @@ export const api = {
   chatConnector(platform: ChatPlatform): Promise<ChatConnector> {
     return request(`/chat-connectors/${encodeURIComponent(platform)}`)
   },
-  saveChatConnector(platform: ChatPlatform, app_key: string, app_secret: string): Promise<ChatConnector> {
+  saveChatConnector(
+    platform: ChatPlatform,
+    app_key: string,
+    app_secret: string,
+  ): Promise<ChatConnector> {
     return request(`/chat-connectors/${encodeURIComponent(platform)}`, {
       method: 'PUT',
       body: JSON.stringify({ app_key, app_secret }),
@@ -335,7 +339,9 @@ export const api = {
     return request(`/chat-connectors/${encodeURIComponent(platform)}/activate`, { method: 'POST' })
   },
   deactivateChatConnector(platform: ChatPlatform): Promise<ChatConnector> {
-    return request(`/chat-connectors/${encodeURIComponent(platform)}/deactivate`, { method: 'POST' })
+    return request(`/chat-connectors/${encodeURIComponent(platform)}/deactivate`, {
+      method: 'POST',
+    })
   },
   chatBindings(): Promise<{ items: ChatBinding[] }> {
     return request('/chat-bindings')

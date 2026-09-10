@@ -25,7 +25,7 @@ const playwrightExecutable = resolve(
   "node_modules/.bin/playwright",
 );
 const maximumReportBytes = 64 * 1024 * 1024;
-export const requiredPlaywrightSpecFiles = 17;
+export const requiredPlaywrightSpecFiles = 18;
 export const minimumPlaywrightScenarios = 120;
 
 async function main() {

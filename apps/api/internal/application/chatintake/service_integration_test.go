@@ -362,6 +362,7 @@ func TestChatBindingCodeLinksTheIssuingMember(t *testing.T) {
 		domain.ChatPlatformDingTalk,
 		"ding-new",
 		issued.Code,
+		"",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -390,12 +391,14 @@ func TestChatBindingCodeIsSingleUseAndExpires(t *testing.T) {
 	}
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-a", issued.Code,
+		"",
 	); err != nil {
 		t.Fatal(err)
 	}
 	// 用过就不能再用，哪怕换一个账号来兑。
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-b", issued.Code,
+		"",
 	); !errors.Is(err, domain.ErrInvalidInput) {
 		t.Fatalf("reuse error = %v", err)
 	}
@@ -416,12 +419,14 @@ func TestChatBindingCodeIsSingleUseAndExpires(t *testing.T) {
 	}
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-c", expired.Code,
+		"",
 	); !errors.Is(err, domain.ErrInvalidInput) {
 		t.Fatalf("expired error = %v", err)
 	}
 	// 乱猜的码同样只得到一句话，不区分「不存在」和「已用过」。
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-d", "not-a-real-code",
+		"",
 	); !errors.Is(err, domain.ErrInvalidInput) {
 		t.Fatalf("unknown code error = %v", err)
 	}
@@ -444,6 +449,7 @@ func TestRebindingReplacesTheMembersPreviousAccount(t *testing.T) {
 	}
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-old", first.Code,
+		"",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -453,6 +459,7 @@ func TestRebindingReplacesTheMembersPreviousAccount(t *testing.T) {
 	}
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-new", second.Code,
+		"",
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -497,6 +504,7 @@ func TestRedeemRefusesAnAccountBoundToAnotherMember(t *testing.T) {
 	}
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-shared", issued.Code,
+		"",
 	); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("takeover error = %v", err)
 	}
@@ -512,7 +520,43 @@ func TestRedeemRefusesAnAccountBoundToAnotherMember(t *testing.T) {
 	}
 	if _, err := f.service.RedeemBindingCode(
 		ctx, domain.ChatPlatformDingTalk, "ding-mine", issued.Code,
+		"",
 	); err != nil {
+		t.Fatalf("code was consumed by the refused attempt: %v", err)
+	}
+}
+
+// 每个工作区绑自己的机器人。某个机器人收到的消息若发送者绑定在别的工作区，
+// 必须在写入前拒绝，且不能报成「未绑定」——那句提示会让人去重新绑定。
+func TestTenantPinnedConnectionRejectsMembersOfOtherTenants(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.link(t, "ding-user-1")
+
+	pinned := message("ding-user-1")
+	pinned.TenantID = "00000000-0000-4000-8000-00000000dead"
+	if _, err := f.service.Receive(ctx, pinned); !errors.Is(err, ErrTenantMismatch) {
+		t.Fatalf("mismatch error = %v", err)
+	}
+	if total := f.documentCount(t); total != 0 {
+		t.Fatalf("documents = %d", total)
+	}
+	same := message("ding-user-1")
+	same.TenantID = f.owner.TenantID
+	if _, err := f.service.Receive(ctx, same); err != nil {
+		t.Fatalf("same tenant intake = %v", err)
+	}
+
+	// 兑换同理：码属于 A 工作区，从 B 工作区的机器人发来 → 拒绝且码不消耗。
+	tenant := domain.TenantContext{TenantID: f.owner.TenantID, UserID: f.owner.UserID, Role: domain.RoleOwner}
+	issued, err := f.service.IssueBindingCode(ctx, tenant, domain.ChatPlatformDingTalk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.RedeemBindingCode(ctx, domain.ChatPlatformDingTalk, "ding-new", issued.Code, "00000000-0000-4000-8000-00000000dead"); !errors.Is(err, ErrTenantMismatch) {
+		t.Fatalf("mismatch redeem = %v", err)
+	}
+	if _, err := f.service.RedeemBindingCode(ctx, domain.ChatPlatformDingTalk, "ding-new", issued.Code, f.owner.TenantID); err != nil {
 		t.Fatalf("code was consumed by the refused attempt: %v", err)
 	}
 }

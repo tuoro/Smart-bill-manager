@@ -55,6 +55,7 @@ const groups = [
     label: '系统',
     items: [
       { to: '/settings/ai', label: 'AI 配置', icon: 'settings', capability: 'providers.manage' },
+      { to: '/settings/dingtalk', label: '钉钉收单', icon: 'mail', capability: 'providers.manage' },
       { to: '/settings/members', label: '成员管理', icon: 'users', capability: 'members.manage' },
       { to: '/settings/account', label: '账号与密码', icon: 'shield', capability: '' },
       {

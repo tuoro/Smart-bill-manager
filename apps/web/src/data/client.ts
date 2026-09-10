@@ -90,6 +90,7 @@ export type ProviderConfig = components['schemas']['ProviderConfig']
 export type ChatPlatform = components['schemas']['ChatPlatform']
 export type ChatBinding = components['schemas']['ChatBinding']
 export type ChatBindingCode = components['schemas']['ChatBindingCode']
+export type ChatConnector = components['schemas']['ChatConnector']
 export type UploadResult = components['schemas']['UploadResult']
 export type EmailSourceRegistration = components['schemas']['EmailSourceRegistration']
 export type EmailSource = components['schemas']['EmailSource']
@@ -317,6 +318,24 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ current_password, new_password }),
     })
+  },
+  chatConnector(platform: ChatPlatform): Promise<ChatConnector> {
+    return request(`/chat-connectors/${encodeURIComponent(platform)}`)
+  },
+  saveChatConnector(platform: ChatPlatform, app_key: string, app_secret: string): Promise<ChatConnector> {
+    return request(`/chat-connectors/${encodeURIComponent(platform)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ app_key, app_secret }),
+    })
+  },
+  detectChatConnector(platform: ChatPlatform): Promise<ChatConnector> {
+    return request(`/chat-connectors/${encodeURIComponent(platform)}/detect`, { method: 'POST' })
+  },
+  activateChatConnector(platform: ChatPlatform): Promise<ChatConnector> {
+    return request(`/chat-connectors/${encodeURIComponent(platform)}/activate`, { method: 'POST' })
+  },
+  deactivateChatConnector(platform: ChatPlatform): Promise<ChatConnector> {
+    return request(`/chat-connectors/${encodeURIComponent(platform)}/deactivate`, { method: 'POST' })
   },
   chatBindings(): Promise<{ items: ChatBinding[] }> {
     return request('/chat-bindings')

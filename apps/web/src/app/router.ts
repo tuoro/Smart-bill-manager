@@ -102,6 +102,11 @@ const router = createRouter({
       name: 'settings-ai',
       component: () => import('../features/settings/ProviderSettingsPage.vue'),
     },
+    {
+      path: '/settings/dingtalk',
+      name: 'settings-dingtalk',
+      component: () => import('../features/settings/ChatConnectorSettingsPage.vue'),
+    },
     { path: '/:pathMatch(.*)*', redirect: '/inbox' },
   ],
   scrollBehavior: () => ({ top: 0 }),

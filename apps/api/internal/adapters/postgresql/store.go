@@ -202,4 +202,3 @@ func readPasswordFile(path string) ([]byte, error) {
 	}
 	return value, nil
 }
-

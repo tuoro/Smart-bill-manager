@@ -15,6 +15,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatconnectors"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatintake"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
@@ -70,6 +71,7 @@ type Server struct {
 	reimbursements     reimbursements.Service
 	insights           insights.Service
 	chatIntake         chatintake.Service
+	chatConnectors     chatconnectors.Service
 	exports            *materialexports.Service
 	setup              bootstrap.Service
 	setupInspector     SetupInspector
@@ -95,6 +97,7 @@ func NewServer(
 	reimbursementService reimbursements.Service,
 	insightService insights.Service,
 	chatIntakeService chatintake.Service,
+	chatConnectorService chatconnectors.Service,
 	exportService *materialexports.Service,
 	setupService bootstrap.Service,
 	setupInspector SetupInspector,
@@ -112,6 +115,7 @@ func NewServer(
 	return &Server{
 		accounts:           accountService,
 		chatIntake:         chatIntakeService,
+		chatConnectors:     chatConnectorService,
 		auth:               authService,
 		upload:             uploadService,
 		documents:          documentQueries,
@@ -163,6 +167,17 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("GET /api/v1/chat-bindings", s.requireSession(http.HandlerFunc(s.chatBindingsHandler)))
 	router.Handle("DELETE /api/v1/chat-bindings/{platform}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteChatBindingHandler))))
 	router.Handle("POST /api/v1/chat-binding-codes", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createChatBindingCodeHandler))))
+	router.Handle("GET /api/v1/chat-connectors/{platform}", s.requireSession(http.HandlerFunc(s.chatConnectorHandler)))
+	router.Handle("PUT /api/v1/chat-connectors/{platform}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.saveChatConnectorHandler))))
+	router.Handle("POST /api/v1/chat-connectors/{platform}/detect", s.requireSession(s.requireCSRF(s.chatConnectorAction(func(r *http.Request, t domain.TenantContext, p string) (chatconnectors.Public, error) {
+		return s.chatConnectors.Detect(r.Context(), t, p)
+	}))))
+	router.Handle("POST /api/v1/chat-connectors/{platform}/activate", s.requireSession(s.requireCSRF(s.chatConnectorAction(func(r *http.Request, t domain.TenantContext, p string) (chatconnectors.Public, error) {
+		return s.chatConnectors.Activate(r.Context(), t, p)
+	}))))
+	router.Handle("POST /api/v1/chat-connectors/{platform}/deactivate", s.requireSession(s.requireCSRF(s.chatConnectorAction(func(r *http.Request, t domain.TenantContext, p string) (chatconnectors.Public, error) {
+		return s.chatConnectors.Deactivate(r.Context(), t, p)
+	}))))
 	router.Handle("GET /api/v1/session", s.requireSession(http.HandlerFunc(s.sessionHandler)))
 	router.Handle("DELETE /api/v1/session", s.requireSession(s.requireCSRF(http.HandlerFunc(s.logoutHandler))))
 	router.Handle("POST /api/v1/documents", s.requireSession(s.requireCSRF(http.HandlerFunc(s.uploadDocumentHandler))))

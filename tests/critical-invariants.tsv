@@ -245,3 +245,5 @@ chat-binding-code-single-use	绑定码一次性、有期限、猜错与用过同
 chat-binding-http-boundary	绑定码端点要求会话与 CSRF；不受支持平台在入口拒绝；只返回与解除本人绑定，无绑定时解绑为 404	./internal/transport/httpapi	TestChatBindingEndpointsRequireSessionCSRFAndOwnScope
 insight-incomplete-gap-filter	incomplete 同时命中未分配与部分分配、排除已配齐，且缺口合计把两者都算入	./internal/domain	TestIncompleteFilterMatchesUnallocatedAndPartialButNotFull
 dingtalk-connector-translation-only	连接器只翻译不判断：未绑定发送者的文件被拒且零写入；文本按绑定码兑换；文件按字节探测类型且来源记为 dingtalk_message；重投报已收过；不支持的消息类型与下载失败各有明确回复	./internal/adapters/dingtalk	TestHandlerBindsThenAcceptsFilesAndReplies
+chat-connector-lifecycle	保存即重置检测与启用并停掉连接；未检测通过不能启用；同一 AppKey 不能被两个工作区各认一次；启动只拉起已启用的连接	./internal/application/chatconnectors	TestSavingNewCredentialsResetsDetectionAndStopsTheConnection
+chat-intake-tenant-pin	连接归属的工作区与发送者绑定的工作区不一致时，投递与兑换都在写入前拒绝，且不落成「未绑定」、码不消耗	./internal/application/chatintake	TestTenantPinnedConnectionRejectsMembersOfOtherTenants

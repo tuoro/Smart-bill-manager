@@ -10,6 +10,7 @@ const entries = [
   ['数据洞察', '/insights'],
   ['邮箱来源', '/email-sources'],
   ['AI 配置', '/settings/ai'],
+  ['钉钉收单', '/settings/dingtalk'],
   ['成员管理', '/settings/members'],
   ['账号与密码', '/settings/account'],
 ] as const
@@ -354,7 +355,11 @@ test.describe('全站导航：纯合成布局、权限与键盘验收', () => {
     { capability: 'reimbursements.read', groups: ['财务数据'], paths: ['/reimbursements'] },
     { capability: 'insights.read', groups: ['财务数据'], paths: ['/insights'] },
     { capability: 'email_archive.read', groups: ['来源'], paths: ['/email-sources'] },
-    { capability: 'providers.manage', groups: ['系统'], paths: ['/settings/ai'] },
+    {
+      capability: 'providers.manage',
+      groups: ['系统'],
+      paths: ['/settings/ai', '/settings/dingtalk'],
+    },
     { capability: 'members.manage', groups: ['系统'], paths: ['/settings/members'] },
     { capability: '', groups: [], paths: [] },
   ]

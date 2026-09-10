@@ -26,6 +26,7 @@ const (
 	replyTooLarge       = "文件超过 20 MiB，无法接收。"
 	replyDownloadFailed = "文件下载失败，请重新发送。"
 	replyInternal       = "系统暂时无法处理，请稍后重试。"
+	replyWrongTenant    = "你的账号绑定在另一个工作区，请使用那个工作区的机器人。"
 )
 
 // Downloader 与 Replier 是处理器的两条网络边，抽成接口是为了让处理逻辑不依赖
@@ -39,14 +40,16 @@ type Replier interface {
 }
 
 type Handler struct {
-	intake chatintake.Service
-	files  Downloader
-	reply  Replier
-	logger *slog.Logger
+	// 这条连接属于哪个工作区。发送者绑在别的工作区就拒绝，在写入前。
+	tenantID string
+	intake   chatintake.Service
+	files    Downloader
+	reply    Replier
+	logger   *slog.Logger
 }
 
-func NewHandler(intake chatintake.Service, files Downloader, reply Replier, logger *slog.Logger) *Handler {
-	return &Handler{intake: intake, files: files, reply: reply, logger: logger}
+func NewHandler(tenantID string, intake chatintake.Service, files Downloader, reply Replier, logger *slog.Logger) *Handler {
+	return &Handler{tenantID: tenantID, intake: intake, files: files, reply: reply, logger: logger}
 }
 
 // Handle 是 SDK 回调。无论结果如何都返回成功 ack：处理失败要靠回复告诉用户，
@@ -88,10 +91,12 @@ func (h *Handler) handleText(ctx context.Context, sender, text string) string {
 	if code == "" {
 		return replyUnsupportedMsg
 	}
-	_, err := h.intake.RedeemBindingCode(ctx, domain.ChatPlatformDingTalk, sender, code)
+	_, err := h.intake.RedeemBindingCode(ctx, domain.ChatPlatformDingTalk, sender, code, h.tenantID)
 	switch {
 	case err == nil:
 		return replyBound
+	case errors.Is(err, chatintake.ErrTenantMismatch):
+		return replyWrongTenant
 	case errors.Is(err, domain.ErrConflict):
 		// 账号已绑在别人名下：把规则里那句说明原样给用户。
 		return ruleMessage(err, replyInvalidCode)
@@ -129,6 +134,7 @@ func (h *Handler) handleFile(ctx context.Context, sender, downloadCode, name str
 		FileName:       name,
 		MIME:           mime,
 		Source:         bytes.NewReader(content),
+		TenantID:       h.tenantID,
 	})
 	var duplicate *domain.DuplicateDocumentError
 	switch {
@@ -136,6 +142,8 @@ func (h *Handler) handleFile(ctx context.Context, sender, downloadCode, name str
 		return fmt.Sprintf("已收到 %s，正在识别。", name)
 	case errors.Is(err, domain.ErrChatSenderNotLinked):
 		return replyNotLinked
+	case errors.Is(err, chatintake.ErrTenantMismatch):
+		return replyWrongTenant
 	case errors.As(err, &duplicate):
 		return replyDuplicate
 	case errors.Is(err, domain.ErrForbidden):

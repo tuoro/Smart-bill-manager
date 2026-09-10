@@ -274,6 +274,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat-connectors/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        /** @description 当前工作区在该平台上的机器人凭据状态。密钥永不回显，只说有没有。 */
+        get: operations["getChatConnector"];
+        /** @description 保存或替换凭据。保存即重置：检测回到 pending、启用清零、正在运行的连接停掉 ——新密钥没验过就不该有连接在用它。AppSecret 用主密钥加密落库。 */
+        put: operations["saveChatConnector"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-connectors/{platform}/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 用凭据向平台换一次 access token 验证有效性；不建立长连接，可反复执行。成败都记录。 */
+        post: operations["detectChatConnector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-connectors/{platform}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 启用并立即建立长连接。只接受检测通过的凭据。 */
+        post: operations["activateChatConnector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-connectors/{platform}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 停用并断开长连接。凭据保留，可再次启用。 */
+        post: operations["deactivateChatConnector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/facts/{fact_type}/{fact_id}/correction": {
         parameters: {
             query?: never;
@@ -1651,6 +1728,21 @@ export interface components {
             external_user_id: string;
             /** Format: date-time */
             created_at: string;
+        };
+        ChatConnector: {
+            platform: components["schemas"]["ChatPlatform"];
+            app_key: string;
+            /** @description 是否已保存 AppSecret。密钥本身永不回显。 */
+            has_secret: boolean;
+            /** @enum {string} */
+            detection_status: "pending" | "passed" | "failed";
+            /** Format: date-time */
+            detection_checked_at?: string | null;
+            detection_message: string;
+            active: boolean;
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
         };
         ChatBindingCode: {
             platform: components["schemas"]["ChatPlatform"];
@@ -3063,6 +3155,214 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             /** @description 会话失效 */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getChatConnector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 凭据状态 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConnector"];
+                };
+            };
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description 尚未配置 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    saveChatConnector: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    app_key: string;
+                    app_secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已保存，待检测 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConnector"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description 该 AppKey 已被另一个工作区使用 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    detectChatConnector: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 检测已记录（通过或失败见 detection_status） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConnector"];
+                };
+            };
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description 尚未配置 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    activateChatConnector: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已启用 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConnector"];
+                };
+            };
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description 尚未配置 */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 凭据未通过检测 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deactivateChatConnector: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已停用 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatConnector"];
+                };
+            };
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            /** @description 尚未配置 */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -91,7 +91,7 @@ func newFixture(t *testing.T, files Downloader) fixture {
 	intake := chatintake.NewService(store, uploads, cryptography.TokenGenerator{}, system.IDGenerator{}, clock)
 	replier := &fakeReplier{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return fixture{handler: NewHandler(intake, files, replier, logger), replier: replier, intake: intake, store: store, owner: owner}
+	return fixture{handler: NewHandler(owner.TenantID, intake, files, replier, logger), replier: replier, intake: intake, store: store, owner: owner}
 }
 
 func (f fixture) issueCode(t *testing.T) string {

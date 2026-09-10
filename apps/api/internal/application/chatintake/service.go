@@ -7,6 +7,7 @@ package chatintake
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -24,7 +25,15 @@ type Message struct {
 	FileName       string
 	MIME           string
 	Source         io.Reader
+	// 连接归属的租户。每个工作区绑自己的机器人，某个机器人收到的消息若发送者绑定的
+	// 是别的工作区，必须在写入前拒绝——否则一份单据会落进它不该去的账本。留空表示
+	// 不校验（仅供测试与将来的部署级连接）。
+	TenantID string
 }
+
+// 连接与租户不一致时的错误：不能落成 ErrChatSenderNotLinked，那句提示会让人去重新
+// 绑定，而实际上是绑错了机器人。
+var ErrTenantMismatch = errors.New("chat sender is bound to a different tenant")
 
 type Result struct {
 	TenantID   string
@@ -100,9 +109,10 @@ func (s Service) IssueBindingCode(
 
 // RedeemBindingCode 由连接器在收到一条文本消息时调用：把发送者的外部账号绑定到
 // 发码的那个成员。无效、过期、已用过对外是同一句话，不告诉尝试者猜到了哪一步。
+// expectedTenantID 非空时，码所属的租户必须与之一致；不一致整笔回滚，码不消耗。
 func (s Service) RedeemBindingCode(
 	ctx context.Context,
-	platform, externalUserID, code string,
+	platform, externalUserID, code, expectedTenantID string,
 ) (domain.ChatIdentity, error) {
 	if !domain.ValidChatPlatform(platform) {
 		return domain.ChatIdentity{}, fmt.Errorf("%w: unsupported platform", domain.ErrInvalidInput)
@@ -120,7 +130,13 @@ func (s Service) RedeemBindingCode(
 			externalUserID,
 			s.clock.Now(),
 		)
-		return redeemErr
+		if redeemErr != nil {
+			return redeemErr
+		}
+		if expectedTenantID != "" && identity.TenantID != expectedTenantID {
+			return ErrTenantMismatch
+		}
+		return nil
 	})
 	if err != nil {
 		return domain.ChatIdentity{}, err
@@ -153,6 +169,9 @@ func (s Service) Receive(ctx context.Context, message Message) (Result, error) {
 	})
 	if err != nil {
 		return Result{}, err
+	}
+	if message.TenantID != "" && identity.TenantID != message.TenantID {
+		return Result{}, ErrTenantMismatch
 	}
 	uploaded, err := s.uploads.Execute(ctx, documents.UploadInput{
 		Tenant:        identity.TenantContext(),

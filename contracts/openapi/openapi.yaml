@@ -383,6 +383,118 @@ paths:
               schema: { $ref: "#/components/schemas/ChatBindingCode" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { description: 会话失效 }
+  /chat-connectors/{platform}:
+    parameters:
+      - name: platform
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ChatPlatform" }
+    get:
+      operationId: getChatConnector
+      tags: [chat-connectors]
+      description: 当前工作区在该平台上的机器人凭据状态。密钥永不回显，只说有没有。
+      responses:
+        "200":
+          description: 凭据状态
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatConnector" }
+        "401": { description: 会话失效 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: 尚未配置 }
+    put:
+      operationId: saveChatConnector
+      tags: [chat-connectors]
+      description: >-
+        保存或替换凭据。保存即重置：检测回到 pending、启用清零、正在运行的连接停掉
+        ——新密钥没验过就不该有连接在用它。AppSecret 用主密钥加密落库。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [app_key, app_secret]
+              properties:
+                app_key: { type: string, minLength: 1, maxLength: 200 }
+                app_secret: { type: string, minLength: 1, maxLength: 512 }
+      responses:
+        "200":
+          description: 已保存，待检测
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatConnector" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: 会话失效 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { description: 该 AppKey 已被另一个工作区使用 }
+  /chat-connectors/{platform}/detect:
+    parameters:
+      - name: platform
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ChatPlatform" }
+    post:
+      operationId: detectChatConnector
+      tags: [chat-connectors]
+      description: 用凭据向平台换一次 access token 验证有效性；不建立长连接，可反复执行。成败都记录。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 检测已记录（通过或失败见 detection_status）
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatConnector" }
+        "401": { description: 会话失效 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: 尚未配置 }
+  /chat-connectors/{platform}/activate:
+    parameters:
+      - name: platform
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ChatPlatform" }
+    post:
+      operationId: activateChatConnector
+      tags: [chat-connectors]
+      description: 启用并立即建立长连接。只接受检测通过的凭据。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 已启用
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatConnector" }
+        "401": { description: 会话失效 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: 尚未配置 }
+        "409": { description: 凭据未通过检测 }
+  /chat-connectors/{platform}/deactivate:
+    parameters:
+      - name: platform
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ChatPlatform" }
+    post:
+      operationId: deactivateChatConnector
+      tags: [chat-connectors]
+      description: 停用并断开长连接。凭据保留，可再次启用。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 已停用
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatConnector" }
+        "401": { description: 会话失效 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: 尚未配置 }
   /facts/{fact_type}/{fact_id}/correction:
     parameters:
       - $ref: "#/components/parameters/CorrectionFactType"
@@ -2712,6 +2824,22 @@ components:
           type: string
           description: 该平台上的账号标识。这是成员自己的账号，原样给出便于确认绑的是哪一个。
         created_at: { type: string, format: date-time }
+    ChatConnector:
+      type: object
+      additionalProperties: false
+      required: [platform, app_key, has_secret, detection_status, detection_message, active, version, updated_at]
+      properties:
+        platform: { $ref: "#/components/schemas/ChatPlatform" }
+        app_key: { type: string }
+        has_secret:
+          type: boolean
+          description: 是否已保存 AppSecret。密钥本身永不回显。
+        detection_status: { type: string, enum: [pending, passed, failed] }
+        detection_checked_at: { type: [string, "null"], format: date-time }
+        detection_message: { type: string }
+        active: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        updated_at: { type: string, format: date-time }
     ChatBindingCode:
       type: object
       additionalProperties: false

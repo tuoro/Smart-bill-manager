@@ -125,6 +125,7 @@ type Transaction interface {
 	AllocationTransaction
 	EmailTransaction
 	ChatIdentityTransaction
+	ChatConnectorTransaction
 	TripAssignmentTransaction
 	ReimbursementTransaction
 	RequestJobCancellation(

@@ -2,10 +2,12 @@ package dingtalk
 
 import (
 	"bytes"
+
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatconnectors"
 	"io"
 	"net/http"
 	"sync"
@@ -62,6 +64,9 @@ func (a *OpenAPI) accessToken(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("request access token: %w", err)
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		return "", chatconnectors.ErrCredentialsRejected
+	}
 	if response.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("request access token: status %d", response.StatusCode)
 	}
@@ -134,3 +139,19 @@ func (a *OpenAPI) DownloadMessageFile(ctx context.Context, downloadCode string) 
 }
 
 var ErrFileTooLarge = errors.New("file exceeds the 20 MiB limit")
+
+// Prober 实现 chatconnectors.CredentialProbe：用一对临时凭据换一次 token，不缓存、不建连接。
+type Prober struct{ base string }
+
+func NewProber() Prober { return Prober{base: defaultAPIBase} }
+
+func (p Prober) Probe(ctx context.Context, platform, appKey, appSecret string) error {
+	api := NewOpenAPI(appKey, appSecret)
+	if p.base != "" {
+		api.base = p.base
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err := api.accessToken(probeCtx)
+	return err
+}

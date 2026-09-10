@@ -192,6 +192,23 @@ flowchart LR
 
 连接器只能依赖 Archive 端口，不能直接写数据库、对象存储、Document 或 Job。网络拨号、认证、远端游标、轮询与真实账号联调是后续独立门禁，不得以本地归档通过替代。
 
+### 钉钉连接器
+
+已装配的第一个网络连接器，位于 `internal/adapters/dingtalk`。同一条规矩：只依赖 `chatintake` 应用端口，不碰数据库、对象存储、Document 或 Job；它做的事只有翻译——把钉钉回调按 `msgtype` 分派为「兑换绑定码」或「投递文件」，再把结果翻译成回复文案（文案以 `docs/design/chat-intake-dialogue.md` 为准）。
+
+```mermaid
+flowchart LR
+    DingTalk[钉钉 Stream
+出站长连接] --> Handler[dingtalk.Handler]
+    Handler -->|文本| Redeem[chatintake.RedeemBindingCode]
+    Handler -->|文件/图片| Download[OpenAPI 两步下载]
+    Download -->|字节探测类型| Receive[chatintake.Receive]
+    Receive --> Document[既有 Document]
+    Document --> Job[既有 ProcessingJob]
+```
+
+信任边界在应用层而不在连接器：未绑定发送者一律拒收、按成员真实角色鉴权、同租户 SHA 去重，连接器不复制任何一条。发送者标识用 `senderStaffId`（企业内稳定 userid），文件类型只看字节不看钉钉给的文件名。识别完成后的回执与对话式确认尚未装配。
+
 ### AI 处理
 
 1. Worker 获取带租约的 Job。

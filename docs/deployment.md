@@ -110,6 +110,8 @@ docker restart smart-bill-manager
 
 **数据库连接。** 三种来源，按优先级：`SBM_POSTGRES_PASSWORD_FILE`（挂载 secret 文件）> `SBM_POSTGRES_PASSWORD` 明文环境变量 > 初始化页写入的 `/var/lib/sbm/config/database.json`。明文环境变量由入口脚本写入受限文件后即从环境中移除，应用进程的 `/proc/self/environ` 里不会保留。
 
+**钉钉收单（可选）。** `SBM_DINGTALK_APP_KEY` 与 `SBM_DINGTALK_APP_SECRET_FILE` 必须同时设置或同时不设，只设一个会拒绝启动。密钥文件与主密钥同一套纪律：属主可读的单链接普通文件（`0600`），内容为应用 AppSecret，末尾换行会被忽略。启用后进程会向钉钉发起一条出站长连接（Stream 模式），**不需要公网入站**，与 AI 供应商调用同一形状；连不上时按退避重试，不影响记账本身。成员在「账号与密码」页生成绑定码发给机器人完成绑定，之后把图片或 PDF 直接发给机器人即进入识别队列。
+
 初始化页写入的配置同样只保存非秘密字段；密码单独存为同目录下的 0600 文件，与挂载 secret 走同一条读取契约。连接验证失败时两个文件都会被删除，部署回到未配置状态而不是固化一份连不上的设置。
 
 **卷内布局。** `-v sbm-data:/var/lib/sbm` 下有三个目录，权限各不相同：`objects/`（`sbm:sbm 0700`，上传的原件）、`secrets/`（`root:sbm 0710`，只放主密钥，应用只能穿越不能写）、`config/`（`sbm:sbm 0700`，初始化页写入的数据库配置与密码）。主密钥与应用可写目录刻意分开，避免被攻破的应用覆盖它。

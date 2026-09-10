@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/dingtalk"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
@@ -48,6 +50,8 @@ type config struct {
 	pdfInfoPath          string
 	pdfToPPMPath         string
 	masterKeyFile        string
+	dingTalkAppKey       string
+	dingTalkSecretFile   string
 	extractionSchemaPath string
 	aiConcurrency        int
 	webDistPath          string
@@ -295,6 +299,23 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	}
 	serverErrors := make(chan error, 1)
 	go worker.Run(ctx)
+	// 钉钉连接器是可选的：两个变量都没配就不启动；只配一个是配置错误，启动即失败，
+	// 不要等到第一条消息才发现。
+	if (config.dingTalkAppKey == "") != (config.dingTalkSecretFile == "") {
+		return errors.New("SBM_DINGTALK_APP_KEY and SBM_DINGTALK_APP_SECRET_FILE must be set together")
+	}
+	if config.dingTalkAppKey != "" {
+		secret, err := dingtalk.LoadAppSecretFile(config.dingTalkSecretFile)
+		if err != nil {
+			return err
+		}
+		api := dingtalk.NewOpenAPI(config.dingTalkAppKey, secret)
+		handler := dingtalk.NewHandler(chatIntakeService, api, chatbot.NewChatbotReplier(), logger)
+		go dingtalk.Run(ctx, config.dingTalkAppKey, secret, handler, logger)
+		logger.Info("dingtalk connector enabled")
+	} else {
+		logger.Info("dingtalk connector disabled: SBM_DINGTALK_APP_KEY not set")
+	}
 	go func() {
 		logger.Info("server listening", "address", config.httpAddress, "version", version)
 		serverErrors <- server.ListenAndServe()
@@ -363,6 +384,8 @@ func loadConfig() (config, error) {
 		pdfInfoPath:          os.Getenv("SBM_PDFINFO_PATH"),
 		pdfToPPMPath:         os.Getenv("SBM_PDFTOPPM_PATH"),
 		masterKeyFile:        os.Getenv("SBM_MASTER_KEY_FILE"),
+		dingTalkAppKey:       strings.TrimSpace(os.Getenv("SBM_DINGTALK_APP_KEY")),
+		dingTalkSecretFile:   strings.TrimSpace(os.Getenv("SBM_DINGTALK_APP_SECRET_FILE")),
 		extractionSchemaPath: os.Getenv("SBM_EXTRACTION_SCHEMA_PATH"),
 		webDistPath:          os.Getenv("SBM_WEB_DIST_PATH"),
 		deploymentMode:       os.Getenv("SBM_DEPLOYMENT_MODE"),

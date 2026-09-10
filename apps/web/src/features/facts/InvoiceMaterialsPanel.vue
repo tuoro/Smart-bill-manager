@@ -19,8 +19,7 @@ const loading = ref(false),
   writeError = ref(''),
   busy = ref(false)
 const file = ref<File | null>(null),
-  fileInput = ref<HTMLInputElement | null>(null),
-  reason = ref('')
+  fileInput = ref<HTMLInputElement | null>(null)
 const candidates = ref<InvoiceMaterial[]>([]),
   query = ref(''),
   appliedQuery = ref(''),
@@ -122,29 +121,20 @@ async function cancelRemove() {
 }
 async function save(action: 'upload' | 'add' | 'remove') {
   if (!ready.value || !workspace.value) return
-  const why = reason.value.trim(),
-    target = action === 'add' ? selected.value : (removeTarget.value?.id ?? '')
+  const target = action === 'add' ? selected.value : (removeTarget.value?.id ?? '')
   if (
-    !why ||
     (action === 'upload' ? !file.value : !target) ||
     (action === 'remove' && !removeConfirmed.value)
   ) {
-    writeError.value = '请选择材料、填写操作理由，并确认解除操作'
+    writeError.value = '请选择材料，并确认解除操作'
     return
   }
   const upload = action === 'upload' ? file.value : null
-  const fingerprint = JSON.stringify([
-    props.invoiceId,
-    action,
-    target,
-    workspace.value.version,
-    why,
-  ])
+  const fingerprint = JSON.stringify([props.invoiceId, action, target, workspace.value.version])
   if (attempt?.fingerprint !== fingerprint || attempt.file !== upload)
     attempt = { fingerprint, file: upload, key: crypto.randomUUID() }
   const body = {
     expected_version: workspace.value.version,
-    reason: why,
     idempotency_key: attempt.key,
   }
   const current = lifetime
@@ -157,7 +147,6 @@ async function save(action: 'upload' | 'add' | 'remove') {
     else await api.removeInvoiceMaterial(props.invoiceId, target, body)
     if (current !== lifetime) return
     attempt = null
-    reason.value = ''
     file.value = null
     if (fileInput.value) fileInput.value.value = ''
     removeTarget.value = null
@@ -187,7 +176,6 @@ watch(
     candidateOpen.value = false
     cursor.value = ''
     selected.value = ''
-    reason.value = ''
     file.value = null
     removeTarget.value = null
     writeError.value = ''
@@ -226,7 +214,7 @@ onBeforeUnmount(() => {
       <p v-if="loadError" class="notice notice-danger" role="alert">{{ loadError }}</p>
       <p v-if="writeError" class="notice notice-danger" role="alert">{{ writeError }}</p>
       <div v-if="stale" class="notice notice-warning">
-        <p>发票或材料已变化。文件、选择和理由已保留；请刷新材料，核对后再提交。</p>
+        <p>发票或材料已变化。文件和选择已保留；请刷新材料，核对后再提交。</p>
         <label
           ><input v-model="rechecked" type="checkbox" :disabled="!refreshed || loading" />
           我已核对刷新后的材料和发票版本</label
@@ -284,19 +272,10 @@ onBeforeUnmount(() => {
               @change="chooseFile"
           /></label>
           <small>每次 1 个文件，最多 20 MiB、20 页；相同内容复用已有原件。</small>
-          <label class="field"
-            ><span>操作理由</span
-            ><textarea
-              v-model="reason"
-              rows="2"
-              maxlength="500"
-              placeholder="说明添加或解除材料的原因"
-            ></textarea>
-          </label>
           <div class="material-actions">
             <button
               class="button button-primary"
-              :disabled="!file || !reason.trim() || workspace.items.length >= 100"
+              :disabled="!file || workspace.items.length >= 100"
               @click="save('upload')"
             >
               上传并关联
@@ -344,7 +323,6 @@ onBeforeUnmount(() => {
               :disabled="
                 !ready ||
                 !selected ||
-                !reason.trim() ||
                 candidateBusy ||
                 !!candidateError ||
                 workspace.items.length >= 100
@@ -370,7 +348,7 @@ onBeforeUnmount(() => {
             <button class="button" :disabled="busy" @click="cancelRemove">取消解除</button
             ><button
               class="button button-danger"
-              :disabled="!ready || !removeConfirmed || !reason.trim()"
+              :disabled="!ready || !removeConfirmed"
               @click="save('remove')"
             >
               确认解除

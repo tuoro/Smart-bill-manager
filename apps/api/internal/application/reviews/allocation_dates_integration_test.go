@@ -3,7 +3,6 @@ package reviews
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
 	allocationapp "github.com/tuoro/smart-bill-manager/apps/api/internal/application/allocations"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -56,10 +55,7 @@ func TestManualAllocationCrossDateWindowSearchAndPreservation(t *testing.T) {
 	}
 	desired := []domain.DesiredAllocation{{TargetFactID: invoices["2027-09-27"], AllocatedMinor: 10000}}
 	input := allocationapp.AdjustmentInput{ExpectedPlanHash: w.PlanHash, DesiredAllocations: desired, IdempotencyKey: "manual-cross-date", RequestID: "manual-cross-date"}
-	if _, err := s.Adjust(ctx, f.tenant, domain.DocumentPayment, payment.FactID, input); !errors.Is(err, domain.ErrInvalidInput) {
-		t.Fatal("missing reason accepted")
-	}
-	input.Reason = "跨期发票由人工核对"
+	// 理由可选：不填也能提交跨期分配。
 	_, err = s.Adjust(ctx, f.tenant, domain.DocumentPayment, payment.FactID, input)
 	if err != nil {
 		t.Fatal(err)

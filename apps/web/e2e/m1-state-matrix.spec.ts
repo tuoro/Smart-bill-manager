@@ -880,7 +880,6 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     await invoiceARow.getByLabel('分配金额').fill('5.00')
     await invoiceBRow.getByRole('checkbox').check()
     await invoiceBRow.getByLabel('分配金额').fill('3.00')
-    await page.getByLabel('调整理由').fill('  人工核对后替换计划  ')
     await page.getByRole('button', { name: '确认替换分配' }).click()
 
     await expect(page.getByRole('status').filter({ hasText: '替换分配已保存' })).toBeVisible()
@@ -890,7 +889,6 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
         { target_fact_id: allocationInvoiceA, allocated_minor: 500 },
         { target_fact_id: allocationInvoiceB, allocated_minor: 300 },
       ],
-      reason: '人工核对后替换计划',
     })
     await expect(page.getByText('当前已分配').locator('..')).toContainText('8.00')
     await captureResponsiveReview(page, testInfo, 'allocations')
@@ -907,10 +905,6 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
       ).toBe(true)
       await expect(page.getByRole('button', { name: /确认/ })).toBeVisible()
     }
-    await page.getByLabel('调整理由').focus()
-    expect(
-      await page.getByLabel('调整理由').evaluate((element) => document.activeElement === element),
-    ).toBe(true)
     expect(pageErrors).toEqual([])
   })
 
@@ -932,7 +926,7 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     releaseWorkspace()
 
     await expect(page.getByText('没有可分配的单据')).toBeVisible()
-    await expect(page.getByText('可切换全部日期搜索同币种单据；跨期分配须填写理由。')).toBeVisible()
+    await expect(page.getByText('可切换全部日期搜索同币种单据。')).toBeVisible()
     await expect(page.getByLabel('日期范围')).toHaveValue('recommended')
     await expect(page.getByRole('option', { name: '全部日期（可跨期）' })).toBeAttached()
     await expect(page.getByRole('button', { name: '确认没有变化' })).toBeDisabled()
@@ -953,7 +947,6 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
 
     await page.goto(`/allocations/payment/${payment.id}`)
     await page.getByRole('checkbox', { name: /合成发票 A/ }).uncheck()
-    await page.getByLabel('调整理由').fill('撤销全部合成分配')
     await page.getByRole('button', { name: '确认撤销分配' }).click()
     await expect(page.getByText('撤销全部分配前需要再次确认')).toBeVisible()
 
@@ -962,7 +955,6 @@ test.describe('M1/M2 真实组件状态矩阵', () => {
     const conflict = page.getByRole('alert')
     await expect(conflict).toContainText('当前草稿已保留')
     await expect(conflict.getByRole('button', { name: '刷新当前分配' })).toBeVisible()
-    await expect(page.getByLabel('调整理由')).toHaveValue('撤销全部合成分配')
     await expect(page.getByRole('checkbox', { name: /合成发票 A/ })).not.toBeChecked()
     expect(pageErrors).toEqual([])
   })
@@ -1363,7 +1355,6 @@ test.describe('B1 显式人工录入', () => {
       async (route) => {
         expect(route.request().postDataJSON()).toEqual({
           document_type: 'payment',
-          reason: '原件清晰，改为人工录入',
           expected_job_version: failed.version,
         })
         expect(route.request().headers()['idempotency-key']).toBeTruthy()
@@ -1426,7 +1417,6 @@ test.describe('B1 显式人工录入', () => {
     await page.getByRole('button', { name: '转人工录入', exact: true }).click()
     const form = page.locator('section[aria-labelledby="manual-review-title"]')
     await form.getByRole('combobox', { name: '单据类型', exact: true }).selectOption('payment')
-    await form.getByLabel('接管理由').fill('原件清晰，改为人工录入')
     await form.getByRole('button', { name: '确认转人工', exact: true }).click()
     await expect(page.getByText('已转人工', { exact: true })).toBeVisible()
     await expect(page.getByText('AI 提取', { exact: true })).toHaveCount(0)
@@ -1575,14 +1565,12 @@ test.describe('B1 显式人工录入', () => {
       await page.getByRole('button', { name: '转人工录入', exact: true }).click()
       const form = page.locator('section[aria-labelledby="manual-review-title"]')
       await form.getByRole('combobox', { name: '单据类型', exact: true }).selectOption('payment')
-      await form.getByLabel('接管理由').fill('保留这次人工选择')
       await form.getByRole('button', { name: '确认转人工', exact: true }).click()
       await expect(form.getByRole('alert')).toBeVisible()
-      await expect(form.getByLabel('接管理由')).toHaveValue('保留这次人工选择')
       if (outcome === 'version_conflict') {
         await expect(form.getByRole('button', { name: '确认转人工', exact: true })).toBeDisabled()
         await form.getByRole('button', { name: '刷新任务状态' }).click()
-        await expect(form.getByRole('status')).toContainText('类型和理由已保留')
+        await expect(form.getByRole('status')).toContainText('类型已保留')
       }
       expect(requests).toHaveLength(1)
       await form.getByRole('button', { name: '确认转人工', exact: true }).click()
@@ -1593,7 +1581,6 @@ test.describe('B1 显式人工录入', () => {
         expect(requests[1]!.key).not.toBe(requests[0]!.key)
         expect(requests[1]!.body).toMatchObject({
           expected_job_version: 2,
-          reason: '保留这次人工选择',
         })
       }
     })

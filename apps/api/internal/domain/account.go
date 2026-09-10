@@ -55,8 +55,9 @@ func NormalizeAccountName(value string) (string, error) {
 
 func NormalizeAccountReason(value string) (string, error) {
 	reason := strings.TrimSpace(value)
-	if !utf8.ValidString(reason) || reason == "" || utf8.RuneCountInString(reason) > 500 {
-		return "", NewRuleError("invalid_reason", "操作理由长度必须为 1–500 个字符", ErrInvalidInput)
+	// 理由可选：操作者对自己的操作负责。
+	if !utf8.ValidString(reason) || utf8.RuneCountInString(reason) > 500 {
+		return "", NewRuleError("invalid_reason", "理由不能超过 500 个字符", ErrInvalidInput)
 	}
 	return reason, nil
 }

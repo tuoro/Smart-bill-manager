@@ -34,7 +34,6 @@ export function buildReimbursementSubmission(
   snapshot: ReimbursementPolicySnapshot | undefined,
   selectedAssignmentIDs: string[],
   findingsAcknowledged: boolean,
-  reason: string,
 ): RequestDecision<ReimbursementSubmissionRequest> {
   if (!snapshot) return { error: '请先运行政策预检' }
   const selected = canonicalIDs(selectedAssignmentIDs)
@@ -45,17 +44,12 @@ export function buildReimbursementSubmission(
   if (snapshot.findings.length > 0 && !findingsAcknowledged) {
     return { error: '请先确认当前完整政策提示' }
   }
-  const normalizedReason = reason.trim()
-  if ([...normalizedReason].length < 1 || [...normalizedReason].length > 500) {
-    return { error: '请填写 1～500 字符的提交理由' }
-  }
   return {
     request: {
       trip_id: snapshot.trip.id,
       assignment_ids: selected,
       expected_snapshot_hash: snapshot.snapshot_hash,
       acknowledged_finding_keys: snapshot.findings.map((finding) => finding.finding_key).sort(),
-      reason: normalizedReason,
     },
   }
 }
@@ -63,21 +57,15 @@ export function buildReimbursementSubmission(
 export function buildReimbursementStatusRequest(
   detail: ReimbursementDetail,
   desiredStatus: ReimbursementStatus,
-  reason: string,
 ): RequestDecision<ReimbursementStatusRequest> {
   if (!reimbursementStatusActions(detail.status).includes(desiredStatus)) {
     return { error: '当前状态不能执行该操作' }
-  }
-  const normalizedReason = reason.trim()
-  if ([...normalizedReason].length < 1 || [...normalizedReason].length > 500) {
-    return { error: '请填写 1～500 字符的状态理由' }
   }
   return {
     request: {
       expected_status: detail.status,
       desired_status: desiredStatus,
       expected_version: detail.version,
-      reason: normalizedReason,
     },
   }
 }

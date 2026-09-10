@@ -28,8 +28,9 @@ type CorrectionIssue struct {
 
 func CorrectionReason(value string) (string, error) {
 	value = strings.TrimSpace(value)
-	if len([]rune(value)) < 1 || len([]rune(value)) > 500 {
-		return "", NewRuleError("correction_reason_required", "纠错必须填写 1～500 字理由", ErrInvalidInput)
+	// 理由可选，只限长度。
+	if len([]rune(value)) > 500 {
+		return "", NewRuleError("correction_reason_too_long", "理由不能超过 500 字", ErrInvalidInput)
 	}
 	return value, nil
 }

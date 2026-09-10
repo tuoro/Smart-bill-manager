@@ -36,7 +36,7 @@ function target(n: number, current = false): AllocationWorkspace['targets'][numb
     ...(current ? { current_link_id: id(90) } : {}),
   }
 }
-test('跨期搜索、翻页保留草稿、理由与失败重试幂等', async ({ page }, info) => {
+test('跨期搜索、翻页保留草稿与失败重试幂等', async ({ page }, info) => {
   await authenticate(page)
   const workspace: AllocationWorkspace = {
     anchor: {
@@ -114,13 +114,11 @@ test('跨期搜索、翻页保留草稿、理由与失败重试幂等', async ({
       .getByRole('checkbox'),
   ).toBeChecked()
   await expect(page.getByText('已选择超过 30 天的跨期单据', { exact: false })).toBeVisible()
-  await page.getByRole('button', { name: '确认补充分配' }).click()
-  await expect(page.getByText('请填写本次调整理由')).toBeVisible()
-  expect(bodies).toHaveLength(0)
-  await page.getByLabel(/调整理由/).fill('合成跨期人工核对理由')
+  // 没有理由这道门了：第一次点击就发出请求，mock 让它失败以验证重试幂等。
   await captureResponsiveReview(page, info, 'b7-cross-period-allocation')
   await page.getByRole('button', { name: '确认补充分配' }).click()
   await expect(page.getByText('合成失败，请重试')).toBeVisible()
+  expect(bodies).toHaveLength(1)
   await expect(chosen.getByLabel('分配金额')).toHaveValue('20.00')
   await page.getByRole('button', { name: '重试原分配' }).click()
   await expect(page.getByText('补充分配已保存，余额已刷新')).toBeVisible()

@@ -23,7 +23,6 @@ const canCorrect = computed(() =>
     sessionStore.current.value?.capabilities.includes(capability),
   ),
 )
-const reasons = ref<Record<string, string>>({})
 const attempts = new Map<string, { fingerprint: string; key: string }>()
 let loadRevision = 0
 
@@ -49,17 +48,11 @@ async function load(append = false) {
 
 async function assign(item: TripEvidence) {
   if (!props.trip || !props.canManage || props.offline || busyID.value) return
-  const reason = (reasons.value[item.id] ?? '').trim()
-  if (!reason) {
-    error.value = '请填写材料归属理由'
-    return
-  }
   const body: TripMaterialRequest = {
     evidence_id: item.id,
     desired_trip_id: item.current_trip_id === props.trip.id ? null : props.trip.id,
     expected_link_id: item.current_link_id ?? null,
     expected_version: item.version,
-    reason,
   }
   const fingerprint = JSON.stringify(body)
   let attempt = attempts.get(item.id)
@@ -72,11 +65,10 @@ async function assign(item: TripEvidence) {
   try {
     await api.assignTripMaterial(body, attempt.key)
     attempts.delete(item.id)
-    reasons.value[item.id] = ''
     await load()
     emit('changed')
   } catch (caught) {
-    error.value = caught instanceof ApiError ? caught.message : '凭证归属失败，理由已保留'
+    error.value = caught instanceof ApiError ? caught.message : '凭证归属失败'
   } finally {
     busyID.value = ''
   }
@@ -155,14 +147,6 @@ watch(
             >纠正凭证字段</RouterLink
           >
           <div v-if="canManage && trip" class="trip-assignment-form">
-            <label :for="`material-reason-${item.id}`">材料归属理由</label>
-            <textarea
-              :id="`material-reason-${item.id}`"
-              v-model="reasons[item.id]"
-              class="textarea"
-              rows="2"
-              maxlength="500"
-            ></textarea>
             <div class="trip-assignment-actions">
               <button
                 class="button"

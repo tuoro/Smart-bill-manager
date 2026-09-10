@@ -11,7 +11,6 @@ const draft = ref<TripManagementRequest>({
   timezone: props.trip ? (props.trip.timezone ?? '') : 'Asia/Shanghai',
   notes: props.trip?.notes ?? '',
   expected_version: props.trip?.version ?? 0,
-  reason: '',
 })
 const busy = ref(false)
 const error = ref('')
@@ -29,11 +28,6 @@ async function save() {
     ...draft.value,
     name: draft.value.name.trim(),
     notes: draft.value.notes.trim(),
-    reason: draft.value.reason.trim(),
-  }
-  if (!body.reason) {
-    error.value = '请填写操作理由'
-    return
   }
   if (!deleting.value && body.end_date < body.start_date) {
     error.value = '结束日期不能早于开始日期'
@@ -46,7 +40,7 @@ async function save() {
   try {
     const result =
       deleting.value && props.trip
-        ? await api.deleteTrip(props.trip.id, body.expected_version, body.reason, attempt.key)
+        ? await api.deleteTrip(props.trip.id, body.expected_version, attempt.key)
         : props.trip
           ? await api.editTrip(props.trip.id, body, attempt.key)
           : await api.createTrip(body, attempt.key)
@@ -143,15 +137,6 @@ function confirmLatest() {
         <p v-else class="notice notice-warning">
           确认删除「{{ trip?.name }}」？只解除行程关联，保留支付、发票、凭证和报销历史。
         </p>
-        <label
-          >操作理由<textarea
-            v-model="draft.reason"
-            class="textarea"
-            rows="2"
-            required
-            maxlength="500"
-          ></textarea>
-        </label>
         <p v-if="error" class="danger-text" role="alert">{{ error }}</p>
         <div v-if="stale" class="quiet-block">
           <p>草稿仍保留。请核对最新行程后，再决定是否提交当前草稿。</p>

@@ -9,7 +9,7 @@ import (
 // ManualReviewIdentity 固定用户接管请求身份，不把失败伪装成模型成功。
 func ManualReviewIdentity(jobID string, version int, kind DocumentType, reason string) (string, string, error) {
 	reason = strings.TrimSpace(reason)
-	if jobID == "" || version < 1 || (kind != DocumentPayment && kind != DocumentInvoice && kind != DocumentTrip) || utf8.RuneCountInString(reason) < 1 || utf8.RuneCountInString(reason) > 500 {
+	if jobID == "" || version < 1 || (kind != DocumentPayment && kind != DocumentInvoice && kind != DocumentTrip) || utf8.RuneCountInString(reason) > 500 {
 		return "", "", NewRuleError("invalid_manual_review", "请选择单据类型并填写 1 至 500 字的人工接管理由", ErrInvalidInput)
 	}
 	hash, err := hashJSON(struct {

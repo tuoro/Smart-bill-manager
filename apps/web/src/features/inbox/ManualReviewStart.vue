@@ -7,7 +7,6 @@ const props = defineProps<{ job: JobSummary; offline: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const router = useRouter()
 const documentType = ref<ManualReviewRequest['document_type'] | ''>('')
-const reason = ref('')
 const busy = ref(false)
 const error = ref('')
 const currentJob = ref(props.job)
@@ -19,13 +18,12 @@ let requestKey = ''
 
 async function submit() {
   if (busy.value || props.offline || currentJob.value.status !== 'failed' || conflict.value) return
-  if (!documentType.value || !reason.value.trim()) {
-    error.value = '请选择单据类型并填写人工接管理由'
+  if (!documentType.value) {
+    error.value = '请选择单据类型'
     return
   }
   const body: ManualReviewRequest = {
     document_type: documentType.value,
-    reason: reason.value.trim(),
     expected_job_version: currentJob.value.version,
   }
   const identity = JSON.stringify(body)
@@ -55,7 +53,7 @@ async function refreshStatus() {
     error.value = ''
     statusNotice.value =
       currentJob.value.status === 'failed'
-        ? '已核对最新任务状态，类型和理由已保留，请重新确认。'
+        ? '已核对最新任务状态，类型已保留，请重新确认。'
         : '任务状态已变化，不能再从失败入口接管；当前输入仍保留。'
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '任务状态刷新失败，请重试'
@@ -90,16 +88,6 @@ onMounted(async () => {
           <option value="trip">行程凭证</option>
         </select></label
       >
-      <label
-        >接管理由<textarea
-          v-model="reason"
-          class="textarea"
-          maxlength="500"
-          required
-          :disabled="busy"
-          rows="2"
-        ></textarea>
-      </label>
       <p v-if="error" class="notice notice-danger" role="alert">{{ error }}</p>
       <p v-if="statusNotice" class="notice" role="status">{{ statusNotice }}</p>
       <div class="header-actions">

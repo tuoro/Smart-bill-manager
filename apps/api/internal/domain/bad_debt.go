@@ -12,6 +12,7 @@ func CanonicalBadDebtRequest(kind DocumentType, id string, input BadDebtInput) (
 	if (kind != DocumentPayment && kind != DocumentInvoice) || id == "" || input.ExpectedVersion < 1 {
 		return input, "", ErrInvalidInput
 	}
+	// 坏账是把一笔钱认定为收不回来，与其他操作不同，理由仍然必填。
 	input.Reason = strings.TrimSpace(input.Reason)
 	if len([]rune(input.Reason)) < 1 || len([]rune(input.Reason)) > 500 {
 		return input, "", NewRuleError("bad_debt_reason_required", "标记或取消坏账必须填写 1～500 字理由", ErrInvalidInput)

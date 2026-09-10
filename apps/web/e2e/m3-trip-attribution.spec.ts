@@ -153,21 +153,18 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
     await page.evaluate(() => {
       document.cookie = 'sbm_csrf=synthetic-trip-csrf; path=/; SameSite=Strict'
     })
-    let paymentRow = page.locator('.trip-candidate').filter({ hasText: '合成交通商户' })
-    await paymentRow.getByLabel('归属理由').fill(' 日期命中，人工确认 ')
+    const paymentRow = page.locator('.trip-candidate').filter({ hasText: '合成交通商户' })
     await paymentRow.getByRole('button', { name: '归属到当前行程' }).click()
-    await expect(paymentRow.getByRole('alert')).toContainText('已保留填写的理由')
-    await expect(paymentRow.getByLabel('归属理由')).toHaveValue(' 日期命中，人工确认 ')
+    // 先等到 409 的冲突提示再清零：否则清零发生在响应到达之前，控制台错误会漏进后面。
+    await expect(paymentRow.getByRole('alert')).toContainText('当前归属已变化，请刷新后重试。')
     pageErrors.length = 0
     await paymentRow.getByRole('button', { name: '归属到当前行程' }).click()
     await expect(page.locator('.notice-success')).toContainText('合成交通商户 的行程归属已更新')
 
     let invoiceRow = page.locator('.trip-candidate').filter({ hasText: '合成住宿发票' })
-    await invoiceRow.getByLabel('归属理由').fill('调整到北京行程')
     await invoiceRow.getByRole('button', { name: '从原行程移动到当前行程' }).click()
     await expect(page.locator('.notice-success')).toContainText('合成住宿发票 的行程归属已更新')
     invoiceRow = page.locator('.trip-candidate').filter({ hasText: '合成住宿发票' })
-    await invoiceRow.getByLabel('归属理由').fill('撤销误归属')
     await invoiceRow.getByRole('button', { name: '撤销当前归属' }).click()
     await expect(page.locator('.notice-success')).toContainText('合成住宿发票 的行程归属已更新')
 
@@ -178,7 +175,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         desired_trip_id: tripA.id,
         expected_assignment_id: null,
         expected_fact_version: 1,
-        reason: '日期命中，人工确认',
       },
       {
         fact_type: 'payment',
@@ -186,7 +182,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         desired_trip_id: tripA.id,
         expected_assignment_id: null,
         expected_fact_version: 1,
-        reason: '日期命中，人工确认',
       },
       {
         fact_type: 'invoice',
@@ -194,7 +189,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         desired_trip_id: tripA.id,
         expected_assignment_id: oldAssignmentID,
         expected_fact_version: 1,
-        reason: '调整到北京行程',
       },
       {
         fact_type: 'invoice',
@@ -202,7 +196,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
         desired_trip_id: null,
         expected_assignment_id: movedAssignmentID,
         expected_fact_version: 1,
-        reason: '撤销误归属',
       },
     ])
     expect(idempotencyKeys[0]).toBe(idempotencyKeys[1])
@@ -217,10 +210,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
         ),
       ).toBe(true)
-      paymentRow = page.locator('.trip-candidate').filter({ hasText: '合成交通商户' })
-      await paymentRow.getByLabel('归属理由').focus()
-      await expect(paymentRow.getByLabel('归属理由')).toBeFocused()
-      await expect(paymentRow.getByLabel('归属理由')).toBeVisible()
     }
     expect(pageErrors).toEqual([])
   })
@@ -237,7 +226,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
     )
     await page.goto('/trips')
     await expect(page.getByText('当前账号为只读')).toBeVisible()
-    await expect(page.getByLabel('归属理由')).toHaveCount(0)
     expect(viewerRequests).toBe(1)
 
     const reviewerPage = await page.context().newPage()

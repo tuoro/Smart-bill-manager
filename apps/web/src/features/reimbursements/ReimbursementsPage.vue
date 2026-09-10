@@ -42,10 +42,8 @@ const candidateCursor = ref('')
 const selectedAssignmentIDs = ref<string[]>([])
 const preview = ref<ReimbursementPolicySnapshot>()
 const findingsAcknowledged = ref(false)
-const submissionReason = ref('')
 const selectedReimbursementID = ref('')
 const detail = ref<ReimbursementDetail>()
-const statusReason = ref('')
 const loading = ref(true)
 const loadingCandidates = ref(false)
 const loadingMoreCandidates = ref(false)
@@ -75,7 +73,6 @@ const submissionDecision = computed(() =>
     preview.value,
     selectedAssignmentIDs.value,
     findingsAcknowledged.value,
-    submissionReason.value,
   ),
 )
 
@@ -250,7 +247,6 @@ async function submitReimbursement() {
     )
     success.value = result.replayed ? '已返回同一报销提交结果。' : '报销快照已提交。'
     attempts.delete('submission')
-    submissionReason.value = ''
     findingsAcknowledged.value = false
     preview.value = undefined
     selectedAssignmentIDs.value = []
@@ -258,7 +254,7 @@ async function submitReimbursement() {
   } catch (caught) {
     workspaceError.value =
       caught instanceof ApiError && caught.status === 409
-        ? '报销输入或当前状态已变化，请重新预检；提交理由已保留。'
+        ? '报销输入或当前状态已变化，请重新预检。'
         : caught instanceof ApiError
           ? caught.message
           : '报销提交失败，请检查网络后重试'
@@ -287,7 +283,6 @@ async function selectReimbursement(reimbursementID: string, preserveDraft = fals
   detail.value = undefined
   loadingDetail.value = true
   if (!preserveDraft) {
-    statusReason.value = ''
     statusError.value = ''
   }
   try {
@@ -307,7 +302,7 @@ async function selectReimbursement(reimbursementID: string, preserveDraft = fals
 async function changeStatus(desiredStatus: ReimbursementStatus) {
   if (!detail.value || !canManage.value || offline.value) return
   const current = detail.value
-  const decision = buildReimbursementStatusRequest(current, desiredStatus, statusReason.value)
+  const decision = buildReimbursementStatusRequest(current, desiredStatus)
   if (!decision.request) {
     statusError.value = decision.error ?? '状态请求不完整'
     return
@@ -325,14 +320,13 @@ async function changeStatus(desiredStatus: ReimbursementStatus) {
     )
     attempts.delete(scope)
     if (selectedReimbursementID.value !== current.id) return
-    statusReason.value = ''
     success.value = result.replayed ? '已返回同一状态决定结果。' : '报销状态已更新。'
     await reloadReimbursements(current.id)
   } catch (caught) {
     if (selectedReimbursementID.value !== current.id) return
     statusError.value =
       caught instanceof ApiError && caught.status === 409
-        ? '状态或版本已变化，已刷新详情并保留理由草稿。'
+        ? '状态或版本已变化，已刷新详情。'
         : caught instanceof ApiError
           ? caught.message
           : '状态更新失败，请检查网络后重试'
@@ -468,7 +462,7 @@ onUnmounted(() => {
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
-      <AppIcon name="alert" /><span>当前离线。理由草稿会保留，恢复联网后可刷新。</span>
+      <AppIcon name="alert" /><span>当前离线。恢复联网后可刷新。</span>
     </div>
     <div v-if="success" class="notice notice-success" role="status">
       <AppIcon name="check" /><span>{{ success }}</span>
@@ -625,27 +619,13 @@ onUnmounted(() => {
                 <span>我已逐项核对以上全部政策提示，确认继续提交。</span>
               </label>
             </div>
-            <p v-else class="quiet-block">未发现政策提示，可以继续填写提交理由。</p>
+            <p v-else class="quiet-block">未发现政策提示，可以提交。</p>
             <p class="quiet-block">
               本次所选发票包含
               {{ preview.materials.length }}
               份辅助材料。提交后，所选项目、金额、政策提示与材料集合会固定保存，不随原单据变动。
             </p>
             <div class="reimbursement-submit">
-              <label class="field-stack">
-                <span>提交理由</span>
-                <textarea
-                  v-model="submissionReason"
-                  :disabled="submitting"
-                  class="textarea"
-                  rows="3"
-                  maxlength="500"
-                  :aria-invalid="Boolean(workspaceError && !submissionDecision.request)"
-                ></textarea>
-                <small class="form-note"
-                  >必填，最多 500 个字符；不同币种仅分组展示，不进行汇率换算。</small
-                >
-              </label>
               <button
                 class="button button-primary"
                 type="button"
@@ -822,17 +802,6 @@ onUnmounted(() => {
               </ol>
             </div>
             <div v-if="canManage" class="reimbursement-status-form">
-              <label class="field-stack">
-                <span>状态变化理由</span>
-                <textarea
-                  v-model="statusReason"
-                  class="textarea"
-                  rows="3"
-                  maxlength="500"
-                  :aria-invalid="Boolean(statusError)"
-                ></textarea>
-                <small class="form-note">发生版本冲突时会刷新详情并保留此草稿。</small>
-              </label>
               <p v-if="statusError" class="danger-text" role="alert">{{ statusError }}</p>
               <div class="reimbursement-status-actions">
                 <button

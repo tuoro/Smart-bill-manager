@@ -64,7 +64,8 @@ func TestCorrectionRejectsInvalidWithdrawalsAndAggregateOverflow(t *testing.T) {
 }
 
 func TestCorrectionValidatesReasonAndCurrentTargetIntegrity(t *testing.T) {
-	for _, reason := range []string{"", " \n", strings.Repeat("字", 501)} {
+	// 理由可选，只限长度。
+	for _, reason := range []string{strings.Repeat("字", 501)} {
 		if _, err := CorrectionReason(reason); err == nil {
 			t.Fatal("invalid reason accepted")
 		}

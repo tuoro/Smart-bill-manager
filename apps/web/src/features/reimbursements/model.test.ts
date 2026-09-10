@@ -75,17 +75,16 @@ const detail: ReimbursementDetail = {
 }
 
 describe('reimbursement workflow model', () => {
-  it('requires a matching explicit selection, complete finding acknowledgement and reason', () => {
-    expect(buildReimbursementSubmission(undefined, [], false, '').error).toContain('预检')
+  it('requires a matching explicit selection and complete finding acknowledgement', () => {
+    expect(buildReimbursementSubmission(undefined, [], false).error).toContain('预检')
     expect(
-      buildReimbursementSubmission(snapshot, [snapshot.items[0].assignment_id], true, '提交').error,
+      buildReimbursementSubmission(snapshot, [snapshot.items[0].assignment_id], true).error,
     ).toContain('已变化')
     expect(
       buildReimbursementSubmission(
         snapshot,
         snapshot.items.map((item) => item.assignment_id),
         false,
-        '提交',
       ).error,
     ).toContain('完整政策提示')
 
@@ -93,14 +92,12 @@ describe('reimbursement workflow model', () => {
       snapshot,
       snapshot.items.map((item) => item.assignment_id).reverse(),
       true,
-      '  合成提交理由  ',
     )
     expect(decision.request).toEqual({
       trip_id: snapshot.trip.id,
       assignment_ids: snapshot.items.map((item) => item.assignment_id).sort(),
       expected_snapshot_hash: snapshot.snapshot_hash,
       acknowledged_finding_keys: ['a'.repeat(64)],
-      reason: '合成提交理由',
     })
 
     const oversized: ReimbursementPolicySnapshot = {
@@ -116,7 +113,6 @@ describe('reimbursement workflow model', () => {
         oversized,
         oversized.items.map((item) => item.assignment_id),
         true,
-        '提交',
       ).error,
     ).toContain('已变化')
   })
@@ -124,15 +120,12 @@ describe('reimbursement workflow model', () => {
   it('derives only valid status actions and keeps fingerprints stable', () => {
     expect(reimbursementStatusActions('submitted')).toEqual(['reimbursed', 'rejected'])
     expect(reimbursementStatusActions('reimbursed')).toEqual(['submitted'])
-    expect(buildReimbursementStatusRequest(detail, 'submitted', '无变化').error).toContain(
-      '不能执行',
-    )
-    const decision = buildReimbursementStatusRequest(detail, 'reimbursed', '  已完成  ')
+    expect(buildReimbursementStatusRequest(detail, 'submitted').error).toContain('不能执行')
+    const decision = buildReimbursementStatusRequest(detail, 'reimbursed')
     expect(decision.request).toEqual({
       expected_status: 'submitted',
       desired_status: 'reimbursed',
       expected_version: 2,
-      reason: '已完成',
     })
     expect(reimbursementRequestFingerprint(detail.id, decision.request!)).toBe(
       reimbursementRequestFingerprint(detail.id, decision.request!),
@@ -149,7 +142,6 @@ describe('reimbursement workflow model', () => {
         withoutFindings,
         withoutFindings.items.map((item) => item.assignment_id),
         false,
-        '无提示提交',
       ).request?.acknowledged_finding_keys,
     ).toEqual([])
   })

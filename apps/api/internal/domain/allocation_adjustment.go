@@ -135,10 +135,8 @@ func CanonicalAllocationAdjustmentRequest(
 	if err != nil {
 		return nil, "", "", err
 	}
+	// 理由可选，只限长度。
 	trimmedReason := strings.TrimSpace(reason)
-	if len([]rune(trimmedReason)) < 1 {
-		return nil, "", "", NewRuleError("allocation_reason_required", "调整理由不能为空", ErrInvalidInput)
-	}
 	if len([]rune(trimmedReason)) > 500 {
 		return nil, "", "", NewRuleError("allocation_reason_too_long", "调整理由不能超过 500 个字符", ErrInvalidInput)
 	}

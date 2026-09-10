@@ -1251,7 +1251,7 @@ export interface components {
             /** @enum {string} */
             status: "active" | "suspended";
             expected_version: number;
-            reason: string;
+            reason?: string;
         };
         Invitation: {
             /** Format: uuid */
@@ -1275,7 +1275,7 @@ export interface components {
             /** Format: email */
             email: string;
             role: components["schemas"]["Role"];
-            reason: string;
+            reason?: string;
             idempotency_key: string;
         };
         InvitationCreated: {
@@ -1286,7 +1286,7 @@ export interface components {
         };
         InvitationRevocation: {
             expected_version: number;
-            reason: string;
+            reason?: string;
         };
         InvitationCode: {
             code: string;
@@ -1315,7 +1315,7 @@ export interface components {
             current_review_decision_id: string;
             /** @description 固定当前类型的完整快照；纠错允许在真实 AI 根上追加人工证据，不伪造根来源。 */
             fields: components["schemas"]["RevisionRequest"]["fields"];
-            reason: string;
+            reason?: string;
             withdraw_link_ids: string[];
         };
         CorrectionConfirmRequest: {
@@ -1323,7 +1323,7 @@ export interface components {
             /** Format: uuid */
             current_review_decision_id: string;
             fields: components["schemas"]["CorrectionRequest"]["fields"];
-            reason: string;
+            reason?: string;
             withdraw_link_ids: components["schemas"]["CorrectionRequest"]["withdraw_link_ids"];
             preview_hash: string;
             acknowledged_duplicate_keys: string[];
@@ -1721,7 +1721,7 @@ export interface components {
             expected_job_version: number;
             /** @enum {string} */
             document_type: "payment" | "invoice" | "trip";
-            reason: string;
+            reason?: string;
         };
         ManualReviewResult: {
             /** Format: uuid */
@@ -1920,7 +1920,7 @@ export interface components {
         AllocationAdjustmentRequest: {
             expected_plan_hash: string;
             desired_allocations: components["schemas"]["DesiredAllocation"][];
-            reason: string;
+            reason?: string;
         };
         AllocationAdjustmentResult: {
             /** Format: uuid */
@@ -2062,11 +2062,11 @@ export interface components {
             notes: string;
             /** @description 新建必须为 0，编辑必须为当前版本 */
             expected_version: number;
-            reason: string;
+            reason?: string;
         };
         TripDeleteRequest: {
             expected_version: number;
-            reason: string;
+            reason?: string;
         };
         TripManagementResult: {
             /** Format: uuid */
@@ -2106,7 +2106,7 @@ export interface components {
             /** Format: uuid */
             expected_link_id: string | null;
             expected_version: number;
-            reason: string;
+            reason?: string;
         };
         TripMaterialResult: {
             /** Format: uuid */
@@ -2154,7 +2154,7 @@ export interface components {
             expected_fact_version: number;
             desired_trip_id: string | null;
             expected_assignment_id: string | null;
-            reason: string;
+            reason?: string;
         };
         TripAssignmentResult: {
             fact_version?: number;
@@ -2247,14 +2247,14 @@ export interface components {
         };
         InvoiceMaterialRequest: {
             expected_version: number;
-            reason: string;
+            reason?: string;
             idempotency_key: string;
         };
         InvoiceMaterialAddRequest: {
             /** Format: uuid */
             document_id: string;
             expected_version: number;
-            reason: string;
+            reason?: string;
             idempotency_key: string;
         };
         InvoiceMaterialResult: {
@@ -2296,7 +2296,7 @@ export interface components {
             assignment_ids: string[];
             expected_snapshot_hash: string;
             acknowledged_finding_keys: string[];
-            reason: string;
+            reason?: string;
         };
         ReimbursementSummary: {
             /** Format: uuid */
@@ -2392,7 +2392,7 @@ export interface components {
             expected_status: components["schemas"]["ReimbursementStatus"];
             desired_status: components["schemas"]["ReimbursementStatus"];
             expected_version: number;
-            reason: string;
+            reason?: string;
         };
         ReimbursementMutationResult: {
             /** Format: uuid */
@@ -4100,7 +4100,7 @@ export interface operations {
                      */
                     file: string;
                     expected_version: number;
-                    reason: string;
+                    reason?: string;
                     idempotency_key: string;
                 };
             };

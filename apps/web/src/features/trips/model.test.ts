@@ -25,14 +25,13 @@ const candidate: TripAttributionCandidate = {
 describe('Trip attribution model', () => {
   it('builds assign, move and unassign requests with explicit nullable expectations', () => {
     const tripID = '00000000-0000-4000-8000-000000000010'
-    expect(buildTripAssignmentDecision(candidate, tripID, ' 日期命中 ')).toEqual({
+    expect(buildTripAssignmentDecision(candidate, tripID)).toEqual({
       request: {
         fact_type: 'payment',
         fact_id: candidate.fact_id,
         desired_trip_id: tripID,
         expected_assignment_id: null,
         expected_fact_version: 1,
-        reason: '日期命中',
       },
     })
 
@@ -42,7 +41,7 @@ describe('Trip attribution model', () => {
       current_trip_id: '00000000-0000-4000-8000-000000000021',
     }
     expect(tripAssignmentActionLabel(assigned, tripID)).toContain('移动')
-    expect(buildTripAssignmentDecision(assigned, tripID, '人工核对')).toMatchObject({
+    expect(buildTripAssignmentDecision(assigned, tripID)).toMatchObject({
       request: {
         desired_trip_id: tripID,
         expected_assignment_id: assigned.current_assignment_id,
@@ -51,19 +50,15 @@ describe('Trip attribution model', () => {
 
     const current = { ...assigned, current_trip_id: tripID }
     expect(tripAssignmentActionLabel(current, tripID)).toContain('撤销')
-    expect(buildTripAssignmentDecision(current, tripID, '撤销误归属')).toMatchObject({
+    expect(buildTripAssignmentDecision(current, tripID)).toMatchObject({
       request: { desired_trip_id: null, expected_assignment_id: assigned.current_assignment_id },
     })
   })
 
-  it('validates reasons and keeps request fingerprints deterministic', () => {
+  it('keeps request fingerprints deterministic', () => {
     const tripID = '00000000-0000-4000-8000-000000000010'
-    expect(buildTripAssignmentDecision(candidate, tripID, '').error).toContain('1～500')
-    expect(buildTripAssignmentDecision(candidate, tripID, '理'.repeat(501)).error).toContain(
-      '1～500',
-    )
-    const first = buildTripAssignmentDecision(candidate, tripID, '人工核对').request!
-    const second = buildTripAssignmentDecision(candidate, tripID, '人工核对').request!
+    const first = buildTripAssignmentDecision(candidate, tripID).request!
+    const second = buildTripAssignmentDecision(candidate, tripID).request!
     expect(assignmentFingerprint(first)).toBe(assignmentFingerprint(second))
     expect(tripReasonLabel('date_inside_trip')).toContain('行程区间')
   })

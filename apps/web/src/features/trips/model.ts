@@ -39,13 +39,7 @@ export function tripAssignmentActionLabel(
 export function buildTripAssignmentDecision(
   candidate: TripAttributionCandidate,
   selectedTripID: string,
-  reason: string,
 ): TripAssignmentDecision {
-  const normalizedReason = reason.trim()
-  const reasonLength = [...normalizedReason].length
-  if (reasonLength < 1 || reasonLength > 500) {
-    return { error: '请填写 1～500 字符的归属理由' }
-  }
   if (!selectedTripID) return { error: '请先选择行程' }
   return {
     request: {
@@ -54,7 +48,6 @@ export function buildTripAssignmentDecision(
       expected_fact_version: candidate.fact_version,
       desired_trip_id: candidate.current_trip_id === selectedTripID ? null : selectedTripID,
       expected_assignment_id: candidate.current_assignment_id ?? null,
-      reason: normalizedReason,
     },
   }
 }

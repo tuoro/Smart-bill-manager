@@ -95,7 +95,6 @@ func TestCanonicalAllocationAdjustmentRequestRejectsBoundaryErrors(t *testing.T)
 		{"missing target", emptyHash, []DesiredAllocation{{AllocatedMinor: 1}}, "reason", ErrInvalidInput},
 		{"zero", emptyHash, []DesiredAllocation{{TargetFactID: "payment", AllocatedMinor: 0}}, "reason", ErrInvalidInput},
 		{"duplicate", emptyHash, []DesiredAllocation{{TargetFactID: "payment", AllocatedMinor: 1}, {TargetFactID: "payment", AllocatedMinor: 2}}, "reason", ErrInvalidInput},
-		{"blank reason", emptyHash, nil, " \n ", ErrInvalidInput},
 		{"long reason", emptyHash, nil, strings.Repeat("理", 501), ErrInvalidInput},
 	}
 	for _, test := range tests {

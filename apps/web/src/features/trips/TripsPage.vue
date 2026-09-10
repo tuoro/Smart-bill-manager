@@ -40,7 +40,6 @@ const forbidden = ref(false)
 const offline = ref(!navigator.onLine)
 const error = ref('')
 const success = ref('')
-const reasonDrafts = ref<Record<string, string>>({})
 const rowErrors = ref<Record<string, string>>({})
 const attempts = new Map<string, AssignmentAttempt>()
 const tripViews: TripAttributionView[] = ['all', 'suggested', 'assigned']
@@ -185,11 +184,7 @@ async function selectView(nextView: TripAttributionView) {
 
 async function changeAssignment(candidate: TripAttributionCandidate) {
   if (!canManage.value || offline.value || !selectedTripID.value) return
-  const decision = buildTripAssignmentDecision(
-    candidate,
-    selectedTripID.value,
-    reasonDrafts.value[candidate.fact_id] ?? '',
-  )
+  const decision = buildTripAssignmentDecision(candidate, selectedTripID.value)
   if (!decision.request) {
     rowErrors.value[candidate.fact_id] = decision.error ?? '归属请求不完整'
     return
@@ -200,14 +195,13 @@ async function changeAssignment(candidate: TripAttributionCandidate) {
   const key = assignmentKey(candidate.fact_id, decision.request)
   try {
     await api.changeTripAssignment(decision.request, key)
-    reasonDrafts.value[candidate.fact_id] = ''
     rowErrors.value[candidate.fact_id] = ''
     attempts.delete(candidate.fact_id)
     success.value = `${candidate.display_name} 的行程归属已更新。`
     await loadTrips(selectedTripID.value)
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 409) {
-      rowErrors.value[candidate.fact_id] = '当前归属已变化，请刷新后重试；已保留填写的理由。'
+      rowErrors.value[candidate.fact_id] = '当前归属已变化，请刷新后重试。'
     } else {
       rowErrors.value[candidate.fact_id] =
         caught instanceof ApiError ? caught.message : '归属更新失败，请检查网络后重试'
@@ -287,7 +281,7 @@ onUnmounted(() => {
     </header>
 
     <div v-if="offline" class="notice notice-warning" role="status">
-      <AppIcon name="alert" /><span>当前离线。已加载的行程和理由草稿会保留。</span>
+      <AppIcon name="alert" /><span>当前离线。已加载的行程会保留。</span>
     </div>
     <div v-if="success" class="notice notice-success" role="status">
       <AppIcon name="check" /><span>{{ success }}</span>
@@ -433,20 +427,7 @@ onUnmounted(() => {
                 <li v-if="candidate.reason_codes.length === 0">没有规则建议，需人工判断</li>
               </ul>
               <div v-if="canManage" class="trip-assignment-form">
-                <label :for="`trip-reason-${candidate.fact_id}`">归属理由</label>
-                <textarea
-                  :id="`trip-reason-${candidate.fact_id}`"
-                  v-model="reasonDrafts[candidate.fact_id]"
-                  class="textarea"
-                  rows="2"
-                  maxlength="500"
-                  :aria-invalid="Boolean(rowErrors[candidate.fact_id])"
-                  :aria-describedby="
-                    rowErrors[candidate.fact_id] ? `trip-error-${candidate.fact_id}` : undefined
-                  "
-                ></textarea>
                 <div class="trip-assignment-actions">
-                  <small>{{ [...(reasonDrafts[candidate.fact_id] ?? '')].length }} / 500</small>
                   <button
                     v-if="candidate.fact_type === 'payment' && candidate.assignment_mode !== 'auto'"
                     class="button"

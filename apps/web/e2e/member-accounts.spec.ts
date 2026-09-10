@@ -206,7 +206,6 @@ async function fixture(
 
 async function fillInvite(page: Page) {
   await page.getByLabel('受邀用户名或邮箱').fill('new@example.invalid')
-  await page.getByLabel('邀请理由').fill('合成团队加入')
   await page.getByRole('button', { name: '创建邀请', exact: true }).click()
 }
 
@@ -230,7 +229,6 @@ test('邀请只显示一次；新建和无关撤销不丢失当前代码，复�
   await page.getByRole('button', { name: '复制邀请代码' }).click()
   await expect(page.getByText('无法自动复制，请手动选择上方代码复制')).toBeVisible()
   await page.getByRole('button', { name: '撤销 invite-1@example.invalid 的邀请' }).click()
-  await page.getByLabel('撤销理由').fill('合成撤销其他邀请')
   await page.getByRole('button', { name: '确认撤销邀请' }).click()
   await expect(page.getByLabel('一次性邀请代码')).toHaveValue(mockCode)
   expect(
@@ -304,10 +302,8 @@ test('成员和邀请完整翻页；失败不破坏分页历史，冲突后可�
   expect(invitationSeen.size).toBe(201)
   await page.getByRole('button', { name: '管理 member-20@example.invalid', exact: true }).click()
   await page.getByRole('combobox', { name: '角色', exact: true }).selectOption('finance')
-  await page.getByLabel('变更理由').fill('合成保留草稿')
   await page.getByRole('button', { name: '核对变更', exact: true }).click()
   await page.getByRole('button', { name: '确认保存成员变更' }).click()
-  await expect(page.getByLabel('变更理由')).toHaveValue('合成保留草稿')
   await expect(page.getByRole('button', { name: '我已核对最新成员状态' })).toBeEnabled()
   expect(
     (await page.locator('.member-editor .notice-stack p').first().boundingBox())!.width,
@@ -316,7 +312,6 @@ test('成员和邀请完整翻页；失败不破坏分页历史，冲突后可�
   await page.getByRole('button', { name: '我已核对最新成员状态' }).click()
   await page.getByRole('button', { name: '核对变更', exact: true }).click()
   await page.getByRole('button', { name: '确认保存成员变更' }).click()
-  await expect(page.getByLabel('变更理由')).toHaveCount(0)
   const writes = state.writes.filter((item) => item.path.includes('/members/'))
   expect(writes.map((item) => item.body.expected_version)).toEqual([1, 2])
   expect(state.errors).toEqual([])

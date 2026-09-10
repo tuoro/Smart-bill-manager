@@ -113,14 +113,12 @@ test('手动创建一趟行程、关联往返两张票、保留编辑草稿处�
   await page.getByLabel('行程名称').fill('合成客户拜访')
   await page.getByLabel('开始日期').fill('2026-09-01')
   await page.getByLabel('结束日期').fill('2026-09-05')
-  await page.getByLabel('操作理由').fill('先创建一趟行程')
   await captureResponsiveReview(page, testInfo, 'manual-trip-editor')
   await page.getByRole('button', { name: '保存行程', exact: true }).click()
   await expect(page.getByRole('heading', { name: '合成客户拜访', exact: true })).toBeVisible()
   expect(createCalls).toBe(1)
   const materials = page.getByRole('region', { name: '行程凭证', exact: true })
   for (let index = 0; index < 2; index++) {
-    await materials.getByLabel('材料归属理由').nth(index).fill('同一趟出差的往返机票')
     await materials.getByRole('button', { name: '加入当前行程', exact: true }).first().click()
     await expect(materials.getByRole('button', { name: '移出当前行程', exact: true })).toHaveCount(
       index + 1,
@@ -130,7 +128,6 @@ test('手动创建一趟行程、关联往返两张票、保留编辑草稿处�
   await captureResponsiveReview(page, testInfo, 'manual-trip-materials')
   await page.getByRole('button', { name: '编辑行程', exact: true }).click()
   await page.getByLabel('行程名称').fill('合成客户拜访（修订）')
-  await page.getByLabel('操作理由').fill('补充名称')
   await page.getByRole('button', { name: '保存行程', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('行程版本已变化')
   await expect(page.getByLabel('行程名称')).toHaveValue('合成客户拜访（修订）')

@@ -117,8 +117,8 @@ func (s Service) Assign(
 		return ports.TripAssignmentResult{}, domain.ErrInvalidInput
 	}
 	reason := strings.TrimSpace(input.Reason)
-	if len([]rune(reason)) < 1 || len([]rune(reason)) > 500 {
-		return ports.TripAssignmentResult{}, domain.NewRuleError("invalid_trip_assignment_reason", "归属理由必须为 1 至 500 个字符", domain.ErrInvalidInput)
+	if len([]rune(reason)) > 500 {
+		return ports.TripAssignmentResult{}, domain.NewRuleError("invalid_trip_assignment_reason", "理由不能超过 500 个字符", domain.ErrInvalidInput)
 	}
 	desiredTripID := stringValue(input.DesiredTripID)
 	expectedAssignmentID := stringValue(input.ExpectedAssignmentID)

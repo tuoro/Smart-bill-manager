@@ -16,9 +16,8 @@ const loading = ref(false),
   copyMessage = ref(''),
   notice = ref('')
 const uncertain = ref(false),
-  revokeTarget = ref<Invitation | null>(null),
-  revokeReason = ref('')
-const draft = reactive({ email: '', role: 'viewer' as Invitation['role'], reason: '' })
+  revokeTarget = ref<Invitation | null>(null)
+const draft = reactive({ email: '', role: 'viewer' as Invitation['role'] })
 const busy = computed(() => props.disabled || pending.value)
 const roles = { owner: '管理员', finance: '财务', reviewer: '审核员', viewer: '只读成员' }
 const statuses = { pending: '待使用', consumed: '已使用', revoked: '已撤销', expired: '已过期' }
@@ -74,7 +73,6 @@ async function create() {
     request = null
     uncertain.value = false
     draft.email = ''
-    draft.reason = ''
     history.value = []
     await load('')
   } catch (caught) {
@@ -104,29 +102,17 @@ function closeCode() {
 }
 function selectRevoke(item: Invitation) {
   revokeTarget.value = item
-  revokeReason.value = ''
   error.value = ''
 }
 async function revoke() {
-  if (
-    busy.value ||
-    !revokeTarget.value ||
-    revokeTarget.value.version !== 1 ||
-    !revokeReason.value.trim()
-  )
-    return
+  if (busy.value || !revokeTarget.value || revokeTarget.value.version !== 1) return
   setPending(true)
   error.value = ''
   const selectedID = revokeTarget.value.id
   try {
-    await api.revokeInvitation(
-      revokeTarget.value.id,
-      revokeTarget.value.version,
-      revokeReason.value,
-    )
+    await api.revokeInvitation(revokeTarget.value.id, revokeTarget.value.version)
     if (!live) return
     revokeTarget.value = null
-    revokeReason.value = ''
     if (codeInvitationID.value === selectedID) closeCode()
     await load()
   } catch (caught) {
@@ -188,16 +174,6 @@ onBeforeUnmount(() => {
           <option v-for="(label, role) in roles" :key="role" :value="role">{{ label }}</option>
         </select></label
       >
-      <label class="field-stack"
-        ><span>邀请理由</span
-        ><textarea
-          v-model="draft.reason"
-          class="input"
-          maxlength="500"
-          required
-          :disabled="busy || uncertain"
-        ></textarea>
-      </label>
       <button class="button button-primary" type="submit" :disabled="busy || !!code">
         {{ uncertain ? '核对上次邀请请求' : pending ? '正在处理…' : '创建邀请' }}
       </button>
@@ -252,16 +228,6 @@ onBeforeUnmount(() => {
     <form v-if="revokeTarget" class="invitation-form" @submit.prevent="revoke">
       <h3>撤销 {{ revokeTarget.email }} 的邀请</h3>
       <p>当前状态：{{ statuses[revokeTarget.status] }}。撤销后，原代码不可再使用。</p>
-      <label class="field-stack"
-        ><span>撤销理由</span
-        ><textarea
-          v-model="revokeReason"
-          class="input"
-          maxlength="500"
-          required
-          :disabled="busy"
-        ></textarea>
-      </label>
       <div class="invitation-actions">
         <button
           class="button button-primary"

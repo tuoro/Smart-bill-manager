@@ -30,7 +30,7 @@ func TestInvoiceMaterialRequestsBindActionVersionTargetAndReason(t *testing.T) {
 		}
 	}
 	for _, change := range []func(*InvoiceMaterialRequest){
-		func(v *InvoiceMaterialRequest) { v.ExpectedVersion = 0 }, func(v *InvoiceMaterialRequest) { v.Reason = " " },
+		func(v *InvoiceMaterialRequest) { v.ExpectedVersion = 0 },
 		func(v *InvoiceMaterialRequest) { v.Reason = strings.Repeat("字", 501) }, func(v *InvoiceMaterialRequest) { v.IdempotencyKey = "short" },
 		func(v *InvoiceMaterialRequest) { v.Action = "unknown" }, func(v *InvoiceMaterialRequest) { v.LinkID = "mixed-target" },
 		func(v *InvoiceMaterialRequest) { v.UploadSHA256 = strings.Repeat("a", 64) },

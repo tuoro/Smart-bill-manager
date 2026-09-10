@@ -46,7 +46,6 @@ const allowed = computed(() =>
 )
 const workspace = ref<CorrectionWorkspace>()
 const fields = ref<EditableField[]>([])
-const reason = ref('')
 const withdrawals = ref<string[]>([])
 const preview = ref<CorrectionPreview>()
 const previewBody = ref<CorrectionRequest>()
@@ -86,7 +85,7 @@ const itemKeys = computed(() => [
 const missingWithdrawals = computed(() =>
   withdrawals.value.filter((id) => !workspace.value?.state.links.some((link) => link.id === id)),
 )
-const draft = computed(() => JSON.stringify([fields.value, reason.value, withdrawals.value]))
+const draft = computed(() => JSON.stringify([fields.value, withdrawals.value]))
 const removedFields = computed(
   () =>
     workspace.value?.review.fields.filter(
@@ -99,7 +98,6 @@ const removedFields = computed(
 const canPreview = computed(() =>
   Boolean(
     workspace.value &&
-    reason.value.trim() &&
     !busy.value &&
     !loading.value &&
     !needsRefresh.value &&
@@ -162,7 +160,6 @@ async function load(preserve = false) {
     mustRecheck.value = preserve
     rechecked.value = false
     if (!preserve) {
-      reason.value = ''
       withdrawals.value = []
       page.value = 1
     }
@@ -224,7 +221,6 @@ async function requestPreview() {
     expected_version: workspace.value.state.version,
     current_review_decision_id: workspace.value.state.current_review_decision_id,
     fields: encoded.fields,
-    reason: reason.value,
     withdraw_link_ids: [...withdrawals.value],
   }
   const fingerprint = draft.value
@@ -309,7 +305,6 @@ watch(
     historyEpoch++
     workspace.value = undefined
     fields.value = []
-    reason.value = ''
     withdrawals.value = []
     preview.value = undefined
     previewBody.value = undefined
@@ -508,17 +503,7 @@ watch(
           </p>
         </section>
         <section class="panel correction-section">
-          <label class="page-stack"
-            ><strong>纠错理由</strong
-            ><textarea
-              v-model="reason"
-              class="textarea"
-              maxlength="500"
-              rows="3"
-              :disabled="busy || loading"
-              aria-label="纠错理由"
-            ></textarea></label
-          ><button class="button button-primary" :disabled="!canPreview" @click="requestPreview">
+          <button class="button button-primary" :disabled="!canPreview" @click="requestPreview">
             {{ busy ? '处理中…' : '预览纠错' }}
           </button>
         </section>

@@ -38,7 +38,7 @@ func TestHTTPManualTripWorkspaceWorkflowAndRoles(t *testing.T) {
 		assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/trips", strings.NewReader(createBody), denied, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-create-denied-%d", index)}), http.StatusForbidden)
 		assertStatus(t, fixture.requestWithHeaders(http.MethodPatch, "/api/v1/trips/"+tripID, strings.NewReader(editBody), denied, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-edit-denied-%d", index)}), http.StatusForbidden)
 	}
-	for index, body := range []string{strings.Replace(createBody, "Asia/Shanghai", "Invalid/Timezone", 1), strings.Replace(createBody, "2026-08-27", "2026-02-30", 1), strings.Replace(createBody, `"reason":"无需凭证创建"`, `"reason":""`, 1)} {
+	for index, body := range []string{strings.Replace(createBody, "Asia/Shanghai", "Invalid/Timezone", 1), strings.Replace(createBody, "2026-08-27", "2026-02-30", 1)} {
 		assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/trips", strings.NewReader(body), owner, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-invalid-%d", index)}), http.StatusBadRequest)
 	}
 	deleteBody := `{"expected_version":2,"reason":"删除容器不删除凭证"}`

@@ -1134,7 +1134,7 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [file, expected_version, reason, idempotency_key]
+              required: [file, expected_version, idempotency_key]
               properties:
                 file: { type: string, format: binary, description: 单个 JPEG/PNG/WebP/PDF，最多 20 MiB、20 页 }
                 expected_version: { type: integer, minimum: 1 }
@@ -2088,7 +2088,7 @@ components:
     MemberChange:
       type: object
       additionalProperties: false
-      required: [role, status, expected_version, reason]
+      required: [role, status, expected_version]
       properties:
         role: { $ref: "#/components/schemas/Role" }
         status: { type: string, enum: [active, suspended] }
@@ -2116,7 +2116,7 @@ components:
     InvitationRequest:
       type: object
       additionalProperties: false
-      required: [email, role, reason, idempotency_key]
+      required: [email, role, idempotency_key]
       properties:
         email: { type: string, format: email, maxLength: 254 }
         role: { $ref: "#/components/schemas/Role" }
@@ -2133,7 +2133,7 @@ components:
     InvitationRevocation:
       type: object
       additionalProperties: false
-      required: [expected_version, reason]
+      required: [expected_version]
       properties:
         expected_version: { type: integer, minimum: 1 }
         reason: { type: string, minLength: 1, maxLength: 500 }
@@ -2171,7 +2171,7 @@ components:
     CorrectionRequest:
       type: object
       additionalProperties: false
-      required: [expected_version, current_review_decision_id, fields, reason, withdraw_link_ids]
+      required: [expected_version, current_review_decision_id, fields, withdraw_link_ids]
       properties:
         expected_version: { type: integer, minimum: 1 }
         current_review_decision_id: { type: string, format: uuid }
@@ -2186,7 +2186,7 @@ components:
     CorrectionConfirmRequest:
       type: object
       additionalProperties: false
-      required: [expected_version, current_review_decision_id, fields, reason, withdraw_link_ids, preview_hash, acknowledged_duplicate_keys]
+      required: [expected_version, current_review_decision_id, fields, withdraw_link_ids, preview_hash, acknowledged_duplicate_keys]
       properties:
         expected_version: { type: integer, minimum: 1 }
         current_review_decision_id: { type: string, format: uuid }
@@ -2845,7 +2845,7 @@ components:
     ManualReviewRequest:
       type: object
       additionalProperties: false
-      required: [expected_job_version, document_type, reason]
+      required: [expected_job_version, document_type]
       properties:
         expected_job_version: { type: integer, minimum: 1 }
         document_type: { type: string, enum: [payment, invoice, trip] }
@@ -3274,7 +3274,7 @@ components:
     AllocationAdjustmentRequest:
       type: object
       additionalProperties: false
-      required: [expected_plan_hash, desired_allocations, reason]
+      required: [expected_plan_hash, desired_allocations]
       properties:
         expected_plan_hash: { type: string, pattern: "^[a-f0-9]{64}$" }
         desired_allocations:
@@ -3535,7 +3535,7 @@ components:
       type: object
       additionalProperties: false
       required:
-        [name, start_date, end_date, timezone, notes, expected_version, reason]
+        [name, start_date, end_date, timezone, notes, expected_version]
       properties:
         name: { type: string, minLength: 1, maxLength: 500 }
         start_date: { type: string, format: date }
@@ -3557,7 +3557,7 @@ components:
     TripDeleteRequest:
       type: object
       additionalProperties: false
-      required: [expected_version, reason]
+      required: [expected_version]
       properties:
         expected_version: { type: integer, minimum: 1 }
         reason: { type: string, minLength: 1, maxLength: 500 }
@@ -3603,7 +3603,6 @@ components:
           desired_trip_id,
           expected_link_id,
           expected_version,
-          reason,
         ]
       properties:
         evidence_id: { type: string, format: uuid }
@@ -3709,7 +3708,6 @@ components:
           desired_trip_id,
           expected_assignment_id,
           expected_fact_version,
-          reason,
         ]
       properties:
         fact_type: { $ref: "#/components/schemas/AllocationFactType" }
@@ -3857,7 +3855,7 @@ components:
     InvoiceMaterialRequest:
       type: object
       additionalProperties: false
-      required: [expected_version, reason, idempotency_key]
+      required: [expected_version, idempotency_key]
       properties:
         expected_version: { type: integer, minimum: 1 }
         reason: { type: string, minLength: 1, maxLength: 500 }
@@ -3865,7 +3863,7 @@ components:
     InvoiceMaterialAddRequest:
       type: object
       additionalProperties: false
-      required: [document_id, expected_version, reason, idempotency_key]
+      required: [document_id, expected_version, idempotency_key]
       properties:
         document_id: { type: string, format: uuid }
         expected_version: { type: integer, minimum: 1 }
@@ -3936,7 +3934,6 @@ components:
           assignment_ids,
           expected_snapshot_hash,
           acknowledged_finding_keys,
-          reason,
         ]
       properties:
         trip_id: { type: string, format: uuid }
@@ -4054,6 +4051,7 @@ components:
     ReimbursementDecision:
       type: object
       additionalProperties: false
+      # 响应记录：reason 列非空（默认空串），服务端总会返回，因此仍是 required。
       required:
         [
           id,
@@ -4135,7 +4133,7 @@ components:
     ReimbursementStatusRequest:
       type: object
       additionalProperties: false
-      required: [expected_status, desired_status, expected_version, reason]
+      required: [expected_status, desired_status, expected_version]
       properties:
         expected_status: { $ref: "#/components/schemas/ReimbursementStatus" }
         desired_status: { $ref: "#/components/schemas/ReimbursementStatus" }

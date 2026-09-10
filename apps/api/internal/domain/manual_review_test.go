@@ -42,8 +42,12 @@ func TestManualReviewIdentity(t *testing.T) {
 	if _, _, err := ManualReviewIdentity("job", 0, DocumentPayment, reason); err == nil {
 		t.Fatal("invalid version accepted")
 	}
-	if _, _, err := ManualReviewIdentity("job", 2, DocumentPayment, " "); err == nil {
-		t.Fatal("empty reason accepted")
+	// 理由可选：空白合法，只限长度。
+	if _, _, err := ManualReviewIdentity("job", 2, DocumentPayment, " "); err != nil {
+		t.Fatal("blank reason rejected")
+	}
+	if _, _, err := ManualReviewIdentity("job", 2, DocumentPayment, strings.Repeat("理", 501)); err == nil {
+		t.Fatal("overlong reason accepted")
 	}
 }
 

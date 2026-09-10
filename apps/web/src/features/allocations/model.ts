@@ -12,7 +12,6 @@ export type AllocationDraftRow = {
 export type AllocationDraftValidation = {
   request?: AllocationAdjustmentRequest
   targetErrors: Record<string, string>
-  reasonError: string
   planError: string
   withdrawAllError: string
   changed: boolean
@@ -47,7 +46,6 @@ export function allocationDraftChanged(
 export function validateAllocationDraft(
   workspace: AllocationWorkspace,
   rows: AllocationDraftRow[],
-  reason: string,
   withdrawAllConfirmed: boolean,
 ): AllocationDraftValidation {
   const targetErrors: Record<string, string> = {}
@@ -92,27 +90,19 @@ export function validateAllocationDraft(
     planError = '分配计划没有变化'
   }
 
-  const trimmedReason = reason.trim()
-  let reasonError = ''
-  if (!trimmedReason) reasonError = '请填写本次调整理由'
-  else if ([...trimmedReason].length > 500) reasonError = '调整理由不能超过 500 个字符'
-
   let withdrawAllError = ''
   if (workspace.links.length > 0 && desired.length === 0 && !withdrawAllConfirmed) {
     withdrawAllError = '撤销全部分配前需要再次确认'
   }
-  const valid =
-    Object.keys(targetErrors).length === 0 && !planError && !reasonError && !withdrawAllError
+  const valid = Object.keys(targetErrors).length === 0 && !planError && !withdrawAllError
   return {
     request: valid
       ? {
           expected_plan_hash: workspace.plan_hash,
           desired_allocations: desired,
-          reason: trimmedReason,
         }
       : undefined,
     targetErrors,
-    reasonError,
     planError,
     withdrawAllError,
     changed,

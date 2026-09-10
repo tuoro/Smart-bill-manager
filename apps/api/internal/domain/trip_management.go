@@ -3,6 +3,7 @@ package domain
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const TripTimeAttributionVersion = "trip-time-attribution/1"
@@ -40,10 +41,11 @@ func NormalizeTripDetails(input TripDetails) (TripDetails, error) {
 	return value, nil
 }
 
+// 理由可选，只限长度。
 func NormalizeTripReason(value string) (string, error) {
-	value = strings.TrimSpace(value)
-	if len([]rune(value)) < 1 || len([]rune(value)) > 500 {
-		return "", NewRuleError("invalid_trip_reason", "操作理由须为 1 至 500 个字符", ErrInvalidInput)
+	reason := strings.TrimSpace(value)
+	if !utf8.ValidString(reason) || utf8.RuneCountInString(reason) > 500 {
+		return "", NewRuleError("invalid_trip_reason", "理由不能超过 500 个字符", ErrInvalidInput)
 	}
-	return value, nil
+	return reason, nil
 }

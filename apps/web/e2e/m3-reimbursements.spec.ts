@@ -107,7 +107,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
         updated_at: '2026-08-31T10:00:00Z',
         decisions: [
           ...current.decisions,
-          decision('reopen', 'rejected', 'submitted', 2, 3, body.reason),
+          decision('reopen', 'rejected', 'submitted', 2, 3, body.reason ?? ''),
         ],
       }
       details.set(createdID, reopened)
@@ -134,7 +134,6 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await page.getByRole('button', { name: '运行政策预检' }).click()
     await expect(page.getByText('1 条政策提示')).toBeVisible()
     await expect(page.getByText('该单据已出现在其他有效报销中')).toBeVisible()
-    await page.getByLabel('提交理由').fill(' 合成报销提交 ')
     await expect(page.getByRole('button', { name: '提交报销' })).toBeDisabled()
     await page.getByRole('checkbox', { name: /我已逐项核对/ }).check()
     await expect(page.getByRole('button', { name: '提交报销' })).toBeEnabled()
@@ -146,16 +145,11 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
         assignment_ids: [invoiceAssignmentID, paymentAssignmentID].sort(),
         expected_snapshot_hash: 'b'.repeat(64),
         acknowledged_finding_keys: [findingKey],
-        reason: '合成报销提交',
       },
     ])
     expect(idempotencyKeys[0]).toMatch(/^[0-9a-f-]{36}$/)
 
-    const statusReason = page.getByLabel('状态变化理由')
-    await statusReason.fill(' 保留这个状态理由 ')
     await page.getByRole('button', { name: '标记已报销' }).click()
-    await expect(page.getByRole('alert')).toContainText('保留理由草稿')
-    await expect(statusReason).toHaveValue(' 保留这个状态理由 ')
     await expect(page.getByRole('button', { name: '重新打开' })).toBeVisible()
     pageErrors.length = 0
     await page.getByRole('button', { name: '重新打开' }).click()
@@ -165,13 +159,11 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
         expected_status: 'submitted',
         desired_status: 'reimbursed',
         expected_version: 1,
-        reason: '保留这个状态理由',
       },
       {
         expected_status: 'rejected',
         desired_status: 'submitted',
         expected_version: 2,
-        reason: '保留这个状态理由',
       },
     ])
     expect(idempotencyKeys[1]).not.toBe(idempotencyKeys[2])
@@ -205,7 +197,6 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await page.goto('/reimbursements')
     await expect(page.getByText('当前账号为只读')).toBeVisible()
     await expect(page.getByRole('heading', { name: '新建报销', exact: true })).toHaveCount(0)
-    await expect(page.getByLabel('状态变化理由')).toHaveCount(0)
     expect(viewerRequests).toBe(1)
 
     const reviewerPage = await page.context().newPage()
@@ -312,9 +303,8 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await page.getByRole('checkbox', { name: /支付 · 合成交通商户/ }).check()
     await page.getByRole('checkbox', { name: /发票 · 合成住宿发票/ }).check()
     await page.getByRole('button', { name: '运行政策预检' }).click()
-    await expect(page.getByText('未发现政策提示，可以继续填写提交理由。')).toBeVisible()
+    await expect(page.getByText('未发现政策提示，可以提交。')).toBeVisible()
     await expect(page.getByRole('checkbox', { name: /我已逐项核对/ })).toHaveCount(0)
-    await page.getByLabel('提交理由').fill('无提示合成提交')
     await expect(page.getByRole('button', { name: '提交报销' })).toBeEnabled()
     await page.getByRole('button', { name: '提交报销' }).click()
     await expect(page.locator('.notice-success')).toContainText('报销快照已提交')
@@ -378,7 +368,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     await expect(page.getByText('没有可用行程')).toBeVisible()
 
     await page.context().setOffline(true)
-    await expect(page.getByText('当前离线。理由草稿会保留，恢复联网后可刷新。')).toBeVisible()
+    await expect(page.getByText('当前离线。恢复联网后可刷新。')).toBeVisible()
     await expect(page.getByRole('button', { name: '刷新' })).toBeDisabled()
     await page.context().setOffline(false)
   })
@@ -441,7 +431,7 @@ function assignedCandidates(): TripAttributionCandidate[] {
   ]
 }
 
-test('B4：迟到预检不覆盖新选择，材料冲突保留理由，提交期间锁定创建输入', async ({ page }) => {
+test('B4：迟到预检不覆盖新选择，材料冲突后保留选择，提交期间锁定创建输入', async ({ page }) => {
   await mockSession(page, ownerSession())
   const trip = syntheticTrip()
   await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
@@ -485,21 +475,16 @@ test('B4：迟到预检不覆盖新选择，材料冲突保留理由，提交期
   await expect(page.locator('.reimbursement-preview')).toHaveCount(0)
   await page.getByRole('button', { name: '运行政策预检' }).click()
   await expect(page.locator('.reimbursement-preview')).toContainText('1 份辅助材料')
-  await page.getByLabel('提交理由').fill('合成材料变更后保留的理由')
   await page.getByRole('button', { name: '提交报销', exact: true }).click()
   await expect.poll(() => submitted).toBe(true)
   await expect(page.getByRole('combobox', { name: '行程', exact: true })).toBeDisabled()
   await expect(payment).toBeDisabled()
   await expect(invoice).toBeDisabled()
-  await expect(page.getByLabel('提交理由')).toBeDisabled()
   await expect(page.getByRole('button', { name: '运行政策预检' })).toBeDisabled()
   await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
   releaseSubmit()
-  await expect(
-    page.getByText('报销输入或当前状态已变化，请重新预检；提交理由已保留。'),
-  ).toBeVisible()
+  await expect(page.getByText('报销输入或当前状态已变化，请重新预检。')).toBeVisible()
   await page.getByRole('button', { name: '运行政策预检' }).click()
-  await expect(page.getByLabel('提交理由')).toHaveValue('合成材料变更后保留的理由')
 })
 
 test('B4：迟到报销详情不能把辅助材料状态切回上一条', async ({ page }) => {

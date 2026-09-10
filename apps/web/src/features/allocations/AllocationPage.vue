@@ -27,7 +27,6 @@ const factType = computed(() => route.params.factType as AllocationFactType)
 const factId = computed(() => String(route.params.factId ?? ''))
 const workspace = ref<AllocationWorkspace | null>(null)
 const rows = ref<AllocationDraftRow[]>([])
-const reason = ref('')
 const withdrawAllConfirmed = ref(false)
 const loading = ref(true)
 const submitting = ref(false)
@@ -52,9 +51,7 @@ let submissionAttempt: { request: AllocationAdjustmentRequest; key: string } | n
 const draftChanged = computed(() =>
   Boolean(workspace.value && allocationDraftChanged(workspace.value, rows.value)),
 )
-const dirty = computed(
-  () => draftChanged.value || Boolean(reason.value) || withdrawAllConfirmed.value,
-)
+const dirty = computed(() => draftChanged.value || withdrawAllConfirmed.value)
 const locked = computed(
   () => loading.value || submitting.value || searching.value || unknownResult.value,
 )
@@ -83,7 +80,7 @@ function captureScope() {
 
 const validation = computed(() =>
   workspace.value
-    ? validateAllocationDraft(workspace.value, rows.value, reason.value, withdrawAllConfirmed.value)
+    ? validateAllocationDraft(workspace.value, rows.value, withdrawAllConfirmed.value)
     : undefined,
 )
 const selectedCount = computed(() => rows.value.filter((row) => row.selected).length)
@@ -113,7 +110,6 @@ async function load() {
   error.value = ''
   success.value = ''
   conflict.value = ''
-  reason.value = ''
   withdrawAllConfirmed.value = false
   attempted.value = false
   scopeTouched.value = false
@@ -140,7 +136,6 @@ async function load() {
     view.value = 'recommended'
     appliedSearch.value = { q: '', view: 'recommended' }
     nextCursor.value = latest.next_cursor ?? ''
-    reason.value = ''
     withdrawAllConfirmed.value = false
     forbidden.value = false
     error.value = ''
@@ -157,7 +152,7 @@ async function load() {
 
 function refresh() {
   if (locked.value) return
-  if (dirty.value && !window.confirm('刷新会丢弃当前未保存的目标、金额和理由，是否继续？')) return
+  if (dirty.value && !window.confirm('刷新会丢弃当前未保存的目标和金额，是否继续？')) return
   void load()
 }
 
@@ -496,12 +491,11 @@ onBeforeUnmount(() => {
           class="notice notice-warning allocation-search-note"
           role="status"
         >
-          已选择超过 30 天的跨期单据，请在调整理由中说明关联依据。
+          已选择超过 30 天的跨期单据，请确认确属同一笔交易。
         </p>
         <div v-if="rows.length === 0" class="state-layout compact">
           <span class="state-glyph"><AppIcon name="receipt" /></span
-          ><strong>没有可分配的单据</strong
-          ><span>可切换全部日期搜索同币种单据；跨期分配须填写理由。</span>
+          ><strong>没有可分配的单据</strong><span>可切换全部日期搜索同币种单据。</span>
         </div>
         <ul v-else class="allocation-target-list">
           <li v-for="row in rows" :key="row.target.id" class="allocation-target-row">
@@ -598,30 +592,6 @@ onBeforeUnmount(() => {
               }}</small
             >
           </div>
-          <label class="field-stack">
-            <span>调整理由</span>
-            <textarea
-              v-model="reason"
-              :disabled="locked"
-              class="textarea"
-              rows="3"
-              maxlength="500"
-              :aria-invalid="attempted && Boolean(validation?.reasonError)"
-              :aria-describedby="
-                validation?.reasonError ? 'allocation-reason-error' : 'allocation-reason-note'
-              "
-              @input="attempted = false"
-            ></textarea>
-            <small id="allocation-reason-note" class="form-note"
-              >必填，说明本次调整的原因；最多 500 个字符。</small
-            >
-            <small
-              v-if="attempted && validation?.reasonError"
-              id="allocation-reason-error"
-              class="danger-text"
-              >{{ validation.reasonError }}</small
-            >
-          </label>
           <label
             v-if="workspace.links.length > 0 && selectedCount === 0"
             class="allocation-withdraw-all"

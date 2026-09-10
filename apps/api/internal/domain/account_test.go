@@ -39,7 +39,11 @@ func TestAccountInputNormalizationAndBoundaries(t *testing.T) {
 	if value, err := NormalizeAccountReason(" 合成操作 "); err != nil || value != "合成操作" {
 		t.Fatal("reason normalization mismatch")
 	}
-	for _, value := range []string{" ", strings.Repeat("由", 501), string([]byte{255})} {
+	// 理由可选：空白合法；只剩超长与非法 UTF-8 被拒。
+	if value, err := NormalizeAccountReason(" "); err != nil || value != "" {
+		t.Fatal("blank reason rejected")
+	}
+	for _, value := range []string{strings.Repeat("由", 501), string([]byte{255})} {
 		if _, err := NormalizeAccountReason(value); !errors.Is(err, ErrInvalidInput) {
 			t.Fatal("invalid reason accepted")
 		}

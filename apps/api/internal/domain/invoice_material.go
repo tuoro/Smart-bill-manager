@@ -25,7 +25,7 @@ type InvoiceMaterialRequest struct {
 func CanonicalInvoiceMaterialRequest(input InvoiceMaterialRequest) (InvoiceMaterialRequest, string, error) {
 	input.Reason = strings.TrimSpace(input.Reason)
 	if input.InvoiceID == "" || strings.TrimSpace(input.InvoiceID) != input.InvoiceID || input.ExpectedVersion < 1 ||
-		!utf8.ValidString(input.Reason) || len([]rune(input.Reason)) < 1 || len([]rune(input.Reason)) > 500 ||
+		!utf8.ValidString(input.Reason) || len([]rune(input.Reason)) > 500 ||
 		len(input.IdempotencyKey) < 8 || len(input.IdempotencyKey) > 128 || strings.TrimSpace(input.IdempotencyKey) != input.IdempotencyKey {
 		return input, "", NewRuleError("invalid_invoice_material_request", "请核对发票版本、操作理由（1 至 500 字符）和请求标识", ErrInvalidInput)
 	}

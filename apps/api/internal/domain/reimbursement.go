@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -521,11 +522,11 @@ func canonicalFindingKeys(input []string) ([]string, error) {
 	return result, nil
 }
 
+// 理由可选，只限长度。
 func validateReimbursementReason(reason string) (string, error) {
 	trimmed := strings.TrimSpace(reason)
-	length := len([]rune(trimmed))
-	if length < 1 || length > 500 {
-		return "", NewRuleError("invalid_reimbursement_reason", "报销操作理由必须为 1 至 500 个字符", ErrInvalidInput)
+	if !utf8.ValidString(trimmed) || utf8.RuneCountInString(trimmed) > 500 {
+		return "", NewRuleError("invalid_reimbursement_reason", "理由不能超过 500 个字符", ErrInvalidInput)
 	}
 	return trimmed, nil
 }

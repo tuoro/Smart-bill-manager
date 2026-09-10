@@ -232,10 +232,10 @@ export const api = {
   createInvitation(body: InvitationRequest): Promise<InvitationCreated> {
     return request('/member-invitations', { method: 'POST', body: JSON.stringify(body) })
   },
-  revokeInvitation(id: string, expected_version: number, reason: string): Promise<Invitation> {
+  revokeInvitation(id: string, expected_version: number): Promise<Invitation> {
     return request(`/member-invitations/${encodeURIComponent(id)}/revoke`, {
       method: 'POST',
-      body: JSON.stringify({ expected_version, reason }),
+      body: JSON.stringify({ expected_version }),
     })
   },
   setupRequired(): Promise<{ required: boolean; database_required: boolean }> {
@@ -538,16 +538,11 @@ export const api = {
       body: JSON.stringify(body),
     })
   },
-  deleteTrip(
-    id: string,
-    expectedVersion: number,
-    reason: string,
-    key: string,
-  ): Promise<TripManagementResult> {
+  deleteTrip(id: string, expectedVersion: number, key: string): Promise<TripManagementResult> {
     return request(`/trips/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: { 'Idempotency-Key': key },
-      body: JSON.stringify({ expected_version: expectedVersion, reason }),
+      body: JSON.stringify({ expected_version: expectedVersion }),
     })
   },
   tripEvidence(tripId = '', cursor = ''): Promise<TripEvidencePage> {

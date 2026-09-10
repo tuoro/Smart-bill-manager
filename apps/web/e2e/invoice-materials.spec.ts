@@ -140,7 +140,6 @@ async function chooseUpload(page: Page) {
   await page
     .getByLabel('选择图片或 PDF')
     .setInputFiles({ name: 'synthetic-selected.png', mimeType: 'image/png', buffer: syntheticPNG })
-  await page.getByLabel('操作理由').fill('合成追加材料理由')
 }
 function formField(body: string, name: string): string {
   return body.match(new RegExp(`name="${name}"\\r\\n\\r\\n([^\\r]+)`))?.[1] ?? ''
@@ -163,7 +162,6 @@ test('材料上传、预览下载、明确解除与四尺寸双主题', async ({
     'href',
     `/api/v1/documents/${uuid(81)}/content`,
   )
-  await page.getByLabel('操作理由').fill('合成解除理由')
   await panel.getByRole('button', { name: '解除关联 synthetic-material-81.png' }).click()
   await expect(panel.getByRole('button', { name: '确认解除', exact: true })).toBeDisabled()
   await panel.getByRole('button', { name: '取消解除' }).click()
@@ -192,7 +190,6 @@ test('已有材料全部 201 条可翻页访问，并能按文件名筛选关联
   await page.getByRole('button', { name: '查找材料', exact: true }).click()
   await expect(page.getByRole('radio')).toHaveCount(1)
   await page.getByRole('radio', { name: 'synthetic-material-101.png' }).check()
-  await page.getByLabel('操作理由').fill('合成关联理由')
   await page.getByRole('button', { name: '确认关联', exact: true }).click()
   await expect(
     page.locator('.material-list').getByText('synthetic-material-101.png', { exact: true }),
@@ -200,7 +197,7 @@ test('已有材料全部 201 条可翻页访问，并能按文件名筛选关联
   expect(JSON.parse(state.writes[0]!.body).document_id).toBe(uuid(101))
 })
 
-test('409 保留文件和理由，同时刷新正式字段后才允许重新核对', async ({ page }) => {
+test('409 保留文件，同时刷新正式字段后才允许重新核对', async ({ page }) => {
   const state = await fixture(page, { conflict: true })
   await chooseUpload(page)
   await page.getByRole('button', { name: '上传并关联', exact: true }).click()
@@ -210,7 +207,6 @@ test('409 保留文件和理由，同时刷新正式字段后才允许重新核�
   await expect(recheck).toBeDisabled()
   await page.getByRole('button', { name: '刷新材料', exact: true }).click()
   await expect(page.getByText('合成已核对销售方', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('操作理由')).toHaveValue('合成追加材料理由')
   expect(
     await page
       .getByLabel('选择图片或 PDF')
@@ -231,7 +227,6 @@ test('未确认的网络结果保留同文件同请求幂等键', async ({ page 
   await chooseUpload(page)
   await page.getByRole('button', { name: '上传并关联', exact: true }).click()
   await expect(page.getByRole('alert')).toBeVisible()
-  await expect(page.getByLabel('操作理由')).toHaveValue('合成追加材料理由')
   await page.getByRole('button', { name: '上传并关联', exact: true }).click()
   await expect(
     page.locator('.material-list').getByText('synthetic-material-81.png', { exact: true }),

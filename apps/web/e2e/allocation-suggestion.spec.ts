@@ -37,7 +37,6 @@ async function open(page: Page, scenario = suggestionScenarios()[0]!) {
 }
 async function prepare(page: Page) {
   await adopt(page).click()
-  await page.getByLabel(/调整理由/).fill('合成核对理由')
 }
 test.afterEach(async ({ page }) => {
   expect(checks.get(page)?.errors).toEqual([])
@@ -51,7 +50,6 @@ test('相同 8 个固定场景：实际采用与手工输入，完整计划一�
     target_selections: 0,
     suggestion_adoptions: 0,
     amount_fills: 0,
-    reason_fills: 0,
     explicit_saves: 0,
     queries: 0,
   }
@@ -89,15 +87,12 @@ test('相同 8 个固定场景：实际采用与手工输入，完整计划一�
       } else await expect(amount).toHaveValue(decimalCNY(desired.allocated_minor))
     }
     expect(state.writes).toHaveLength(index)
-    await page.getByLabel(/调整理由/).fill('合成核对理由')
-    counts.reason_fills++
     await save(page).click()
     counts.explicit_saves++
     await expect(page.getByText('补充分配已保存，余额已刷新', { exact: true })).toBeVisible()
     expect(state.writes[index]!.body).toEqual({
       expected_plan_hash: scenario.workspace.plan_hash,
       desired_allocations: scenario.chosen,
-      reason: '合成核对理由',
     })
     expect(state.writes[index]!.anchorId).toBe(scenario.workspace.anchor.id)
   }
@@ -121,7 +116,7 @@ test('相同 8 个固定场景：实际采用与手工输入，完整计划一�
   })
 })
 
-test('建议不自动写入；键盘采用后聚焦唯一编辑区，理由必填', async ({ page }, info) => {
+test('建议不自动写入；键盘采用后聚焦唯一编辑区', async ({ page }, info) => {
   const state = await setup(page)
   await open(page)
   await expect(page.locator('.suggestion-panel')).toContainText('不能证明同一交易')
@@ -129,11 +124,10 @@ test('建议不自动写入；键盘采用后聚焦唯一编辑区，理由必�
   await adopt(page).focus()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('heading', { name: '选择分配单据' })).toBeFocused()
-  await expect(page.getByLabel(/调整理由/)).toHaveValue('')
+  // 没有理由这道门了：采用建议后直接确认即可保存。
   await save(page).click()
-  await expect(page.getByText('请填写本次调整理由', { exact: true })).toBeVisible()
-  expect(state.writes).toHaveLength(0)
-  await page.getByLabel(/调整理由/).fill('合成显式核对')
+  await expect(page.getByText('补充分配已保存，余额已刷新', { exact: true })).toBeVisible()
+  expect(state.writes).toHaveLength(1)
   await captureResponsiveReview(page, info, 'allocation-suggestion-adopted')
 })
 
@@ -145,23 +139,19 @@ test('部分金额留空并聚焦，不默认填满上限', async ({ page }) => 
   const amount = page.getByLabel('分配金额', { exact: true })
   await expect(amount).toHaveValue('')
   await expect(amount).toBeFocused()
-  await page.getByLabel(/调整理由/).fill('合成部分分配')
   await save(page).click()
   await expect(page.getByText('请填写金额', { exact: true })).toBeVisible()
   expect(state.writes).toHaveLength(0)
 })
 
-test('采用后修改金额，保留预先填写的人工理由', async ({ page }) => {
+test('采用后修改金额', async ({ page }) => {
   const state = await setup(page)
   await open(page)
-  await page.getByLabel(/调整理由/).fill('我的合成核对理由')
   await adopt(page).click()
-  await expect(page.getByLabel(/调整理由/)).toHaveValue('我的合成核对理由')
   await page.getByLabel('分配金额', { exact: true }).fill('23.00')
   await save(page).click()
   await expect(page.getByText('补充分配已保存，余额已刷新', { exact: true })).toBeVisible()
   expect(state.writes[0]!.body.desired_allocations[0]!.allocated_minor).toBe(2300)
-  expect(state.writes[0]!.body.reason).toBe('我的合成核对理由')
 })
 
 test('手工目标或金额不被覆盖，可拒绝建议继续手工编辑', async ({ page }) => {
@@ -204,14 +194,12 @@ test('刷新和离开前提示，取消保留草稿，确认刷新重建建议',
   await prepare(page)
   page.once('dialog', (dialog) => dialog.dismiss())
   await page.getByRole('button', { name: '刷新', exact: true }).click()
-  await expect(page.getByLabel(/调整理由/)).toHaveValue('合成核对理由')
   page.once('dialog', (dialog) => dialog.dismiss())
   await page.getByRole('link', { name: '返回支付列表', exact: true }).click()
   await expect(page).toHaveURL(path(suggestionScenarios()[0]!))
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '刷新', exact: true }).click()
   await expect(adopt(page)).toBeEnabled()
-  await expect(page.getByLabel(/调整理由/)).toHaveValue('')
   await expect(page.locator('.allocation-target-row').getByRole('checkbox')).not.toBeChecked()
 })
 
@@ -225,7 +213,6 @@ test('409 保留编辑但旧建议和再次提交失效，刷新后重新核对'
   await expect(page.getByText(/合成计划已变化。当前草稿已保留/)).toBeVisible()
   await expect(save(page)).toBeDisabled()
   await expect(adopt(page)).toHaveCount(0)
-  await expect(page.getByLabel(/调整理由/)).toHaveValue('合成核对理由')
   page.once('dialog', (dialog) => dialog.accept())
   await page.getByRole('button', { name: '刷新当前分配', exact: true }).click()
   await prepare(page)
@@ -255,7 +242,6 @@ test('未知结果冻结输入，显式重试使用原完整请求与原键', as
   await prepare(page)
   await save(page).click()
   await expect(page.getByText(/上次保存结果未知/)).toBeVisible()
-  await expect(page.getByLabel(/调整理由/)).toBeDisabled()
   await expect(page.getByLabel('分配金额', { exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
   await page.getByRole('button', { name: '重试原分配', exact: true }).click()
@@ -279,7 +265,6 @@ test('提交期间冻结编辑、搜索、刷新与导航', async ({ page }) => 
   await prepare(page)
   await save(page).click()
   await expect.poll(() => sent).toBe(true)
-  await expect(page.getByLabel(/调整理由/)).toBeDisabled()
   await expect(page.getByLabel('查找分配单据', { exact: true })).toBeDisabled()
   await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
   await expect(page.locator('.allocation-target-row').getByRole('checkbox')).toBeDisabled()

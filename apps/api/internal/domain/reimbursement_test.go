@@ -298,8 +298,8 @@ func TestReimbursementFindingAndRequestLimitsAreExplicit(t *testing.T) {
 	); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("acknowledgement overflow error = %v", err)
 	}
+	// 理由可选：空白合法，只限长度。
 	for name, reason := range map[string]string{
-		"empty":    "   ",
 		"too long": strings.Repeat("理", 501),
 	} {
 		if _, _, _, _, err := CanonicalReimbursementSubmissionRequest(

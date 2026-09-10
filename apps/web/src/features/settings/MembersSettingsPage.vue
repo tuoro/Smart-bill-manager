@@ -22,7 +22,6 @@ const stale = ref(false),
 const draft = reactive({
   role: 'viewer' as Member['role'],
   status: 'active' as Member['status'],
-  reason: '',
 })
 const roles: Record<Member['role'], string> = {
   owner: '管理员',
@@ -77,7 +76,6 @@ function edit(member: Member, event: MouseEvent) {
   target.value = member
   draft.role = member.role
   draft.status = member.status
-  draft.reason = ''
   confirmation.value = false
   stale.value = false
   recheckReady.value = false
@@ -93,7 +91,7 @@ async function cancel() {
   returnFocus?.focus()
 }
 function prepare() {
-  if (!target.value || busy.value || stale.value || !draft.reason.trim()) return
+  if (!target.value || busy.value || stale.value) return
   confirmation.value = true
 }
 async function save() {
@@ -117,8 +115,7 @@ async function save() {
     if (caught instanceof ApiError && caught.status === 409) {
       stale.value = true
       await load()
-      if (live)
-        error.value = '未保存：' + caught.message + '。选择和理由已保留，请核对最新成员状态。'
+      if (live) error.value = '未保存：' + caught.message + '。选择已保留，请核对最新成员状态。'
     } else {
       if (!(caught instanceof ApiError)) stale.value = true
       error.value =
@@ -219,16 +216,6 @@ onBeforeUnmount(() => {
             <option value="suspended">停用</option>
           </select></label
         >
-        <label class="field-stack"
-          ><span>变更理由</span
-          ><textarea
-            v-model="draft.reason"
-            class="input"
-            maxlength="500"
-            required
-            :disabled="busy || confirmation"
-          ></textarea>
-        </label>
         <div v-if="stale" class="notice notice-stack">
           <p>请比较上方最新状态与保留的选择，再次确认。</p>
           <button
@@ -254,7 +241,7 @@ onBeforeUnmount(() => {
             v-if="!confirmation"
             class="button button-primary"
             type="submit"
-            :disabled="busy || loading || stale || !draft.reason.trim()"
+            :disabled="busy || loading || stale"
           >
             核对变更</button
           ><button class="button" type="button" :disabled="busy" @click="cancel">取消编辑</button>

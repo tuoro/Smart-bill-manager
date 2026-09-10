@@ -41,7 +41,6 @@ func TestManualReviewPostgreSQLSourceIdentityAndInputFailures(t *testing.T) {
 		constraint         string
 	}{
 		{"", "合成人工理由", "manual-invalid-source", "claim_sets_origin_check"},
-		{f.tenant.UserID, "", "manual-invalid-reason", "claim_sets_manual_identity_check"},
 		{f.tenant.UserID, "合成人工理由", "x", "claim_sets_manual_identity_check"},
 	} {
 		_, err := f.store.DB().Exec(`INSERT INTO claim_sets (id,tenant_id,document_id,revised_by_user_id,document_type,status,revision,optimistic_version,manual_reason,manual_idempotency_key,manual_request_hash,created_at) VALUES (?,?,?,NULLIF(?,''),'payment','draft',1,1,?,?,?,?)`, mustID(t, system.IDGenerator{}), f.tenant.TenantID, f.job.DocumentID, test.actor, test.reason, test.key, strings.Repeat("a", 64), f.now)

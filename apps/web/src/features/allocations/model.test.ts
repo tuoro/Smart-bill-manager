@@ -10,7 +10,7 @@ describe('allocation adjustment model', () => {
     const rows = createAllocationDraft(workspace)
     rows[1].selected = true
     rows[1].amountText = '3.00'
-    const result = validateAllocationDraft(workspace, rows, '  补充第二张发票  ', false)
+    const result = validateAllocationDraft(workspace, rows, false)
 
     expect(result.request).toEqual({
       expected_plan_hash: 'a'.repeat(64),
@@ -18,7 +18,6 @@ describe('allocation adjustment model', () => {
         { target_fact_id: invoiceA, allocated_minor: 400 },
         { target_fact_id: invoiceB, allocated_minor: 300 },
       ],
-      reason: '补充第二张发票',
     })
     expect(allocationModeLabel(workspace, rows)).toBe('补充分配')
   })
@@ -28,11 +27,11 @@ describe('allocation adjustment model', () => {
     const rows = createAllocationDraft(workspace)
     rows[0].selected = false
 
-    const blocked = validateAllocationDraft(workspace, rows, '撤销', false)
+    const blocked = validateAllocationDraft(workspace, rows, false)
     expect(blocked.request).toBeUndefined()
     expect(blocked.withdrawAllError).toContain('再次确认')
 
-    const accepted = validateAllocationDraft(workspace, rows, '撤销', true)
+    const accepted = validateAllocationDraft(workspace, rows, true)
     expect(accepted.request?.desired_allocations).toEqual([])
     expect(allocationModeLabel(workspace, rows)).toBe('撤销分配')
   })
@@ -40,36 +39,19 @@ describe('allocation adjustment model', () => {
   it('derives replace and rejects unchanged, invalid and over-limit plans', () => {
     const workspace = allocationWorkspace()
     const rows = createAllocationDraft(workspace)
-    expect(validateAllocationDraft(workspace, rows, '没有变化', false).planError).toBe(
-      '分配计划没有变化',
-    )
+    expect(validateAllocationDraft(workspace, rows, false).planError).toBe('分配计划没有变化')
 
     rows[0].amountText = '6.01'
     expect(allocationModeLabel(workspace, rows)).toBe('替换分配')
-    expect(
-      validateAllocationDraft(workspace, rows, '替换', false).targetErrors[invoiceA],
-    ).toContain('上限')
+    expect(validateAllocationDraft(workspace, rows, false).targetErrors[invoiceA]).toContain('上限')
     rows[0].amountText = 'abc'
-    expect(
-      validateAllocationDraft(workspace, rows, '替换', false).targetErrors[invoiceA],
-    ).toContain('格式不正确')
+    expect(validateAllocationDraft(workspace, rows, false).targetErrors[invoiceA]).toContain(
+      '格式不正确',
+    )
     rows[0].amountText = '4.00'
     rows[1].selected = true
     rows[1].amountText = '7.00'
-    expect(validateAllocationDraft(workspace, rows, '超出 anchor', false).planError).toContain(
-      '账单总额',
-    )
-  })
-
-  it('requires a bounded reason', () => {
-    const workspace = allocationWorkspace()
-    const rows = createAllocationDraft(workspace)
-    rows[1].selected = true
-    rows[1].amountText = '0.01'
-    expect(validateAllocationDraft(workspace, rows, '  ', false).reasonError).toContain('请填写')
-    expect(validateAllocationDraft(workspace, rows, '理'.repeat(501), false).reasonError).toContain(
-      '500',
-    )
+    expect(validateAllocationDraft(workspace, rows, false).planError).toContain('账单总额')
   })
 
   it('keeps the complete selected plan bounded even across candidate pages', () => {
@@ -81,12 +63,8 @@ describe('allocation adjustment model', () => {
       selected: true,
       amountText: '0.01',
     }))
-    expect(
-      validateAllocationDraft(workspace, rows.slice(0, 200), '合成完整计划', false).request,
-    ).toBeDefined()
-    expect(validateAllocationDraft(workspace, rows, '合成超限计划', false).planError).toContain(
-      '200',
-    )
+    expect(validateAllocationDraft(workspace, rows.slice(0, 200), false).request).toBeDefined()
+    expect(validateAllocationDraft(workspace, rows, false).planError).toContain('200')
   })
 })
 

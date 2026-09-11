@@ -487,6 +487,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/email-sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description 软删除：停止同步、清除密码、从列表消失；已归档的邮件与由此生成的单据保留。只有登记人或管理员可删。 */
+        delete: operations["deleteEmailSource"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-sources/{source_id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description 换用户名/密码。保存即重置：连接回到待检测、同步关闭。 */
+        put: operations["setEmailSourceCredentials"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-sources/{source_id}/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 用保存的密码登录一次并只读打开收件箱，成败写回 connection_status。 */
+        post: operations["detectEmailSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-sources/{source_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 开启后台同步（每 5 分钟拉一次新邮件）。只接受检测通过的来源。 */
+        post: operations["activateEmailSourceSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-sources/{source_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deactivateEmailSourceSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/email-sources/{source_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 立即跑一轮增量同步（一轮最多 50 封），完成后返回更新后的来源。 */
+        post: operations["syncEmailSourceNow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/email-sources/{source_id}/messages": {
         parameters: {
             query?: never;
@@ -1562,6 +1663,10 @@ export interface components {
             imap_port: number;
             /** @enum {string} */
             transport_security: "implicit_tls" | "starttls";
+            /** @description 留空则用邮箱地址登录 */
+            imap_username?: string;
+            /** @description 邮箱密码或授权码；加密保存，不参与幂等哈希，永不回显。留空则先只登记。 */
+            imap_password?: string;
         };
         EmailSource: {
             /** Format: uuid */
@@ -1585,6 +1690,17 @@ export interface components {
             message_count: number;
             attachment_count: number;
             blocked_count: number;
+            imap_username: string;
+            has_password: boolean;
+            /** @enum {string} */
+            connection_status: "pending" | "passed" | "failed";
+            /** Format: date-time */
+            connection_checked_at?: string;
+            connection_message: string;
+            sync_enabled: boolean;
+            /** Format: date-time */
+            last_sync_at?: string;
+            last_sync_message: string;
         };
         EmailMessagePage: {
             items: components["schemas"]["EmailMessage"][];
@@ -3615,7 +3731,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description 当前租户内的无凭据邮箱来源及安全计数 */
+            /** @description 可见的邮箱来源：管理员看全部，成员只看自己登记的。不含密码。 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3665,6 +3781,166 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteEmailSource: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    setEmailSourceCredentials: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    imap_username: string;
+                    imap_password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description 已重置为待检测的来源 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    detectEmailSource: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 检测结果 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    activateEmailSourceSync: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已开启同步 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deactivateEmailSourceSync: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已停止同步 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    syncEmailSourceNow: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                source_id: components["parameters"]["EmailSourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 本轮同步结果已写回 last_sync_message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailSource"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
         };
     };

@@ -21,6 +21,15 @@ type EmailSource struct {
 	MessageCount      int        `json:"message_count"`
 	AttachmentCount   int        `json:"attachment_count"`
 	BlockedCount      int        `json:"blocked_count"`
+	// 连接与同步状态。密码永不回显，只说有没有。
+	IMAPUsername        string     `json:"imap_username"`
+	HasPassword         bool       `json:"has_password"`
+	ConnectionStatus    string     `json:"connection_status"`
+	ConnectionCheckedAt *time.Time `json:"connection_checked_at,omitempty"`
+	ConnectionMessage   string     `json:"connection_message"`
+	SyncEnabled         bool       `json:"sync_enabled"`
+	LastSyncAt          *time.Time `json:"last_sync_at,omitempty"`
+	LastSyncMessage     string     `json:"last_sync_message"`
 }
 
 type EmailSourceRegistrationReplay struct {
@@ -34,11 +43,12 @@ type EmailSourceCreateResult struct {
 }
 
 type CreateEmailSourceCommand struct {
-	Source         EmailSource
-	IdempotencyKey string
-	RequestHash    string
-	AuditEventID   string
-	RequestID      string
+	Source            EmailSource
+	IdempotencyKey    string
+	RequestHash       string
+	AuditEventID      string
+	RequestID         string
+	EncryptedPassword []byte
 }
 
 type ParsedEmailAttachment struct {
@@ -104,6 +114,8 @@ type EmailObject struct {
 	StorageKey string
 	Name       string
 	MIME       string
+	// 所属来源的归属人：成员只能打开自己邮箱里的东西。
+	SourceCreatedByUserID string
 }
 
 type EmailMessageReplay struct {
@@ -173,10 +185,17 @@ type EmailRepository interface {
 	ListEmailMessages(ctx context.Context, tenantID, sourceID string, query EmailMessagePageQuery) (EmailMessagePage, error)
 	GetEmailMessageObject(ctx context.Context, tenantID, messageID string) (EmailObject, error)
 	GetEmailAttachmentObject(ctx context.Context, tenantID, attachmentID string) (EmailObject, error)
+	GetEmailSourceConnection(ctx context.Context, tenantID, sourceID string) (EmailSourceConnection, error)
+	ListSyncEnabledEmailSources(ctx context.Context) ([]EmailSourceRef, error)
 }
 
 type EmailTransaction interface {
 	CreateEmailSource(ctx context.Context, command CreateEmailSourceCommand) (EmailSourceCreateResult, error)
 	ArchiveEmailMessage(ctx context.Context, command EmailArchiveCommand) (EmailArchiveResult, error)
 	CompensateEmailArchive(ctx context.Context, command CompensateEmailArchiveCommand) error
+	SetEmailSourceCredentials(ctx context.Context, command SetEmailSourceCredentialsCommand) error
+	RecordEmailSourceConnection(ctx context.Context, tenantID, sourceID, status, safeMessage string, expectedVersion int, checkedAt time.Time) error
+	SetEmailSourceSync(ctx context.Context, tenantID, sourceID string, enabled bool, expectedVersion int, now time.Time) error
+	RecordEmailSourceSync(ctx context.Context, tenantID, sourceID string, state MailboxState, safeMessage string, syncedAt time.Time) error
+	DeleteEmailSource(ctx context.Context, command DeleteEmailSourceCommand) error
 }

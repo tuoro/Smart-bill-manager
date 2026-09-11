@@ -34,6 +34,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatconnectors"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/mailsync"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatintake"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
@@ -427,8 +428,11 @@ func TestHTTPEmailArchiveReadAndRegistrationBoundaries(t *testing.T) {
 		created["imap_host"] != "imap.example.invalid" || created["status"] != domain.EmailSourcePendingConnection {
 		t.Fatalf("created source = %#v", created)
 	}
-	if bytes.Contains(createdResponse.Body.Bytes(), []byte("password")) || bytes.Contains(createdResponse.Body.Bytes(), []byte("token")) {
-		t.Fatalf("source response exposed credential-shaped fields: %s", createdResponse.Body.String())
+	// has_password 只是「有没有」的布尔；密文、明文密码、令牌任何形式都不能出现在响应里。
+	for _, forbidden := range []string{"encrypted_password", "imap_password", "\"password\"", "token", "secret"} {
+		if bytes.Contains(createdResponse.Body.Bytes(), []byte(forbidden)) {
+			t.Fatalf("source response exposed credential-shaped field %q: %s", forbidden, createdResponse.Body.String())
+		}
 	}
 	replayResponse := fixture.requestWithHeaders(
 		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), ownerSession, true,
@@ -528,7 +532,8 @@ func TestHTTPEmailArchiveReadAndRegistrationBoundaries(t *testing.T) {
 
 	financeSession := fixture.addRoleSession(t, domain.RoleMember)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources", nil, financeSession, false, ""), http.StatusOK)
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, financeSession, false, ""), http.StatusOK)
+	// 邮箱按人归属：成员看不到管理员登记的邮箱，里面的邮件对他也不存在。
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, financeSession, false, ""), http.StatusNotFound)
 	// 成员可以登记邮箱来源；同一身份在工作区内唯一，重复登记是冲突而不是静默合并。
 	assertStatus(t, fixture.requestWithHeaders(
 		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), financeSession, true,
@@ -1154,7 +1159,7 @@ func newHTTPTestFixtureWithOwner(t *testing.T, withOwner bool) *httpTestFixture 
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	emailService := applicationemails.NewService(
 		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
-	)
+	).WithCipher(cipher)
 	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	reimbursementService := reimbursements.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	webRoot := filepath.Join(root, "web")
@@ -1177,6 +1182,9 @@ func newHTTPTestFixtureWithOwner(t *testing.T, withOwner bool) *httpTestFixture 
 	chatConnectorService := chatconnectors.NewService(
 		store, store, cipher, noopProbe{}, noopRuntime{}, system.Clock{},
 	)
+	mailSyncService := mailsync.NewService(
+		store, store, cipher, fakeMailbox{}, noopMailRuntime{}, emailService, system.IDGenerator{}, system.Clock{},
+	)
 	chatIntakeService := chatintake.NewService(
 		store,
 		uploadService,
@@ -1189,7 +1197,7 @@ func newHTTPTestFixtureWithOwner(t *testing.T, withOwner bool) *httpTestFixture 
 			t.Error(err)
 		}
 	})
-	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, chatIntakeService, chatConnectorService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, DatabaseSettingsStore{Directory: root, MigrationsDir: projectPath(t, "infra", "migrations"), Managed: true}, postgresqladapter.Config{Host: "127.0.0.1", Port: 5432, Database: "test", User: "test"}, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
+	server, err := NewServer(authService, accountService, uploadService, documentQueries, jobActions, documentDeletions, providerService, reviewService, factService, invoiceMaterialService, allocationService, emailService, tripService, reimbursementService, insightService, chatIntakeService, chatConnectorService, mailSyncService, exportService, bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}), store, DatabaseSettingsStore{Directory: root, MigrationsDir: projectPath(t, "infra", "migrations"), Managed: true}, postgresqladapter.Config{Host: "127.0.0.1", Port: 5432, Database: "test", User: "test"}, store, readyFixture{}, logger, Config{Version: "test", WebDistPath: webRoot})
 	if err != nil {
 		store.Close()
 		t.Fatal(err)

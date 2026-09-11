@@ -657,7 +657,7 @@ paths:
       tags: [email]
       responses:
         "200":
-          description: 当前租户内的无凭据邮箱来源及安全计数
+          description: 可见的邮箱来源：管理员看全部，成员只看自己登记的。不含密码。
           content:
             application/json:
               schema:
@@ -700,6 +700,124 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /email-sources/{source_id}:
+    delete:
+      operationId: deleteEmailSource
+      tags: [email]
+      description: 软删除：停止同步、清除密码、从列表消失；已归档的邮件与由此生成的单据保留。只有登记人或管理员可删。
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204":
+          description: 已删除
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /email-sources/{source_id}/credentials:
+    put:
+      operationId: setEmailSourceCredentials
+      tags: [email]
+      description: 换用户名/密码。保存即重置：连接回到待检测、同步关闭。
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [imap_username, imap_password]
+              properties:
+                imap_username: { type: string, maxLength: 254 }
+                imap_password: { type: string, minLength: 1, maxLength: 1024 }
+      responses:
+        "200":
+          description: 已重置为待检测的来源
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /email-sources/{source_id}/detect:
+    post:
+      operationId: detectEmailSource
+      tags: [email]
+      description: 用保存的密码登录一次并只读打开收件箱，成败写回 connection_status。
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 检测结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /email-sources/{source_id}/activate:
+    post:
+      operationId: activateEmailSourceSync
+      tags: [email]
+      description: 开启后台同步（每 5 分钟拉一次新邮件）。只接受检测通过的来源。
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 已开启同步
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+  /email-sources/{source_id}/deactivate:
+    post:
+      operationId: deactivateEmailSourceSync
+      tags: [email]
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 已停止同步
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /email-sources/{source_id}/sync:
+    post:
+      operationId: syncEmailSourceNow
+      tags: [email]
+      description: 立即跑一轮增量同步（一轮最多 50 封），完成后返回更新后的来源。
+      parameters:
+        - $ref: "#/components/parameters/EmailSourceId"
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "200":
+          description: 本轮同步结果已写回 last_sync_message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSource"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
   /email-sources/{source_id}/messages:
@@ -2574,6 +2692,14 @@ components:
         transport_security:
           type: string
           enum: [implicit_tls, starttls]
+        imap_username:
+          type: string
+          maxLength: 254
+          description: 留空则用邮箱地址登录
+        imap_password:
+          type: string
+          maxLength: 1024
+          description: 邮箱密码或授权码；加密保存，不参与幂等哈希，永不回显。留空则先只登记。
     EmailSource:
       type: object
       additionalProperties: false
@@ -2591,6 +2717,12 @@ components:
         - message_count
         - attachment_count
         - blocked_count
+        - imap_username
+        - has_password
+        - connection_status
+        - connection_message
+        - sync_enabled
+        - last_sync_message
       properties:
         id: { type: string, format: uuid }
         display_name: { type: string, minLength: 1, maxLength: 100 }
@@ -2610,6 +2742,16 @@ components:
         message_count: { type: integer, minimum: 0 }
         attachment_count: { type: integer, minimum: 0 }
         blocked_count: { type: integer, minimum: 0 }
+        imap_username: { type: string, maxLength: 254 }
+        has_password: { type: boolean }
+        connection_status:
+          type: string
+          enum: [pending, passed, failed]
+        connection_checked_at: { type: string, format: date-time }
+        connection_message: { type: string, maxLength: 200 }
+        sync_enabled: { type: boolean }
+        last_sync_at: { type: string, format: date-time }
+        last_sync_message: { type: string, maxLength: 200 }
     EmailMessagePage:
       type: object
       additionalProperties: false

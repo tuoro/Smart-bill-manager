@@ -17,14 +17,21 @@ func (s *Server) registerEmailSourceHandler(response http.ResponseWriter, reques
 		writeError(response, request, domain.ErrUnauthenticated)
 		return
 	}
-	var registration domain.EmailSourceRegistration
-	if err := decodeJSON(response, request, &registration); err != nil {
+	var body struct {
+		domain.EmailSourceRegistration
+		IMAPUsername string `json:"imap_username"`
+		IMAPPassword string `json:"imap_password"`
+	}
+	if err := decodeJSON(response, request, &body); err != nil {
 		writeError(response, request, err)
 		return
 	}
+	password := []byte(body.IMAPPassword)
+	defer clear(password)
 	result, err := s.emails.Register(request.Context(), applicationemails.RegisterInput{
-		Tenant: tenantContext(principal), Registration: registration,
+		Tenant: tenantContext(principal), Registration: body.EmailSourceRegistration,
 		IdempotencyKey: request.Header.Get("Idempotency-Key"), RequestID: requestIDFromRequest(request),
+		IMAPUsername: body.IMAPUsername, IMAPPassword: password,
 	})
 	if err != nil {
 		writeError(response, request, err)

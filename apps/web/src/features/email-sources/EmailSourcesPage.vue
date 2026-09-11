@@ -13,8 +13,8 @@ import {
 import {
   attachmentReasonLabel,
   emailAttachmentStatusMeta,
+  emailConnectionStatusMeta,
   emailMessageStatusMeta,
-  emailSourceStatusMeta,
   formatArchiveBytes,
 } from './model'
 import { formatSystemTime } from '../facts/time'
@@ -41,15 +41,96 @@ const mailboxAddress = ref('')
 const imapHost = ref('')
 const imapPort = ref(993)
 const transportSecurity = ref<EmailSourceRegistration['transport_security']>('implicit_tls')
+const imapUsername = ref('')
+const imapPassword = ref('')
 const registrationKey = ref('')
+// 连接动作：同一时间只跑一个，按钮上显示进行中。
+const busyAction = ref('')
+const credentialsOpen = ref(false)
+const newUsername = ref('')
+const newPassword = ref('')
 
 const selectedSource = computed(
   () => sources.value.find((source) => source.id === selectedSourceID.value) ?? null,
 )
+// 邮箱是每个人自己的：登记人和管理员能管，其他成员根本看不到（后端已过滤）。
+const canOperate = computed(
+  () =>
+    canManage.value &&
+    !!selectedSource.value &&
+    (session.value?.role === 'owner' ||
+      selectedSource.value.created_by_user_id === session.value?.user.id),
+)
 
-watch([displayName, mailboxAddress, imapHost, imapPort, transportSecurity], () => {
+watch([displayName, mailboxAddress, imapHost, imapPort, transportSecurity, imapUsername], () => {
   registrationKey.value = ''
 })
+
+function replaceSource(updated: EmailSource) {
+  sources.value = sources.value.map((source) => (source.id === updated.id ? updated : source))
+}
+
+async function runAction(action: 'detect' | 'activate' | 'deactivate' | 'sync') {
+  const source = selectedSource.value
+  if (!source || busyAction.value || offline.value) return
+  busyAction.value = action
+  error.value = ''
+  try {
+    const updated = await api.emailSourceAction(source.id, action)
+    replaceSource(updated)
+    if (action === 'sync' && selectedSourceID.value === source.id) await loadMessages(false)
+  } catch (caught) {
+    error.value = caught instanceof ApiError ? caught.message : '操作失败，请稍后重试'
+  } finally {
+    busyAction.value = ''
+  }
+}
+
+async function saveCredentials() {
+  const source = selectedSource.value
+  if (!source || busyAction.value || !newPassword.value) return
+  busyAction.value = 'credentials'
+  error.value = ''
+  const password = newPassword.value
+  newPassword.value = ''
+  try {
+    replaceSource(
+      await api.setEmailSourceCredentials(source.id, newUsername.value.trim(), password),
+    )
+    credentialsOpen.value = false
+    newUsername.value = ''
+  } catch (caught) {
+    error.value = caught instanceof ApiError ? caught.message : '保存密码失败，请稍后重试'
+  } finally {
+    busyAction.value = ''
+  }
+}
+
+async function removeSource() {
+  const source = selectedSource.value
+  if (!source || busyAction.value) return
+  if (
+    !window.confirm(
+      `确定删除「${source.display_name}」？将停止同步并清除密码；已归档的邮件和由此生成的单据保留。`,
+    )
+  )
+    return
+  busyAction.value = 'delete'
+  error.value = ''
+  try {
+    await api.deleteEmailSource(source.id)
+    sources.value = sources.value.filter((item) => item.id !== source.id)
+    credentialsOpen.value = false
+    selectedSourceID.value = sources.value[0]?.id ?? ''
+    messages.value = []
+    nextCursor.value = ''
+    if (selectedSourceID.value) await loadMessages(false)
+  } catch (caught) {
+    error.value = caught instanceof ApiError ? caught.message : '删除失败，请稍后重试'
+  } finally {
+    busyAction.value = ''
+  }
+}
 
 async function loadSources(preferredSourceID = '') {
   if (!canRead.value || offline.value) {
@@ -107,6 +188,7 @@ async function registerSource() {
   creating.value = true
   error.value = ''
   if (!registrationKey.value) registrationKey.value = randomUUID()
+  const password = imapPassword.value
   try {
     const created = await api.registerEmailSource(
       {
@@ -115,6 +197,8 @@ async function registerSource() {
         imap_host: imapHost.value,
         imap_port: imapPort.value,
         transport_security: transportSecurity.value,
+        imap_username: imapUsername.value,
+        imap_password: password,
       },
       registrationKey.value,
     )
@@ -123,12 +207,14 @@ async function registerSource() {
     imapHost.value = ''
     imapPort.value = 993
     transportSecurity.value = 'implicit_tls'
+    imapUsername.value = ''
     registrationKey.value = ''
     showRegistration.value = false
     await loadSources(created.id)
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '邮箱来源登记失败，请稍后重试'
   } finally {
+    imapPassword.value = ''
     creating.value = false
   }
 }
@@ -196,8 +282,8 @@ onUnmounted(() => {
       >
         <div class="panel-heading">
           <div>
-            <h2 id="email-registration-title">登记邮箱信息</h2>
-            <p>仅保存邮箱地址和服务器信息，不会连接邮箱或同步邮件。</p>
+            <h2 id="email-registration-title">登记邮箱</h2>
+            <p>保存后先「检测连接」，通过再「开启同步」，新邮件里的票据会自动进入识别队列。</p>
           </div>
         </div>
         <form class="email-registration-form" @submit.prevent="registerSource">
@@ -246,9 +332,32 @@ onUnmounted(() => {
               <option value="starttls">STARTTLS</option>
             </select>
           </label>
+          <label class="field-stack">
+            <span>登录用户名（可选）</span>
+            <input
+              v-model.trim="imapUsername"
+              class="input"
+              type="text"
+              maxlength="254"
+              autocomplete="off"
+              placeholder="留空则用邮箱地址登录"
+            />
+          </label>
+          <label class="field-stack">
+            <span>密码或授权码</span>
+            <input
+              v-model="imapPassword"
+              class="input"
+              type="password"
+              maxlength="1024"
+              autocomplete="new-password"
+              required
+            />
+          </label>
           <div class="email-registration-action">
             <p class="form-note">
-              无需填写密码。保存后显示为“待连接”，当前版本不支持直接连接邮箱。
+              密码加密保存，不回显。QQ、163、Gmail 等邮箱需先在邮箱设置里开启
+              IMAP，并用「授权码」代替登录密码。
             </p>
             <button class="button button-primary" type="submit" :disabled="creating || offline">
               {{ creating ? '正在登记…' : '保存邮箱来源' }}
@@ -288,10 +397,16 @@ onUnmounted(() => {
               >
                 <span class="email-source-heading">
                   <strong>{{ source.display_name }}</strong>
-                  <span class="status" :data-tone="emailSourceStatusMeta[source.status].tone">
+                  <span
+                    class="status"
+                    :data-tone="emailConnectionStatusMeta[source.connection_status].tone"
+                  >
                     <span aria-hidden="true">●</span
-                    >{{ emailSourceStatusMeta[source.status].label }}
+                    >{{ emailConnectionStatusMeta[source.connection_status].label }}
                   </span>
+                  <span v-if="source.sync_enabled" class="status" data-tone="info"
+                    ><span aria-hidden="true">●</span>同步中</span
+                  >
                 </span>
                 <span>{{ source.mailbox_address }}</span>
                 <small
@@ -312,14 +427,109 @@ onUnmounted(() => {
         <section class="panel email-message-panel" aria-labelledby="email-message-list-title">
           <div class="panel-heading email-message-heading">
             <div>
-              <h2 id="email-message-list-title">{{ selectedSource?.display_name }}的本地邮件</h2>
-              <p v-if="selectedSource?.status === 'pending_connection'">
-                邮箱信息已保存，尚未连接邮箱。
+              <h2 id="email-message-list-title">{{ selectedSource?.display_name }}</h2>
+              <p v-if="selectedSource">
+                {{ emailConnectionStatusMeta[selectedSource.connection_status].label
+                }}<template v-if="selectedSource.connection_message">
+                  · {{ selectedSource.connection_message }}</template
+                ><template v-if="selectedSource.sync_enabled"> · 每 5 分钟自动同步</template
+                ><template v-if="selectedSource.last_sync_at">
+                  · 上次同步 {{ formatSystemTime(selectedSource.last_sync_at) }}
+                  {{ selectedSource.last_sync_message }}</template
+                >
               </p>
-              <p v-else>查看邮件摘要与附件结果；正文请下载原始邮件查看。</p>
             </div>
             <span v-if="selectedSource" class="quiet">本页 {{ messages.length }} 封</span>
           </div>
+          <div v-if="selectedSource && canOperate" class="email-connection-actions">
+            <button
+              class="button button-small"
+              type="button"
+              :disabled="Boolean(busyAction) || offline || !selectedSource.has_password"
+              @click="runAction('detect')"
+            >
+              {{ busyAction === 'detect' ? '检测中…' : '检测连接' }}
+            </button>
+            <button
+              v-if="!selectedSource.sync_enabled"
+              class="button button-small button-primary"
+              type="button"
+              :disabled="
+                Boolean(busyAction) || offline || selectedSource.connection_status !== 'passed'
+              "
+              @click="runAction('activate')"
+            >
+              开启同步
+            </button>
+            <button
+              v-else
+              class="button button-small"
+              type="button"
+              :disabled="Boolean(busyAction) || offline"
+              @click="runAction('deactivate')"
+            >
+              停止同步
+            </button>
+            <button
+              class="button button-small"
+              type="button"
+              :disabled="
+                Boolean(busyAction) || offline || selectedSource.connection_status !== 'passed'
+              "
+              @click="runAction('sync')"
+            >
+              {{ busyAction === 'sync' ? '同步中…' : '立即同步' }}
+            </button>
+            <button
+              class="button button-small"
+              type="button"
+              :disabled="Boolean(busyAction) || offline"
+              :aria-expanded="credentialsOpen"
+              @click="credentialsOpen = !credentialsOpen"
+            >
+              {{ selectedSource.has_password ? '更换密码' : '填写密码' }}
+            </button>
+            <button
+              class="button button-small button-danger"
+              type="button"
+              :disabled="Boolean(busyAction) || offline"
+              @click="removeSource"
+            >
+              删除邮箱
+            </button>
+          </div>
+          <form
+            v-if="selectedSource && canOperate && credentialsOpen"
+            class="email-credentials-form"
+            @submit.prevent="saveCredentials"
+          >
+            <label class="field-stack">
+              <span>登录用户名（可选）</span>
+              <input
+                v-model="newUsername"
+                class="input"
+                type="text"
+                maxlength="254"
+                autocomplete="off"
+                :placeholder="selectedSource.imap_username || '留空则用邮箱地址登录'"
+              />
+            </label>
+            <label class="field-stack">
+              <span>新密码或授权码</span>
+              <input
+                v-model="newPassword"
+                class="input"
+                type="password"
+                maxlength="1024"
+                autocomplete="new-password"
+                required
+              />
+            </label>
+            <p class="form-note">保存后连接回到待检测、同步暂停，需要重新检测并开启。</p>
+            <button class="button button-primary" type="submit" :disabled="Boolean(busyAction)">
+              {{ busyAction === 'credentials' ? '正在保存…' : '保存密码' }}
+            </button>
+          </form>
 
           <div v-if="messagesLoading" class="state-layout compact" role="status">
             <span class="spinner spinner-large" aria-hidden="true"></span>
@@ -327,8 +537,14 @@ onUnmounted(() => {
           </div>
           <div v-else-if="messages.length === 0" class="state-layout compact">
             <span class="state-glyph"><AppIcon name="mail" /></span>
-            <strong>这个来源还没有本地邮件</strong>
-            <span>当前仅展示已归档的邮件，不会自动连接邮箱或同步。</span>
+            <strong>这个邮箱还没有同步到邮件</strong>
+            <span>{{
+              selectedSource?.connection_status === 'passed'
+                ? selectedSource.sync_enabled
+                  ? '首次同步只回溯最近 30 天，有新邮件会自动出现在这里。'
+                  : '连接已通过，开启同步或点「立即同步」拉取最近 30 天的邮件。'
+                : '先检测连接，通过后才能同步。'
+            }}</span>
           </div>
           <ol v-else class="email-message-list">
             <li v-for="message in messages" :key="message.id" class="email-message-card">

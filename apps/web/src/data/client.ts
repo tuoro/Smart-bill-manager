@@ -476,6 +476,25 @@ export const api = {
       body: JSON.stringify(registration),
     })
   },
+  setEmailSourceCredentials(
+    sourceId: string,
+    username: string,
+    password: string,
+  ): Promise<EmailSource> {
+    return request(`/email-sources/${encodeURIComponent(sourceId)}/credentials`, {
+      method: 'PUT',
+      body: JSON.stringify({ imap_username: username, imap_password: password }),
+    })
+  },
+  emailSourceAction(
+    sourceId: string,
+    action: 'detect' | 'activate' | 'deactivate' | 'sync',
+  ): Promise<EmailSource> {
+    return request(`/email-sources/${encodeURIComponent(sourceId)}/${action}`, { method: 'POST' })
+  },
+  deleteEmailSource(sourceId: string): Promise<void> {
+    return request(`/email-sources/${encodeURIComponent(sourceId)}`, { method: 'DELETE' })
+  },
   emailMessages(sourceId: string, cursor = '', limit = 50): Promise<EmailMessagePage> {
     const query = new URLSearchParams({ limit: String(limit) })
     if (cursor) query.set('cursor', cursor)

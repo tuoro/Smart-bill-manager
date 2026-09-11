@@ -3791,3 +3791,21 @@ input[type='radio'] {
 .connector-note {
   padding: 0 20px 16px;
 }
+
+/* 邮箱连接控制区与换密码表单 */
+.email-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 20px 12px;
+}
+
+.email-credentials-form {
+  display: grid;
+  gap: 12px;
+  margin: 0 20px 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-width: 420px;
+}

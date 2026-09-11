@@ -21,6 +21,7 @@ import (
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/invoicematerials"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/mailsync"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/materialexports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reimbursements"
@@ -72,6 +73,7 @@ type Server struct {
 	insights           insights.Service
 	chatIntake         chatintake.Service
 	chatConnectors     chatconnectors.Service
+	mailSync           mailsync.Service
 	exports            *materialexports.Service
 	setup              bootstrap.Service
 	setupInspector     SetupInspector
@@ -98,6 +100,7 @@ func NewServer(
 	insightService insights.Service,
 	chatIntakeService chatintake.Service,
 	chatConnectorService chatconnectors.Service,
+	mailSyncService mailsync.Service,
 	exportService *materialexports.Service,
 	setupService bootstrap.Service,
 	setupInspector SetupInspector,
@@ -116,6 +119,7 @@ func NewServer(
 		accounts:           accountService,
 		chatIntake:         chatIntakeService,
 		chatConnectors:     chatConnectorService,
+		mailSync:           mailSyncService,
 		auth:               authService,
 		upload:             uploadService,
 		documents:          documentQueries,
@@ -183,6 +187,20 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("POST /api/v1/documents", s.requireSession(s.requireCSRF(http.HandlerFunc(s.uploadDocumentHandler))))
 	router.Handle("POST /api/v1/email-sources", s.requireSession(s.requireCSRF(http.HandlerFunc(s.registerEmailSourceHandler))))
 	router.Handle("GET /api/v1/email-sources", s.requireSession(http.HandlerFunc(s.listEmailSourcesHandler)))
+	router.Handle("PUT /api/v1/email-sources/{source_id}/credentials", s.requireSession(s.requireCSRF(http.HandlerFunc(s.setEmailSourceCredentialsHandler))))
+	router.Handle("POST /api/v1/email-sources/{source_id}/detect", s.requireSession(s.requireCSRF(s.emailSourceAction(func(r *http.Request, t domain.TenantContext, id string) (ports.EmailSource, error) {
+		return s.mailSync.Detect(r.Context(), t, id)
+	}))))
+	router.Handle("POST /api/v1/email-sources/{source_id}/activate", s.requireSession(s.requireCSRF(s.emailSourceAction(func(r *http.Request, t domain.TenantContext, id string) (ports.EmailSource, error) {
+		return s.mailSync.Activate(r.Context(), t, id)
+	}))))
+	router.Handle("POST /api/v1/email-sources/{source_id}/deactivate", s.requireSession(s.requireCSRF(s.emailSourceAction(func(r *http.Request, t domain.TenantContext, id string) (ports.EmailSource, error) {
+		return s.mailSync.Deactivate(r.Context(), t, id)
+	}))))
+	router.Handle("POST /api/v1/email-sources/{source_id}/sync", s.requireSession(s.requireCSRF(s.emailSourceAction(func(r *http.Request, t domain.TenantContext, id string) (ports.EmailSource, error) {
+		return s.mailSync.SyncNow(r.Context(), t, id)
+	}))))
+	router.Handle("DELETE /api/v1/email-sources/{source_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteEmailSourceHandler))))
 	router.Handle("GET /api/v1/email-sources/{source_id}/messages", s.requireSession(http.HandlerFunc(s.listEmailMessagesHandler)))
 	router.Handle("GET /api/v1/email-messages/{message_id}/raw", s.requireSession(http.HandlerFunc(s.downloadEmailMessageHandler)))
 	router.Handle("GET /api/v1/email-attachments/{attachment_id}/content", s.requireSession(http.HandlerFunc(s.downloadEmailAttachmentHandler)))

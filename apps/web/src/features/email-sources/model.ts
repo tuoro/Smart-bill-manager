@@ -10,6 +10,13 @@ export const emailSourceStatusMeta: Record<EmailSource['status'], EmailStatusMet
   active: { label: '已有本地归档', tone: 'success' },
 }
 
+export const emailConnectionStatusMeta: Record<EmailSource['connection_status'], EmailStatusMeta> =
+  {
+    pending: { label: '待检测', tone: 'warning' },
+    passed: { label: '连接正常', tone: 'success' },
+    failed: { label: '连接失败', tone: 'danger' },
+  }
+
 export const emailMessageStatusMeta: Record<EmailMessage['status'], EmailStatusMeta> = {
   archived: { label: '已归档', tone: 'success' },
   blocked: { label: '已阻断', tone: 'danger' },

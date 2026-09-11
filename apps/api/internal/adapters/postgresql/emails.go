@@ -20,6 +20,8 @@ const emailSourceProjection = `
 	s.id, s.tenant_id, s.display_name, s.mailbox_address_normalized,
 	s.imap_host_normalized, s.imap_port, s.transport_security, s.status,
 	s.created_by_user_id, s.created_at, s.last_archived_at, s.version,
+	s.imap_username, s.encrypted_password IS NOT NULL, s.connection_status, s.connection_checked_at,
+	s.connection_safe_message, s.sync_enabled, s.last_sync_at, s.last_sync_safe_message,
 	(SELECT count(*) FROM email_messages m WHERE m.tenant_id = s.tenant_id AND m.email_source_id = s.id),
 	(SELECT count(*) FROM email_attachments a JOIN email_messages m
 	 ON m.tenant_id = a.tenant_id AND m.id = a.email_message_id
@@ -44,7 +46,7 @@ func (s *Store) ListEmailSources(ctx context.Context, tenantID string) ([]ports.
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT `+emailSourceProjection+`
 		FROM email_sources s
-		WHERE s.tenant_id = ?
+		WHERE s.tenant_id = ? AND s.deleted_at IS NULL
 		ORDER BY s.created_at, s.id
 	`, tenantID)
 	if err != nil {
@@ -69,7 +71,7 @@ func (s *Store) GetEmailSource(ctx context.Context, tenantID, sourceID string) (
 	item, err := scanEmailSource(s.db.QueryRowContext(ctx, `
 		SELECT `+emailSourceProjection+`
 		FROM email_sources s
-		WHERE s.tenant_id = ? AND s.id = ?
+		WHERE s.tenant_id = ? AND s.id = ? AND s.deleted_at IS NULL
 	`, tenantID, sourceID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.EmailSource{}, domain.ErrNotFound
@@ -113,7 +115,7 @@ func (t transaction) CreateEmailSource(
 	err = t.tx.QueryRowContext(ctx, `
 		SELECT id FROM email_sources
 		WHERE tenant_id = ? AND mailbox_address_normalized = ? AND imap_host_normalized = ?
-		  AND imap_port = ? AND transport_security = ?
+		  AND imap_port = ? AND transport_security = ? AND deleted_at IS NULL
 	`, command.Source.TenantID, command.Source.MailboxAddress, command.Source.IMAPHost,
 		command.Source.IMAPPort, command.Source.TransportSecurity).Scan(&existingID)
 	if err == nil {
@@ -137,15 +139,18 @@ func (t transaction) CreateEmailSource(
 		INSERT INTO email_sources (
 			id, tenant_id, display_name, mailbox_address_normalized, imap_host_normalized,
 			imap_port, transport_security, status, idempotency_key, request_hash,
-			created_by_user_id, created_at, version
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_connection', ?, ?, ?, ?, 1)
+			created_by_user_id, created_at, version, imap_username, encrypted_password
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending_connection', ?, ?, ?, ?, 1, ?, ?)
 	`, command.Source.ID, command.Source.TenantID, command.Source.DisplayName,
 		command.Source.MailboxAddress, command.Source.IMAPHost, command.Source.IMAPPort,
 		command.Source.TransportSecurity, command.IdempotencyKey, command.RequestHash,
-		command.Source.CreatedByUserID, createdAt); err != nil {
+		command.Source.CreatedByUserID, createdAt, command.Source.IMAPUsername, command.EncryptedPassword); err != nil {
 		return ports.EmailSourceCreateResult{}, emailWriteError("insert email source", err)
 	}
-	return ports.EmailSourceCreateResult{Source: command.Source, Replayed: false}, nil
+	created := command.Source
+	created.HasPassword = len(command.EncryptedPassword) > 0
+	created.ConnectionStatus = domain.EmailConnectionPending
+	return ports.EmailSourceCreateResult{Source: created, Replayed: false}, nil
 }
 
 func loadEmailSourceRegistrationReplay(
@@ -156,7 +161,7 @@ func loadEmailSourceRegistrationReplay(
 	row := queryer.QueryRowContext(ctx, `
 		SELECT s.request_hash, `+emailSourceProjection+`
 		FROM email_sources s
-		WHERE s.tenant_id = ? AND s.idempotency_key = ?
+		WHERE s.tenant_id = ? AND s.idempotency_key = ? AND s.deleted_at IS NULL
 	`, tenantID, idempotencyKey)
 	var requestHash string
 	source, err := scanEmailSourceWithPrefix(row, &requestHash)
@@ -176,11 +181,13 @@ func scanEmailSource(source scanner) (ports.EmailSource, error) {
 func scanEmailSourceWithPrefix(source scanner, prefix ...any) (ports.EmailSource, error) {
 	var item ports.EmailSource
 	var createdAt string
-	var lastArchived sql.NullString
+	var lastArchived, connectionChecked, lastSync sql.NullString
 	destinations := append(prefix,
 		&item.ID, &item.TenantID, &item.DisplayName, &item.MailboxAddress,
 		&item.IMAPHost, &item.IMAPPort, &item.TransportSecurity, &item.Status,
 		&item.CreatedByUserID, &createdAt, &lastArchived, &item.Version,
+		&item.IMAPUsername, &item.HasPassword, &item.ConnectionStatus, &connectionChecked,
+		&item.ConnectionMessage, &item.SyncEnabled, &lastSync, &item.LastSyncMessage,
 		&item.MessageCount, &item.AttachmentCount, &item.BlockedCount,
 	)
 	if err := source.Scan(destinations...); err != nil {
@@ -191,12 +198,19 @@ func scanEmailSourceWithPrefix(source scanner, prefix ...any) (ports.EmailSource
 	if err != nil {
 		return ports.EmailSource{}, fmt.Errorf("parse email source created_at: %w", err)
 	}
-	if lastArchived.Valid {
-		parsed, err := time.Parse(time.RFC3339Nano, lastArchived.String)
-		if err != nil {
-			return ports.EmailSource{}, fmt.Errorf("parse email source last_archived_at: %w", err)
+	for _, column := range []struct {
+		value  sql.NullString
+		target **time.Time
+		name   string
+	}{{lastArchived, &item.LastArchivedAt, "last_archived_at"}, {connectionChecked, &item.ConnectionCheckedAt, "connection_checked_at"}, {lastSync, &item.LastSyncAt, "last_sync_at"}} {
+		if !column.value.Valid {
+			continue
 		}
-		item.LastArchivedAt = &parsed
+		parsed, err := time.Parse(time.RFC3339Nano, column.value.String)
+		if err != nil {
+			return ports.EmailSource{}, fmt.Errorf("parse email source %s: %w", column.name, err)
+		}
+		*column.target = &parsed
 	}
 	return item, nil
 }
@@ -265,9 +279,10 @@ func (s *Store) ListEmailMessages(
 func (s *Store) GetEmailMessageObject(ctx context.Context, tenantID, messageID string) (ports.EmailObject, error) {
 	var object ports.EmailObject
 	err := s.db.QueryRowContext(ctx, `
-		SELECT raw_storage_key, 'message-' || id || '.eml'
-		FROM email_messages WHERE tenant_id = ? AND id = ?
-	`, tenantID, messageID).Scan(&object.StorageKey, &object.Name)
+		SELECT m.raw_storage_key, 'message-' || m.id || '.eml', s.created_by_user_id
+		FROM email_messages m JOIN email_sources s ON s.tenant_id = m.tenant_id AND s.id = m.email_source_id
+		WHERE m.tenant_id = ? AND m.id = ?
+	`, tenantID, messageID).Scan(&object.StorageKey, &object.Name, &object.SourceCreatedByUserID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.EmailObject{}, domain.ErrNotFound
 	}
@@ -281,10 +296,12 @@ func (s *Store) GetEmailMessageObject(ctx context.Context, tenantID, messageID s
 func (s *Store) GetEmailAttachmentObject(ctx context.Context, tenantID, attachmentID string) (ports.EmailObject, error) {
 	var object ports.EmailObject
 	err := s.db.QueryRowContext(ctx, `
-		SELECT storage_key, original_name, declared_mime
-		FROM email_attachments
-		WHERE tenant_id = ? AND id = ? AND storage_key IS NOT NULL
-	`, tenantID, attachmentID).Scan(&object.StorageKey, &object.Name, &object.MIME)
+		SELECT a.storage_key, a.original_name, a.declared_mime, s.created_by_user_id
+		FROM email_attachments a
+		JOIN email_messages m ON m.tenant_id = a.tenant_id AND m.id = a.email_message_id
+		JOIN email_sources s ON s.tenant_id = m.tenant_id AND s.id = m.email_source_id
+		WHERE a.tenant_id = ? AND a.id = ? AND a.storage_key IS NOT NULL
+	`, tenantID, attachmentID).Scan(&object.StorageKey, &object.Name, &object.MIME, &object.SourceCreatedByUserID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ports.EmailObject{}, domain.ErrNotFound
 	}
@@ -732,7 +749,8 @@ func emailWriteError(operation string, err error) error {
 	switch {
 	case strings.Contains(message, "email_sources.tenant_id, email_sources.idempotency_key"):
 		return domain.NewRuleError("idempotency_key_conflict", "幂等键已用于不同的邮箱来源", domain.ErrConflict)
-	case strings.Contains(message, "email_sources.tenant_id, email_sources.mailbox_address_normalized"):
+	case strings.Contains(message, "email_sources.tenant_id, email_sources.mailbox_address_normalized"),
+		strings.Contains(message, "email_sources_live_identity_key"):
 		return domain.NewRuleError("email_source_exists", "相同邮箱连接身份已存在", domain.ErrConflict)
 	case strings.Contains(message, "email_messages.tenant_id, email_messages.email_source_id"):
 		return domain.NewRuleError("email_message_identity_conflict", "外部邮件身份已存在", domain.ErrConflict)

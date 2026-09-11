@@ -15,6 +15,9 @@ const (
 	EmailMIMEArchiveVersion              = "email-mime-archive/1"
 	EmailSourcePendingConnection         = "pending_connection"
 	EmailSourceActive                    = "active"
+	EmailConnectionPending               = "pending"
+	EmailConnectionPassed                = "passed"
+	EmailConnectionFailed                = "failed"
 	EmailTransportImplicitTLS            = "implicit_tls"
 	EmailTransportSTARTTLS               = "starttls"
 	EmailMessageArchived                 = "archived"
@@ -140,4 +143,38 @@ func normalizeBoundedText(value string, maximum int, code, message string) (stri
 		}
 	}
 	return value, nil
+}
+
+// EmailSourceVisibleTo 决定谁能看到、管理一个邮箱来源：邮箱是每个成员自己的，
+// 管理员能看全部，成员只有自己登记的。不可见时对外表现为不存在，不泄露有无。
+func EmailSourceVisibleTo(tenant TenantContext, createdByUserID string) bool {
+	return tenant.Role == RoleOwner || createdByUserID == tenant.UserID
+}
+
+func EmailConnectionRequired() error {
+	return NewRuleError("email_connection_required", "请先检测连接，通过后才能开启同步", ErrConflict)
+}
+
+// NormalizeIMAPUsername 允许留空（连接时用邮箱地址），非空时不许有控制字符。
+func NormalizeIMAPUsername(value string) (string, error) {
+	value = strings.TrimSpace(norm.NFKC.String(value))
+	if value == "" {
+		return "", nil
+	}
+	if len([]rune(value)) > 254 {
+		return "", NewRuleError("invalid_imap_username", "IMAP 用户名长度不能超过 254 个字符", ErrInvalidInput)
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) || unicode.IsSpace(character) {
+			return "", NewRuleError("invalid_imap_username", "IMAP 用户名不能包含空白或控制字符", ErrInvalidInput)
+		}
+	}
+	return value, nil
+}
+
+func ValidateIMAPPassword(password []byte) error {
+	if len(password) == 0 || len(password) > 1024 {
+		return NewRuleError("invalid_imap_password", "邮箱密码或授权码长度不正确", ErrInvalidInput)
+	}
+	return nil
 }

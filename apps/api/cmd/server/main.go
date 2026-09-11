@@ -16,6 +16,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/dingtalk"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/emailmime"
+	imapadapter "github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/imap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/openaicompatible"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
@@ -30,6 +31,7 @@ import (
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/insights"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/invoicematerials"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/mailsync"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/materialexports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/processing"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/providers"
@@ -237,7 +239,13 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	emailService := applicationemails.NewService(
 		store, store, objects, inspector, emailmime.Parser{}, system.IDGenerator{}, system.Clock{},
+	).WithCipher(secretCipher)
+	// 邮箱轮询：每 5 分钟看一次新邮件。轮询器与服务互相引用，先建后绑。
+	mailPoller := mailsync.NewPoller(ctx, 5*time.Minute, logger)
+	mailSyncService := mailsync.NewService(
+		store, store, secretCipher, imapadapter.New(), mailPoller, emailService, system.IDGenerator{}, system.Clock{},
 	)
+	mailPoller.Bind(mailSyncService.SyncOnce)
 	tripService := trips.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	reimbursementService := reimbursements.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	insightService := insights.NewService(store)
@@ -274,6 +282,7 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 		insightService,
 		chatIntakeService,
 		chatConnectorService,
+		mailSyncService,
 		exportService,
 		bootstrap.NewService(store, hasher, system.IDGenerator{}, system.Clock{}),
 		store,
@@ -309,6 +318,9 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	go worker.Run(ctx)
 	// 钉钉凭据在面板里配置、按工作区加密落库；启动时把已启用的连接拉起来，
 	// 之后由面板操作起停，不重启进程。
+	if err := mailSyncService.StartActive(ctx); err != nil {
+		logger.Error("start mailbox sync", "error", err)
+	}
 	if err := chatConnectorService.StartActive(ctx); err != nil {
 		return fmt.Errorf("start chat connectors: %w", err)
 	}

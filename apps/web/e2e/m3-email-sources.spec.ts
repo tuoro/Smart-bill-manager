@@ -17,7 +17,7 @@ const sourceActive = {
 } satisfies EmailSource
 
 test.describe('M3 邮箱来源真实组件状态矩阵', () => {
-  test('Owner：无凭据登记、混合附件、blocked、分页失败恢复与响应式可达', async ({
+  test('Owner：带密码登记、混合附件、blocked、分页失败恢复与响应式可达', async ({
     page,
   }, testInfo) => {
     const pageErrors = trackPageErrors(page)
@@ -63,8 +63,8 @@ test.describe('M3 邮箱来源真实组件状态矩阵', () => {
 
     await page.goto('/email-sources')
     await expect(page.getByRole('heading', { name: '邮箱来源', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: /待连接邮箱 待连接/ })).toBeVisible()
-    await expect(page.getByText('这个来源还没有本地邮件')).toBeVisible()
+    await expect(page.getByRole('button', { name: /待连接邮箱 待检测/ })).toBeVisible()
+    await expect(page.getByText('这个邮箱还没有同步到邮件')).toBeVisible()
     await expect(page.getByRole('button', { name: /财务归档邮箱/ })).toBeVisible()
     await page.getByRole('button', { name: /财务归档邮箱/ }).click()
 
@@ -114,13 +114,12 @@ test.describe('M3 邮箱来源真实组件状态矩阵', () => {
       document.cookie = 'sbm_csrf=synthetic-email-csrf; path=/; SameSite=Strict'
     })
     await page.getByRole('button', { name: '登记邮箱来源' }).click()
-    await expect(page.locator('input[type="password"]')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /同步|连接测试/ })).toHaveCount(0)
     await page.getByLabel('显示名称').fill('新增邮箱')
     await page.getByLabel('邮箱地址').fill('new@example.invalid')
     await page.getByLabel('邮箱服务器（IMAP）').fill('imap.example.invalid')
     await page.getByLabel('IMAP 端口').fill('993')
     await page.getByLabel('加密方式').selectOption('implicit_tls')
+    await page.getByLabel('密码或授权码').fill('synthetic-app-password')
     await page.getByRole('button', { name: '保存邮箱来源' }).click()
     await expect(page.getByText('新增邮箱').first()).toBeVisible()
     expect(submitted).toEqual({
@@ -129,12 +128,116 @@ test.describe('M3 邮箱来源真实组件状态矩阵', () => {
       imap_host: 'imap.example.invalid',
       imap_port: 993,
       transport_security: 'implicit_tls',
+      imap_username: '',
+      imap_password: 'synthetic-app-password',
     })
     expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/)
+    // 密码只上送一次：提交后输入框清空，页面任何地方不出现明文。
+    await expect(page.locator('body')).not.toContainText('synthetic-app-password')
     expect(pageErrors).toEqual([])
   })
 
-  test('Finance 可读不可登记，Reviewer 直接访问不发起归档请求', async ({ page }) => {
+  // 连接动作：密码错 → 检测失败且不能开同步；换密码回到待检测；通过后开同步、立即同步；删除需确认。
+  test('Owner：检测、换密码、开启同步、立即同步与删除', async ({ page }) => {
+    const pageErrors = trackPageErrors(page)
+    await mockSession(page, ownerSession())
+    let current: EmailSource = { ...sourcePending, has_password: true }
+    const actions: string[] = []
+    let credentials: Record<string, unknown> | undefined
+    await page.route(emailSourcesURL, (route) =>
+      fulfillJSON(route, { items: current ? [current] : [] }),
+    )
+    await page.route(emailMessagesURL(sourcePending.id), (route) =>
+      fulfillJSON(route, { items: [] }),
+    )
+    await page.route(
+      (url) => url.pathname.startsWith(`/api/v1/email-sources/${sourcePending.id}`),
+      async (route) => {
+        const url = new URL(route.request().url())
+        const method = route.request().method()
+        if (url.pathname.endsWith('/messages')) return route.fallback()
+        if (method === 'DELETE') {
+          actions.push('delete')
+          await route.fulfill({ status: 204, body: '' })
+          return
+        }
+        if (url.pathname.endsWith('/credentials')) {
+          credentials = route.request().postDataJSON() as Record<string, unknown>
+          current = {
+            ...current,
+            connection_status: 'pending',
+            connection_message: '',
+            sync_enabled: false,
+          }
+          await fulfillJSON(route, current)
+          return
+        }
+        const action = url.pathname.split('/').pop() ?? ''
+        actions.push(action)
+        if (action === 'detect')
+          current =
+            actions.filter((item) => item === 'detect').length === 1
+              ? {
+                  ...current,
+                  connection_status: 'failed',
+                  connection_message: '邮箱拒绝了登录，请检查用户名与密码',
+                }
+              : {
+                  ...current,
+                  connection_status: 'passed',
+                  connection_message: '连接成功，收件箱可读',
+                }
+        if (action === 'activate') current = { ...current, sync_enabled: true }
+        if (action === 'deactivate') current = { ...current, sync_enabled: false }
+        if (action === 'sync')
+          current = {
+            ...current,
+            last_sync_at: timestamp,
+            last_sync_message: '已同步 2 封新邮件',
+            message_count: 2,
+          }
+        await fulfillJSON(route, current)
+      },
+    )
+    await page.goto('/email-sources')
+    await page.evaluate(() => {
+      document.cookie = 'sbm_csrf=synthetic-email-csrf; path=/; SameSite=Strict'
+    })
+    const activate = page.getByRole('button', { name: '开启同步', exact: true })
+    await expect(activate).toBeDisabled()
+    await page.getByRole('button', { name: '检测连接', exact: true }).click()
+    await expect(page.getByText('连接失败 · 邮箱拒绝了登录')).toBeVisible()
+    await expect(activate).toBeDisabled()
+
+    await page.getByRole('button', { name: '更换密码', exact: true }).click()
+    await page.getByLabel('新密码或授权码').fill('new-app-password')
+    await page.getByRole('button', { name: '保存密码', exact: true }).click()
+    expect(credentials).toEqual({ imap_username: '', imap_password: 'new-app-password' })
+    await expect(page.locator('body')).not.toContainText('new-app-password')
+    await expect(page.getByText('待检测', { exact: true }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: '检测连接', exact: true }).click()
+    await expect(page.getByText('连接正常 · 连接成功')).toBeVisible()
+    await expect(activate).toBeEnabled()
+    await activate.click()
+    await expect(page.getByText('每 5 分钟自动同步')).toBeVisible()
+    await page.getByRole('button', { name: '立即同步', exact: true }).click()
+    await expect(page.getByText('已同步 2 封新邮件')).toBeVisible()
+    await page.getByRole('button', { name: '停止同步', exact: true }).click()
+    await expect(activate).toBeVisible()
+    expect(actions).toEqual(['detect', 'detect', 'activate', 'sync', 'deactivate'])
+
+    page.once('dialog', (dialog) => void dialog.dismiss())
+    await page.getByRole('button', { name: '删除邮箱', exact: true }).click()
+    expect(actions).not.toContain('delete')
+    page.once('dialog', (dialog) => void dialog.accept())
+    await page.getByRole('button', { name: '删除邮箱', exact: true }).click()
+    await expect(page.getByText('还没有邮箱来源')).toBeVisible()
+    expect(actions).toContain('delete')
+    expect(pageErrors).toEqual([])
+  })
+
+  test('缺少管理能力的会话可读不可登记，缺少读取能力的会话不发起归档请求', async ({ page }) => {
     let sourceRequests = 0
     await mockSession(page, financeSession())
     await page.route(emailSourcesURL, async (route) => {
@@ -145,8 +248,9 @@ test.describe('M3 邮箱来源真实组件状态矩阵', () => {
       fulfillJSON(route, { items: [] }),
     )
     await page.goto('/email-sources')
-    await expect(page.getByRole('button', { name: /待连接邮箱 待连接/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /待连接邮箱 待检测/ })).toBeVisible()
     await expect(page.getByRole('button', { name: '登记邮箱来源' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '检测连接' })).toHaveCount(0)
     expect(sourceRequests).toBe(1)
 
     const reviewerPage = await page.context().newPage()
@@ -209,6 +313,12 @@ function emailSource(id: string, displayName: string, status: EmailSource['statu
     message_count: 0,
     attachment_count: 0,
     blocked_count: 0,
+    imap_username: '',
+    has_password: true,
+    connection_status: status === 'active' ? 'passed' : 'pending',
+    connection_message: status === 'active' ? '连接成功，收件箱可读' : '',
+    sync_enabled: status === 'active',
+    last_sync_message: '',
   }
 }
 

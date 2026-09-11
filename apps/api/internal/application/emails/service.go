@@ -29,6 +29,7 @@ type Service struct {
 	parser     ports.EmailParser
 	ids        ports.IDGenerator
 	clock      ports.Clock
+	cipher     ports.SecretCipher
 }
 
 type RegisterInput struct {
@@ -36,6 +37,10 @@ type RegisterInput struct {
 	Registration   domain.EmailSourceRegistration
 	IdempotencyKey string
 	RequestID      string
+	// 连接凭据。密码不参与幂等哈希（哈希只盖描述符），加密后落库；留空则先只登记，
+	// 之后再在页面里补密码。
+	IMAPUsername string
+	IMAPPassword []byte
 }
 
 type ArchiveInput struct {
@@ -68,6 +73,12 @@ func NewService(
 	}
 }
 
+// WithCipher 提供加密邮箱密码用的主密钥密文器。没有它 Register 只能登记描述信息。
+func (s Service) WithCipher(cipher ports.SecretCipher) Service {
+	s.cipher = cipher
+	return s
+}
+
 func (s Service) Register(ctx context.Context, input RegisterInput) (ports.EmailSourceCreateResult, error) {
 	if err := input.Tenant.Require(domain.CapabilityEmailSourcesManage); err != nil {
 		return ports.EmailSourceCreateResult{}, err
@@ -81,6 +92,23 @@ func (s Service) Register(ctx context.Context, input RegisterInput) (ports.Email
 	canonical, requestHash, err := domain.CanonicalEmailSourceRegistration(input.Registration)
 	if err != nil {
 		return ports.EmailSourceCreateResult{}, err
+	}
+	username, err := domain.NormalizeIMAPUsername(input.IMAPUsername)
+	if err != nil {
+		return ports.EmailSourceCreateResult{}, err
+	}
+	var encryptedPassword []byte
+	if len(input.IMAPPassword) > 0 {
+		if err := domain.ValidateIMAPPassword(input.IMAPPassword); err != nil {
+			return ports.EmailSourceCreateResult{}, err
+		}
+		if s.cipher == nil {
+			return ports.EmailSourceCreateResult{}, errors.New("email source cipher is not configured")
+		}
+		encryptedPassword, err = s.cipher.Encrypt(input.IMAPPassword)
+		if err != nil {
+			return ports.EmailSourceCreateResult{}, fmt.Errorf("encrypt mailbox password: %w", err)
+		}
 	}
 	replay, replayErr := s.repository.GetEmailSourceRegistrationReplay(ctx, input.Tenant.TenantID, input.IdempotencyKey)
 	if replayErr == nil {
@@ -106,10 +134,10 @@ func (s Service) Register(ctx context.Context, input RegisterInput) (ports.Email
 			MailboxAddress: canonical.MailboxAddress, IMAPHost: canonical.IMAPHost,
 			IMAPPort: canonical.IMAPPort, TransportSecurity: canonical.TransportSecurity,
 			Status: domain.EmailSourcePendingConnection, CreatedByUserID: input.Tenant.UserID,
-			CreatedAt: s.clock.Now(), Version: 1,
+			CreatedAt: s.clock.Now(), Version: 1, IMAPUsername: username,
 		},
 		IdempotencyKey: input.IdempotencyKey, RequestHash: requestHash,
-		AuditEventID: auditID, RequestID: input.RequestID,
+		AuditEventID: auditID, RequestID: input.RequestID, EncryptedPassword: encryptedPassword,
 	}
 	var result ports.EmailSourceCreateResult
 	err = s.tx.WithinTransaction(ctx, func(transaction ports.Transaction) error {
@@ -135,10 +163,32 @@ func (s Service) ListSources(ctx context.Context, tenant domain.TenantContext) (
 	if err != nil {
 		return nil, err
 	}
-	if items == nil {
-		items = []ports.EmailSource{}
+	// 邮箱是每个成员自己的：管理员看全部，成员只看自己登记的。
+	visible := make([]ports.EmailSource, 0, len(items))
+	for _, item := range items {
+		if domain.EmailSourceVisibleTo(tenant, item.CreatedByUserID) {
+			visible = append(visible, item)
+		}
 	}
-	return items, nil
+	return visible, nil
+}
+
+// VisibleSource 取一个来源，不可见时按不存在处理，不泄露有无。
+func (s Service) VisibleSource(ctx context.Context, tenant domain.TenantContext, sourceID string) (ports.EmailSource, error) {
+	if err := tenant.Require(domain.CapabilityEmailArchiveRead); err != nil {
+		return ports.EmailSource{}, err
+	}
+	if sourceID == "" {
+		return ports.EmailSource{}, domain.ErrInvalidInput
+	}
+	source, err := s.repository.GetEmailSource(ctx, tenant.TenantID, sourceID)
+	if err != nil {
+		return ports.EmailSource{}, err
+	}
+	if !domain.EmailSourceVisibleTo(tenant, source.CreatedByUserID) {
+		return ports.EmailSource{}, domain.ErrNotFound
+	}
+	return source, nil
 }
 
 func (s Service) ListMessages(
@@ -153,7 +203,7 @@ func (s Service) ListMessages(
 	if sourceID == "" {
 		return ports.EmailMessagePage{}, domain.ErrInvalidInput
 	}
-	if _, err := s.repository.GetEmailSource(ctx, tenant.TenantID, sourceID); err != nil {
+	if _, err := s.VisibleSource(ctx, tenant, sourceID); err != nil {
 		return ports.EmailMessagePage{}, err
 	}
 	if limit == 0 {
@@ -220,6 +270,9 @@ func (s Service) openObject(
 	object, err := lookup(ctx, tenant.TenantID, resourceID)
 	if err != nil {
 		return ArchivedContent{}, err
+	}
+	if !domain.EmailSourceVisibleTo(tenant, object.SourceCreatedByUserID) {
+		return ArchivedContent{}, domain.ErrNotFound
 	}
 	body, err := s.objects.Open(ctx, object.StorageKey)
 	if err != nil {

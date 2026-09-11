@@ -88,7 +88,7 @@ const activePath = computed(() => {
   if (route.path.startsWith('/allocations/invoice/')) return '/invoices'
   return route.path
 })
-const roleLabels = { owner: '管理员', finance: '财务', reviewer: '审核员', viewer: '只读成员' }
+const roleLabels = { owner: '管理员', member: '成员' }
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value

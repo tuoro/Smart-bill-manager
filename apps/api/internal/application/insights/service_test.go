@@ -39,7 +39,7 @@ func TestServiceQueryPaginatesAndBindsCursorToFilter(t *testing.T) {
 		{FactType: domain.DocumentInvoice, FactID: "22222222-2222-4222-8222-222222222222", BusinessDate: "2026-08-02", DisplayName: "合成销售方", AmountMinor: 80, Currency: domain.CurrencyCNY},
 	}}
 	service := NewService(repository)
-	tenant := domain.TenantContext{TenantID: "tenant-a", UserID: "user-a", Role: domain.RoleViewer}
+	tenant := domain.TenantContext{TenantID: "tenant-a", UserID: "user-a", Role: domain.RoleMember}
 	first, err := service.Query(context.Background(), tenant, QueryInput{Limit: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -67,10 +67,9 @@ func TestServiceQueryRejectsMalformedInputsAndEnforcesCapability(t *testing.T) {
 	t.Parallel()
 
 	service := NewService(&insightRepositoryFixture{})
-	viewer := domain.TenantContext{TenantID: "tenant", UserID: "viewer", Role: domain.RoleViewer}
-	reviewer := domain.TenantContext{TenantID: "tenant", UserID: "reviewer", Role: domain.RoleReviewer}
-	if _, err := service.Query(context.Background(), reviewer, QueryInput{Limit: 50}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("reviewer error = %v", err)
+	viewer := domain.TenantContext{TenantID: "tenant", UserID: "viewer", Role: domain.RoleMember}
+	if _, err := service.Query(context.Background(), domain.TenantContext{TenantID: "tenant", UserID: "x", Role: domain.Role("viewer")}, QueryInput{Limit: 50}); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role error = %v", err)
 	}
 	for name, input := range map[string]QueryInput{
 		"zero limit":      {Limit: 0},

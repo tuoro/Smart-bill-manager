@@ -12,7 +12,7 @@ import (
 
 func TestProviderInputAndPermissionBoundaries(t *testing.T) {
 	service := Service{}
-	viewer := domain.TenantContext{TenantID: "tenant", UserID: "user", Role: domain.RoleViewer}
+	viewer := domain.TenantContext{TenantID: "tenant", UserID: "user", Role: domain.RoleMember}
 	if _, err := service.Create(context.Background(), CreateInput{Tenant: viewer}); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer create error = %v", err)
 	}

@@ -42,13 +42,13 @@ func otherWorkspace(t *testing.T, f fixture) ports.SessionPrincipal {
 func TestSharedAccountJoinAndGlobalPasswordRevocation(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	member, firstToken := f.join(t, "shared@example.invalid", domain.RoleFinance)
+	member, firstToken := f.join(t, "shared@example.invalid", domain.RoleMember)
 	before, err := f.store.FindAccountByID(ctx, member.UserID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	other := otherWorkspace(t, f)
-	invite := f.invite(t, other, member.Email, domain.RoleViewer)
+	invite := f.invite(t, other, member.Email, domain.RoleMember)
 	view, err := f.service.CheckInvitation(ctx, invite.Code)
 	if err != nil || !view.ExistingAccount {
 		t.Fatal("shared global identity not recognized")
@@ -77,7 +77,7 @@ func TestSharedAccountJoinAndGlobalPasswordRevocation(t *testing.T) {
 		t.Fatal("workspace enumeration without credentials")
 	}
 	second, err := f.auth.Login(ctx, auth.LoginInput{Email: member.Email, Password: []byte(syntheticPassword), TenantID: other.TenantID})
-	if err != nil || second.Role != domain.RoleViewer {
+	if err != nil || second.Role != domain.RoleMember {
 		t.Fatal("explicit second workspace login failed")
 	}
 	if err := f.service.ChangePassword(ctx, member, []byte("synthetic-wrong-password"), []byte(syntheticNextPassword)); !errors.Is(err, domain.ErrUnauthenticated) {
@@ -102,13 +102,13 @@ func TestSharedAccountJoinAndGlobalPasswordRevocation(t *testing.T) {
 func TestSuspendedGlobalAccountCanAcceptNewWorkspaceOnly(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	member, _ := f.join(t, "suspended@example.invalid", domain.RoleViewer)
-	_, err := f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleViewer, Status: "suspended", ExpectedVersion: 1, Reason: "合成停用"}, "synthetic")
+	member, _ := f.join(t, "suspended@example.invalid", domain.RoleMember)
+	_, err := f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleMember, Status: "suspended", ExpectedVersion: 1, Reason: "合成停用"}, "synthetic")
 	if err != nil {
 		t.Fatal(err)
 	}
 	other := otherWorkspace(t, f)
-	invite := f.invite(t, other, member.Email, domain.RoleReviewer)
+	invite := f.invite(t, other, member.Email, domain.RoleMember)
 	if err := f.service.Join(ctx, invite.Code, "", []byte(syntheticPassword), "synthetic"); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestSuspendedGlobalAccountCanAcceptNewWorkspaceOnly(t *testing.T) {
 func TestInvitationRevocationExpiryAndTenantBoundaries(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	invite := f.invite(t, f.owner, "revoked@example.invalid", domain.RoleViewer)
+	invite := f.invite(t, f.owner, "revoked@example.invalid", domain.RoleMember)
 	other := otherWorkspace(t, f)
 	if _, err := f.service.Revoke(ctx, other, invite.Invitation.ID, 1, "合成越界", "synthetic"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatal("cross-tenant invitation revoked")
@@ -144,7 +144,7 @@ func TestInvitationRevocationExpiryAndTenantBoundaries(t *testing.T) {
 	if _, err := f.service.Invitations(ctx, f.owner, "", 101); !errors.Is(err, domain.ErrInvalidInput) {
 		t.Fatal("unbounded page accepted")
 	}
-	active := f.invite(t, f.owner, "null-reason@example.invalid", domain.RoleViewer)
+	active := f.invite(t, f.owner, "null-reason@example.invalid", domain.RoleMember)
 	if _, err := f.store.DB().Exec(`UPDATE member_invitations SET version=2, revoked_at=clock_timestamp(), revoke_reason=NULL WHERE id=?`, active.Invitation.ID); err == nil {
 		t.Fatal("null revoke reason bypassed CHECK")
 	}
@@ -160,7 +160,7 @@ func TestMemberPagesAreCompleteAndScopeBound(t *testing.T) {
 		if _, err := f.store.DB().Exec(`INSERT INTO users (id,email,password_hash,display_name,created_at,updated_at) VALUES (?,?, 'synthetic-unused-hash','合成分页成员',?,?)`, id, fmt.Sprintf("page-%d@example.invalid", index), now, now); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.store.DB().Exec(`INSERT INTO memberships (tenant_id,user_id,role,status,created_at,updated_at) VALUES (?,?,'viewer','active',?,?)`, f.owner.TenantID, id, now, now); err != nil {
+		if _, err := f.store.DB().Exec(`INSERT INTO memberships (tenant_id,user_id,role,status,created_at,updated_at) VALUES (?,?,'member','active',?,?)`, f.owner.TenantID, id, now, now); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -224,7 +224,7 @@ func TestInvitationExpiryIsRecheckedAfterPasswordWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := f.store.DB().Exec(`INSERT INTO member_invitations (id,tenant_id,email,role,token_hash,created_by_user_id,created_at,expires_at,reason,idempotency_key,request_hash,audit_event_id)
-		VALUES (?,?,'short-lived@example.invalid','viewer',?,?,?,?,'合成短期','synthetic-short',?,?)`, id, f.owner.TenantID, hash, f.owner.UserID, now, now.Add(150*time.Millisecond), hash, auditID); err != nil {
+		VALUES (?,?,'short-lived@example.invalid','member',?,?,?,?,'合成短期','synthetic-short',?,?)`, id, f.owner.TenantID, hash, f.owner.UserID, now, now.Add(150*time.Millisecond), hash, auditID); err != nil {
 		t.Fatal(err)
 	}
 	hasher := heldHasher{PasswordHasher: f.hasher, reached: make(chan struct{}), release: make(chan struct{})}

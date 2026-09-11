@@ -96,26 +96,27 @@ M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailS
 ### Membership
 
 - tenant_id、user_id；
-- role：`owner`、`finance`、`reviewer` 或 `viewer`；
+- role：`owner`（管理员）或 `member`（成员）；
 - status：`active` 或 `suspended`；
 - created_at、updated_at。
 
 只有 `active` Membership 能产生 TenantContext；跨租户访问始终拒绝。每个 Tenant 必须至少有一个 active owner，停用或降级最后一个 owner 的事务必须失败。
 
-当前权限矩阵固定如下；`reviewer` 在审核上下文中只能读取当前 Document、Claim、证据和候选摘要，不能借此枚举完整账单或报销：
+只有两档角色。这个产品是几个人一起记账报销，每个人都要上传、审核、整理；更细的分工只会让邀请时多想一步、邀错档位。早期的 `finance` / `reviewer` / `viewer` 已由迁移 0014 统一并入 `member`。
 
-| 能力                                | owner | finance | reviewer | viewer |
-| ----------------------------------- | ----- | ------- | -------- | ------ |
-| 成员与角色管理                      | 是    | 否      | 否       | 否     |
-| ProviderConfig 管理                 | 是    | 否      | 否       | 否     |
-| 上传、收件箱、重试与取消            | 是    | 是      | 是       | 否     |
-| Claim 修订、确认与驳回              | 是    | 是      | 是       | 否     |
-| 当前审核的 Source/证据/关联候选摘要 | 是    | 是      | 是       | 否     |
-| Payment/Invoice/Trip 列表与详情     | 是    | 是      | 否       | 是     |
-| Trip 归属管理                       | 是    | 是      | 否       | 否     |
-| Reimbursement 列表与详情            | 是    | 是      | 否       | 是     |
-| Reimbursement 预检、提交与状态管理  | 是    | 是      | 否       | 否     |
-| Document 聚合或 Fact 删除           | 是    | 否      | 否       | 否     |
+| 能力                                | owner | member |
+| ----------------------------------- | ----- | ------ |
+| 成员与角色管理                      | 是    | 否     |
+| ProviderConfig、钉钉收单等集成配置  | 是    | 否     |
+| 数据库连接等部署级设置              | 是    | 否     |
+| 上传、收件箱、重试与取消            | 是    | 是     |
+| Claim 修订、确认与驳回              | 是    | 是     |
+| 当前审核的 Source/证据/关联候选摘要 | 是    | 是     |
+| Payment/Invoice/Trip 列表与详情     | 是    | 是     |
+| Trip 归属管理、分配调整、坏账       | 是    | 是     |
+| Reimbursement 列表、预检、提交与状态 | 是    | 是     |
+| 邮箱来源登记与删除（各自的邮箱）    | 是    | 是     |
+| Document 聚合或 Fact 删除           | 是    | 否     |
 
 空数据库只允许通过本地 `bootstrap-owner` 命令创建首个 User、Tenant 和 active owner Membership。命令必须在单一事务中完成，只在三张表都为空时可执行，重复执行明确失败；密码只从交互式标准输入或权限受限的挂载文件读取，不能出现在命令参数、环境变量或日志。该能力不暴露 HTTP 路由。首个 owner 登录后，后续用户与 Membership 只能通过带 `members.manage` 能力的受权用例创建。
 

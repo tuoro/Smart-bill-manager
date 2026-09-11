@@ -339,11 +339,11 @@ function ownerSession(): Session {
 }
 
 function viewerSession(): Session {
-  return session('viewer', ['facts.read'])
+  return session('member', ['facts.read'])
 }
 
 function reviewerSession(): Session {
-  return session('reviewer', ['documents.process', 'claims.review'])
+  return session('member', ['documents.process', 'claims.review'])
 }
 
 function session(role: Session['role'], capabilities: string[]): Session {

@@ -17,7 +17,7 @@ import (
 
 func TestConcurrentInvitationConsumptionCreatesExactlyOneMembership(t *testing.T) {
 	f := newFixture(t)
-	invite := f.invite(t, f.owner, "concurrent@example.invalid", domain.RoleFinance)
+	invite := f.invite(t, f.owner, "concurrent@example.invalid", domain.RoleMember)
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	var group sync.WaitGroup
@@ -50,7 +50,7 @@ func TestInvitationCapacityHistoryPaginationAndExactReads(t *testing.T) {
 	ctx := context.Background()
 	var oldest string
 	for index := range 201 {
-		invite := f.invite(t, f.owner, fmt.Sprintf("history-%d@example.invalid", index), domain.RoleViewer)
+		invite := f.invite(t, f.owner, fmt.Sprintf("history-%d@example.invalid", index), domain.RoleMember)
 		if index == 0 {
 			oldest = invite.Invitation.ID
 		}
@@ -86,7 +86,7 @@ func TestInvitationCapacityHistoryPaginationAndExactReads(t *testing.T) {
 	if _, err := f.service.Invitation(ctx, other, oldest); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatal("cross-workspace exact invitation exposed")
 	}
-	member, _ := f.join(t, "private@example.invalid", domain.RoleViewer)
+	member, _ := f.join(t, "private@example.invalid", domain.RoleMember)
 	if _, err := f.service.Member(ctx, other, member.UserID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatal("cross-workspace exact member exposed")
 	}
@@ -94,10 +94,10 @@ func TestInvitationCapacityHistoryPaginationAndExactReads(t *testing.T) {
 		t.Fatal("non-owner exact member read accepted")
 	}
 	for index := range domain.MaxPendingInvitations {
-		f.invite(t, f.owner, fmt.Sprintf("pending-%d@example.invalid", index), domain.RoleViewer)
+		f.invite(t, f.owner, fmt.Sprintf("pending-%d@example.invalid", index), domain.RoleMember)
 	}
 	before := count(t, f, "audit_events")
-	_, err := f.service.Invite(ctx, f.owner, accounts.InviteInput{Email: "excess@example.invalid", Role: domain.RoleViewer, Reason: "合成上限", IdempotencyKey: "synthetic-limit-test"}, "synthetic")
+	_, err := f.service.Invite(ctx, f.owner, accounts.InviteInput{Email: "excess@example.invalid", Role: domain.RoleMember, Reason: "合成上限", IdempotencyKey: "synthetic-limit-test"}, "synthetic")
 	if !errors.Is(err, domain.ErrConflict) || count(t, f, "audit_events") != before {
 		t.Fatal("pending cap failure did not roll back")
 	}
@@ -106,7 +106,7 @@ func TestInvitationCapacityHistoryPaginationAndExactReads(t *testing.T) {
 func TestMemberChangeClosesVerifiedLoginRace(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	member, _ := f.join(t, "race@example.invalid", domain.RoleFinance)
+	member, _ := f.join(t, "race@example.invalid", domain.RoleMember)
 	repository := heldLoginRepository{IdentityRepository: f.store, reached: make(chan struct{}), release: make(chan struct{})}
 	login, err := auth.NewService(repository, f.hasher, cryptography.TokenGenerator{}, system.IDGenerator{}, system.Clock{}, time.Hour)
 	if err != nil {
@@ -118,7 +118,7 @@ func TestMemberChangeClosesVerifiedLoginRace(t *testing.T) {
 		result <- err
 	}()
 	<-repository.reached
-	_, err = f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleViewer, Status: "active", ExpectedVersion: 1, Reason: "合成降权"}, "synthetic")
+	_, err = f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleOwner, Status: "active", ExpectedVersion: 1, Reason: "合成升权"}, "synthetic")
 	close(repository.release)
 	if err != nil {
 		t.Fatal(err)

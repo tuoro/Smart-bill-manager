@@ -10,7 +10,7 @@ const view = ref<InvitationView | null>(null),
   pending = ref(false),
   error = ref(''),
   joined = ref(false)
-const roles = { owner: '管理员', finance: '财务', reviewer: '审核员', viewer: '只读成员' }
+const roles = { owner: '管理员', member: '成员' }
 let epoch = 0
 watch(code, () => {
   if (joined.value) return

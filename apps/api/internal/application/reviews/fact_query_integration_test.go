@@ -175,24 +175,14 @@ func TestFactManagementFiltersDetailsAndSourcePermissions(t *testing.T) {
 		if kind == domain.DocumentInvoice {
 			id = i.FactID
 		}
-		for _, role := range []domain.Role{domain.RoleOwner, domain.RoleFinance, domain.RoleViewer, domain.RoleReviewer} {
+		for _, role := range []domain.Role{domain.RoleOwner, domain.RoleMember} {
 			tenant := f.tenant
 			tenant.Role = role
 			detail, err := facts.Detail(ctx, tenant, kind, id)
-			if role == domain.RoleReviewer {
-				if !errors.Is(err, domain.ErrForbidden) {
-					t.Fatal("Reviewer saw formal details")
-				}
-				continue
-			}
 			if err != nil || len(detail.Links) != 1 {
 				t.Fatalf("detail projection: %v", err)
 			}
-			if role == domain.RoleViewer {
-				if detail.Source != nil {
-					t.Fatal("Viewer received source identity")
-				}
-			} else if detail.Source == nil || detail.Source.OriginKind != "ai" {
+			if detail.Source == nil || detail.Source.OriginKind != "ai" {
 				t.Fatal("genuine source missing")
 			}
 			if kind == domain.DocumentInvoice && len(detail.Invoice.Items) != 2 {

@@ -17,7 +17,7 @@ const member = (n: number): Member => ({
   user_id: id(n),
   email: `member-${n}@example.invalid`,
   display_name: `合成成员 ${n}`,
-  role: n === 1 ? 'owner' : 'viewer',
+  role: n === 1 ? 'owner' : 'member',
   status: 'active',
   version: 1,
   created_at: timestamp,
@@ -25,7 +25,7 @@ const member = (n: number): Member => ({
 const invitation = (n: number): Invitation => ({
   id: id(n + 1000),
   email: `invite-${n}@example.invalid`,
-  role: 'viewer',
+  role: 'member',
   status: 'pending',
   version: 1,
   created_at: timestamp,
@@ -96,14 +96,14 @@ async function fixture(
       return reply({
         items: [
           { id: id(900), name: '合成团队', role: 'owner' },
-          { id: id(901), name: '合成第二团队', role: 'viewer' },
+          { id: id(901), name: '合成第二团队', role: 'member' },
         ],
       })
     if (path === '/api/v1/invitations/check')
       return reply({
         email: 'joined@example.invalid',
         tenant_name: '合成团队',
-        role: 'reviewer',
+        role: 'member',
         expires_at: '2099-01-01T00:00:00Z',
         existing_account: state.existing,
       })
@@ -301,7 +301,7 @@ test('成员和邀请完整翻页；失败不破坏分页历史，冲突后可�
   }
   expect(invitationSeen.size).toBe(201)
   await page.getByRole('button', { name: '管理 member-20@example.invalid', exact: true }).click()
-  await page.getByRole('combobox', { name: '角色', exact: true }).selectOption('finance')
+  await page.getByRole('combobox', { name: '角色', exact: true }).selectOption('owner')
   await page.getByRole('button', { name: '核对变更', exact: true }).click()
   await page.getByRole('button', { name: '确认保存成员变更' }).click()
   await expect(page.getByRole('button', { name: '我已核对最新成员状态' })).toBeEnabled()
@@ -322,7 +322,7 @@ test('非管理员不能直达成员数据；改密错误保留身份，成功�
   browser,
   baseURL,
 }) => {
-  for (const role of ['finance', 'reviewer', 'viewer'] as const) {
+  for (const role of ['member'] as const) {
     const page = await browser.newPage({ baseURL })
     try {
       const state = await fixture(page, { role })

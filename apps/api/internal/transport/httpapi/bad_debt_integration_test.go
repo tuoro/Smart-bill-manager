@@ -14,7 +14,7 @@ func TestHTTPBadDebtPermissionsVersionReplayAndTripProtection(t *testing.T) {
 	f := newHTTPTestFixture(t)
 	defer f.store.Close()
 	owner := f.login(t, f.owner.TenantID)
-	finance, reviewer, viewer := f.addRoleSession(t, domain.RoleFinance), f.addRoleSession(t, domain.RoleReviewer), f.addRoleSession(t, domain.RoleViewer)
+	finance := f.addRoleSession(t, domain.RoleMember)
 	createBody := `{"name":"合成坏账 HTTP 行程","start_date":"2026-08-27","end_date":"2026-08-27","timezone":"Asia/Shanghai","notes":"","expected_version":0,"reason":"合成测试"}`
 	created := f.requestWithHeaders(http.MethodPost, "/api/v1/trips", strings.NewReader(createBody), owner, true, "application/json", map[string]string{"Idempotency-Key": "bad-debt-http-trip"})
 	assertStatus(t, created, http.StatusCreated)
@@ -29,9 +29,6 @@ func TestHTTPBadDebtPermissionsVersionReplayAndTripProtection(t *testing.T) {
 	path := "/api/v1/facts/payment/" + id + "/bad-debt"
 	body := fmt.Sprintf(`{"marked":true,"expected_version":%d,"reason":"合成异常标记"}`, version)
 	headers := map[string]string{"Idempotency-Key": "bad-debt-http-mark"}
-	for _, session := range []*testSession{reviewer, viewer} {
-		assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body), session, true, "application/json", headers), http.StatusForbidden)
-	}
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body), finance, false, "application/json", headers), http.StatusForbidden)
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body), nil, false, "application/json", headers), http.StatusUnauthorized)
 	for _, invalid := range []string{`{"expected_version":1,"reason":"合成"}`, `{"marked":true,"expected_version":1,"reason":""}`, `{"marked":true,"expected_version":0,"reason":"合成"}`} {
@@ -44,9 +41,9 @@ func TestHTTPBadDebtPermissionsVersionReplayAndTripProtection(t *testing.T) {
 	if decodeMap(t, replay)["replayed"] != true {
 		t.Fatal("missing replay")
 	}
-	detail = decodeMap(t, f.request(http.MethodGet, "/api/v1/payments/"+id, nil, viewer, false, ""))
+	detail = decodeMap(t, f.request(http.MethodGet, "/api/v1/payments/"+id, nil, finance, false, ""))
 	if detail["payment"].(map[string]any)["bad_debt"] != true {
-		t.Fatal("viewer lost visible bad debt state")
+		t.Fatal("member lost visible bad debt state")
 	}
 	list := decodeMap(t, f.request(http.MethodGet, "/api/v1/trips", nil, owner, false, ""))
 	if list["items"].([]any)[0].(map[string]any)["bad_debt_locked"] != true {
@@ -55,7 +52,6 @@ func TestHTTPBadDebtPermissionsVersionReplayAndTripProtection(t *testing.T) {
 	assertStatus(t, f.requestWithHeaders(http.MethodDelete, "/api/v1/trips/"+tripID, strings.NewReader(`{"expected_version":1,"reason":"合成删除"}`), owner, true, "application/json", map[string]string{"Idempotency-Key": "bad-debt-http-delete"}), http.StatusConflict)
 	targets := "/api/v1/allocations/payment/" + id + "/targets"
 	assertStatus(t, f.request(http.MethodGet, targets+"?view=all_dates&q=合成", nil, finance, false, ""), http.StatusOK)
-	assertStatus(t, f.request(http.MethodGet, targets, nil, viewer, false, ""), http.StatusForbidden)
 	for _, suffix := range []string{"?q=a&q=b", "?unknown=1", "?view=invalid", "?cursor=invalid"} {
 		assertStatus(t, f.request(http.MethodGet, targets+suffix, nil, owner, false, ""), http.StatusBadRequest)
 	}

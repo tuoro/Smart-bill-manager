@@ -20,14 +20,12 @@ const history = ref<string[]>([]),
 const stale = ref(false),
   recheckReady = ref(false)
 const draft = reactive({
-  role: 'viewer' as Member['role'],
+  role: 'member' as Member['role'],
   status: 'active' as Member['status'],
 })
 const roles: Record<Member['role'], string> = {
   owner: '管理员',
-  finance: '财务',
-  reviewer: '审核员',
-  viewer: '只读成员',
+  member: '成员',
 }
 const busy = computed(() => pending.value || inviteBusy.value)
 let epoch = 0,

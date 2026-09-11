@@ -384,7 +384,7 @@ test('来源权限不完整时不展示或请求材料导出', async ({ browser 
         ? ['facts.read', 'reimbursements.read']
         : ['review.source.read', 'claims.review']
     await install(page, {
-      identity: { ...session, role, capabilities },
+      identity: { ...session, role: 'member', capabilities },
       hook: async (_route, path) => {
         if (path.includes('material-exports')) exports++
         return false

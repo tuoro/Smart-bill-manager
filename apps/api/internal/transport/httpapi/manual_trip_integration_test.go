@@ -18,9 +18,8 @@ func TestHTTPManualTripWorkspaceWorkflowAndRoles(t *testing.T) {
 	defer fixture.store.Close()
 	ctx := context.Background()
 	owner := fixture.login(t, fixture.owner.TenantID)
-	finance := fixture.addRoleSession(t, domain.RoleFinance)
-	reviewer := fixture.addRoleSession(t, domain.RoleReviewer)
-	viewer := fixture.addRoleSession(t, domain.RoleViewer)
+	finance := fixture.addRoleSession(t, domain.RoleMember)
+	reviewer := fixture.addRoleSession(t, domain.RoleMember)
 	createBody := `{"name":"合成手工行程","start_date":"2026-08-27","end_date":"2026-08-27","timezone":"Asia/Shanghai","notes":"","expected_version":0,"reason":"无需凭证创建"}`
 	create := fixture.requestWithHeaders(http.MethodPost, "/api/v1/trips", strings.NewReader(createBody), finance, true, "application/json", map[string]string{"Idempotency-Key": "manual-http-create"})
 	assertStatus(t, create, http.StatusCreated)
@@ -33,10 +32,6 @@ func TestHTTPManualTripWorkspaceWorkflowAndRoles(t *testing.T) {
 	}
 	if sources != 0 {
 		t.Fatal("manual create/edit fabricated a provider, source, claim or review")
-	}
-	for index, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/trips", strings.NewReader(createBody), denied, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-create-denied-%d", index)}), http.StatusForbidden)
-		assertStatus(t, fixture.requestWithHeaders(http.MethodPatch, "/api/v1/trips/"+tripID, strings.NewReader(editBody), denied, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-edit-denied-%d", index)}), http.StatusForbidden)
 	}
 	for index, body := range []string{strings.Replace(createBody, "Asia/Shanghai", "Invalid/Timezone", 1), strings.Replace(createBody, "2026-08-27", "2026-02-30", 1)} {
 		assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/trips", strings.NewReader(body), owner, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-invalid-%d", index)}), http.StatusBadRequest)
@@ -66,9 +61,6 @@ func TestHTTPManualTripWorkspaceWorkflowAndRoles(t *testing.T) {
 		t.Fatal("reviewer confirmation did not perform authorized automatic assignment")
 	}
 	preferenceBody := fmt.Sprintf(`{"mode":"blocked","expected_version":%d}`, version)
-	for _, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, fixture.request(http.MethodPost, "/api/v1/payments/"+paymentID+"/trip-preference", strings.NewReader(preferenceBody), denied, true, "application/json"), http.StatusForbidden)
-	}
 	assertStatus(t, fixture.request(http.MethodPost, "/api/v1/payments/"+paymentID+"/trip-preference", strings.NewReader(preferenceBody), finance, true, "application/json"), http.StatusNoContent)
 
 	ticket := processHTTPTestReview(t, fixture, owner, "manual-ticket.png", color.RGBA{R: 131, G: 41, B: 91, A: 255})
@@ -83,12 +75,8 @@ func TestHTTPManualTripWorkspaceWorkflowAndRoles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/trip-material-assignments", bytes.NewReader(materialBody), denied, true, "application/json", map[string]string{"Idempotency-Key": fmt.Sprintf("manual-http-material-denied-%d", index)}), http.StatusForbidden)
-	}
 	assertStatus(t, fixture.requestWithHeaders(http.MethodPost, "/api/v1/trip-material-assignments", bytes.NewReader(materialBody), finance, true, "application/json", map[string]string{"Idempotency-Key": "manual-http-material-finance"}), http.StatusOK)
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trip-evidence?trip_id="+tripID, nil, viewer, false, ""), http.StatusOK)
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trip-evidence", nil, reviewer, false, ""), http.StatusForbidden)
+	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trip-evidence?trip_id="+tripID, nil, reviewer, false, ""), http.StatusOK)
 	assertStatus(t, fixture.requestWithHeaders(http.MethodDelete, "/api/v1/trips/"+tripID, strings.NewReader(deleteBody), owner, true, "application/json", map[string]string{"Idempotency-Key": "manual-http-owner-delete"}), http.StatusOK)
 	var evidenceAlive bool
 	if err := fixture.store.DB().QueryRowContext(ctx, `SELECT deleted_at IS NULL FROM trip_evidence_facts WHERE id = ?`, evidenceID).Scan(&evidenceAlive); err != nil {

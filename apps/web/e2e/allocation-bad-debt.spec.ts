@@ -15,7 +15,7 @@ const session: Session = {
 async function authenticate(page: Page, viewer = false) {
   await page.route('**/api/v1/session', (route) =>
     route.fulfill({
-      json: viewer ? { ...session, role: 'viewer', capabilities: ['facts.read'] } : session,
+      json: viewer ? { ...session, role: 'member', capabilities: ['facts.read'] } : session,
     }),
   )
 }

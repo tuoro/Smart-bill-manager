@@ -181,22 +181,23 @@ func TestEmailArchiveLifecyclePreservesSourceAndDocumentBoundaries(t *testing.T)
 		t.Fatalf("cross-tenant attachment error = %v", err)
 	}
 	finance := fixture.tenant
-	finance.Role = domain.RoleFinance
+	finance.Role = domain.RoleMember
 	if _, err := fixture.service.ListSources(context.Background(), finance); err != nil {
 		t.Fatalf("finance source read = %v", err)
 	}
-	for _, role := range []domain.Role{domain.RoleReviewer, domain.RoleViewer} {
-		denied := fixture.tenant
-		denied.Role = role
-		if _, err := fixture.service.ListSources(context.Background(), denied); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatalf("%s source read error = %v", role, err)
-		}
+	retired := fixture.tenant
+	retired.Role = domain.Role("viewer")
+	if _, err := fixture.service.ListSources(context.Background(), retired); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role source read error = %v", err)
 	}
+	// 邮箱是每个成员自己的：成员可以登记。
+	memberRegistration := validEmailRegistration()
+	memberRegistration.MailboxAddress = "member-own@example.invalid"
 	if _, err := fixture.service.Register(context.Background(), RegisterInput{
-		Tenant: finance, Registration: validEmailRegistration(),
+		Tenant: finance, Registration: memberRegistration,
 		IdempotencyKey: "finance-register", RequestID: "finance-register-request",
-	}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("finance registration error = %v", err)
+	}); err != nil {
+		t.Fatalf("member registration error = %v", err)
 	}
 
 	assertArchiveAuditIsSafe(t, fixture.store, fixture.tenant.TenantID)

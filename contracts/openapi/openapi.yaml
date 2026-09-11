@@ -2541,7 +2541,7 @@ components:
         timezone: { type: string }
     Role:
       type: string
-      enum: [owner, finance, reviewer, viewer]
+      enum: [owner, member]
     Currency:
       type: string
       enum: [CNY, USD, EUR, JPY]

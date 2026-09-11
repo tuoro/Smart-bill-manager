@@ -230,7 +230,7 @@ func TestChatIntakeStopsAcceptingAfterMembershipIsSuspended(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 	const memberID = "00000000-0000-4000-8000-000000000103"
-	f.addMember(t, memberID, "member@example.test", domain.RoleFinance)
+	f.addMember(t, memberID, "member@example.test", domain.RoleMember)
 	f.linkMember(t, "ding-user-2", memberID)
 
 	// 停用之前投得进，确认这条用例验的是停用本身，不是别的原因。
@@ -490,7 +490,7 @@ func TestRedeemRefusesAnAccountBoundToAnotherMember(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
 	const memberID = "00000000-0000-4000-8000-000000000104"
-	f.addMember(t, memberID, "other@example.test", domain.RoleFinance)
+	f.addMember(t, memberID, "other@example.test", domain.RoleMember)
 	f.linkMember(t, "ding-shared", memberID)
 
 	tenant := domain.TenantContext{

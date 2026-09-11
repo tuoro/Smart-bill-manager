@@ -108,14 +108,14 @@ func TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot(t *testin
 	}
 
 	viewer := fixture.tenant
-	viewer.Role = domain.RoleViewer
+	viewer.Role = domain.RoleMember
 	if _, err := insightService.Query(ctx, viewer, insightapp.QueryInput{Limit: 50}); err != nil {
-		t.Fatalf("viewer insights error = %v", err)
+		t.Fatalf("member insights error = %v", err)
 	}
-	reviewer := fixture.tenant
-	reviewer.Role = domain.RoleReviewer
-	if _, err := insightService.Query(ctx, reviewer, insightapp.QueryInput{Limit: 50}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("reviewer insights error = %v", err)
+	retired := fixture.tenant
+	retired.Role = domain.Role("reviewer")
+	if _, err := insightService.Query(ctx, retired, insightapp.QueryInput{Limit: 50}); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role insights error = %v", err)
 	}
 
 	foreign := addTenantReviewFixture(t, fixture)

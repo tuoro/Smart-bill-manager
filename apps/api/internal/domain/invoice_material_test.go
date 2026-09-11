@@ -91,9 +91,9 @@ func TestInvoiceMaterialPolicyCanonicalSelectionAndHash(t *testing.T) {
 }
 
 func TestInvoiceMaterialRoleBoundaryRequiresFormalSourceAccess(t *testing.T) {
-	for _, role := range []Role{RoleOwner, RoleFinance, RoleReviewer, RoleViewer} {
+	for _, role := range []Role{RoleOwner, RoleMember} {
 		err := RequireInvoiceMaterials(TenantContext{TenantID: "synthetic-tenant", UserID: "synthetic-user", Role: role})
-		if (role == RoleOwner || role == RoleFinance) != (err == nil) {
+		if (role == RoleOwner || role == RoleMember) != (err == nil) {
 			t.Fatalf("role boundary: %s", role)
 		}
 	}

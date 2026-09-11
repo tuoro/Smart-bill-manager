@@ -38,27 +38,19 @@ func TestRoleCapabilityMatrix(t *testing.T) {
 			CapabilityInsightsRead:          true,
 			CapabilityResourcesDelete:       true,
 		},
-		RoleFinance: {
+		RoleMember: {
 			CapabilityDocumentsProcess: true, CapabilityClaimsReview: true,
 			CapabilityReviewSourceRead: true, CapabilityFactsRead: true,
 			CapabilityAllocationsManage:     true,
+			CapabilityEmailSourcesManage:    true,
 			CapabilityEmailArchiveRead:      true,
 			CapabilityTripAssignmentsManage: true,
 			CapabilityReimbursementsRead:    true,
 			CapabilityReimbursementsManage:  true,
 			CapabilityInsightsRead:          true,
 		},
-		RoleReviewer: {
-			CapabilityDocumentsProcess: true, CapabilityClaimsReview: true,
-			CapabilityReviewSourceRead: true,
-		},
-		RoleViewer: {
-			CapabilityFactsRead:          true,
-			CapabilityReimbursementsRead: true,
-			CapabilityInsightsRead:       true,
-		},
 	}
-	for _, role := range []Role{RoleOwner, RoleFinance, RoleReviewer, RoleViewer} {
+	for _, role := range []Role{RoleOwner, RoleMember} {
 		role := role
 		for _, capability := range capabilities {
 			capability := capability
@@ -90,9 +82,12 @@ func TestTenantContextRequire(t *testing.T) {
 	if err := (TenantContext{}).Require(CapabilityFactsRead); err != ErrUnauthenticated {
 		t.Fatalf("empty context error = %v", err)
 	}
-	context := TenantContext{TenantID: "tenant", UserID: "user", Role: RoleViewer}
-	if err := context.Require(CapabilityClaimsReview); err != ErrForbidden {
+	context := TenantContext{TenantID: "tenant", UserID: "user", Role: RoleMember}
+	if err := context.Require(CapabilityMembersManage); err != ErrForbidden {
 		t.Fatalf("forbidden capability error = %v", err)
+	}
+	if unknown := (TenantContext{TenantID: "tenant", UserID: "user", Role: Role("viewer")}); unknown.Require(CapabilityFactsRead) != ErrUnauthenticated {
+		t.Fatal("retired role must not be accepted")
 	}
 	if err := context.Require(CapabilityFactsRead); err != nil {
 		t.Fatalf("allowed capability error = %v", err)

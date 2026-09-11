@@ -139,11 +139,11 @@ func TestInvoiceMaterialReimbursementCaptureAndABAHistory(t *testing.T) {
 			if err := f.store.DB().QueryRow(`SELECT link_id FROM reimbursement_material_snapshots WHERE reimbursement_id=?`, created.ReimbursementID).Scan(&retained); err != nil || retained != first.LinkID {
 				t.Fatal("history replaced with current material")
 			}
-			viewer := f.tenant
-			viewer.Role = domain.RoleViewer
-			public, err := rs.Get(ctx, viewer, created.ReimbursementID)
-			if err != nil || public.MaterialCount != nil || !public.MaterialsCaptured {
-				t.Fatal("material count permission")
+			member := f.tenant
+			member.Role = domain.RoleMember
+			public, err := rs.Get(ctx, member, created.ReimbursementID)
+			if err != nil || !public.MaterialsCaptured {
+				t.Fatal("member reimbursement read")
 			}
 			if _, err := f.store.DB().Exec(`UPDATE reimbursements SET material_count=2 WHERE id=?`, created.ReimbursementID); err == nil {
 				t.Fatal("snapshot count mutable")

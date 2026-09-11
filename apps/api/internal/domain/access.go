@@ -4,11 +4,12 @@ import "slices"
 
 type Role string
 
+// 只有两档：管理员什么都能做；成员做全部日常业务，碰不了系统设置、不能删除。
+// 这个产品是几个人一起记账报销，人人都要上传、审核、整理，更细的分工只会让邀请
+// 时多想一步、邀错档位。
 const (
-	RoleOwner    Role = "owner"
-	RoleFinance  Role = "finance"
-	RoleReviewer Role = "reviewer"
-	RoleViewer   Role = "viewer"
+	RoleOwner  Role = "owner"
+	RoleMember Role = "member"
 )
 
 type Capability string
@@ -50,26 +51,18 @@ var roleCapabilities = map[Role][]Capability{
 		CapabilityInsightsRead,
 		CapabilityResourcesDelete,
 	},
-	RoleFinance: {
+	RoleMember: {
 		CapabilityDocumentsProcess,
 		CapabilityClaimsReview,
 		CapabilityReviewSourceRead,
 		CapabilityFactsRead,
 		CapabilityAllocationsManage,
 		CapabilityTripAssignmentsManage,
+		// 邮箱是每个成员自己的，所以成员可以登记和删除自己的邮箱来源。
+		CapabilityEmailSourcesManage,
 		CapabilityEmailArchiveRead,
 		CapabilityReimbursementsRead,
 		CapabilityReimbursementsManage,
-		CapabilityInsightsRead,
-	},
-	RoleReviewer: {
-		CapabilityDocumentsProcess,
-		CapabilityClaimsReview,
-		CapabilityReviewSourceRead,
-	},
-	RoleViewer: {
-		CapabilityFactsRead,
-		CapabilityReimbursementsRead,
 		CapabilityInsightsRead,
 	},
 }

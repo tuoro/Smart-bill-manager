@@ -153,11 +153,11 @@ func TestBadDebtReplayVersionRoleTenantAndCorrection(t *testing.T) {
 	if _, err := s.SetBadDebt(ctx, f.tenant, domain.DocumentPayment, payment, input, "bad-debt-stale", "bad-debt-stale"); !errors.Is(err, domain.ErrVersionConflict) {
 		t.Fatal("stale mark accepted")
 	}
-	for _, role := range []domain.Role{domain.RoleReviewer, domain.RoleViewer} {
+	{
 		tenant := f.tenant
-		tenant.Role = role
-		if _, err := s.SetBadDebt(ctx, tenant, domain.DocumentPayment, payment, input, "bad-debt-forbidden", "bad-debt-forbidden"); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("unauthorized bad debt mark")
+		tenant.Role = domain.Role("viewer")
+		if _, err := s.SetBadDebt(ctx, tenant, domain.DocumentPayment, payment, input, "bad-debt-forbidden", "bad-debt-forbidden"); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("retired role bad debt mark")
 		}
 	}
 	other := newReviewFixture(t)

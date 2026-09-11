@@ -260,14 +260,14 @@ func TestMaterialExportPreviewChangedMissingDamagedAndRejectedInputs(t *testing.
 		})
 	}
 	s, actor, inventory := exportFixture(t)
-	for _, role := range []domain.Role{domain.RoleReviewer, domain.RoleViewer} {
+	{
 		other := actor
-		other.Tenant.Role = role
-		if _, err := s.Preview(context.Background(), other.Tenant, inventory.Manifest.Scope); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("role bypass")
+		other.Tenant.Role = domain.Role("viewer")
+		if _, err := s.Preview(context.Background(), other.Tenant, inventory.Manifest.Scope); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("retired role bypass")
 		}
-		if _, err := s.Take(other, "unknown"); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("download role bypass")
+		if _, err := s.Take(other, "unknown"); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("download retired role bypass")
 		}
 	}
 	if _, err := s.Take(actor, "../id"); !errors.Is(err, domain.ErrInvalidInput) {

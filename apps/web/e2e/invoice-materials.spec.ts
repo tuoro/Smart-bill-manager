@@ -73,7 +73,7 @@ async function fixture(
     if (current === '/api/v1/session')
       return reply({
         ...session,
-        role: options.role ?? 'owner',
+        role: options.role && options.role !== 'owner' ? 'member' : 'owner',
         capabilities:
           options.role === 'viewer'
             ? ['facts.read']
@@ -237,7 +237,7 @@ test('未确认的网络结果保留同文件同请求幂等键', async ({ page 
   expect(keys[0]).toBe(keys[1])
 })
 
-test('Viewer 和 Reviewer 不读取或操作已确认发票辅助材料', async ({ page }) => {
+test('缺少材料能力的会话不读取或操作已确认发票辅助材料', async ({ page }) => {
   for (const role of ['viewer', 'reviewer'] as const) {
     const isolated = await page.context().newPage()
     let materialRequests = 0

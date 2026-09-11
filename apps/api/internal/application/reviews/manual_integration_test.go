@@ -50,8 +50,8 @@ func TestManualReviewPostgreSQLSourceIdentityAndInputFailures(t *testing.T) {
 		}
 	}
 	input := f.input(domain.DocumentPayment, "manual-source-root")
-	if _, err := f.service.StartManualReview(ctx, domain.TenantContext{TenantID: f.tenant.TenantID, UserID: f.tenant.UserID, Role: domain.RoleViewer}, f.job.ID, input); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatal("viewer accepted")
+	if _, err := f.service.StartManualReview(ctx, domain.TenantContext{TenantID: f.tenant.TenantID, UserID: f.tenant.UserID, Role: domain.Role("viewer")}, f.job.ID, input); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatal("retired role accepted")
 	}
 	stale := input
 	stale.ExpectedJobVersion++

@@ -86,7 +86,7 @@ function detail(kind: FactKind, index: number, viewer = false): FactDetail {
 async function base(page: Page, viewer = false) {
   await page.route('**/api/v1/session', (route) =>
     route.fulfill({
-      json: viewer ? { ...session, role: 'viewer', capabilities: ['facts.read'] } : session,
+      json: viewer ? { ...session, role: 'member', capabilities: ['facts.read'] } : session,
     }),
   )
   await page.route('**/api/v1/documents/**/pages/*/content', (route) =>

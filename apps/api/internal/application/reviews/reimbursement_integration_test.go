@@ -539,20 +539,15 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 	}
 
 	viewer := fixture.tenant
-	viewer.Role = domain.RoleViewer
-	if _, err := reimbursementService.List(ctx, viewer, "", 50); err != nil {
-		t.Fatalf("viewer list = %v", err)
+	viewer.Role = domain.Role("viewer")
+	if _, err := reimbursementService.List(ctx, viewer, "", 50); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role list = %v", err)
 	}
-	if _, err := reimbursementService.Preview(ctx, viewer, trip.TripID, assignmentIDs); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("viewer preview = %v", err)
-	}
-	reviewer := fixture.tenant
-	reviewer.Role = domain.RoleReviewer
-	if _, err := reimbursementService.Get(ctx, reviewer, first.ReimbursementID); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("reviewer detail = %v", err)
+	if _, err := reimbursementService.Get(ctx, viewer, first.ReimbursementID); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role detail = %v", err)
 	}
 	finance := fixture.tenant
-	finance.Role = domain.RoleFinance
+	finance.Role = domain.RoleMember
 	if _, err := reimbursementService.Preview(ctx, finance, trip.TripID, assignmentIDs); err != nil {
 		t.Fatalf("finance preview = %v", err)
 	}

@@ -163,7 +163,7 @@ func (t transaction) requireTripManager(ctx context.Context, tenantID, actorID s
 	if err != nil {
 		return fmt.Errorf("check trip manager membership: %w", err)
 	}
-	if role != "owner" && role != "finance" {
+	if role != "owner" && role != "member" {
 		return domain.ErrForbidden
 	}
 	return nil

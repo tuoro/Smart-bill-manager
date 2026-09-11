@@ -406,7 +406,7 @@ Fact 不从 AI Run 直接创建。M1 只允许 `confirmed ReviewDecision -> Fact
 ## 安全边界
 
 - 身份认证产生 TenantContext 和 ActorContext；handler 不接收客户端自报 tenant 作为授权依据。
-- TenantContext 只从 active Membership 产生；应用用例按 `owner`、`finance`、`reviewer`、`viewer` 的冻结能力矩阵授权，Repository 的 tenant 过滤不能替代能力检查。
+- TenantContext 只从 active Membership 产生；应用用例按 `owner`、`member` 两档的冻结能力矩阵授权（早期的 finance/reviewer/viewer 已并入 member），Repository 的 tenant 过滤不能替代能力检查。
 - 空数据库首户只由本地 `bootstrap-owner` 命令在单一事务中创建 User、Tenant 与 active owner；非空数据库、HTTP 调用或缺少受保护密码输入时必须失败。Compose 空库冒烟先执行该命令，再用新 owner 完成真实登录。
 - API Key 认证加密；主密钥来自数据库之外。
 - 对象键由系统生成，下载通过授权用例，不公开映射本地目录。

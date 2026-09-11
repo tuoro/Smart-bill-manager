@@ -19,7 +19,7 @@ func TestHTTPManualReviewWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 	defer f.store.Close()
 	ctx := context.Background()
 	owner := f.login(t, f.owner.TenantID)
-	reviewer, viewer := f.addRoleSession(t, domain.RoleReviewer), f.addRoleSession(t, domain.RoleViewer)
+	reviewer := f.addRoleSession(t, domain.RoleMember)
 	upload := f.upload(t, owner, "manual-source.png", "image/png", syntheticPNG(t, color.RGBA{R: 22, G: 44, B: 66, A: 255}))
 	f.processNext(t) // 未配置 Provider，真实 Worker 形成 failed、无 Claim。
 	job, err := f.store.GetJob(ctx, f.owner.TenantID, upload["job_id"])
@@ -34,7 +34,6 @@ func TestHTTPManualReviewWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 	headers := map[string]string{"Idempotency-Key": "manual-http-start"}
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body), nil, false, "application/json", headers), http.StatusUnauthorized)
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body), owner, false, "application/json", headers), http.StatusForbidden)
-	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body), viewer, true, "application/json", headers), http.StatusForbidden)
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(strings.Replace(body, "payment", "unsupported", 1)), reviewer, true, "application/json", headers), http.StatusBadRequest)
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, strings.NewReader(body[:len(body)-1]+`,"unexpected":true}`), reviewer, true, "application/json", headers), http.StatusBadRequest)
 	otherTenant := newID(t)
@@ -87,8 +86,8 @@ func TestHTTPManualReviewWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+job.DocumentID+"/pages/1/content", nil, reviewer, false, ""), http.StatusOK)
 	confirmed := f.requestWithHeaders(http.MethodPost, reviewPath+"/confirm", bytes.NewReader(httpConfirmPayload(t, review, true)), reviewer, true, "application/json", map[string]string{"Idempotency-Key": "manual-http-confirm"})
 	assertStatus(t, confirmed, http.StatusOK)
-	// Reviewer 仅能访问待审核材料；确认后的正式材料继续遵循原有角色边界。
-	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+job.DocumentID+"/pages/1/content", nil, reviewer, false, ""), http.StatusNotFound)
+	// 成员与管理员同权：确认后的正式材料照常可读。
+	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+job.DocumentID+"/pages/1/content", nil, reviewer, false, ""), http.StatusOK)
 	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+job.DocumentID+"/pages/1/content", nil, owner, false, ""), http.StatusOK)
 	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+job.DocumentID+"/pages/1/content", nil, other, false, ""), http.StatusNotFound)
 }

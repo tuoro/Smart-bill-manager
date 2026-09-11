@@ -140,15 +140,8 @@ func TestHTTPExportManualCorrectionTripMaterialsReimbursementJourney(t *testing.
 		}
 	}
 	assertStatus(t, f.request(http.MethodGet, contentPath, nil, owner, false, ""), http.StatusNotFound)
-	finance := f.addRoleSession(t, domain.RoleFinance)
-	reviewer := f.addRoleSession(t, domain.RoleReviewer)
-	viewer := f.addRoleSession(t, domain.RoleViewer)
+	finance := f.addRoleSession(t, domain.RoleMember)
 	exportHTTPJSON(t, f, finance, "/api/v1/material-exports/preview", scope, http.StatusOK)
-	for _, denied := range []*testSession{reviewer, viewer} {
-		exportHTTPJSON(t, f, denied, "/api/v1/material-exports/preview", scope, http.StatusForbidden)
-		exportHTTPJSON(t, f, denied, "/api/v1/material-exports", prepareBody, http.StatusForbidden)
-		assertStatus(t, f.request(http.MethodGet, contentPath, nil, denied, false, ""), http.StatusForbidden)
-	}
 	encoded, _ := json.Marshal(scope)
 	assertStatus(t, f.request(http.MethodPost, "/api/v1/material-exports/preview", bytes.NewReader(encoded), owner, false, "application/json"), http.StatusForbidden)
 	assertStatus(t, f.request(http.MethodPost, "/api/v1/material-exports/preview", bytes.NewReader(encoded), nil, false, "application/json"), http.StatusUnauthorized)

@@ -278,17 +278,17 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 	}
 
 	viewer := fixture.tenant
-	viewer.Role = domain.RoleViewer
+	viewer.Role = domain.RoleMember
 	if _, err := tripService.AttributionCandidates(ctx, viewer, tripOne.TripID, domain.TripAttributionViewAll, "", 50); err != nil {
-		t.Fatalf("viewer Trip attribution read = %v", err)
+		t.Fatalf("member Trip attribution read = %v", err)
 	}
-	if _, err := tripService.Assign(ctx, viewer, assignInput); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("viewer Trip assignment error = %v", err)
+	retired := fixture.tenant
+	retired.Role = domain.Role("viewer")
+	if _, err := tripService.Assign(ctx, retired, assignInput); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role Trip assignment error = %v", err)
 	}
-	reviewer := fixture.tenant
-	reviewer.Role = domain.RoleReviewer
-	if _, err := tripService.AttributionCandidates(ctx, reviewer, tripOne.TripID, domain.TripAttributionViewAll, "", 50); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("reviewer Trip attribution error = %v", err)
+	if _, err := tripService.AttributionCandidates(ctx, retired, tripOne.TripID, domain.TripAttributionViewAll, "", 50); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role Trip attribution error = %v", err)
 	}
 	foreign := addTenantReviewFixture(t, fixture)
 	foreignTrip := seedManualTrip(t, foreign, "foreign-trip", "成都", "2026-09-20", "2026-09-22")
@@ -310,7 +310,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 
 	desiredTripOne = tripOne.TripID
 	finance := fixture.tenant
-	finance.Role = domain.RoleFinance
+	finance.Role = domain.RoleMember
 	if _, err := tripService.AttributionCandidates(ctx, finance, tripOne.TripID, domain.TripAttributionViewAll, "", 50); err != nil {
 		t.Fatalf("finance Trip attribution read = %v", err)
 	}

@@ -105,13 +105,13 @@ func count(t *testing.T, f fixture, table string) int {
 func TestInvitationCreatesSecondMemberWithoutReplacingIdentity(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	input := accounts.InviteInput{Email: " FINANCE@EXAMPLE.INVALID ", Role: domain.RoleFinance, Reason: "合成邀请", IdempotencyKey: "synthetic-idempotency"}
+	input := accounts.InviteInput{Email: " FINANCE@EXAMPLE.INVALID ", Role: domain.RoleMember, Reason: "合成邀请", IdempotencyKey: "synthetic-idempotency"}
 	invite, err := f.service.Invite(ctx, f.owner, input, "synthetic-request")
 	if err != nil || !domain.ValidInvitationToken(invite.Code) {
 		t.Fatal("invitation creation failed")
 	}
 	view, err := f.service.CheckInvitation(ctx, invite.Code)
-	if err != nil || view.ExistingAccount || view.Role != domain.RoleFinance || view.Email != "finance@example.invalid" {
+	if err != nil || view.ExistingAccount || view.Role != domain.RoleMember || view.Email != "finance@example.invalid" {
 		t.Fatal("invitation view mismatch")
 	}
 	replay, err := f.service.Invite(ctx, f.owner, input, "synthetic-replay")
@@ -139,7 +139,7 @@ func TestInvitationCreatesSecondMemberWithoutReplacingIdentity(t *testing.T) {
 	if err != nil || len(page.Items) != 2 {
 		t.Fatal("second member missing")
 	}
-	if _, err := f.service.Invite(ctx, f.owner, accounts.InviteInput{Email: "finance@example.invalid", Role: domain.RoleViewer, Reason: "合成重复", IdempotencyKey: "synthetic-duplicate"}, "synthetic"); !errors.Is(err, domain.ErrConflict) {
+	if _, err := f.service.Invite(ctx, f.owner, accounts.InviteInput{Email: "finance@example.invalid", Role: domain.RoleMember, Reason: "合成重复", IdempotencyKey: "synthetic-duplicate"}, "synthetic"); !errors.Is(err, domain.ErrConflict) {
 		t.Fatal("existing member role overwritten through invitation")
 	}
 }
@@ -147,24 +147,24 @@ func TestInvitationCreatesSecondMemberWithoutReplacingIdentity(t *testing.T) {
 func TestMemberRoleSuspensionRestorationAndLastOwner(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
-	member, token := f.join(t, "finance@example.invalid", domain.RoleFinance)
+	member, token := f.join(t, "finance@example.invalid", domain.RoleMember)
 	if _, err := f.service.Members(ctx, member, "", 20); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatal("non-owner listed members")
 	}
 	if _, err := f.service.Invite(ctx, member, accounts.InviteInput{}, "synthetic"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatal("non-owner invited")
 	}
-	changed, err := f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleReviewer, Status: "suspended", ExpectedVersion: 1, Reason: "合成停用"}, "synthetic")
+	changed, err := f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleMember, Status: "suspended", ExpectedVersion: 1, Reason: "合成停用"}, "synthetic")
 	if err != nil || changed.Version != 2 {
 		t.Fatal("member suspension failed")
 	}
 	if _, err := f.auth.Authenticate(ctx, token); !errors.Is(err, domain.ErrUnauthenticated) {
 		t.Fatal("suspended session accepted")
 	}
-	if _, err := f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleReviewer, Status: "active", ExpectedVersion: 1, Reason: "合成陈旧"}, "synthetic"); !errors.Is(err, domain.ErrVersionConflict) {
+	if _, err := f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleMember, Status: "active", ExpectedVersion: 1, Reason: "合成陈旧"}, "synthetic"); !errors.Is(err, domain.ErrVersionConflict) {
 		t.Fatal("stale member version accepted")
 	}
-	_, err = f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleReviewer, Status: "active", ExpectedVersion: 2, Reason: "合成恢复"}, "synthetic")
+	_, err = f.service.ChangeMember(ctx, f.owner, member.UserID, accounts.MemberChange{Role: domain.RoleMember, Status: "active", ExpectedVersion: 2, Reason: "合成恢复"}, "synthetic")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,11 +172,11 @@ func TestMemberRoleSuspensionRestorationAndLastOwner(t *testing.T) {
 		t.Fatal("restoration revived old cookie")
 	}
 	view, err := f.auth.Login(ctx, auth.LoginInput{Email: member.Email, Password: []byte(syntheticPassword)})
-	if err != nil || view.Role != domain.RoleReviewer {
+	if err != nil || view.Role != domain.RoleMember {
 		t.Fatal("restored member did not receive current role")
 	}
 	before := count(t, f, "audit_events")
-	_, err = f.service.ChangeMember(ctx, f.owner, f.owner.UserID, accounts.MemberChange{Role: domain.RoleViewer, Status: "active", ExpectedVersion: 1, Reason: "合成最后管理员"}, "synthetic")
+	_, err = f.service.ChangeMember(ctx, f.owner, f.owner.UserID, accounts.MemberChange{Role: domain.RoleMember, Status: "active", ExpectedVersion: 1, Reason: "合成最后管理员"}, "synthetic")
 	if !errors.Is(err, domain.ErrConflict) || count(t, f, "audit_events") != before {
 		t.Fatal("last-owner failure did not fully roll back")
 	}

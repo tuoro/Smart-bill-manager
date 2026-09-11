@@ -185,7 +185,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
   })
 
   test('Viewer 只读，Reviewer 直接访问不发起报销请求', async ({ page }) => {
-    await mockSession(page, session('viewer', ['facts.read', 'reimbursements.read']))
+    await mockSession(page, session('member', ['facts.read', 'reimbursements.read']))
     let viewerRequests = 0
     await page.route(reimbursementsURL, async (route) => {
       viewerRequests += 1
@@ -200,7 +200,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
     expect(viewerRequests).toBe(1)
 
     const reviewerPage = await page.context().newPage()
-    await mockSession(reviewerPage, session('reviewer', ['documents.process', 'claims.review']))
+    await mockSession(reviewerPage, session('member', ['documents.process', 'claims.review']))
     let forbiddenRequests = 0
     await reviewerPage.route(reimbursementsURL, async (route) => {
       forbiddenRequests += 1
@@ -213,7 +213,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
   })
 
   test('Viewer：三类提示、混合币种与已删除来源仍可完整解释', async ({ page }) => {
-    await mockSession(page, session('viewer', ['facts.read', 'reimbursements.read']))
+    await mockSession(page, session('member', ['facts.read', 'reimbursements.read']))
     const rich = richReimbursementDetail()
     await page.route(reimbursementsURL, (route) =>
       fulfillJSON(route, {
@@ -238,7 +238,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
   test('Finance：分页、无提示提交与无需伪确认', async ({ page }) => {
     await mockSession(
       page,
-      session('finance', ['facts.read', 'reimbursements.read', 'reimbursements.manage']),
+      session('member', ['facts.read', 'reimbursements.read', 'reimbursements.manage']),
     )
     const trip = syntheticTrip()
     const candidates = assignedCandidates()
@@ -314,7 +314,7 @@ test.describe('M3 报销快照与状态历史真实组件状态矩阵', () => {
 
   test('详情加载失败即使没有详情也显示错误，刷新后可以恢复', async ({ page }) => {
     const pageErrors = trackPageErrors(page)
-    await mockSession(page, session('viewer', ['facts.read', 'reimbursements.read']))
+    await mockSession(page, session('member', ['facts.read', 'reimbursements.read']))
     await page.route(reimbursementsURL, (route) =>
       fulfillJSON(route, { items: [summary(existingID, 'reimbursed', 2, 2, 0)] }),
     )
@@ -488,7 +488,7 @@ test('B4：迟到预检不覆盖新选择，材料冲突后保留选择，提交
 })
 
 test('B4：迟到报销详情不能把辅助材料状态切回上一条', async ({ page }) => {
-  await mockSession(page, session('viewer', ['reimbursements.read']))
+  await mockSession(page, session('member', ['reimbursements.read']))
   const a = {
     ...reimbursementDetail(existingID, 'submitted', 1, 0),
     trip: { ...reimbursementPreview().trip, name: '合成先选记录' },

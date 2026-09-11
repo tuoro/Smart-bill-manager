@@ -1074,7 +1074,7 @@ function ownerSession(): Session {
 function reviewerSession(): Session {
   return {
     ...ownerSession(),
-    role: 'reviewer',
+    role: 'member',
     capabilities: ['documents.process'],
   }
 }

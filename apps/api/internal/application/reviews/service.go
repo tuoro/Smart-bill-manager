@@ -75,9 +75,6 @@ func (s Service) GetClaimSet(
 	if err != nil {
 		return ports.ReviewSnapshot{}, err
 	}
-	if tenant.Role == domain.RoleReviewer && result.Status != domain.ClaimReadyForReview && result.Status != domain.ClaimBlocked {
-		return ports.ReviewSnapshot{}, domain.ErrNotFound
-	}
 	return withPagePlan(result), nil
 }
 

@@ -47,7 +47,7 @@ func TestMigrationAndBootstrapOwner(t *testing.T) {
 		t.Fatalf("bootstrap counts = %d/%d/%d", users, tenants, memberships)
 	}
 	if _, err := store.db.ExecContext(ctx, `
-		UPDATE memberships SET role = 'viewer'
+		UPDATE memberships SET role = 'member'
 		WHERE tenant_id = ? AND user_id = ?
 	`, owner.TenantID, owner.UserID); err == nil {
 		t.Fatal("last active owner demotion unexpectedly succeeded")

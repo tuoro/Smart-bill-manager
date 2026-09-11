@@ -82,18 +82,13 @@ func TestHTTPInvoiceMaterialsWorkflowAndClosedBoundary(t *testing.T) {
 	f := newHTTPTestFixture(t)
 	defer f.store.Close()
 	owner := f.login(t, f.owner.TenantID)
-	finance, reviewer, viewer := f.addRoleSession(t, domain.RoleFinance), f.addRoleSession(t, domain.RoleReviewer), f.addRoleSession(t, domain.RoleViewer)
+	finance := f.addRoleSession(t, domain.RoleMember)
 	id := seedHTTPMaterialInvoice(t, f, owner)
 	path := "/api/v1/invoices/" + id + "/materials"
 	w := f.request(http.MethodGet, path, nil, finance, false, "")
 	assertStatus(t, w, http.StatusOK)
 	version := fmt.Sprint(decodeMap(t, w)["version"])
 	fields := [][2]string{{"expected_version", version}, {"reason", "合成上传材料"}, {"idempotency_key", "http-material-upload"}}
-	for _, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, f.request(http.MethodGet, path, nil, denied, false, ""), http.StatusForbidden)
-		buffer, mime := httpMaterialMultipart(t, fields, 1)
-		assertStatus(t, f.request(http.MethodPost, path+"/upload", buffer, denied, true, mime), http.StatusForbidden)
-	}
 	buffer, mime := httpMaterialMultipart(t, fields, 1)
 	assertStatus(t, f.request(http.MethodPost, path+"/upload", buffer, finance, false, mime), http.StatusForbidden)
 	for _, test := range []struct {
@@ -117,8 +112,6 @@ func TestHTTPInvoiceMaterialsWorkflowAndClosedBoundary(t *testing.T) {
 	for _, session := range []*testSession{owner, finance} {
 		assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+documentID+"/content", nil, session, false, ""), http.StatusOK)
 	}
-	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+documentID+"/content", nil, reviewer, false, ""), http.StatusNotFound)
-	assertStatus(t, f.request(http.MethodGet, "/api/v1/documents/"+documentID+"/content", nil, viewer, false, ""), http.StatusForbidden)
 	for _, query := range []string{"limit=0", "limit=101", "limit=x", "q=a&q=b", "q=%zz", "other=x", "cursor=bad"} {
 		assertStatus(t, f.request(http.MethodGet, "/api/v1/invoices/"+id+"/material-candidates?"+query, nil, owner, false, ""), http.StatusBadRequest)
 	}

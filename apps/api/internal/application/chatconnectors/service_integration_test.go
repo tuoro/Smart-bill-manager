@@ -210,7 +210,7 @@ func TestStartActiveOnlyStartsActivatedConnectors(t *testing.T) {
 func TestConnectorRequiresProviderManagementCapability(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)
-	viewer := domain.TenantContext{TenantID: f.tenant.TenantID, UserID: f.tenant.UserID, Role: domain.RoleViewer}
+	viewer := domain.TenantContext{TenantID: f.tenant.TenantID, UserID: f.tenant.UserID, Role: domain.RoleMember}
 	if _, err := f.service.Save(ctx, viewer, domain.ChatPlatformDingTalk, "k", []byte("s")); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer save = %v", err)
 	}

@@ -210,9 +210,8 @@ func TestUploadCommitFailureCompensatesMetadata(t *testing.T) {
 
 func TestUploadRejectsUnauthorizedMissingAndUnsafeInputs(t *testing.T) {
 	service := NewUploadService(nil, nil, nil, nil, nil)
-	viewer := domain.TenantContext{TenantID: "tenant", UserID: "viewer", Role: domain.RoleViewer}
-	if _, err := service.Execute(context.Background(), UploadInput{Tenant: viewer}); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("viewer upload error = %v", err)
+	if _, err := service.Execute(context.Background(), UploadInput{Tenant: domain.TenantContext{TenantID: "tenant", UserID: "viewer", Role: domain.Role("viewer")}}); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role upload error = %v", err)
 	}
 	owner := domain.TenantContext{TenantID: "tenant", UserID: "owner", Role: domain.RoleOwner}
 	if _, err := service.Execute(context.Background(), UploadInput{Tenant: owner}); !errors.Is(err, domain.ErrInvalidInput) {

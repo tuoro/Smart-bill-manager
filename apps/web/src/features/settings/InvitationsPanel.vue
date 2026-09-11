@@ -18,9 +18,9 @@ const loading = ref(false),
   notice = ref('')
 const uncertain = ref(false),
   revokeTarget = ref<Invitation | null>(null)
-const draft = reactive({ email: '', role: 'viewer' as Invitation['role'] })
+const draft = reactive({ email: '', role: 'member' as Invitation['role'] })
 const busy = computed(() => props.disabled || pending.value)
-const roles = { owner: '管理员', finance: '财务', reviewer: '审核员', viewer: '只读成员' }
+const roles = { owner: '管理员', member: '成员' }
 const statuses = { pending: '待使用', consumed: '已使用', revoked: '已撤销', expired: '已过期' }
 let epoch = 0,
   live = true

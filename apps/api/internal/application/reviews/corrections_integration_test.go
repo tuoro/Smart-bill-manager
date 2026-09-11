@@ -233,20 +233,20 @@ func TestFactCorrectionPermissionsStaleInputAndConcurrentReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := confirmFactWithoutLinks(t, s, f.tenant, r, "correction-rbac-original")
-	for _, role := range []domain.Role{domain.RoleReviewer, domain.RoleViewer} {
+	{
 		tenant := f.tenant
-		tenant.Role = role
-		if _, err := s.GetCorrection(ctx, tenant, domain.DocumentPayment, p.FactID); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("formal correction permission bypass")
+		tenant.Role = domain.Role("viewer")
+		if _, err := s.GetCorrection(ctx, tenant, domain.DocumentPayment, p.FactID); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("formal correction retired role bypass")
 		}
-		if _, err := s.CorrectionHistory(ctx, tenant, domain.DocumentPayment, p.FactID, 0, 20); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("history permission bypass")
+		if _, err := s.CorrectionHistory(ctx, tenant, domain.DocumentPayment, p.FactID, 0, 20); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("history retired role bypass")
 		}
-		if _, err := s.PreviewCorrection(ctx, tenant, domain.DocumentPayment, p.FactID, CorrectionInput{}); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("preview permission bypass")
+		if _, err := s.PreviewCorrection(ctx, tenant, domain.DocumentPayment, p.FactID, CorrectionInput{}); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("preview retired role bypass")
 		}
-		if _, err := s.ConfirmCorrection(ctx, tenant, domain.DocumentPayment, p.FactID, CorrectionConfirmInput{}); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("confirm permission bypass")
+		if _, err := s.ConfirmCorrection(ctx, tenant, domain.DocumentPayment, p.FactID, CorrectionConfirmInput{}); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("confirm retired role bypass")
 		}
 	}
 	other := f.tenant

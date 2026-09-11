@@ -60,8 +60,8 @@ func (queryObjectStore) Delete(context.Context, string) error { return errors.Ne
 
 func TestQueryServiceAuthorizationAndReviewSourceBoundary(t *testing.T) {
 	owner := domain.TenantContext{TenantID: "tenant", UserID: "owner", Role: domain.RoleOwner}
-	viewer := domain.TenantContext{TenantID: "tenant", UserID: "viewer", Role: domain.RoleViewer}
-	reviewer := domain.TenantContext{TenantID: "tenant", UserID: "reviewer", Role: domain.RoleReviewer}
+	retired := domain.TenantContext{TenantID: "tenant", UserID: "viewer", Role: domain.Role("viewer")}
+	reviewer := domain.TenantContext{TenantID: "tenant", UserID: "reviewer", Role: domain.RoleMember}
 	jobs := queryJobRepository{
 		items: []ports.JobSummary{{ID: "job"}},
 		item:  ports.JobSummary{ID: "job"},
@@ -70,8 +70,8 @@ func TestQueryServiceAuthorizationAndReviewSourceBoundary(t *testing.T) {
 		StorageKey: "tenants/tenant/document", Name: "receipt.png", MIME: "image/png", ReviewState: domain.JobNeedsReview,
 	}, page: ports.DocumentPageObject{StorageKey: "tenants/tenant/page-2", PageNumber: 2, ReviewState: domain.JobNeedsReview}}
 	service := NewQueryService(jobs, documents, queryObjectStore{})
-	if _, err := service.ListJobs(context.Background(), viewer, nil); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("viewer inbox error = %v", err)
+	if _, err := service.ListJobs(context.Background(), retired, nil); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role inbox error = %v", err)
 	}
 	invalid := domain.JobStatus("invalid")
 	if _, err := service.ListJobs(context.Background(), owner, &invalid); !errors.Is(err, domain.ErrInvalidInput) {
@@ -106,17 +106,17 @@ func TestQueryServiceAuthorizationAndReviewSourceBoundary(t *testing.T) {
 	documents.object.ReviewState = domain.JobCompleted
 	documents.page.ReviewState = domain.JobCompleted
 	service = NewQueryService(jobs, documents, queryObjectStore{})
-	if _, err := service.OpenDocument(context.Background(), reviewer, "document"); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("reviewer completed source error = %v", err)
+	// 成员与管理员同权：已完成单据的原件照常可读。
+	if content, err := service.OpenDocument(context.Background(), reviewer, "document"); err != nil {
+		t.Fatalf("member completed source error = %v", err)
+	} else {
+		_ = content.Body.Close()
 	}
-	if _, err := service.OpenDocument(context.Background(), viewer, "document"); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("viewer source error = %v", err)
+	if _, err := service.OpenDocument(context.Background(), retired, "document"); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role source error = %v", err)
 	}
-	if _, err := service.OpenDocumentPage(context.Background(), reviewer, "document", 2); !errors.Is(err, domain.ErrNotFound) {
-		t.Fatalf("reviewer completed page error = %v", err)
-	}
-	if _, err := service.OpenDocumentPage(context.Background(), viewer, "document", 2); !errors.Is(err, domain.ErrForbidden) {
-		t.Fatalf("viewer page error = %v", err)
+	if _, err := service.OpenDocumentPage(context.Background(), retired, "document", 2); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("retired role page error = %v", err)
 	}
 	if content, err := service.OpenDocument(context.Background(), owner, "document"); err != nil {
 		t.Fatal(err)

@@ -98,7 +98,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
   })
 
   test('Finance：日期组合门禁、具体 Trip 查询与清除筛选', async ({ page }) => {
-    await mockSession(page, session('finance', ['facts.read', 'insights.read']))
+    await mockSession(page, session('member', ['facts.read', 'insights.read']))
     await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
     const requests: URLSearchParams[] = []
     await page.route(insightsURL, async (route) => {
@@ -185,7 +185,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
   })
 
   test('Viewer 可读，Reviewer 直接访问不发起 Fact 或 Trip 请求', async ({ page }) => {
-    await mockSession(page, session('viewer', ['facts.read', 'insights.read']))
+    await mockSession(page, session('member', ['facts.read', 'insights.read']))
     await page.route(tripsURL, (route) => fulfillJSON(route, { items: [trip] }))
     let viewerRequests = 0
     await page.route(insightsURL, async (route) => {
@@ -201,7 +201,7 @@ test.describe('M4 数据洞察真实组件状态矩阵', () => {
     expect(viewerRequests).toBe(1)
 
     const reviewerPage = await page.context().newPage()
-    await mockSession(reviewerPage, session('reviewer', ['documents.process', 'claims.review']))
+    await mockSession(reviewerPage, session('member', ['documents.process', 'claims.review']))
     let forbiddenRequests = 0
     await reviewerPage.route(insightsURL, async (route) => {
       forbiddenRequests += 1

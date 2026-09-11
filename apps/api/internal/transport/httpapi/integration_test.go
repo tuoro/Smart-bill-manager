@@ -526,19 +526,14 @@ func TestHTTPEmailArchiveReadAndRegistrationBoundaries(t *testing.T) {
 		t.Fatal("email attachment download changed bytes")
 	}
 
-	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
-	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
-	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	financeSession := fixture.addRoleSession(t, domain.RoleMember)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources", nil, financeSession, false, ""), http.StatusOK)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, financeSession, false, ""), http.StatusOK)
+	// 成员可以登记邮箱来源；同一身份在工作区内唯一，重复登记是冲突而不是静默合并。
 	assertStatus(t, fixture.requestWithHeaders(
 		http.MethodPost, "/api/v1/email-sources", strings.NewReader(registration), financeSession, true,
 		"application/json", map[string]string{"Idempotency-Key": "finance-email-source"},
-	), http.StatusForbidden)
-	for _, denied := range []*testSession{reviewerSession, viewerSession} {
-		assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-sources", nil, denied, false, ""), http.StatusForbidden)
-		assertStatus(t, fixture.request(http.MethodGet, "/api/v1/email-messages/"+archived.MessageID+"/raw", nil, denied, false, ""), http.StatusForbidden)
-	}
+	), http.StatusConflict)
 
 	secondTenantID := newID(t)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
@@ -563,9 +558,7 @@ func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
 	defer fixture.store.Close()
 
 	ownerSession := fixture.login(t, fixture.owner.TenantID)
-	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
-	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
-	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	financeSession := fixture.addRoleSession(t, domain.RoleMember)
 	tripID := newID(t)
 	factID := newID(t)
 	validAssignment := fmt.Sprintf(
@@ -573,19 +566,17 @@ func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
 		factID,
 	)
 
-	for _, readable := range []*testSession{ownerSession, financeSession, viewerSession} {
+	for _, readable := range []*testSession{ownerSession, financeSession} {
 		response := fixture.request(http.MethodGet, "/api/v1/trips", nil, readable, false, "")
 		assertStatus(t, response, http.StatusOK)
 		if response.Body.String() != "{\"items\":[]}\n" {
 			t.Fatalf("empty Trip list = %s", response.Body.String())
 		}
 	}
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips", nil, reviewerSession, false, ""), http.StatusForbidden)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?view=all&limit=20", nil, ownerSession, false, ""), http.StatusNotFound)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?view=invalid", nil, ownerSession, false, ""), http.StatusBadRequest)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?limit=101", nil, ownerSession, false, ""), http.StatusBadRequest)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates?cursor=%25%25%25", nil, ownerSession, false, ""), http.StatusBadRequest)
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/trips/"+tripID+"/attribution-candidates", nil, reviewerSession, false, ""), http.StatusForbidden)
 
 	assertStatus(t, fixture.requestWithHeaders(
 		http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(validAssignment), ownerSession, false,
@@ -605,12 +596,6 @@ func TestHTTPTripAttributionContractAndPermissionBoundaries(t *testing.T) {
 			"application/json", map[string]string{"Idempotency-Key": "trip-http-valid-" + manager.csrf},
 		), http.StatusNotFound)
 	}
-	for _, denied := range []*testSession{reviewerSession, viewerSession} {
-		assertStatus(t, fixture.requestWithHeaders(
-			http.MethodPost, "/api/v1/trip-assignments", strings.NewReader(validAssignment), denied, true,
-			"application/json", map[string]string{"Idempotency-Key": "trip-http-denied-" + denied.csrf},
-		), http.StatusForbidden)
-	}
 	for _, item := range []struct {
 		session *testSession
 		status  int
@@ -626,9 +611,7 @@ func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
 	defer fixture.store.Close()
 
 	ownerSession := fixture.login(t, fixture.owner.TenantID)
-	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
-	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
-	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	financeSession := fixture.addRoleSession(t, domain.RoleMember)
 	tripID := newID(t)
 	assignmentID := newID(t)
 	reimbursementID := newID(t)
@@ -639,7 +622,7 @@ func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
 	)
 	statusDecision := `{"expected_status":"submitted","desired_status":"reimbursed","expected_version":1,"reason":"合成状态变化"}`
 
-	for _, readable := range []*testSession{ownerSession, financeSession, viewerSession} {
+	for _, readable := range []*testSession{ownerSession, financeSession} {
 		response := fixture.request(http.MethodGet, "/api/v1/reimbursements", nil, readable, false, "")
 		assertStatus(t, response, http.StatusOK)
 		if response.Body.String() != "{\"items\":[]}\n" {
@@ -649,10 +632,6 @@ func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
 			http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, readable, false, "",
 		), http.StatusNotFound)
 	}
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements", nil, reviewerSession, false, ""), http.StatusForbidden)
-	assertStatus(t, fixture.request(
-		http.MethodGet, "/api/v1/reimbursements/"+reimbursementID, nil, reviewerSession, false, "",
-	), http.StatusForbidden)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements?limit=101", nil, ownerSession, false, ""), http.StatusBadRequest)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements?cursor=%25%25%25", nil, ownerSession, false, ""), http.StatusBadRequest)
 	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/reimbursements/not-a-uuid", nil, ownerSession, false, ""), http.StatusBadRequest)
@@ -671,11 +650,6 @@ func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
 			http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(preview), manager, true, "application/json",
 		), http.StatusNotFound)
 	}
-	for _, denied := range []*testSession{reviewerSession, viewerSession} {
-		assertStatus(t, fixture.request(
-			http.MethodPost, "/api/v1/reimbursement-previews", strings.NewReader(preview), denied, true, "application/json",
-		), http.StatusForbidden)
-	}
 
 	assertStatus(t, fixture.requestWithHeaders(
 		http.MethodPost, "/api/v1/reimbursements", strings.NewReader(submission), ownerSession, false,
@@ -691,27 +665,15 @@ func TestHTTPReimbursementContractAndPermissionBoundaries(t *testing.T) {
 			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-status-" + manager.csrf},
 		), http.StatusNotFound)
 	}
-	for _, denied := range []*testSession{reviewerSession, viewerSession} {
-		assertStatus(t, fixture.requestWithHeaders(
-			http.MethodPost, "/api/v1/reimbursements", strings.NewReader(submission), denied, true,
-			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-denied-" + denied.csrf},
-		), http.StatusForbidden)
-		assertStatus(t, fixture.requestWithHeaders(
-			http.MethodPost, "/api/v1/reimbursements/"+reimbursementID+"/status-decisions", strings.NewReader(statusDecision), denied, true,
-			"application/json", map[string]string{"Idempotency-Key": "reimbursement-http-status-denied-" + denied.csrf},
-		), http.StatusForbidden)
-	}
 }
 
 func TestHTTPInsightQueryContractAndPermissionBoundaries(t *testing.T) {
 	fixture := newHTTPTestFixture(t)
 	defer fixture.store.Close()
 	ownerSession := fixture.login(t, fixture.owner.TenantID)
-	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
-	reviewerSession := fixture.addRoleSession(t, domain.RoleReviewer)
-	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	financeSession := fixture.addRoleSession(t, domain.RoleMember)
 
-	for _, readable := range []*testSession{ownerSession, financeSession, viewerSession} {
+	for _, readable := range []*testSession{ownerSession, financeSession} {
 		response := fixture.request(http.MethodGet, "/api/v1/insights", nil, readable, false, "")
 		assertStatus(t, response, http.StatusOK)
 		body := decodeMap(t, response)
@@ -728,7 +690,6 @@ func TestHTTPInsightQueryContractAndPermissionBoundaries(t *testing.T) {
 			t.Fatalf("empty insight response = %#v", body)
 		}
 	}
-	assertStatus(t, fixture.request(http.MethodGet, "/api/v1/insights", nil, reviewerSession, false, ""), http.StatusForbidden)
 
 	valid := "/api/v1/insights?fact_type=payment&date_from=2026-08-01&date_to=2026-08-31&currency=CNY&allocation_status=partial&trip_scope=unassigned&limit=100"
 	assertStatus(t, fixture.request(http.MethodGet, valid, nil, ownerSession, false, ""), http.StatusOK)
@@ -769,8 +730,8 @@ func TestHTTPReimbursementSuccessfulLifecycleAndTenantIsolation(t *testing.T) {
 	defer fixture.store.Close()
 
 	ownerSession := fixture.login(t, fixture.owner.TenantID)
-	financeSession := fixture.addRoleSession(t, domain.RoleFinance)
-	viewerSession := fixture.addRoleSession(t, domain.RoleViewer)
+	financeSession := fixture.addRoleSession(t, domain.RoleMember)
+	viewerSession := fixture.addRoleSession(t, domain.RoleMember)
 	activateHTTPTestProvider(t, fixture, ownerSession)
 
 	paymentReview := processHTTPTestReview(
@@ -1278,7 +1239,8 @@ func (f *httpTestFixture) addRoleSession(t *testing.T, role domain.Role) *testSe
 		t.Fatalf("invalid additional test role %q", role)
 	}
 	userID := newID(t)
-	email := string(role) + "@example.invalid"
+	// 同一角色可能在一个用例里建多个会话，邮箱带上用户 id 才不撞唯一约束。
+	email := string(role) + "-" + userID[:8] + "@example.invalid"
 	password := string(role) + "-password-123"
 	passwordHash, err := (testPasswordHasher{}).Hash([]byte(password))
 	if err != nil {

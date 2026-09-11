@@ -51,7 +51,7 @@ func (t transaction) ChangeInvoiceMaterial(ctx context.Context, c ports.InvoiceM
 	}
 	var authorized bool
 	if err := t.tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM memberships WHERE tenant_id = ? AND user_id = ?
-		AND status = 'active' AND role IN ('owner','finance'))`, c.TenantID, c.ActorUserID).Scan(&authorized); err != nil {
+		AND status = 'active' AND role IN ('owner','member'))`, c.TenantID, c.ActorUserID).Scan(&authorized); err != nil {
 		return result, err
 	}
 	if !authorized {

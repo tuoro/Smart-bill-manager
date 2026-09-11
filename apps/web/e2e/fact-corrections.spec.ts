@@ -118,7 +118,7 @@ async function json(route: Route, value: unknown, status = 200) {
 async function setup(
   page: Page,
   kind: CorrectionFactType,
-  options: { conflict?: boolean; linked?: boolean; role?: Session['role'] } = {},
+  options: { conflict?: boolean; linked?: boolean; role?: 'owner' | 'reviewer' | 'viewer' } = {},
 ) {
   const state = workspace(kind)
   if (options.linked)
@@ -143,7 +143,7 @@ async function setup(
   await page.route('**/api/v1/session', (route) =>
     json(route, {
       ...session,
-      role: options.role ?? 'owner',
+      role: options.role === 'owner' || !options.role ? 'owner' : 'member',
       capabilities:
         options.role === 'reviewer'
           ? ['claims.review']
@@ -293,8 +293,11 @@ test('分配冲突明确撤销，409 刷新保留草稿并重新核对', async (
   expect(f.pageErrors).toEqual([])
 })
 
+// 页面按能力而不是角色名隐藏：只有审核能力或只有读取能力的会话都进不了纠错。
 for (const role of ['reviewer', 'viewer'] as const)
-  test(`${role} 不能进入正式字段纠错`, async ({ page }) => {
+  test(`仅有${role === 'reviewer' ? '审核' : '读取'}能力的会话不能进入正式字段纠错`, async ({
+    page,
+  }) => {
     await setup(page, 'payment', { role })
     await page.goto(`/facts/payment/${id}/correction`)
     await expect(page.getByText('只有具备账单读取与审核权限', { exact: false })).toBeVisible()

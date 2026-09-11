@@ -59,7 +59,7 @@ func TestAccountAuthenticatedRestorePreservesHistoryAndInvalidatesCredentials(t 
 	service := accounts.NewService(store, hasher, cryptography.TokenGenerator{}, system.IDGenerator{}, system.Clock{})
 	invite := func(email, key string) ports.InvitationCreated {
 		t.Helper()
-		result, err := service.Invite(ctx, owner, accounts.InviteInput{Email: email, Role: domain.RoleViewer, Reason: "合成恢复邀请", IdempotencyKey: key}, "synthetic")
+		result, err := service.Invite(ctx, owner, accounts.InviteInput{Email: email, Role: domain.RoleMember, Reason: "合成恢复邀请", IdempotencyKey: key}, "synthetic")
 		if err != nil {
 			t.Fatal(err)
 		}

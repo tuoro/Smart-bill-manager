@@ -77,9 +77,6 @@ func (s QueryService) OpenDocument(
 	if err != nil {
 		return DocumentContent{}, err
 	}
-	if tenant.Role == domain.RoleReviewer && object.ReviewState != domain.JobNeedsReview && object.ReviewState != domain.JobBlocked {
-		return DocumentContent{}, domain.ErrNotFound
-	}
 	body, err := s.objects.Open(ctx, object.StorageKey)
 	if err != nil {
 		return DocumentContent{}, err
@@ -102,9 +99,6 @@ func (s QueryService) OpenDocumentPage(
 	object, err := s.documents.GetDocumentPageObject(ctx, tenant.TenantID, documentID, pageNumber)
 	if err != nil {
 		return DocumentContent{}, err
-	}
-	if tenant.Role == domain.RoleReviewer && object.ReviewState != domain.JobNeedsReview && object.ReviewState != domain.JobBlocked {
-		return DocumentContent{}, domain.ErrNotFound
 	}
 	body, err := s.objects.Open(ctx, object.StorageKey)
 	if err != nil {

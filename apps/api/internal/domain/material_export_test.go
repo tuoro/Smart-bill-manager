@@ -43,9 +43,9 @@ func TestExportManifestCanonicalIdentityAndSafePaths(t *testing.T) {
 }
 
 func TestExportManifestLimitsAndPermissions(t *testing.T) {
-	for _, role := range []Role{RoleOwner, RoleFinance, RoleReviewer, RoleViewer} {
+	for _, role := range []Role{RoleOwner, RoleMember} {
 		err := RequireMaterialExport(TenantContext{TenantID: "tenant", UserID: "user", Role: role}, ExportScope{Kind: "reimbursement", ID: "snapshot"})
-		if (role == RoleOwner || role == RoleFinance) != (err == nil) {
+		if (role == RoleOwner || role == RoleMember) != (err == nil) {
 			t.Fatalf("role %s: %v", role, err)
 		}
 	}

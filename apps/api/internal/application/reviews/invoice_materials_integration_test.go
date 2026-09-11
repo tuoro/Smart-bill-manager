@@ -202,14 +202,14 @@ func TestInvoiceMaterialRejectsStaleDuplicateOriginalRolesAndCrossTenant(t *test
 	if _, err := f.service.Change(ctx, f.tenant, input, "original"); !hasRuleCode(err, "invoice_material_is_original") {
 		t.Fatalf("original: %v", err)
 	}
-	for _, role := range []domain.Role{domain.RoleViewer, domain.RoleReviewer} {
+	{
 		tenant := f.tenant
-		tenant.Role = role
-		if _, err := f.service.Workspace(ctx, tenant, f.invoiceID); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("unauthorized workspace")
+		tenant.Role = domain.Role("viewer")
+		if _, err := f.service.Workspace(ctx, tenant, f.invoiceID); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("retired role workspace")
 		}
-		if _, err := f.service.Change(ctx, tenant, input, "role"); !errors.Is(err, domain.ErrForbidden) {
-			t.Fatal("unauthorized mutation")
+		if _, err := f.service.Change(ctx, tenant, input, "role"); !errors.Is(err, domain.ErrUnauthenticated) {
+			t.Fatal("retired role mutation")
 		}
 	}
 	other := domain.TenantContext{TenantID: mustID(t, system.IDGenerator{}), UserID: mustID(t, system.IDGenerator{}), Role: domain.RoleOwner}

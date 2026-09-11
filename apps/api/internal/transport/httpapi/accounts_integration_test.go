@@ -25,7 +25,7 @@ func TestHTTPMemberInvitationLifecycleAndPassword(t *testing.T) {
 	f := newHTTPTestFixture(t)
 	defer f.store.Close()
 	owner := f.login(t, f.owner.TenantID)
-	input := map[string]any{"email": "joined@example.invalid", "role": "reviewer", "reason": "合成邀请", "idempotency_key": "synthetic-http-invite"}
+	input := map[string]any{"email": "joined@example.invalid", "role": "member", "reason": "合成邀请", "idempotency_key": "synthetic-http-invite"}
 	assertStatus(t, accountRequest(t, f, "POST", "/api/v1/member-invitations", input, owner, false), 403)
 	response := accountRequest(t, f, "POST", "/api/v1/member-invitations", input, owner, true)
 	assertStatus(t, response, 200)
@@ -73,7 +73,7 @@ func TestHTTPMemberInvitationLifecycleAndPassword(t *testing.T) {
 	assertStatus(t, f.request("GET", "/api/v1/members/missing", nil, owner, false, ""), 404)
 	assertStatus(t, f.request("GET", "/api/v1/members/"+userID+"?extra=1", nil, owner, false, ""), 400)
 	assertStatus(t, f.request("GET", "/api/v1/members", nil, member, false, ""), 403)
-	change := map[string]any{"role": "viewer", "status": "suspended", "expected_version": 1, "reason": "合成停用"}
+	change := map[string]any{"role": "member", "status": "suspended", "expected_version": 1, "reason": "合成停用"}
 	assertStatus(t, accountRequest(t, f, "PATCH", "/api/v1/members/"+userID, change, owner, true), 200)
 	assertStatus(t, f.request("GET", "/api/v1/session", nil, member, false, ""), 401)
 	change["status"], change["expected_version"] = "active", 2
@@ -106,13 +106,13 @@ func TestHTTPAccountClosedInputsAndFourRoles(t *testing.T) {
 	f := newHTTPTestFixture(t)
 	defer f.store.Close()
 	owner := f.login(t, f.owner.TenantID)
-	for _, role := range []domain.Role{domain.RoleViewer, domain.RoleReviewer, domain.RoleFinance} {
+	for _, role := range []domain.Role{domain.RoleMember} {
 		session := f.addRoleSession(t, role)
 		assertStatus(t, f.request("GET", "/api/v1/members", nil, session, false, ""), 403)
 		assertStatus(t, f.request("GET", "/api/v1/member-invitations", nil, session, false, ""), 403)
-		body := map[string]any{"email": "extra@example.invalid", "role": "viewer", "reason": "合成邀请", "idempotency_key": "synthetic-denied-key"}
+		body := map[string]any{"email": "extra@example.invalid", "role": "member", "reason": "合成邀请", "idempotency_key": "synthetic-denied-key"}
 		assertStatus(t, accountRequest(t, f, "POST", "/api/v1/member-invitations", body, session, true), 403)
-		assertStatus(t, accountRequest(t, f, "PATCH", "/api/v1/members/"+f.owner.UserID, map[string]any{"role": "viewer", "status": "active", "expected_version": 1, "reason": "合成越权"}, session, true), 403)
+		assertStatus(t, accountRequest(t, f, "PATCH", "/api/v1/members/"+f.owner.UserID, map[string]any{"role": "member", "status": "active", "expected_version": 1, "reason": "合成越权"}, session, true), 403)
 	}
 	assertStatus(t, f.request("GET", "/api/v1/members", nil, owner, false, ""), 200)
 	for _, query := range []string{"?limit=0", "?limit=101", "?limit=20&limit=30", "?other=1", "?cursor=invalid"} {

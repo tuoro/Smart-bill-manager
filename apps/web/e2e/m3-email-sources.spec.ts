@@ -284,11 +284,11 @@ function ownerSession(): Session {
 }
 
 function financeSession(): Session {
-  return session('finance', ['documents.process', 'facts.read', 'email_archive.read'])
+  return session('member', ['documents.process', 'facts.read', 'email_archive.read'])
 }
 
 function reviewerSession(): Session {
-  return session('reviewer', ['documents.process', 'claims.review'])
+  return session('member', ['documents.process', 'claims.review'])
 }
 
 function session(role: Session['role'], capabilities: string[]): Session {

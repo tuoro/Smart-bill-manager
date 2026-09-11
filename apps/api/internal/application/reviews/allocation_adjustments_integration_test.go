@@ -314,7 +314,7 @@ func TestAllocationAdjustmentPermissionsAndTargetBoundaries(t *testing.T) {
 	roles := []struct {
 		role    domain.Role
 		allowed bool
-	}{{domain.RoleOwner, true}, {domain.RoleFinance, true}, {domain.RoleReviewer, false}, {domain.RoleViewer, false}}
+	}{{domain.RoleOwner, true}, {domain.RoleMember, true}}
 	for _, entry := range roles {
 		t.Run(string(entry.role), func(t *testing.T) {
 			tenant := fixture.tenant

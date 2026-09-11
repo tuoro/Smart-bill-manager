@@ -1542,7 +1542,7 @@ export interface components {
             timezone: string;
         };
         /** @enum {string} */
-        Role: "owner" | "finance" | "reviewer" | "viewer";
+        Role: "owner" | "member";
         /** @enum {string} */
         Currency: "CNY" | "USD" | "EUR" | "JPY";
         UploadResult: {

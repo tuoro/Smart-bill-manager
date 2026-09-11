@@ -15,7 +15,7 @@ func TestHTTPFactCorrectionWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 	f := newHTTPTestFixture(t)
 	defer f.store.Close()
 	owner := f.login(t, f.owner.TenantID)
-	finance, reviewer, viewer := f.addRoleSession(t, domain.RoleFinance), f.addRoleSession(t, domain.RoleReviewer), f.addRoleSession(t, domain.RoleViewer)
+	finance := f.addRoleSession(t, domain.RoleMember)
 	activateHTTPTestProvider(t, f, owner)
 	review := processHTTPTestReview(t, f, owner, "synthetic-correction.png", color.RGBA{R: 31, G: 99, B: 111, A: 255})
 	confirmed := f.requestWithHeaders(http.MethodPost, "/api/v1/reviews/"+asString(t, review["job"].(map[string]any)["id"])+"/confirm", bytes.NewReader(httpConfirmPayload(t, review, true)), owner, true, "application/json", map[string]string{"Idempotency-Key": "http-correction-original"})
@@ -23,10 +23,6 @@ func TestHTTPFactCorrectionWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 	id := asString(t, decodeMap(t, confirmed)["fact_id"])
 	path := "/api/v1/facts/payment/" + id + "/correction"
 	assertStatus(t, f.request(http.MethodGet, path, nil, nil, false, ""), http.StatusUnauthorized)
-	for _, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, f.request(http.MethodGet, path, nil, denied, false, ""), http.StatusForbidden)
-		assertStatus(t, f.request(http.MethodGet, path+"/history", nil, denied, false, ""), http.StatusForbidden)
-	}
 	loaded := f.request(http.MethodGet, path, nil, finance, false, "")
 	assertStatus(t, loaded, http.StatusOK)
 	workspace := decodeMap(t, loaded)
@@ -58,9 +54,6 @@ func TestHTTPFactCorrectionWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 		return data
 	}
 	assertStatus(t, f.request(http.MethodPost, path+"/preview", bytes.NewReader(encode()), finance, false, "application/json"), http.StatusForbidden)
-	for _, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, f.request(http.MethodPost, path+"/preview", bytes.NewReader(encode()), denied, true, "application/json"), http.StatusForbidden)
-	}
 	body["unexpected"] = true
 	assertStatus(t, f.request(http.MethodPost, path+"/preview", bytes.NewReader(encode()), finance, true, "application/json"), http.StatusBadRequest)
 	delete(body, "unexpected")
@@ -73,9 +66,6 @@ func TestHTTPFactCorrectionWorkflowPermissionsAndStrictBoundary(t *testing.T) {
 	body["preview_hash"] = preview["preview_hash"]
 	body["acknowledged_duplicate_keys"] = []string{}
 	headers := map[string]string{"Idempotency-Key": "http-correction-apply"}
-	for _, denied := range []*testSession{reviewer, viewer} {
-		assertStatus(t, f.requestWithHeaders(http.MethodPost, path, bytes.NewReader(encode()), denied, true, "application/json", headers), http.StatusForbidden)
-	}
 	assertStatus(t, f.requestWithHeaders(http.MethodPost, path, bytes.NewReader(encode()), finance, false, "application/json", headers), http.StatusForbidden)
 	result := f.requestWithHeaders(http.MethodPost, path, bytes.NewReader(encode()), finance, true, "application/json", headers)
 	assertStatus(t, result, http.StatusOK)

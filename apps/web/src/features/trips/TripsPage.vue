@@ -22,6 +22,7 @@ import {
   tripViewLabels,
   tripAssignmentStates,
 } from './model'
+import { randomUUID } from '../../data/random'
 
 type AssignmentAttempt = { fingerprint: string; idempotencyKey: string }
 
@@ -215,7 +216,7 @@ function assignmentKey(factID: string, request: TripAssignmentRequest): string {
   const fingerprint = assignmentFingerprint(request)
   const existing = attempts.get(factID)
   if (existing?.fingerprint === fingerprint) return existing.idempotencyKey
-  const attempt = { fingerprint, idempotencyKey: crypto.randomUUID() }
+  const attempt = { fingerprint, idempotencyKey: randomUUID() }
   attempts.set(factID, attempt)
   return attempt.idempotencyKey
 }

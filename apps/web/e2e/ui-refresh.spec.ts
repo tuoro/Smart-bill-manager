@@ -109,6 +109,43 @@ test.describe('全站视觉：收件箱与 AI 配置纯合成隔离验收', () =
     expect(state.pageErrors).toEqual([])
   })
 
+  // 每 2.5 秒一次的静默轮询十几毫秒就结束；「正在同步」若每次都闪出来，
+  // 会把旁边的「开始连续审核」按钮推得左右跳。只有刷新真的慢才显示。
+  test('收件箱静默轮询不闪「正在同步」，慢刷新才显示', async ({ page }) => {
+    const state = await mockWorkspace(page)
+    state.jobs = [job('needs_review', 1)]
+    await page.goto('/inbox')
+    // 计数标签是被撑宽的那个元素，它一变宽旁边的按钮就会跳。
+    const count = page.locator('.queue-count')
+    await expect(count).toHaveText('1 个任务')
+    const box = await count.boundingBox()
+    // 覆盖两次轮询周期，期间提示不能出现、标签宽度不能变。
+    const flashes = await page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          let seen = 0
+          const target = document.querySelector('.queue-count')!
+          const observer = new MutationObserver(() => {
+            if (target.textContent?.includes('正在同步')) seen += 1
+          })
+          observer.observe(target, { subtree: true, childList: true, characterData: true })
+          setTimeout(() => {
+            observer.disconnect()
+            resolve(seen)
+          }, 5600)
+        }),
+    )
+    expect(flashes).toBe(0)
+    expect(await count.boundingBox()).toEqual(box)
+
+    state.jobsDelay = 1500
+    await expect(page.getByText('正在同步')).toBeVisible({ timeout: 6000 })
+    state.jobsDelay = 0
+    await expect(page.getByText('正在同步')).toHaveCount(0)
+    expect(state.unexpectedRequests).toEqual([])
+    expect(state.pageErrors).toEqual([])
+  })
+
   test('AI 配置保存、检测、激活保持显式顺序并清空输入密钥', async ({ page }) => {
     const state = await mockWorkspace(page)
     await page.goto('/settings/ai')
@@ -365,6 +402,7 @@ async function mockWorkspace(page: Page) {
     providers: [] as ProviderConfig[],
     operations: [] as string[],
     updates: [] as Record<string, unknown>[],
+    jobsDelay: 0,
     failOperation: '',
     unexpectedRequests: [] as string[],
     pageErrors: [] as string[],
@@ -408,6 +446,7 @@ async function mockWorkspace(page: Page) {
         return
       }
       if (pathname === '/api/v1/jobs' && method === 'GET') {
+        if (state.jobsDelay) await new Promise((resolve) => setTimeout(resolve, state.jobsDelay))
         await route.fulfill({ json: { items: state.jobs } })
         return
       }

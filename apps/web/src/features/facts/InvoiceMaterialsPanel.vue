@@ -6,6 +6,7 @@ import {
   type InvoiceMaterial,
   type InvoiceMaterialWorkspace,
 } from '../../data/client'
+import { randomUUID } from '../../data/random'
 
 const props = defineProps<{
   invoiceId: string
@@ -132,7 +133,7 @@ async function save(action: 'upload' | 'add' | 'remove') {
   const upload = action === 'upload' ? file.value : null
   const fingerprint = JSON.stringify([props.invoiceId, action, target, workspace.value.version])
   if (attempt?.fingerprint !== fingerprint || attempt.file !== upload)
-    attempt = { fingerprint, file: upload, key: crypto.randomUUID() }
+    attempt = { fingerprint, file: upload, key: randomUUID() }
   const body = {
     expected_version: workspace.value.version,
     idempotency_key: attempt.key,

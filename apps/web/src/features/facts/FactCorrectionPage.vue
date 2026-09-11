@@ -25,6 +25,7 @@ import {
 } from '../review/model'
 import { formatMinorUnits } from './money'
 import { instantInZone } from './time'
+import { randomUUID } from '../../data/random'
 
 const route = useRoute()
 const kind = computed(() =>
@@ -254,7 +255,7 @@ async function confirm() {
     acknowledged_duplicate_keys: [...duplicateKeys.value].sort(),
   }
   const encoded = JSON.stringify(body)
-  if (attempt?.body !== encoded) attempt = { body: encoded, key: crypto.randomUUID() }
+  if (attempt?.body !== encoded) attempt = { body: encoded, key: randomUUID() }
   const ticket = epoch
   busy.value = true
   error.value = ''
@@ -288,7 +289,7 @@ function localInstant(field: EditableField) {
 }
 
 function addItem() {
-  fields.value.push(...newInvoiceItem(crypto.randomUUID(), itemKeys.value.length))
+  fields.value.push(...newInvoiceItem(randomUUID(), itemKeys.value.length))
 }
 function removeItem(key: string) {
   fields.value = fields.value.filter((field) => parseItemPath(field.path)?.itemKey !== key)

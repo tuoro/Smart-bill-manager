@@ -50,6 +50,7 @@ import {
 } from './model'
 import { formatMinorUnits } from '../facts/money'
 import { instantInZone } from '../facts/time'
+import { randomUUID } from '../../data/random'
 
 const route = useRoute()
 const router = useRouter()
@@ -389,7 +390,7 @@ function changeDocumentType() {
 }
 
 function addItem() {
-  const key = crypto.randomUUID()
+  const key = randomUUID()
   editors.value.push(...newInvoiceItem(key, itemKeys.value.length))
   selectPath(`items[${key}].name`)
 }
@@ -477,7 +478,7 @@ async function confirmReview() {
         body.association_mode = association.association_mode
         body.allocations = association.allocations
       }
-      confirmAttempt = { body, key: crypto.randomUUID() }
+      confirmAttempt = { body, key: randomUUID() }
     }
     result = await api.confirm(task.jobId, confirmAttempt.body, confirmAttempt.key)
   } catch (caught) {
@@ -548,7 +549,7 @@ async function rejectReview() {
       rejectAttempt = {
         revision: review.value.revision,
         reason: rejectReason.value,
-        key: crypto.randomUUID(),
+        key: randomUUID(),
       }
     await api.reject(task.jobId, rejectAttempt.revision, rejectAttempt.reason, rejectAttempt.key)
   } catch (caught) {

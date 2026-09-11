@@ -2,6 +2,7 @@
 import { nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, api, type JobSummary, type ManualReviewRequest } from '../../data/client'
+import { randomUUID } from '../../data/random'
 
 const props = defineProps<{ job: JobSummary; offline: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -29,7 +30,7 @@ async function submit() {
   const identity = JSON.stringify(body)
   if (identity !== requestIdentity) {
     requestIdentity = identity
-    requestKey = crypto.randomUUID()
+    requestKey = randomUUID()
   }
   busy.value = true
   error.value = ''

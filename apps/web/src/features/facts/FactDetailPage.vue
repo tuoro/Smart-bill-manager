@@ -8,6 +8,7 @@ import { factListPath, factReturnPath } from './list-model'
 import { formatMinorUnits } from './money'
 import { formatSystemTime, instantInZone } from './time'
 import InvoiceMaterialsPanel from './InvoiceMaterialsPanel.vue'
+import { randomUUID } from '../../data/random'
 
 const props = defineProps<{ kind: FactKind }>()
 const route = useRoute(),
@@ -143,7 +144,7 @@ async function changeBadDebt() {
     const body = { marked: !badDebtMarked.value, expected_version: detail.value.version, reason }
     const fingerprint = JSON.stringify({ kind: props.kind, id: id.value, body })
     if (badDebtAttempt.fingerprint !== fingerprint)
-      badDebtAttempt = { fingerprint, key: `bad-debt-${crypto.randomUUID()}` }
+      badDebtAttempt = { fingerprint, key: `bad-debt-${randomUUID()}` }
     const result = await api.setBadDebt(props.kind, id.value, body, badDebtAttempt.key)
     if (current !== epoch || !detail.value) return
     const fact = detail.value.payment ?? detail.value.invoice

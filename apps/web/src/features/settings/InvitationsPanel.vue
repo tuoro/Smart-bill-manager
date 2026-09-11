@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ApiError, api, type Invitation, type InvitationRequest } from '../../data/client'
+import { randomUUID } from '../../data/random'
 
 const props = defineProps<{ disabled: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean] }>()
@@ -57,7 +58,7 @@ async function create() {
   if (busy.value || code.value) return
   const fingerprint = JSON.stringify(draft)
   if (!request || request.fingerprint !== fingerprint)
-    request = { fingerprint, body: { ...draft, idempotency_key: crypto.randomUUID() } }
+    request = { fingerprint, body: { ...draft, idempotency_key: randomUUID() } }
   setPending(true)
   error.value = ''
   notice.value = ''

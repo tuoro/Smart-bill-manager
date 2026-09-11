@@ -112,6 +112,25 @@ test('单独审核：不预提交、一次明确不分配、通过项可用键�
   expect(state.confirmations[0]!.body.association_mode).toBe('no_candidate')
 })
 
+// 局域网明文访问（http://192.168.x.x）时浏览器没有 crypto.randomUUID。幂等键必须
+// 仍能生成，否则请求还没发出去就抛错，页面却提示「结果尚未确认」让人去重试。
+test('非安全上下文（无 crypto.randomUUID）下确认与驳回照常发出', async ({ page }) => {
+  await page.addInitScript(() => {
+    delete (Crypto.prototype as unknown as { randomUUID?: unknown }).randomUUID
+  })
+  const review = reductionReview(1)
+  const state = await setup(page, [review])
+  await page.goto(reviewPath(review))
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe('undefined')
+  await page.getByRole('button', { name: '确认保存，不分配', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '正式账单已创建' })).toBeVisible()
+  expect(state.confirmations).toHaveLength(1)
+  expect(state.confirmations[0]!.key).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  )
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
 test('同组件连续切换：页码、证据、字段、焦点与播报不串单', async ({ page }) => {
   const reviews = [reductionReview(1), reductionReview(2), reductionReview(3)]
   reviews[0]!.page_count = 2

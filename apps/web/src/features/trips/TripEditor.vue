@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ApiError, api, type Trip, type TripManagementRequest } from '../../data/client'
+import { randomUUID } from '../../data/random'
 
 const props = defineProps<{ trip?: Trip; canDelete: boolean; offline: boolean }>()
 const emit = defineEmits<{ saved: [id: string]; cancel: [] }>()
@@ -34,7 +35,7 @@ async function save() {
     return
   }
   const fingerprint = JSON.stringify({ body, deleting: deleting.value })
-  if (attempt.fingerprint !== fingerprint) attempt = { fingerprint, key: crypto.randomUUID() }
+  if (attempt.fingerprint !== fingerprint) attempt = { fingerprint, key: randomUUID() }
   busy.value = true
   error.value = ''
   try {

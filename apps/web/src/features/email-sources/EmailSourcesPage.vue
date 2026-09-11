@@ -18,6 +18,7 @@ import {
   formatArchiveBytes,
 } from './model'
 import { formatSystemTime } from '../facts/time'
+import { randomUUID } from '../../data/random'
 
 const session = sessionStore.current
 const canRead = computed(() => session.value?.capabilities.includes('email_archive.read') ?? false)
@@ -105,7 +106,7 @@ async function registerSource() {
   if (!canManage.value || offline.value) return
   creating.value = true
   error.value = ''
-  if (!registrationKey.value) registrationKey.value = crypto.randomUUID()
+  if (!registrationKey.value) registrationKey.value = randomUUID()
   try {
     const created = await api.registerEmailSource(
       {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
@@ -40,6 +41,13 @@ func writeJSON(response http.ResponseWriter, status int, value any) {
 func writeError(response http.ResponseWriter, request *http.Request, err error) {
 	status, code, message := errorDetails(err)
 	body := errorBody{RequestID: requestIDFromRequest(request)}
+	// 5xx 对外只有一句「服务暂时无法完成请求」，原因必须留在服务端日志里，
+	// 否则排障时只能靠猜。带 request_id 便于和客户端看到的错误对上。
+	if status >= http.StatusInternalServerError {
+		slog.ErrorContext(request.Context(), "request failed",
+			"request_id", body.RequestID, "method", request.Method,
+			"path", request.URL.Path, "status", status, "error", err)
+	}
 	body.Error.Code = code
 	body.Error.Message = message
 	var duplicate *domain.DuplicateDocumentError

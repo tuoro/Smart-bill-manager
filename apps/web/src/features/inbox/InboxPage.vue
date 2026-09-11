@@ -43,6 +43,10 @@ async function closeManual() {
 const jobs = ref<JobSummary[]>([])
 const loading = ref(true)
 const refreshing = ref(false)
+// 「正在同步」只在刷新超过半秒时才显示。每 2.5 秒一次的静默轮询通常十几毫秒
+// 就结束，若每次都把文字塞进标题行，按钮会被推着左右跳。
+const refreshingVisible = ref(false)
+let refreshingTimer: number | undefined
 const batchRunning = ref(false)
 const uploadItems = ref<BatchUploadItem[]>([])
 const actionJobId = ref('')
@@ -92,8 +96,12 @@ async function startContinuousReview() {
 
 async function load(silent = false) {
   if (offline.value) return
-  if (silent) refreshing.value = true
-  else loading.value = true
+  if (silent) {
+    refreshing.value = true
+    refreshingTimer ??= window.setTimeout(() => {
+      refreshingVisible.value = refreshing.value
+    }, 500)
+  } else loading.value = true
   try {
     jobs.value = (await api.listJobs()).items
     error.value = ''
@@ -102,6 +110,11 @@ async function load(silent = false) {
   } finally {
     loading.value = false
     refreshing.value = false
+    refreshingVisible.value = false
+    if (refreshingTimer) {
+      window.clearTimeout(refreshingTimer)
+      refreshingTimer = undefined
+    }
   }
 }
 
@@ -175,6 +188,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (pollTimer) window.clearInterval(pollTimer)
+  if (refreshingTimer) window.clearTimeout(refreshingTimer)
   window.removeEventListener('online', setOnlineState)
   window.removeEventListener('offline', setOnlineState)
 })
@@ -258,7 +272,7 @@ onUnmounted(() => {
     <section
       class="panel queue-panel"
       aria-labelledby="queue-title"
-      :aria-busy="loading || refreshing"
+      :aria-busy="loading || refreshingVisible"
     >
       <div class="panel-heading queue-heading">
         <h2 id="queue-title" class="visually-hidden">处理队列</h2>
@@ -280,7 +294,7 @@ onUnmounted(() => {
         </div>
         <div class="queue-actions">
           <span class="queue-count"
-            >{{ jobs.length }} 个任务<span v-if="refreshing"> · 正在同步</span></span
+            >{{ jobs.length }} 个任务<span v-if="refreshingVisible"> · 正在同步</span></span
           >
           <template v-if="queueScope">
             <button

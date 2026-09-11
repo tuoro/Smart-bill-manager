@@ -9,6 +9,7 @@ import {
   type TripEvidence,
   type TripMaterialRequest,
 } from '../../data/client'
+import { randomUUID } from '../../data/random'
 
 const props = defineProps<{ trip?: Trip; canManage: boolean; offline: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -57,7 +58,7 @@ async function assign(item: TripEvidence) {
   const fingerprint = JSON.stringify(body)
   let attempt = attempts.get(item.id)
   if (attempt?.fingerprint !== fingerprint) {
-    attempt = { fingerprint, key: crypto.randomUUID() }
+    attempt = { fingerprint, key: randomUUID() }
     attempts.set(item.id, attempt)
   }
   busyID.value = item.id

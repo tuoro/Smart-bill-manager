@@ -23,6 +23,7 @@ import {
   reimbursementStatusActions,
   reimbursementStatusLabels,
 } from './model'
+import { randomUUID } from '../../data/random'
 
 type Attempt = { fingerprint: string; idempotencyKey: string }
 
@@ -341,7 +342,7 @@ async function changeStatus(desiredStatus: ReimbursementStatus) {
 function idempotencyKey(scope: string, fingerprint: string): string {
   const existing = attempts.get(scope)
   if (existing?.fingerprint === fingerprint) return existing.idempotencyKey
-  const attempt = { fingerprint, idempotencyKey: crypto.randomUUID() }
+  const attempt = { fingerprint, idempotencyKey: randomUUID() }
   attempts.set(scope, attempt)
   return attempt.idempotencyKey
 }

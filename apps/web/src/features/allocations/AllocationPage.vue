@@ -21,6 +21,7 @@ import {
   type AllocationDraftRow,
 } from './model'
 import { minorToDecimalInput } from '../facts/money'
+import { randomUUID } from '../../data/random'
 
 const route = useRoute()
 const factType = computed(() => route.params.factType as AllocationFactType)
@@ -263,7 +264,7 @@ async function submit() {
     if (!validation.value.request) return
     submissionAttempt = {
       request: validation.value.request,
-      key: `allocation-${crypto.randomUUID()}`,
+      key: `allocation-${randomUUID()}`,
     }
   }
   if (!submissionAttempt) return

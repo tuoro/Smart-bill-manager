@@ -68,6 +68,23 @@ type ProviderDeleteCommand struct {
 	DeletedAt       time.Time
 }
 
+// ProviderUpdateCommand 原地改一组配置的连接参数。改动会把能力检测归零并停用：
+// 换了地址、模型或密钥之后，之前那次检测证明的是另一组参数，不能继承。
+type ProviderUpdateCommand struct {
+	TenantID        string
+	ConfigID        string
+	BaseURL         string
+	EncryptedAPIKey []byte
+	Model           string
+	OutputMode      string
+	SafeFingerprint string
+	ActorUserID     string
+	AuditEventID    string
+	RequestID       string
+	ExpectedVersion int
+	UpdatedAt       time.Time
+}
+
 type ProviderRepository interface {
 	ListProviderConfigs(ctx context.Context, tenantID string) ([]ProviderConfig, error)
 	GetProviderConfig(ctx context.Context, tenantID, configID string) (ProviderConfig, error)

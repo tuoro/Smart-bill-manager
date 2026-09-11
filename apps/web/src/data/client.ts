@@ -722,6 +722,21 @@ export const api = {
       body: JSON.stringify({ base_url: baseUrl, api_key: apiKey, model, output_mode: outputMode }),
     })
   },
+  updateProvider(
+    id: string,
+    baseUrl: string,
+    apiKey: string,
+    model: string,
+    outputMode: ProviderConfig['output_mode'],
+  ): Promise<ProviderConfig> {
+    return request(`/provider-configs/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ base_url: baseUrl, api_key: apiKey, model, output_mode: outputMode }),
+    })
+  },
+  deleteProvider(id: string): Promise<void> {
+    return request(`/provider-configs/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  },
   detectProvider(id: string): Promise<ProviderConfig> {
     return request(`/provider-configs/${encodeURIComponent(id)}/detect`, { method: 'POST' })
   },

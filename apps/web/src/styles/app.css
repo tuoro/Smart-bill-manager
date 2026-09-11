@@ -2359,6 +2359,11 @@ input[type='radio'] {
   font-size: 12px;
 }
 
+.provider-main .provider-meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .provider-main .provider-action-note {
   margin-top: 12px;
   color: var(--text-secondary);

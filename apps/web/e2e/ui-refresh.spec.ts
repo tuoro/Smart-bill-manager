@@ -163,6 +163,65 @@ test.describe('全站视觉：收件箱与 AI 配置纯合成隔离验收', () =
     expect(state.pageErrors).toEqual([])
   })
 
+  // 编辑与新建共用一张表单；密钥留空表示沿用。编辑过的配置必须回到待检测、
+  // 失去「使用中」——旧检测证明的是另一组参数。
+  test('AI 配置编辑回填、留空密钥沿用、保存后回到待检测；删除需确认', async ({ page }) => {
+    const state = await mockWorkspace(page)
+    state.providers = [provider('passed', 1, true), provider('failed', 2)]
+    await page.goto('/settings/ai')
+    const first = providerCard(page, 1)
+    await expect(first).toContainText('使用中')
+    // 指纹只展示前缀，完整值在 title 里；长指纹不能把卡片撑破。
+    await expect(first.locator('.provider-meta span[title]')).toHaveText('指纹 synthetic-fi')
+
+    await first.getByRole('button', { name: '编辑', exact: true }).click()
+    await expect(page.getByRole('heading', { name: '编辑配置' })).toBeVisible()
+    await expect(page.getByLabel('Base URL')).toHaveValue(
+      'https://synthetic-provider.example.test/v1',
+    )
+    await expect(page.getByLabel('Model')).toHaveValue('synthetic-model-1')
+    await expect(page.getByLabel('API Key')).toHaveValue('')
+    await expect(page.getByLabel('API Key')).not.toHaveAttribute('required', '')
+    await page.getByLabel('Model').fill('synthetic-model-1-edited')
+    await page.getByRole('button', { name: '保存修改', exact: true }).click()
+    expect(state.updates).toEqual([
+      {
+        base_url: 'https://synthetic-provider.example.test/v1',
+        api_key: '',
+        model: 'synthetic-model-1-edited',
+        output_mode: 'json_schema',
+      },
+    ])
+    const edited = page.locator('.provider-list li').filter({ hasText: 'synthetic-model-1-edited' })
+    await expect(edited).toContainText('待检测')
+    await expect(edited).not.toContainText('使用中')
+    await expect(edited).toContainText('版本 2')
+    await expect(edited.getByRole('button', { name: '激活', exact: true })).toBeDisabled()
+    // 表单回到新建态。
+    await expect(page.getByRole('heading', { name: '添加配置' })).toBeVisible()
+    await expect(page.getByLabel('Model')).toHaveValue('')
+
+    // 取消编辑不发请求。
+    const second = providerCard(page, 2)
+    await second.getByRole('button', { name: '编辑', exact: true }).click()
+    await expect(page.getByLabel('Model')).toHaveValue('synthetic-model-2')
+    await page.getByRole('button', { name: '取消编辑', exact: true }).click()
+    await expect(page.getByLabel('Model')).toHaveValue('')
+
+    // 删除：取消确认则什么都不发；确认后从列表移除。
+    page.once('dialog', (dialog) => void dialog.dismiss())
+    await second.getByRole('button', { name: '删除', exact: true }).click()
+    await expect(second).toBeVisible()
+    expect(state.operations).toEqual(['update'])
+    page.once('dialog', (dialog) => void dialog.accept())
+    await second.getByRole('button', { name: '删除', exact: true }).click()
+    await expect(second).toHaveCount(0)
+    await expect(page.locator('.provider-list li')).toHaveCount(1)
+    expect(state.operations).toEqual(['update', 'delete'])
+    expect(state.unexpectedRequests).toEqual([])
+    expect(state.pageErrors).toEqual([])
+  })
+
   test('配置列表加载失败不会被创建成功掩盖，显式重试成功后才清除', async ({ page }) => {
     const state = await mockWorkspace(page)
     state.failOperation = 'list'
@@ -305,6 +364,7 @@ async function mockWorkspace(page: Page) {
     jobs: [] as JobSummary[],
     providers: [] as ProviderConfig[],
     operations: [] as string[],
+    updates: [] as Record<string, unknown>[],
     failOperation: '',
     unexpectedRequests: [] as string[],
     pageErrors: [] as string[],
@@ -363,6 +423,42 @@ async function mockWorkspace(page: Page) {
           return
         }
         await route.fulfill({ json: { items: state.providers } })
+        return
+      }
+      const single = /^\/api\/v1\/provider-configs\/([^/]+)$/.exec(pathname)
+      if (single && (method === 'PUT' || method === 'DELETE')) {
+        const target = state.providers.find((item) => item.id === single[1])
+        if (!target) {
+          await route.fulfill({
+            status: 404,
+            json: { error: { code: 'not_found', message: '不存在' } },
+          })
+          return
+        }
+        if (method === 'DELETE') {
+          state.operations.push('delete')
+          state.providers = state.providers.filter((item) => item !== target)
+          await route.fulfill({ status: 204, body: '' })
+          return
+        }
+        state.operations.push('update')
+        state.updates.push(route.request().postDataJSON())
+        const body = route.request().postDataJSON() as {
+          base_url: string
+          model: string
+          output_mode: ProviderConfig['output_mode']
+        }
+        Object.assign(target, {
+          base_url: body.base_url,
+          model: body.model,
+          output_mode: body.output_mode,
+          capability_status: 'pending',
+          active: false,
+          version: target.version + 1,
+          safe_fingerprint: 'synthetic-fingerprint-after-edit',
+        })
+        delete target.capability_safe_message
+        await route.fulfill({ json: target })
         return
       }
       const action = /^\/api\/v1\/provider-configs\/([^/]+)\/(detect|activate)$/.exec(pathname)

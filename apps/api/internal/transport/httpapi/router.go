@@ -243,6 +243,7 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("POST /api/v1/provider-configs", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createProviderConfigHandler))))
 	router.Handle("POST /api/v1/provider-configs/{provider_config_id}/detect", s.requireSession(s.requireCSRF(http.HandlerFunc(s.detectProviderConfigHandler))))
 	router.Handle("POST /api/v1/provider-configs/{provider_config_id}/activate", s.requireSession(s.requireCSRF(http.HandlerFunc(s.activateProviderConfigHandler))))
+	router.Handle("PUT /api/v1/provider-configs/{provider_config_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.updateProviderConfigHandler))))
 	router.Handle("DELETE /api/v1/provider-configs/{provider_config_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteProviderConfigHandler))))
 	router.Handle("GET /", s.spa)
 	return s.securityHeaders(s.requestContext(s.recoverPanic(router)))

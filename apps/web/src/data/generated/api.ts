@@ -1221,7 +1221,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /** @description 原地修改连接参数。保存后检测结果归零、配置停用、版本递增；api_key 留空则沿用已保存的密钥。 */
+        put: operations["updateProviderConfig"];
         post?: never;
         delete: operations["deleteProviderConfig"];
         options?: never;
@@ -5171,6 +5172,43 @@ export interface operations {
                     "application/json": components["schemas"]["ProviderConfig"];
                 };
             };
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateProviderConfig: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                provider_config_id: components["parameters"]["ProviderConfigId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uri */
+                    base_url: string;
+                    api_key?: string;
+                    model: string;
+                    /** @enum {string} */
+                    output_mode: "json_schema" | "json_object";
+                };
+            };
+        };
+        responses: {
+            /** @description 已重置为待检测的配置 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderConfig"];
+                };
+            };
+            404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
         };
     };

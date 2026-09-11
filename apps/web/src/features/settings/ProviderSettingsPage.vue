@@ -9,6 +9,8 @@ const loadError = ref('')
 const error = ref('')
 const actionId = ref('')
 const creating = ref(false)
+// 正在编辑的配置。编辑与新建共用同一张表单：回填三项连接参数，密钥留空表示沿用。
+const editing = ref<ProviderConfig>()
 const baseUrl = ref('')
 const model = ref('')
 const apiKey = ref('')
@@ -39,26 +41,78 @@ async function load() {
   }
 }
 
-async function create() {
+function resetForm() {
+  editing.value = undefined
+  apiKey.value = ''
+  baseUrl.value = ''
+  model.value = ''
+  outputMode.value = 'json_schema'
+}
+
+function startEdit(item: ProviderConfig) {
+  editing.value = item
+  baseUrl.value = item.base_url
+  model.value = item.model
+  outputMode.value = item.output_mode
+  apiKey.value = ''
+  error.value = ''
+  document.getElementById('provider-form-title')?.scrollIntoView({ block: 'nearest' })
+}
+
+async function submit() {
   creating.value = true
   error.value = ''
   try {
-    const created = await api.createProvider(
-      baseUrl.value,
-      apiKey.value,
-      model.value,
-      outputMode.value,
-    )
-    apiKey.value = ''
-    baseUrl.value = ''
-    model.value = ''
-    items.value.unshift(created)
+    if (editing.value) {
+      const updated = await api.updateProvider(
+        editing.value.id,
+        baseUrl.value,
+        apiKey.value,
+        model.value,
+        outputMode.value,
+      )
+      // 编辑会停用该配置，其他配置的启用状态不受影响。
+      replace(updated)
+      resetForm()
+    } else {
+      const created = await api.createProvider(
+        baseUrl.value,
+        apiKey.value,
+        model.value,
+        outputMode.value,
+      )
+      items.value.unshift(created)
+      resetForm()
+    }
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : 'AI 配置保存失败'
   } finally {
     apiKey.value = ''
     creating.value = false
   }
+}
+
+async function remove(item: ProviderConfig) {
+  const warning = item.active
+    ? `「${item.model}」正在使用中，删除后需要启用另一组配置才能继续识别。确定删除？`
+    : `确定删除「${item.model}」？密钥会立即清除，已有识别记录保留。`
+  if (!window.confirm(warning)) return
+  actionId.value = item.id
+  error.value = ''
+  try {
+    await api.deleteProvider(item.id)
+    items.value = items.value.filter((entry) => entry.id !== item.id)
+    if (editing.value?.id === item.id) resetForm()
+  } catch (caught) {
+    error.value = caught instanceof ApiError ? caught.message : '删除配置失败'
+  } finally {
+    actionId.value = ''
+  }
+}
+
+// HMAC 指纹 64 位十六进制，人只用它比对「换没换」，前 12 位足够，完整值放在 title。
+function shortFingerprint(value: string) {
+  return value.length > 12 ? value.slice(0, 12) : value
 }
 
 async function detect(item: ProviderConfig) {
@@ -178,7 +232,9 @@ onMounted(() => void load())
                 <span>{{
                   item.output_mode === 'json_schema' ? '严格结构化输出' : 'JSON 对象输出'
                 }}</span>
-                <span>密钥指纹 {{ item.safe_fingerprint }}</span>
+                <span :title="item.safe_fingerprint"
+                  >指纹 {{ shortFingerprint(item.safe_fingerprint) }}</span
+                >
               </div>
               <small v-if="item.capability_safe_message">{{ item.capability_safe_message }}</small>
               <p :id="`provider-action-note-${item.id}`" class="provider-action-note">
@@ -202,7 +258,21 @@ onMounted(() => void load())
                 :aria-describedby="`provider-action-note-${item.id}`"
                 @click="activate(item)"
               >
-                激活
+                激活</button
+              ><button
+                class="button button-small"
+                type="button"
+                :disabled="actionId === item.id"
+                @click="startEdit(item)"
+              >
+                编辑</button
+              ><button
+                class="button button-small button-danger"
+                type="button"
+                :disabled="actionId === item.id"
+                @click="remove(item)"
+              >
+                删除
               </button>
             </div>
           </li>
@@ -211,11 +281,15 @@ onMounted(() => void load())
       <section class="panel provider-form-panel" aria-labelledby="provider-form-title">
         <div class="panel-heading">
           <div>
-            <h2 id="provider-form-title">添加配置</h2>
-            <p>支持兼容 OpenAI 接口的多模态模型。</p>
+            <h2 id="provider-form-title">{{ editing ? '编辑配置' : '添加配置' }}</h2>
+            <p v-if="editing">正在修改「{{ editing.model }}」。保存后需要重新检测并启用。</p>
+            <p v-else>支持兼容 OpenAI 接口的多模态模型。</p>
           </div>
+          <button v-if="editing" class="text-button" type="button" @click="resetForm">
+            取消编辑
+          </button>
         </div>
-        <form class="stack-form" @submit.prevent="create">
+        <form class="stack-form" @submit.prevent="submit">
           <label class="field-stack"
             ><span>接口地址 <small>Base URL</small></span
             ><input
@@ -253,12 +327,19 @@ onMounted(() => void load())
               type="password"
               maxlength="4096"
               autocomplete="off"
-              required
+              :required="!editing"
+              :placeholder="editing ? '留空则沿用已保存的密钥' : ''"
               aria-describedby="provider-key-note"
           /></label>
-          <p id="provider-key-note" class="form-note">密钥加密保存，提交后不会在页面回显。</p>
+          <p id="provider-key-note" class="form-note">
+            {{
+              editing
+                ? '留空则沿用已保存的密钥；填写即替换。密钥加密保存，不会回显。'
+                : '密钥加密保存，提交后不会在页面回显。'
+            }}
+          </p>
           <button class="button button-primary button-block" type="submit" :disabled="creating">
-            {{ creating ? '正在保存…' : '创建待检测配置' }}
+            {{ creating ? '正在保存…' : editing ? '保存修改' : '创建待检测配置' }}
           </button>
           <div class="provider-security-note">
             <AppIcon name="shield" />

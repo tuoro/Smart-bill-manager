@@ -1894,6 +1894,46 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
   /provider-configs/{provider_config_id}:
+    put:
+      operationId: updateProviderConfig
+      tags: [providers]
+      description: 原地修改连接参数。保存后检测结果归零、配置停用、版本递增；api_key 留空则沿用已保存的密钥。
+      parameters:
+        - $ref: "#/components/parameters/ProviderConfigId"
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [base_url, model, output_mode]
+              properties:
+                base_url:
+                  type: string
+                  format: uri
+                api_key:
+                  type: string
+                  maxLength: 4096
+                model:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                output_mode:
+                  type: string
+                  enum: [json_schema, json_object]
+      responses:
+        "200":
+          description: 已重置为待检测的配置
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProviderConfig"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
       operationId: deleteProviderConfig
       tags: [providers]

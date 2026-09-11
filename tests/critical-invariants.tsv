@@ -247,3 +247,4 @@ insight-incomplete-gap-filter	incomplete 同时命中未分配与部分分配、
 dingtalk-connector-translation-only	连接器只翻译不判断：未绑定发送者的文件被拒且零写入；文本按绑定码兑换；文件按字节探测类型且来源记为 dingtalk_message；重投报已收过；不支持的消息类型与下载失败各有明确回复	./internal/adapters/dingtalk	TestHandlerBindsThenAcceptsFilesAndReplies
 chat-connector-lifecycle	保存即重置检测与启用并停掉连接；未检测通过不能启用；同一 AppKey 不能被两个工作区各认一次；启动只拉起已启用的连接	./internal/application/chatconnectors	TestSavingNewCredentialsResetsDetectionAndStopsTheConnection
 chat-intake-tenant-pin	连接归属的工作区与发送者绑定的工作区不一致时，投递与兑换都在写入前拒绝，且不落成「未绑定」、码不消耗	./internal/application/chatintake	TestTenantPinnedConnectionRejectsMembersOfOtherTenants
+provider-edit-resets-capability	编辑连接参数后库里的配置必须回到待检测、停用、版本递增；留空密钥沿用旧密钥而不是清空；跨工作区 404	./internal/transport/httpapi	TestProviderUpdateResetsDetectionKeepsKeyAndIsTenantScoped

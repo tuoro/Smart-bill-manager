@@ -44,20 +44,12 @@ func (s Service) Create(ctx context.Context, input CreateInput) (ports.ProviderC
 	if err := input.Tenant.Require(domain.CapabilityProvidersManage); err != nil {
 		return ports.ProviderConfig{}, err
 	}
-	baseURL, err := normalizeBaseURL(input.BaseURL)
+	baseURL, model, outputMode, err := normalizeConnection(input.BaseURL, input.Model, input.OutputMode)
 	if err != nil {
 		return ports.ProviderConfig{}, err
 	}
-	model := strings.TrimSpace(input.Model)
-	if model == "" || len(model) > 200 {
-		return ports.ProviderConfig{}, domain.NewRuleError("invalid_provider_model", "模型名称长度必须为 1–200 个字符", domain.ErrInvalidInput)
-	}
-	outputMode := strings.TrimSpace(input.OutputMode)
-	if outputMode != ports.ProviderOutputModeJSONSchema && outputMode != ports.ProviderOutputModeJSONObject {
-		return ports.ProviderConfig{}, domain.NewRuleError("invalid_provider_output_mode", "输出模式必须是 json_schema 或 json_object", domain.ErrInvalidInput)
-	}
-	if len(input.APIKey) == 0 || len(input.APIKey) > 4096 {
-		return ports.ProviderConfig{}, domain.NewRuleError("invalid_provider_key", "API Key 长度不正确", domain.ErrInvalidInput)
+	if err := validateAPIKey(input.APIKey); err != nil {
+		return ports.ProviderConfig{}, err
 	}
 	encrypted, err := s.cipher.Encrypt(input.APIKey)
 	if err != nil {
@@ -216,6 +208,105 @@ func (s Service) List(ctx context.Context, tenant domain.TenantContext) ([]ports
 	return configs, nil
 }
 
+type UpdateInput struct {
+	Tenant     domain.TenantContext
+	ConfigID   string
+	BaseURL    string
+	Model      string
+	OutputMode string
+	// 留空表示沿用已保存的密钥。密钥从不回显，所以「只改模型名」不该逼着用户
+	// 再找一遍 key。
+	APIKey    []byte
+	RequestID string
+}
+
+// Update 原地修改连接参数。不新建记录：历史 ai_runs 仍指向同一个 id，
+// 但版本号递增，任何依赖旧版本的检测结果与启用状态都作废。
+func (s Service) Update(ctx context.Context, input UpdateInput) (ports.ProviderConfig, error) {
+	if err := input.Tenant.Require(domain.CapabilityProvidersManage); err != nil {
+		return ports.ProviderConfig{}, err
+	}
+	if input.RequestID == "" {
+		return ports.ProviderConfig{}, domain.ErrInvalidInput
+	}
+	baseURL, model, outputMode, err := normalizeConnection(input.BaseURL, input.Model, input.OutputMode)
+	if err != nil {
+		return ports.ProviderConfig{}, err
+	}
+	if len(input.APIKey) > 0 {
+		if err := validateAPIKey(input.APIKey); err != nil {
+			return ports.ProviderConfig{}, err
+		}
+	}
+	config, err := s.repository.GetProviderConfig(ctx, input.Tenant.TenantID, input.ConfigID)
+	if err != nil {
+		return ports.ProviderConfig{}, err
+	}
+	apiKey := input.APIKey
+	encrypted := config.EncryptedAPIKey
+	if len(apiKey) > 0 {
+		encrypted, err = s.cipher.Encrypt(apiKey)
+		if err != nil {
+			return ports.ProviderConfig{}, fmt.Errorf("encrypt provider key: %w", err)
+		}
+	} else {
+		apiKey, err = s.cipher.Decrypt(config.EncryptedAPIKey)
+		if err != nil {
+			return ports.ProviderConfig{}, fmt.Errorf("decrypt provider key: %w", err)
+		}
+		defer clear(apiKey)
+	}
+	providerSchema := s.detector.ProviderSchemaIdentity()
+	if providerSchema.Version == "" || providerSchema.SHA256 == "" {
+		return ports.ProviderConfig{}, errors.New("provider schema identity is unavailable")
+	}
+	auditID, err := s.ids.NewID()
+	if err != nil {
+		return ports.ProviderConfig{}, err
+	}
+	now := s.clock.Now()
+	command := ports.ProviderUpdateCommand{
+		TenantID:        input.Tenant.TenantID,
+		ConfigID:        config.ID,
+		BaseURL:         baseURL,
+		EncryptedAPIKey: encrypted,
+		Model:           model,
+		OutputMode:      outputMode,
+		SafeFingerprint: s.cipher.Fingerprint(
+			[]byte(baseURL),
+			[]byte(model),
+			[]byte(outputMode),
+			[]byte(providerSchema.Version),
+			[]byte(providerSchema.SHA256),
+			apiKey,
+		),
+		ActorUserID:     input.Tenant.UserID,
+		AuditEventID:    auditID,
+		RequestID:       input.RequestID,
+		ExpectedVersion: config.Version,
+		UpdatedAt:       now,
+	}
+	if err := s.tx.WithinTransaction(ctx, func(transaction ports.Transaction) error {
+		return transaction.UpdateProviderConfig(ctx, command)
+	}); err != nil {
+		return ports.ProviderConfig{}, err
+	}
+	config.BaseURL = baseURL
+	config.Model = model
+	config.OutputMode = outputMode
+	config.EncryptedAPIKey = encrypted
+	config.SafeFingerprint = command.SafeFingerprint
+	config.CapabilityStatus = "pending"
+	config.CapabilityCheckedAt = nil
+	config.CapabilitySafeMessage = ""
+	config.CapabilitySchemaVersion = ""
+	config.CapabilitySchemaSHA256 = ""
+	config.Active = false
+	config.Version++
+	config.UpdatedAt = now
+	return publicConfig(config), nil
+}
+
 func (s Service) Delete(
 	ctx context.Context,
 	tenant domain.TenantContext,
@@ -242,6 +333,30 @@ func (s Service) Delete(
 	return s.tx.WithinTransaction(ctx, func(transaction ports.Transaction) error {
 		return transaction.DeleteProviderConfig(ctx, command)
 	})
+}
+
+// normalizeConnection 是 Create 与 Update 共用的连接参数校验。
+func normalizeConnection(rawBaseURL, rawModel, rawOutputMode string) (baseURL, model, outputMode string, err error) {
+	baseURL, err = normalizeBaseURL(rawBaseURL)
+	if err != nil {
+		return "", "", "", err
+	}
+	model = strings.TrimSpace(rawModel)
+	if model == "" || len(model) > 200 {
+		return "", "", "", domain.NewRuleError("invalid_provider_model", "模型名称长度必须为 1–200 个字符", domain.ErrInvalidInput)
+	}
+	outputMode = strings.TrimSpace(rawOutputMode)
+	if outputMode != ports.ProviderOutputModeJSONSchema && outputMode != ports.ProviderOutputModeJSONObject {
+		return "", "", "", domain.NewRuleError("invalid_provider_output_mode", "输出模式必须是 json_schema 或 json_object", domain.ErrInvalidInput)
+	}
+	return baseURL, model, outputMode, nil
+}
+
+func validateAPIKey(key []byte) error {
+	if len(key) == 0 || len(key) > 4096 {
+		return domain.NewRuleError("invalid_provider_key", "API Key 长度不正确", domain.ErrInvalidInput)
+	}
+	return nil
 }
 
 func normalizeBaseURL(value string) (string, error) {

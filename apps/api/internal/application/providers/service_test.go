@@ -25,8 +25,23 @@ func TestProviderInputAndPermissionBoundaries(t *testing.T) {
 	if _, err := service.List(context.Background(), viewer); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer list error = %v", err)
 	}
+	if _, err := service.Update(context.Background(), UpdateInput{Tenant: viewer, ConfigID: "config"}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("viewer update error = %v", err)
+	}
 
 	owner := domain.TenantContext{TenantID: "tenant", UserID: "user", Role: domain.RoleOwner}
+	if _, err := service.Update(context.Background(), UpdateInput{
+		Tenant: owner, ConfigID: "config", BaseURL: "https://provider.example/v1", Model: "model",
+		OutputMode: ports.ProviderOutputModeJSONSchema,
+	}); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("update without request id error = %v", err)
+	}
+	if _, err := service.Update(context.Background(), UpdateInput{
+		Tenant: owner, ConfigID: "config", BaseURL: "not-a-url", Model: "model",
+		OutputMode: ports.ProviderOutputModeJSONSchema, RequestID: "request",
+	}); err == nil {
+		t.Fatal("invalid update URL accepted")
+	}
 	for _, input := range []CreateInput{
 		{Tenant: owner, BaseURL: "not-a-url", APIKey: []byte("key"), Model: "model", OutputMode: ports.ProviderOutputModeJSONSchema},
 		{Tenant: owner, BaseURL: "https://provider.example/v1", APIKey: []byte("key"), Model: "", OutputMode: ports.ProviderOutputModeJSONSchema},

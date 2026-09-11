@@ -154,6 +154,7 @@ type Transaction interface {
 		providerSchema ProviderSchemaIdentity,
 		now time.Time,
 	) error
+	UpdateProviderConfig(ctx context.Context, command ProviderUpdateCommand) error
 	DeleteProviderConfig(ctx context.Context, command ProviderDeleteCommand) error
 	DeleteFact(ctx context.Context, command FactDeleteCommand) error
 	DeleteDocumentAggregate(ctx context.Context, command DocumentDeleteCommand) error

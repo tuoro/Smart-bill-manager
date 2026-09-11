@@ -3,6 +3,7 @@ package postgresqladapter
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -104,6 +105,54 @@ func (t transaction) ActivateProviderConfig(
 	}
 	if err := requireAffected(result); err != nil {
 		return domain.ErrVersionConflict
+	}
+	return nil
+}
+
+// UpdateProviderConfig 只改连接参数，并把检测结果与启用状态一并清掉。
+// 版本号同时作为乐观锁：两个人同时改同一组配置，后到的收到冲突而不是覆盖。
+func (t transaction) UpdateProviderConfig(ctx context.Context, command ports.ProviderUpdateCommand) error {
+	updatedAt := command.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	result, err := t.tx.ExecContext(ctx, `
+		UPDATE provider_configs
+		SET base_url = ?, encrypted_api_key = ?, model = ?, output_mode = ?, safe_fingerprint = ?,
+		    capability_status = 'pending', capability_checked_at = NULL, capability_safe_message = NULL,
+		    capability_schema_version = NULL, capability_schema_sha256 = NULL,
+		    active = FALSE, updated_at = ?, version = version + 1
+		WHERE tenant_id = ? AND id = ? AND version = ? AND deleted_at IS NULL
+	`,
+		command.BaseURL,
+		command.EncryptedAPIKey,
+		command.Model,
+		command.OutputMode,
+		command.SafeFingerprint,
+		updatedAt,
+		command.TenantID,
+		command.ConfigID,
+		command.ExpectedVersion,
+	)
+	if err != nil {
+		return fmt.Errorf("update provider config: %w", err)
+	}
+	if err := requireAffected(result); err != nil {
+		return domain.ErrVersionConflict
+	}
+	metadata, _ := json.Marshal(map[string]int{"previous_version": command.ExpectedVersion})
+	if _, err := t.tx.ExecContext(ctx, `
+		INSERT INTO audit_events (
+			id, tenant_id, actor_user_id, action, resource_type, resource_id,
+			request_id, safe_metadata_json, created_at
+		) VALUES (?, ?, ?, 'provider_config_updated', 'provider_config', ?, ?, ?::jsonb, ?)
+	`,
+		command.AuditEventID,
+		command.TenantID,
+		command.ActorUserID,
+		command.ConfigID,
+		command.RequestID,
+		string(metadata),
+		updatedAt,
+	); err != nil {
+		return fmt.Errorf("insert provider update audit: %w", err)
 	}
 	return nil
 }

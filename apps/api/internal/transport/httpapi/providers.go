@@ -43,6 +43,42 @@ func (s *Server) createProviderConfigHandler(response http.ResponseWriter, reque
 	writeJSON(response, http.StatusCreated, providerConfigResponse(config))
 }
 
+type updateProviderRequest struct {
+	BaseURL    string `json:"base_url"`
+	APIKey     string `json:"api_key"`
+	Model      string `json:"model"`
+	OutputMode string `json:"output_mode"`
+}
+
+func (s *Server) updateProviderConfigHandler(response http.ResponseWriter, request *http.Request) {
+	principal, ok := principalFromRequest(request)
+	if !ok {
+		writeError(response, request, domain.ErrUnauthenticated)
+		return
+	}
+	var input updateProviderRequest
+	if err := decodeJSON(response, request, &input); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	apiKey := []byte(input.APIKey)
+	defer clear(apiKey)
+	config, err := s.providers.Update(request.Context(), providers.UpdateInput{
+		Tenant:     tenantContext(principal),
+		ConfigID:   request.PathValue("provider_config_id"),
+		BaseURL:    input.BaseURL,
+		APIKey:     apiKey,
+		Model:      input.Model,
+		OutputMode: input.OutputMode,
+		RequestID:  requestIDFromRequest(request),
+	})
+	if err != nil {
+		writeError(response, request, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, providerConfigResponse(config))
+}
+
 func (s *Server) listProviderConfigsHandler(response http.ResponseWriter, request *http.Request) {
 	principal, ok := principalFromRequest(request)
 	if !ok {

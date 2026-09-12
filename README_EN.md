@@ -11,12 +11,10 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 Requires a `linux/amd64` host, Docker Engine, and at least 6 GiB of available memory.
 
-Create a user-defined network first — Docker's default `bridge` network does not resolve container names, and the app finds the database by name — then start the two containers:
+Start the two containers. No extra network is needed:
 
 ```bash
-docker network create my-net
-
-docker run -d --name smart-bill-manager-db --network my-net \
+docker run -d --name smart-bill-manager-db \
   --restart unless-stopped \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
@@ -24,16 +22,26 @@ docker run -d --name smart-bill-manager-db --network my-net \
   -v sbm-postgres:/var/lib/postgresql/data \
   postgres:17-alpine
 
-docker run -d --name smart-bill-manager --network my-net \
+docker run -d --name smart-bill-manager \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \
   ghcr.io/tuoro/smart-bill-manager:v0.6.0
 ```
 
-Open <http://127.0.0.1:8080>. The page guides you through two steps: the database host, port and name are already prefilled to match the commands above, so only the account and password are needed ("test connection" is available); once it verifies, the schema is created. Then create the administrator account with a username and password.
+Then read the database container's IP address, which the next step asks for:
 
-The connection can also be pinned with `-e SBM_POSTGRES_HOST`, `-e SBM_POSTGRES_USER` and `-e SBM_POSTGRES_PASSWORD`, which skips the first step. If you already run PostgreSQL, skip the first container and point at it instead.
+```bash
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' smart-bill-manager-db
+```
+
+Open <http://127.0.0.1:8080>. The page guides you through two steps. First the database connection: replace the host with the IP address printed above, keep the prefilled port `5432` and database name `smart_bill_manager`, use the account `sbm_app` and the password you chose ("test connection" is available). Once it verifies, the schema is created. Then create the administrator account with a username and password.
+
+The database does not publish a host port. Both containers sit on Docker's default `bridge` network and reach each other by IP; that network does not resolve container names, which is why the host field takes an IP address.
+
+The connection can also be pinned with `-e SBM_POSTGRES_HOST=<the IP address above>`, `-e SBM_POSTGRES_USER` and `-e SBM_POSTGRES_PASSWORD`, which skips the first step. If you already run PostgreSQL, skip the first container and point at it instead.
+
+Recreating the database container may change its IP address (`docker restart` does not). If it does, the app can no longer connect; an owner enters the new address under System → Database connection and restarts the application container.
 
 To upgrade, recreate the application container with a newer image tag. When migrations are pending the app refuses to start and says so — migrations rewrite data in place and cannot be rolled back, so create and verify a backup first (see [backup and restore](docs/backup-restore.md)), then recreate with `-e SBM_ALLOW_MIGRATION=true`.
 

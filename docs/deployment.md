@@ -18,54 +18,43 @@
 > [!IMPORTANT]
 > 这是**单角色**部署：应用使用的数据库账号同时具备建表权限。`sbm_admin` / `sbm_migration` / `sbm_runtime` 三层权限分离不在这条路径上，应用被攻破时攻击者可以直接修改表结构。升级的备份门禁由 `SBM_ALLOW_MIGRATION` 承担，见「参数说明」。
 
-### 1. 网络与数据库
+### 1. 数据库
 
-网络名和容器名随意，应用那边用 `SBM_POSTGRES_HOST` 指过去即可。唯一要求是使用**自定义网络**——Docker 默认的 `bridge` 网络不提供按容器名解析。
+容器名随意，应用那边用地址指过去即可。两个容器都留在 Docker 默认的 `bridge` 网络，按 **IP + 端口**对接；默认网络不解析容器名，所以地址一律填 IP。
 
 ```bash
-docker network create my-net
-
-docker run -d --name smart-bill-manager-db --network my-net \
+docker run -d --name smart-bill-manager-db \
   --restart unless-stopped \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
   -e POSTGRES_PASSWORD=<数据库密码> \
   -v sbm-postgres:/var/lib/postgresql/data \
   postgres:17-alpine
+
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' smart-bill-manager-db
 ```
 
-数据库不需要发布宿主端口。
+数据库不需要发布宿主端口。默认 bridge 上容器之间按 IP 互通，发布 `5432` 只会把库暴露到宿主机网络上。
 
 ### 2. 应用
 
 ```bash
-docker run -d --name smart-bill-manager --network my-net \
+docker run -d --name smart-bill-manager \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \
   ghcr.io/tuoro/smart-bill-manager:v0.6.0
 ```
 
-打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接信息（地址已预填为 `smart-bill-manager-db`（即上一步的容器名），账号密码用上一步设置的），验证通过后自动建表；再创建管理员账号。两步都完成后即可登录。
+打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接信息（地址改成上一步查到的 IP，端口 `5432` 和库名保持预填值，账号密码用上一步设置的），验证通过后自动建表；再创建管理员账号。两步都完成后即可登录。
 
-也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。环境变量优先于页面写入的配置。用户自定义网络自带出站访问，Provider 调用无需再执行 `docker network connect`。
+也可以用 `-e SBM_POSTGRES_HOST=<数据库 IP>`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步。环境变量优先于页面写入的配置。默认网络自带出站访问，Provider 调用无需额外配置。
 
-### 2.1 不建自定义网络（用 IP 对接）
+### 2.1 IP 变化
 
-数据库连接只需要地址、端口、账号和密码四项，地址填 IP 完全可以。省掉 `docker network create`：两个容器都留在默认 `bridge` 网络，用 `docker inspect` 取数据库 IP 填进初始化页即可。
+IP 在 `docker restart` 后不变；数据库容器删除重建则**可能变**——地址按可用顺序分配，实测既出现过 `172.22.0.2` → `172.22.0.3`，也出现过原地址被立刻收回复用、重建后不变。变了应用就连不上，按 2.2 填新 IP 再重启应用容器即可。
 
-```bash
-docker run -d --name smart-bill-manager-db \
-  -e POSTGRES_USER=sbm_app -e POSTGRES_DB=smart_bill_manager \
-  -e POSTGRES_PASSWORD=<数据库密码> \
-  -v sbm-postgres:/var/lib/postgresql/data postgres:17-alpine
-
-docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' smart-bill-manager-db
-```
-
-默认 bridge 上容器之间按 IP 是互通的，只是**不解析容器名**。
-
-代价是 IP 不稳定：`docker restart` 不变，但**删除重建会变**（实测 `172.22.0.2` → `172.22.0.3`）。数据库容器重建后应用会连不上，需要按下面的方式改配置。用自定义网络加容器名则不受影响，这是默认推荐它的唯一原因。
+需要地址长期固定，可以给数据库容器接一个自定义网络并用容器名作地址（`docker network create` 后两个容器都加 `--network`），或在宿主机上给它留一个固定地址。这不是默认路径，只在反复重建数据库容器时才值得。
 
 ### 2.2 修改已保存的数据库连接
 
@@ -83,7 +72,7 @@ docker restart smart-bill-manager
 
 ### 3. 使用已有的 PostgreSQL
 
-数据库连接的四项都是普通环境变量，指向任意可达实例即可——同一台机器上已有的 Postgres、NAS 上的共用实例或另一台主机。此时不需要 4.1，也不需要自定义网络：
+数据库连接的四项都是普通环境变量，指向任意可达实例即可——同一台机器上已有的 Postgres、NAS 上的共用实例或另一台主机。此时不需要起数据库容器，也不需要查 IP：
 
 ```bash
   -e SBM_POSTGRES_HOST=192.168.1.10 \
@@ -178,7 +167,7 @@ docker restart smart-bill-manager       # 重启
 
 ```bash
 docker rm -f smart-bill-manager
-docker run -d --name smart-bill-manager --network my-net \
+docker run -d --name smart-bill-manager \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \

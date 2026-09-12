@@ -11,12 +11,10 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 需要 `linux/amd64` 主机、Docker Engine，以及至少 6 GiB 可用内存。
 
-先建一个自定义网络（Docker 默认的 `bridge` 网络不支持按容器名解析，应用要靠名字找到数据库），再起两个容器：
+起两个容器，不需要额外建网络：
 
 ```bash
-docker network create my-net
-
-docker run -d --name smart-bill-manager-db --network my-net \
+docker run -d --name smart-bill-manager-db \
   --restart unless-stopped \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
@@ -24,20 +22,26 @@ docker run -d --name smart-bill-manager-db --network my-net \
   -v sbm-postgres:/var/lib/postgresql/data \
   postgres:17-alpine
 
-docker run -d --name smart-bill-manager --network my-net \
+docker run -d --name smart-bill-manager \
   --restart unless-stopped --init --stop-timeout 20 \
   -p 127.0.0.1:8080:8080 \
   -v sbm-data:/var/lib/sbm \
   ghcr.io/tuoro/smart-bill-manager:v0.6.0
 ```
 
-打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接——地址、端口、库名都已按上面的命令预填好，只需补上账号密码（可先点「检测连接」）——验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
+再取数据库容器的 IP，下一步要填：
 
-数据库连接也可以用 `-e SBM_POSTGRES_HOST`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步；这几个变量优先于页面保存的配置。已经有 PostgreSQL 的话不需要起第一个容器，直接指向它即可。
+```bash
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' smart-bill-manager-db
+```
 
-不想建网络也行——两个容器留在默认 `bridge`，用 `docker inspect` 取数据库 IP 填进页面即可，代价是数据库容器重建后 IP 会变。见[部署指南](docs/deployment.md)。
+打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接——地址改成上面查到的 IP，端口 `5432` 和库名 `smart_bill_manager` 保持预填值，账号 `sbm_app`，密码是刚才设的那个（可先点「检测连接」）——验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
 
-装好之后，数据库连接可以在「系统 → 数据库连接」里查看和修改（仅 Owner），改完重启应用容器生效。
+数据库不需要发布宿主端口。两个容器都在 Docker 默认的 `bridge` 网络里，按 IP 直接互通；默认网络不解析容器名，所以地址填 IP。
+
+数据库连接也可以用 `-e SBM_POSTGRES_HOST=<上面查到的 IP>`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步；这几个变量优先于页面保存的配置。已经有 PostgreSQL 的话不需要起第一个容器，直接填它的地址即可。
+
+装好之后，数据库连接可以在「系统 → 数据库连接」里查看和修改（仅 Owner），改完重启应用容器生效。数据库容器删除重建后 IP 可能变（`docker restart` 不会变），变了应用就连不上，在这里填新 IP 即可。见[部署指南](docs/deployment.md)。
 
 升级时换用新的镜像 tag 重建应用容器。存在未执行的数据库迁移时应用会拒绝启动并提示——迁移原地修改数据且不可回滚，请先按[备份与恢复](docs/backup-restore.md)创建并验证备份，再加 `-e SBM_ALLOW_MIGRATION=true` 重建。
 

@@ -26,6 +26,7 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/auth"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/bootstrap"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatconnectors"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatdialogue"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatintake"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
 	applicationemails "github.com/tuoro/smart-bill-manager/apps/api/internal/application/emails"
@@ -234,7 +235,10 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 		system.IDGenerator{},
 		system.Clock{},
 	)
-	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{}).WithManualEntry(store, normalizer, objects)
+	// 驳回即丢弃原件：同一份文件因此可以重新投递，不会被"已收过"永远挡住。
+	reviewService := reviews.NewService(store, store, system.IDGenerator{}, system.Clock{}).
+		WithManualEntry(store, normalizer, objects).
+		WithDiscard(documentDeletions)
 	factService := reviews.NewFactService(store, store, system.IDGenerator{}, system.Clock{})
 	allocationService := allocations.NewService(store, store, system.IDGenerator{}, system.Clock{})
 	emailService := applicationemails.NewService(
@@ -256,12 +260,19 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 		system.IDGenerator{},
 		system.Clock{},
 	)
+	// 连接器与对话服务互为依赖：前者把文本递过去，后者用前者推回执，建完再接上。
+	chatManager := dingtalk.NewManager(ctx, chatIntakeService, logger)
+	chatDialogueService := chatdialogue.NewService(
+		store, store, reviewService, chatIntakeService, chatManager, system.Clock{}, logger,
+	).WithQueries(insightService, documentQueries)
+	chatManager.BindTexts(chatDialogueService)
+	worker.OnJobFinished(chatDialogueService.Announce)
 	chatConnectorService := chatconnectors.NewService(
 		store,
 		store,
 		secretCipher,
 		dingtalk.NewProber(),
-		dingtalk.NewManager(ctx, chatIntakeService, logger),
+		chatManager,
 		system.Clock{},
 	)
 	httpServer, err := httpapi.NewServer(
@@ -316,6 +327,21 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	}
 	serverErrors := make(chan error, 1)
 	go worker.Run(ctx)
+	// 聊天会话的提醒与超时：每分钟看一眼，正常什么都不做。
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := chatDialogueService.Sweep(ctx); err != nil && ctx.Err() == nil {
+					logger.Warn("chat session sweep failed", "error", err)
+				}
+			}
+		}
+	}()
 	// 钉钉凭据在面板里配置、按工作区加密落库；启动时把已启用的连接拉起来，
 	// 之后由面板操作起停，不重启进程。
 	if err := mailSyncService.StartActive(ctx); err != nil {

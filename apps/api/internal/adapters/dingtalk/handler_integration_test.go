@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,8 +16,10 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/localstorage"
 	postgresqladapter "github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/system"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatdialogue"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/chatintake"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/documents"
+	"github.com/tuoro/smart-bill-manager/apps/api/internal/application/reviews"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
@@ -59,11 +62,21 @@ func (r *fakeReplier) SimpleReplyText(_ context.Context, webhook string, content
 }
 
 type fixture struct {
-	handler *Handler
-	replier *fakeReplier
-	intake  chatintake.Service
-	store   *postgresqladapter.Store
-	owner   ports.BootstrapOwner
+	handler  *Handler
+	replier  *fakeReplier
+	intake   chatintake.Service
+	store    *postgresqladapter.Store
+	owner    ports.BootstrapOwner
+	notifier *fakeNotifier
+}
+
+type fakeNotifier struct {
+	sent []string
+}
+
+func (n *fakeNotifier) Send(_ context.Context, _, _, _, text string) error {
+	n.sent = append(n.sent, text)
+	return nil
 }
 
 func newFixture(t *testing.T, files Downloader) fixture {
@@ -91,7 +104,14 @@ func newFixture(t *testing.T, files Downloader) fixture {
 	intake := chatintake.NewService(store, uploads, cryptography.TokenGenerator{}, system.IDGenerator{}, clock)
 	replier := &fakeReplier{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return fixture{handler: NewHandler(owner.TenantID, intake, files, replier, logger), replier: replier, intake: intake, store: store, owner: owner}
+	// 文本走真实的对话服务：绑定码的判断只有那一处实现，这里不摆一个替身。
+	notifier := &fakeNotifier{}
+	dialogue := chatdialogue.NewService(store, store,
+		reviews.NewService(store, store, system.IDGenerator{}, clock), intake, notifier, clock, logger)
+	return fixture{
+		handler: NewHandler(owner.TenantID, intake, dialogue, files, replier, logger),
+		replier: replier, intake: intake, store: store, owner: owner, notifier: notifier,
+	}
 }
 
 func (f fixture) issueCode(t *testing.T) string {
@@ -191,7 +211,8 @@ func TestHandlerExplainsUnsupportedMessagesAndFailures(t *testing.T) {
 	if got := f.handle(t, message("audio", "staff-3", nil, "")); got != replyUnsupportedMsg {
 		t.Fatalf("audio reply = %q", got)
 	}
-	if got := f.handle(t, message("text", "staff-3", nil, "   ")); got != replyUnsupportedMsg {
+	// 已绑定、手头没有待确认的单据：告诉他现在没事可做，而不是"绑定码无效"。
+	if got := f.handle(t, message("text", "staff-3", nil, "   ")); !strings.HasPrefix(got, "现在没有待确认的单据。") {
 		t.Fatalf("blank text reply = %q", got)
 	}
 	if got := f.handle(t, message("file", "staff-3", map[string]any{"fileName": "x.pdf"}, "")); got != replyDownloadFailed {
@@ -199,5 +220,32 @@ func TestHandlerExplainsUnsupportedMessagesAndFailures(t *testing.T) {
 	}
 	if got := f.handle(t, message("file", "staff-3", map[string]any{"downloadCode": "any"}, "")); got != replyTooLarge {
 		t.Fatalf("too large reply = %q", got)
+	}
+}
+
+// 图片消息钉钉不给文件名，名字由我们合成。MsgId 是 base64 串，含 "/" 时直接拿来当
+// 文件名会被上传路径的 filepath.Base 截断，收件箱里只剩一段无意义残片。
+func TestSynthesizedPictureNameSurvivesUploadNormalization(t *testing.T) {
+	f := newFixture(t, fakeFiles{blobs: map[string][]byte{"dl-png": pixelPNG}})
+	if got := f.handle(t, message("text", "staff-1", nil, f.issueCode(t))); got != replyBound {
+		t.Fatalf("bind = %q", got)
+	}
+	picture := message("picture", "staff-1", map[string]any{"downloadCode": "dl-png"}, "")
+	picture.MsgId = "msg7Iz4mIIv1kB5L0SymB/H6w=="
+	reply := f.handle(t, picture)
+
+	var stored string
+	if err := f.store.DB().QueryRow(`SELECT original_name FROM documents WHERE ingestion_kind = 'dingtalk_message'`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(stored, "钉钉图片-") || !strings.HasSuffix(stored, ".png") || strings.ContainsAny(stored, "/+=") {
+		t.Fatalf("stored document name = %q", stored)
+	}
+	if reply != "已收到 "+stored+"，正在识别。" {
+		t.Fatalf("reply = %q, stored = %q", reply, stored)
+	}
+	// 同一条消息重投得到同一个名字：名字来自 MsgId 的摘要，不是随机数。
+	if again := synthesizedName("钉钉图片", picture.MsgId); !strings.HasPrefix(stored, again) {
+		t.Fatalf("name is not deterministic: %q vs %q", stored, again)
 	}
 }

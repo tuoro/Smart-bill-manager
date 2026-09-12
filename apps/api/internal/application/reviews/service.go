@@ -16,11 +16,12 @@ import (
 )
 
 type Service struct {
-	manual  *manualDependencies
-	reviews ports.ReviewRepository
-	tx      ports.TransactionManager
-	ids     ports.IDGenerator
-	clock   ports.Clock
+	manual    *manualDependencies
+	discarder Discarder
+	reviews   ports.ReviewRepository
+	tx        ports.TransactionManager
+	ids       ports.IDGenerator
+	clock     ports.Clock
 }
 
 func NewService(
@@ -30,6 +31,19 @@ func NewService(
 	clock ports.Clock,
 ) Service {
 	return Service{reviews: reviews, tx: tx, ids: ids, clock: clock}
+}
+
+// Discarder 在驳回之后清掉原件。用接口而不是直接依赖 documents 包，审核用例
+// 不必知道删除是怎么做的。
+type Discarder interface {
+	DiscardRejected(ctx context.Context, tenant domain.TenantContext, documentID, requestID string) error
+}
+
+// WithDiscard 接上"驳回即丢弃原件"。没接上时驳回只改状态，原件保留——测试与
+// 只关心审核状态的调用方因此不必准备对象存储。
+func (s Service) WithDiscard(discarder Discarder) Service {
+	s.discarder = discarder
+	return s
 }
 
 type RevisionFieldInput struct {

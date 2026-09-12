@@ -84,6 +84,16 @@ func (t transaction) UpsertChatConnector(ctx context.Context, c domain.ChatConne
 	return nil
 }
 
+func (t transaction) DeleteChatConnector(ctx context.Context, tenantID, platform string, expectedVersion int64) error {
+	result, err := t.tx.ExecContext(ctx, `
+		DELETE FROM chat_connectors WHERE tenant_id = ? AND platform = ? AND version = ?`,
+		tenantID, platform, expectedVersion)
+	if err != nil {
+		return fmt.Errorf("delete chat connector: %w", err)
+	}
+	return requireOneRow(result, domain.ErrVersionConflict)
+}
+
 func (t transaction) RecordChatConnectorDetection(
 	ctx context.Context, tenantID, platform, status, message string, expectedVersion int64, now time.Time,
 ) error {

@@ -55,13 +55,41 @@ async function run(name: string, action: () => Promise<ChatConnector>) {
 }
 
 async function save() {
-  if (!appKey.value.trim() || !appSecret.value) {
-    error.value = '请填写 AppKey 与 AppSecret'
+  if (!appKey.value.trim()) {
+    error.value = '请填写 AppKey'
+    return
+  }
+  // 已经存过密钥时可以只改 AppKey：留空表示沿用那把。
+  if (!appSecret.value && !connector.value?.has_secret) {
+    error.value = '请填写 AppSecret'
     return
   }
   const secret = appSecret.value
   appSecret.value = ''
   await run('保存', () => api.saveChatConnector('dingtalk', appKey.value.trim(), secret))
+}
+
+async function remove() {
+  if (busy.value || !connector.value) return
+  if (
+    !window.confirm(
+      '确定删除钉钉凭据？连接会停掉、密钥一并清除。已绑定的成员不受影响，重新配置后可继续投递。',
+    )
+  )
+    return
+  busy.value = '删除'
+  error.value = ''
+  try {
+    await api.deleteChatConnector('dingtalk')
+    if (!live) return
+    connector.value = undefined
+    appKey.value = ''
+    appSecret.value = ''
+  } catch (caught) {
+    if (live) error.value = caught instanceof ApiError ? caught.message : '删除失败'
+  } finally {
+    if (live) busy.value = ''
+  }
 }
 
 function formatMoment(value: string | null | undefined) {
@@ -190,6 +218,14 @@ function formatMoment(value: string | null | undefined) {
           >
             停用
           </button>
+          <button
+            class="button button-danger"
+            type="button"
+            :disabled="Boolean(busy)"
+            @click="remove"
+          >
+            {{ busy === '删除' ? '正在删除…' : '删除凭据' }}
+          </button>
         </div>
         <p v-if="connector?.active" class="form-note connector-note">
           已连接。成员到
@@ -223,11 +259,14 @@ function formatMoment(value: string | null | undefined) {
               type="password"
               maxlength="512"
               autocomplete="off"
-              required
+              :required="!connector?.has_secret"
+              :placeholder="connector?.has_secret ? '留空则沿用已保存的密钥' : ''"
               aria-describedby="connector-secret-note"
           /></label>
           <p id="connector-secret-note" class="form-note">
-            加密保存，提交后不回显。更换凭据会重置检测并断开当前连接，需要重新检测、启用。
+            加密保存，提交后不回显。<template v-if="connector?.has_secret"
+              >只改 AppKey 时密钥可以留空。</template
+            >保存会重置检测并断开当前连接，需要重新检测、启用。
           </p>
           <button
             class="button button-primary button-block"

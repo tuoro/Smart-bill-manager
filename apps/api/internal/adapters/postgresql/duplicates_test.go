@@ -150,3 +150,63 @@ func TestVisualDuplicateBandLookupHasEachCompositeIndexAndAvoidsSequentialCandid
 		t.Fatalf("visual duplicate query scans every target page:\n%s", plan.String())
 	}
 }
+
+// 用户取消或驳回过的单据不该再被当成"疑似重复"的对照物：那份东西已经被明确
+// 丢弃了。识别失败的同理，它从来没变成过记录。
+func TestDiscardedDocumentsAreNotVisualDuplicateTargets(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
+	owner := ports.BootstrapOwner{
+		UserID: "owner", TenantID: "tenant-a", Email: "owner@example.test", PasswordHash: "test-only",
+		DisplayName: "Owner", TenantName: "Tenant A", DefaultCurrency: domain.CurrencyCNY, Timezone: "UTC", CreatedAt: now,
+	}
+	if err := store.BootstrapOwner(ctx, owner); err != nil {
+		t.Fatal(err)
+	}
+	// 四份视觉上彼此相同的单据，只有状态不同。
+	targets := []struct {
+		id     string
+		status string
+	}{
+		{"current", "stored"},
+		{"kept", "needs_review"},
+		{"cancelled-one", "cancelled"},
+		{"rejected-one", "rejected"},
+		{"failed-one", "failed"},
+	}
+	if err := store.WithinTransaction(ctx, func(transaction ports.Transaction) error {
+		for index, target := range targets {
+			if err := transaction.InsertDocument(ctx, ports.Document{
+				ID: target.id, TenantID: "tenant-a", StorageKey: "tenants/tenant-a/" + target.id,
+				OriginalName: target.id + ".png", DeclaredMIME: "image/png", DetectedMIME: "image/png",
+				SizeBytes: 100, SHA256: strings.Repeat(string("abcde"[index]), 64), PageCount: 1,
+				Status: target.status, IngestionKind: domain.DocumentIngestionUpload,
+				OriginalObjectOwner: domain.DocumentObjectOwnerDocument,
+				CreatedByUserID:     owner.UserID, CreatedAt: now,
+			}); err != nil {
+				return err
+			}
+			if err := transaction.InsertDocumentPages(ctx, []ports.DocumentPageRecord{{
+				ID: target.id + "-page-1", TenantID: "tenant-a", DocumentID: target.id, PageNumber: 1,
+				StorageKey: "tenants/tenant-a/" + target.id + "/page-1",
+				Width:      1200, Height: 1800, SHA256: strings.Repeat(string("edcba"[index]), 64),
+				ProcessingVersion: "document-normalize/2",
+				VisualFingerprint: domain.NewPageVisualFingerprint(0, 0),
+				CreatedAt:         now,
+			}}); err != nil {
+				return err
+			}
+		}
+		_, found, err := transaction.ListVisualDuplicateDocuments(ctx, "tenant-a", "current")
+		if err != nil {
+			return err
+		}
+		if len(found) != 1 || found[0].ID != "kept" {
+			t.Fatalf("visual duplicate targets = %#v, want only the live one", found)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}

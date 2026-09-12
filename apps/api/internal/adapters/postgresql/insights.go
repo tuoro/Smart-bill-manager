@@ -89,11 +89,13 @@ const insightBaseFilter = `
 	  AND (? = '' OR trip_id = ?)
 `
 
+// incomplete 是"还没配齐"：未分配与部分分配都算，用来一眼看出哪些支付还缺发票。
 const insightAllocationPredicate = `(
 	? = 'all'
 	OR (? = 'unallocated' AND allocated_minor = 0)
 	OR (? = 'partial' AND allocated_minor > 0 AND allocated_minor < amount_minor)
 	OR (? = 'allocated' AND allocated_minor = amount_minor)
+	OR (? = 'incomplete' AND allocated_minor < amount_minor)
 )`
 
 const insightAllocationFilter = "\n\t  AND " + insightAllocationPredicate + "\n"
@@ -472,7 +474,10 @@ func scanInsightProjection(rows *sql.Rows, limit int) ([]domain.InsightAggregate
 }
 
 func insightAllocationArguments(filter domain.InsightFilter) []any {
-	return []any{filter.AllocationStatus, filter.AllocationStatus, filter.AllocationStatus, filter.AllocationStatus}
+	return []any{
+		filter.AllocationStatus, filter.AllocationStatus, filter.AllocationStatus,
+		filter.AllocationStatus, filter.AllocationStatus,
+	}
 }
 
 func combineInsightAggregateParts(majorText, remainderText string) (int64, error) {
@@ -548,13 +553,7 @@ func insightBaseArguments(tenantID string, filter domain.InsightFilter) []any {
 }
 
 func insightFilterArguments(tenantID string, filter domain.InsightFilter) []any {
-	return append(
-		insightBaseArguments(tenantID, filter),
-		filter.AllocationStatus,
-		filter.AllocationStatus,
-		filter.AllocationStatus,
-		filter.AllocationStatus,
-	)
+	return append(insightBaseArguments(tenantID, filter), insightAllocationArguments(filter)...)
 }
 
 func withInsightReadSnapshot[T any](

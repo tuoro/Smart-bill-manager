@@ -173,6 +173,7 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("POST /api/v1/chat-binding-codes", s.requireSession(s.requireCSRF(http.HandlerFunc(s.createChatBindingCodeHandler))))
 	router.Handle("GET /api/v1/chat-connectors/{platform}", s.requireSession(http.HandlerFunc(s.chatConnectorHandler)))
 	router.Handle("PUT /api/v1/chat-connectors/{platform}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.saveChatConnectorHandler))))
+	router.Handle("DELETE /api/v1/chat-connectors/{platform}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteChatConnectorHandler))))
 	router.Handle("POST /api/v1/chat-connectors/{platform}/detect", s.requireSession(s.requireCSRF(s.chatConnectorAction(func(r *http.Request, t domain.TenantContext, p string) (chatconnectors.Public, error) {
 		return s.chatConnectors.Detect(r.Context(), t, p)
 	}))))

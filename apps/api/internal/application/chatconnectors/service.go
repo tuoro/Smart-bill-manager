@@ -85,8 +85,11 @@ func (s Service) Get(ctx context.Context, tenant domain.TenantContext, platform 
 	return public(c), nil
 }
 
-// Save 写入新凭据。保存即重置：检测回到 pending、启用清零、正在跑的连接停掉。
-// 新密钥没验过就不该有连接在用它。
+// Save 写入凭据。保存即重置：检测回到 pending、启用清零、正在跑的连接停掉——
+// 新凭据没验过就不该有连接在用它。
+//
+// appSecret 留空表示沿用已保存的那把：只想改 AppKey 时不必再去开放平台翻一遍密钥。
+// 从没存过密钥时留空则拒绝。
 func (s Service) Save(
 	ctx context.Context, tenant domain.TenantContext, platform, appKey string, appSecret []byte,
 ) (Public, error) {
@@ -100,12 +103,22 @@ func (s Service) Save(
 	if appKey == "" || len(appKey) > 200 {
 		return Public{}, domain.NewRuleError("invalid_chat_app_key", "AppKey 长度必须为 1–200 个字符", domain.ErrInvalidInput)
 	}
-	if len(appSecret) == 0 || len(appSecret) > 512 {
+	if len(appSecret) > 512 {
 		return Public{}, domain.NewRuleError("invalid_chat_app_secret", "AppSecret 长度不正确", domain.ErrInvalidInput)
 	}
-	encrypted, err := s.cipher.Encrypt(appSecret)
-	if err != nil {
-		return Public{}, fmt.Errorf("encrypt app secret: %w", err)
+	var encrypted []byte
+	var err error
+	if len(appSecret) > 0 {
+		encrypted, err = s.cipher.Encrypt(appSecret)
+		if err != nil {
+			return Public{}, fmt.Errorf("encrypt app secret: %w", err)
+		}
+	} else {
+		existing, getErr := s.repository.GetChatConnector(ctx, tenant.TenantID, platform)
+		if getErr != nil || len(existing.EncryptedAppSecret) == 0 {
+			return Public{}, domain.NewRuleError("invalid_chat_app_secret", "AppSecret 长度不正确", domain.ErrInvalidInput)
+		}
+		encrypted = existing.EncryptedAppSecret
 	}
 	now := s.clock.Now()
 	record := domain.ChatConnector{
@@ -190,6 +203,24 @@ func (s Service) Deactivate(ctx context.Context, tenant domain.TenantContext, pl
 	}
 	s.runtime.Stop(tenant.TenantID, platform)
 	return s.Get(ctx, tenant, platform)
+}
+
+// Delete 移除整条凭据：连接停掉、密文一并消失。之后页面回到"尚未配置"。
+func (s Service) Delete(ctx context.Context, tenant domain.TenantContext, platform string) error {
+	if err := tenant.Require(domain.CapabilityProvidersManage); err != nil {
+		return err
+	}
+	c, err := s.repository.GetChatConnector(ctx, tenant.TenantID, platform)
+	if err != nil {
+		return err
+	}
+	if err := s.tx.WithinReadCommittedTransaction(ctx, func(t ports.Transaction) error {
+		return t.DeleteChatConnector(ctx, tenant.TenantID, platform, c.Version)
+	}); err != nil {
+		return err
+	}
+	s.runtime.Stop(tenant.TenantID, platform)
+	return nil
 }
 
 // StartActive 在进程启动时把所有已启用的连接拉起来。

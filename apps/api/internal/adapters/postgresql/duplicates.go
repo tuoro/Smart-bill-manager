@@ -11,6 +11,9 @@ import (
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 )
 
+// 已被丢弃的单据不是重复目标：用户取消或驳回它，就是说"这不算一条记录"；识别
+// 失败的那份则从来没产生过记录。拿它们提示"疑似重复"只会挡住重新上传同一张票，
+// 而挡住的理由并不存在。已确认、待审核、处理中的单据仍然是目标。
 const listVisualDuplicateDocumentsQuery = `
 	WITH current_pages AS MATERIALIZED (
 		SELECT tenant_id, document_id, visual_fingerprint_version,
@@ -55,7 +58,10 @@ const listVisualDuplicateDocumentsQuery = `
 	       page.dhash_band_0, page.dhash_band_1, page.dhash_band_2, page.dhash_band_3
 	FROM document_pages page
 	JOIN candidate_documents candidate ON candidate.document_id = page.document_id
+	JOIN documents document
+	  ON document.tenant_id = page.tenant_id AND document.id = page.document_id
 	WHERE page.tenant_id = ?
+	  AND document.status NOT IN ('cancelled', 'rejected', 'failed')
 	ORDER BY page.document_id, page.page_number
 `
 

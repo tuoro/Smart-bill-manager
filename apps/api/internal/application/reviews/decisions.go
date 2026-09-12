@@ -186,15 +186,29 @@ func (s Service) Reject(
 	}
 	if err := s.tx.WithinTransaction(ctx, func(transaction ports.Transaction) error {
 		return transaction.RejectReview(ctx, command)
-	}); err == nil {
-		return nil
-	} else {
+	}); err != nil {
 		replay, replayErr := s.reviews.GetRejectReplay(ctx, tenant.TenantID, jobID, input.IdempotencyKey)
 		if replayErr == nil && replay.ExpectedRevision == input.ExpectedRevision && replay.Reason == input.Reason {
-			return nil
+			return s.discardRejected(ctx, tenant, current.DocumentID, input.RequestID)
 		}
 		return err
 	}
+	return s.discardRejected(ctx, tenant, current.DocumentID, input.RequestID)
+}
+
+// 驳回即丢弃：单据不算一条记录，原件跟着清掉，同一份文件因此可以重新投递。
+// 驳回已经提交，这一步失败就把错误交出去——同一个幂等键重试会重放驳回（无操作）
+// 后再清一次，最终收敛。
+func (s Service) discardRejected(ctx context.Context, tenant domain.TenantContext, documentID, requestID string) error {
+	if s.discarder == nil || documentID == "" {
+		return nil
+	}
+	err := s.discarder.DiscardRejected(ctx, tenant, documentID, requestID)
+	if errors.Is(err, domain.ErrNotFound) {
+		// 已经清过了（重放或并发），结果与预期一致。
+		return nil
+	}
+	return err
 }
 
 func validateDecisionInput(idempotencyKey, requestID string) error {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/cryptography"
+	postgresqladapter "github.com/tuoro/smart-bill-manager/apps/api/internal/adapters/postgresql"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/domain"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/ports"
 	"github.com/tuoro/smart-bill-manager/apps/api/internal/testsupport/postgresqltest"
@@ -38,6 +39,7 @@ func (r *fakeRuntime) Stop(tenantID, platform string) { r.events = append(r.even
 
 type fixture struct {
 	service Service
+	store   *postgresqladapter.Store
 	probe   *fakeProbe
 	runtime *fakeRuntime
 	tenant  domain.TenantContext
@@ -73,6 +75,7 @@ func newFixture(t *testing.T) fixture {
 	probe, runtime := &fakeProbe{}, &fakeRuntime{}
 	return fixture{
 		service: NewService(store, store, cipher, probe, runtime, fixedClock{now: now.Add(time.Hour)}),
+		store:   store,
 		probe:   probe, runtime: runtime,
 		tenant: domain.TenantContext{TenantID: owner.TenantID, UserID: owner.UserID, Role: domain.RoleOwner},
 		other:  domain.TenantContext{TenantID: "00000000-0000-4000-8000-000000000202", UserID: owner.UserID, Role: domain.RoleOwner},
@@ -213,5 +216,53 @@ func TestConnectorRequiresProviderManagementCapability(t *testing.T) {
 	viewer := domain.TenantContext{TenantID: f.tenant.TenantID, UserID: f.tenant.UserID, Role: domain.RoleMember}
 	if _, err := f.service.Save(ctx, viewer, domain.ChatPlatformDingTalk, "k", []byte("s")); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("viewer save = %v", err)
+	}
+}
+
+// 只改 AppKey 时密钥可以留空；删除把整条凭据连同密文一起移除。
+func TestSaveKeepsStoredSecretAndDeleteRemovesConnector(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	if _, err := f.service.Save(ctx, f.tenant, domain.ChatPlatformDingTalk, "key-one", []byte("secret-one")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Detect(ctx, f.tenant, domain.ChatPlatformDingTalk); err != nil {
+		t.Fatal(err)
+	}
+	// 留空保存：AppKey 换掉，密钥沿用，检测照例回到待检测。
+	saved, err := f.service.Save(ctx, f.tenant, domain.ChatPlatformDingTalk, "key-two", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.AppKey != "key-two" || !saved.HasSecret || saved.DetectionStatus != domain.ChatConnectorDetectionPending {
+		t.Fatalf("saved = %#v", saved)
+	}
+	// 沿用的确实是原来那把：检测能通过说明解密出来的密钥仍然可用。
+	if _, err := f.service.Detect(ctx, f.tenant, domain.ChatPlatformDingTalk); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Activate(ctx, f.tenant, domain.ChatPlatformDingTalk); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.service.Delete(ctx, f.tenant, domain.ChatPlatformDingTalk); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Get(ctx, f.tenant, domain.ChatPlatformDingTalk); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("get after delete = %v", err)
+	}
+	var rows int
+	if err := f.store.DB().QueryRowContext(ctx, `SELECT count(*) FROM chat_connectors WHERE tenant_id = ?`, f.tenant.TenantID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Fatalf("ciphertext rows after delete = %d", rows)
+	}
+	if err := f.service.Delete(ctx, f.tenant, domain.ChatPlatformDingTalk); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("second delete = %v", err)
+	}
+	// 从未保存过密钥时不许留空。
+	if _, err := f.service.Save(ctx, f.tenant, domain.ChatPlatformDingTalk, "key-three", nil); err == nil {
+		t.Fatal("empty secret accepted without a stored one")
 	}
 }

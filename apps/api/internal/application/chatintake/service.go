@@ -191,6 +191,24 @@ func (s Service) Receive(ctx context.Context, message Message) (Result, error) {
 	}, nil
 }
 
+// FindIdentity 回答「这个外部账号绑过没有」。只读，不做任何权限判断——调用方
+// 拿它区分「没绑定」和「绑定了但现在没事可做」这两种截然不同的提示。
+func (s Service) FindIdentity(ctx context.Context, platform, externalUserID string) (domain.ChatIdentity, error) {
+	if !domain.ValidChatPlatform(platform) || externalUserID == "" {
+		return domain.ChatIdentity{}, domain.ErrChatSenderNotLinked
+	}
+	var identity domain.ChatIdentity
+	err := s.tx.WithinReadCommittedTransaction(ctx, func(transaction ports.Transaction) error {
+		var findErr error
+		identity, findErr = transaction.FindChatIdentity(ctx, platform, externalUserID)
+		return findErr
+	})
+	if err != nil {
+		return domain.ChatIdentity{}, err
+	}
+	return identity, nil
+}
+
 func (s Service) ListBindings(
 	ctx context.Context,
 	tenant domain.TenantContext,

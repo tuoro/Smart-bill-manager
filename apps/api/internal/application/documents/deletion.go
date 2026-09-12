@@ -38,6 +38,31 @@ func (s DeletionService) Delete(
 	if err := tenant.Require(domain.CapabilityResourcesDelete); err != nil {
 		return err
 	}
+	return s.discard(ctx, tenant, documentID, requestID)
+}
+
+// DiscardRejected 是驳回的收尾：单据被判定"不算一条记录"，原件跟着清掉，同一份
+// 文件因此可以重新投递。
+//
+// 这里按 claims.review 授权而不是 resources.delete：决定这份单据命运的正是审核者，
+// 丢掉一份从未成为记录的原件是那个决定的一部分，不该再要一次删除权限——否则没有
+// 删除权限的成员驳回之后，这份文件就永远投不进来了。
+func (s DeletionService) DiscardRejected(
+	ctx context.Context,
+	tenant domain.TenantContext,
+	documentID, requestID string,
+) error {
+	if err := tenant.Require(domain.CapabilityClaimsReview); err != nil {
+		return err
+	}
+	return s.discard(ctx, tenant, documentID, requestID)
+}
+
+func (s DeletionService) discard(
+	ctx context.Context,
+	tenant domain.TenantContext,
+	documentID, requestID string,
+) error {
 	if documentID == "" || requestID == "" {
 		return domain.ErrInvalidInput
 	}

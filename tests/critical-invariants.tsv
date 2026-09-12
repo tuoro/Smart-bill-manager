@@ -252,3 +252,12 @@ email-source-ownership-and-connector	邮箱按成员归属：别人看不到、�
 imap-incremental-cursor	首次接入只回溯 30 天，之后按 UID 增量；处理失败时游标停在失败之前；一轮受 limit 限制	./internal/adapters/imap	TestFetchNewLooksBackThenContinuesByUID
 trip-link-attribution	已确认关联的支付与发票互相跟随行程归属；关联指向不同行程即冲突留人工；「保持无归属」优先且恢复自动后重新跟随；解除关联不影响无关单据	./internal/application/reviews	TestLinkedPaymentAndInvoiceFollowEachOthersTrip
 trip-link-drift-reconcile	规则上线前写下的归属在启动时用同一套规则对齐；已一致时不写入；人工「保持无归属」不被回填带走	./internal/application/reviews	TestStartupReconcilesTripLinkDriftLeftByEarlierVersions
+chat-connector-secret-reuse-and-delete	只改 AppKey 时 AppSecret 可留空并沿用已存的那把（沿用后仍能检测通过）；从未存过则拒绝留空；删除移除整条凭据含密文，重复删除为 404	./internal/application/chatconnectors	TestSaveKeepsStoredSecretAndDeleteRemovesConnector
+dingtalk-synthesized-filename	图片消息合成的文件名必须是文件名安全的（MsgId 含斜杠时不能被 filepath.Base 截成残片），且同一条消息重投得到同一个名字	./internal/adapters/dingtalk	TestSynthesizedPictureNameSurvivesUploadNormalization
+chat-receipt-confirm-lifecycle	钉钉投件识别完推回执并开会话；回「确认」入账一次、会话关闭、再确认不重复入账；「作废」不生成记录；看不懂的回复不做决定	./internal/application/chatdialogue	TestReceiptThenConfirmCreatesFactAndClosesSession
+chat-session-interrupt-and-timeout	一人同时只有一条进行中，新单据打断旧的并说明去向；20 分钟只提醒一次，30 分钟结束会话且单据仍留在网页待审核	./internal/application/chatdialogue	TestSweepRemindsOnceThenExpires
+duplicate-targets-exclude-discarded	被取消/驳回/识别失败的单据不再充当视觉重复的对照物：用户已明确丢弃或它从未成为记录，不该挡住重新上传同一张票	./internal/adapters/postgresql	TestDiscardedDocumentsAreNotVisualDuplicateTargets
+reject-discards-original	驳回即丢弃原件：作废后同一份文件可以重新投递，不被字节级去重永远挡住；按审核能力授权而不是删除能力	./internal/application/chatdialogue	TestDiscardRejectsAndRemovesOriginalSoTheFileCanComeBack
+chat-field-edit-by-number	回编号改字段：走与网页同一条修订用例，金额与时间只接受固定写法，写错当场说明；改完回到同一张卡且编号不变	./internal/application/chatdialogue	TestEditFieldByNumberThenConfirm
+chat-duplicate-and-allocation	疑似重复逐笔判断（判同一笔即作废）、关联候选可挑可拒；未判完不允许确认	./internal/application/chatdialogue	TestResolveDuplicateThenConfirm
+chat-menu-and-queries	菜单按当前状态给出能做的事；漏票与待审核两项查询走与网页同一套用例、不改变会话状态	./internal/application/chatdialogue	TestMenuAndQueries

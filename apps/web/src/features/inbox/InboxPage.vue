@@ -28,6 +28,9 @@ let manualTrigger: HTMLElement | null = null
 const canStartManual = computed(() =>
   sessionStore.current.value?.capabilities.includes('claims.review'),
 )
+const canDelete = computed(() =>
+  sessionStore.current.value?.capabilities.includes('resources.delete'),
+)
 
 function openManual(job: JobSummary, event: Event) {
   manualTrigger = event.currentTarget as HTMLElement
@@ -143,6 +146,30 @@ async function cancel(job: JobSummary) {
     replaceJob(updated)
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : '取消请求失败'
+  } finally {
+    actionJobId.value = ''
+  }
+}
+
+// 作废、取消或失败的单据没有产生记录，原件却仍占着"这份文件已收过"的位置——
+// 删掉它，同一张票才能重新投递。已确认的单据不在此列，那是正式记录。
+function canDiscard(status: JobSummary['status']) {
+  return ['rejected', 'cancelled', 'failed'].includes(status)
+}
+
+async function discard(job: JobSummary) {
+  if (
+    !window.confirm(
+      `删除「${job.original_name}」？这份单据没有生成记录，删除后同一份文件可以重新上传。`,
+    )
+  )
+    return
+  actionJobId.value = job.id
+  try {
+    await api.deleteDocument(job.document_id)
+    jobs.value = jobs.value.filter((item) => item.id !== job.id)
+  } catch (caught) {
+    error.value = caught instanceof ApiError ? caught.message : '删除单据失败'
   } finally {
     actionJobId.value = ''
   }
@@ -425,8 +452,22 @@ onUnmounted(() => {
                 >
                   取消
                 </button>
+                <button
+                  v-if="canDelete && canDiscard(job.status)"
+                  class="text-button danger-text"
+                  type="button"
+                  :disabled="Boolean(actionJobId) || offline"
+                  @click="discard(job)"
+                >
+                  删除原件
+                </button>
                 <span
-                  v-if="!canReview(job.status) && !canRetry(job.status) && !canCancel(job.status)"
+                  v-if="
+                    !canReview(job.status) &&
+                    !canRetry(job.status) &&
+                    !canCancel(job.status) &&
+                    !(canDelete && canDiscard(job.status))
+                  "
                   class="quiet"
                   >—</span
                 >

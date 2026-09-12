@@ -407,7 +407,8 @@ paths:
       tags: [chat-connectors]
       description: >-
         保存或替换凭据。保存即重置：检测回到 pending、启用清零、正在运行的连接停掉
-        ——新密钥没验过就不该有连接在用它。AppSecret 用主密钥加密落库。
+        ——新凭据没验过就不该有连接在用它。AppSecret 用主密钥加密落库。
+        app_secret 留空表示沿用已保存的那把（只改 AppKey 时用），从未保存过时不可留空。
       parameters:
         - $ref: "#/components/parameters/CsrfToken"
       requestBody:
@@ -420,7 +421,7 @@ paths:
               required: [app_key, app_secret]
               properties:
                 app_key: { type: string, minLength: 1, maxLength: 200 }
-                app_secret: { type: string, minLength: 1, maxLength: 512 }
+                app_secret: { type: string, maxLength: 512 }
       responses:
         "200":
           description: 已保存，待检测
@@ -431,6 +432,18 @@ paths:
         "401": { description: 会话失效 }
         "403": { $ref: "#/components/responses/Forbidden" }
         "409": { description: 该 AppKey 已被另一个工作区使用 }
+    delete:
+      operationId: deleteChatConnector
+      tags: [chat-connectors]
+      description: 移除整条凭据：连接停掉、密文一并删除，页面回到「尚未配置」。已绑定的成员不受影响，重新配置后即可继续投递。
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
+      responses:
+        "204": { description: 已删除 }
+        "401": { description: 会话失效 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
   /chat-connectors/{platform}/detect:
     parameters:
       - name: platform

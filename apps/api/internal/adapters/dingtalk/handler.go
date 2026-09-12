@@ -3,6 +3,8 @@ package dingtalk
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,7 +22,7 @@ const (
 	replyInvalidCode    = "绑定码无效或已失效，请在网页「账号与密码」重新生成。"
 	replyNotLinked      = "还没绑定账号。请先在网页「账号与密码」生成绑定码并发给我。"
 	replyForbidden      = "你的账号没有投递单据的权限。"
-	replyDuplicate      = "这份文件之前已收过，不再重复识别。"
+	replyDuplicate      = "这份文件之前已收过，不再重复识别。若那一份已作废或想重来，请在网页收件箱删除它再重发。"
 	replyUnsupportedMsg = "目前只支持发送图片、PDF，或回复绑定码。"
 	replyBadContent     = "这个文件不是图片或 PDF，无法识别。"
 	replyTooLarge       = "文件超过 20 MiB，无法接收。"
@@ -43,13 +45,15 @@ type Handler struct {
 	// 这条连接属于哪个工作区。发送者绑在别的工作区就拒绝，在写入前。
 	tenantID string
 	intake   chatintake.Service
-	files    Downloader
-	reply    Replier
-	logger   *slog.Logger
+	// 文本消息交给对话服务：绑定码、确认、作废都在那边判断，连接器不复制规则。
+	texts  TextHandler
+	files  Downloader
+	reply  Replier
+	logger *slog.Logger
 }
 
-func NewHandler(tenantID string, intake chatintake.Service, files Downloader, reply Replier, logger *slog.Logger) *Handler {
-	return &Handler{tenantID: tenantID, intake: intake, files: files, reply: reply, logger: logger}
+func NewHandler(tenantID string, intake chatintake.Service, texts TextHandler, files Downloader, reply Replier, logger *slog.Logger) *Handler {
+	return &Handler{tenantID: tenantID, intake: intake, texts: texts, files: files, reply: reply, logger: logger}
 }
 
 // Handle 是 SDK 回调。无论结果如何都返回成功 ack：处理失败要靠回复告诉用户，
@@ -70,41 +74,19 @@ func (h *Handler) respond(ctx context.Context, data *chatbot.BotCallbackDataMode
 	sender := strings.TrimSpace(data.SenderStaffId)
 	switch data.Msgtype {
 	case "text":
-		return h.handleText(ctx, sender, data.Text.Content)
+		return h.texts.Handle(ctx, domain.ChatPlatformDingTalk, sender, data.Text.Content, h.tenantID)
 	case "file":
 		content := contentMap(data.Content)
 		name := strings.TrimSpace(stringField(content, "fileName"))
 		if name == "" {
-			name = "file-" + data.MsgId
+			name = synthesizedName("钉钉文件", data.MsgId)
 		}
 		return h.handleFile(ctx, sender, stringField(content, "downloadCode"), name)
 	case "picture":
 		content := contentMap(data.Content)
-		return h.handleFile(ctx, sender, stringField(content, "downloadCode"), "image-"+data.MsgId)
+		return h.handleFile(ctx, sender, stringField(content, "downloadCode"), synthesizedName("钉钉图片", data.MsgId))
 	default:
 		return replyUnsupportedMsg
-	}
-}
-
-func (h *Handler) handleText(ctx context.Context, sender, text string) string {
-	code := strings.TrimSpace(text)
-	if code == "" {
-		return replyUnsupportedMsg
-	}
-	_, err := h.intake.RedeemBindingCode(ctx, domain.ChatPlatformDingTalk, sender, code, h.tenantID)
-	switch {
-	case err == nil:
-		return replyBound
-	case errors.Is(err, chatintake.ErrTenantMismatch):
-		return replyWrongTenant
-	case errors.Is(err, domain.ErrConflict):
-		// 账号已绑在别人名下：把规则里那句说明原样给用户。
-		return ruleMessage(err, replyInvalidCode)
-	case errors.Is(err, domain.ErrInvalidInput):
-		return replyInvalidCode
-	default:
-		h.logger.Error("dingtalk binding failed", "error", err)
-		return replyInternal
 	}
 }
 
@@ -179,6 +161,14 @@ func ruleMessage(err error, fallback string) string {
 		return rule.Message
 	}
 	return fallback
+}
+
+// synthesizedName 给没有文件名的消息造一个：钉钉的 MsgId 是 base64 串，直接当文件名
+// 会被上传路径的 filepath.Base 从斜杠处截断，只剩下 "H6w==.png" 这种残片。改用它的
+// 摘要——文件名安全、同一条消息重投得到同一个名字，也还能顺着摘要查回原消息。
+func synthesizedName(prefix, msgID string) string {
+	digest := sha256.Sum256([]byte(msgID))
+	return prefix + "-" + hex.EncodeToString(digest[:])[:12]
 }
 
 func ensureExtension(name, mime string) string {

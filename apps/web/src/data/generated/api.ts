@@ -285,10 +285,11 @@ export interface paths {
         };
         /** @description 当前工作区在该平台上的机器人凭据状态。密钥永不回显，只说有没有。 */
         get: operations["getChatConnector"];
-        /** @description 保存或替换凭据。保存即重置：检测回到 pending、启用清零、正在运行的连接停掉 ——新密钥没验过就不该有连接在用它。AppSecret 用主密钥加密落库。 */
+        /** @description 保存或替换凭据。保存即重置：检测回到 pending、启用清零、正在运行的连接停掉 ——新凭据没验过就不该有连接在用它。AppSecret 用主密钥加密落库。 app_secret 留空表示沿用已保存的那把（只改 AppKey 时用），从未保存过时不可留空。 */
         put: operations["saveChatConnector"];
         post?: never;
-        delete?: never;
+        /** @description 移除整条凭据：连接停掉、密文一并删除，页面回到「尚未配置」。已绑定的成员不受影响，重新配置后即可继续投递。 */
+        delete: operations["deleteChatConnector"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3378,6 +3379,38 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    deleteChatConnector: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                platform: components["schemas"]["ChatPlatform"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 已删除 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 会话失效 */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     detectChatConnector: {

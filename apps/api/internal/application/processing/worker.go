@@ -44,6 +44,24 @@ type Worker struct {
 	logger     *slog.Logger
 	config     WorkerConfig
 	ready      atomic.Bool
+	// 一份单据处理完（待审核或失败）后的通知点。聊天回执挂在这里——Worker 自己
+	// 不认识任何通道，只说"这个 Job 到终点了"。
+	finished func(ctx context.Context, tenantID, jobID string) error
+}
+
+// OnJobFinished 注册处理完成的通知。失败只记日志：回执发不出去不该让单据重跑。
+func (w *Worker) OnJobFinished(hook func(ctx context.Context, tenantID, jobID string) error) *Worker {
+	w.finished = hook
+	return w
+}
+
+func (w *Worker) notifyFinished(ctx context.Context, job ports.LeasedJob) {
+	if w.finished == nil {
+		return
+	}
+	if err := w.finished(context.WithoutCancel(ctx), job.TenantID, job.ID); err != nil {
+		w.logger.Warn("job finished hook failed", "job", job.ID, "error", err)
+	}
 }
 
 func NewWorker(
@@ -266,6 +284,7 @@ func (w *Worker) ProcessOne(parent context.Context, job ports.LeasedJob) error {
 			}
 			return w.failJob(context.WithoutCancel(ctx), job, "internal_error", "Claim 无法持久化")
 		}
+		w.notifyFinished(ctx, job)
 		return nil
 	}
 	return nil
@@ -542,6 +561,7 @@ func (w *Worker) persistClaim(
 }
 
 func (w *Worker) failJob(ctx context.Context, job ports.LeasedJob, code, message string) error {
+	defer w.notifyFinished(ctx, job)
 	return w.tx.WithinTransaction(context.WithoutCancel(ctx), func(transaction ports.Transaction) error {
 		return transaction.MarkJobFailed(context.WithoutCancel(ctx), job.TenantID, job.ID, code, message, w.clock.Now())
 	})

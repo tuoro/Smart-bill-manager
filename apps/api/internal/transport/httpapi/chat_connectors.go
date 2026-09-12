@@ -44,6 +44,15 @@ func (s *Server) saveChatConnectorHandler(response http.ResponseWriter, request 
 	writeJSON(response, http.StatusOK, chatConnectorResponse(c))
 }
 
+func (s *Server) deleteChatConnectorHandler(response http.ResponseWriter, request *http.Request) {
+	principal, _ := principalFromRequest(request)
+	if err := s.chatConnectors.Delete(request.Context(), tenantContext(principal), request.PathValue("platform")); err != nil {
+		writeError(response, request, err)
+		return
+	}
+	response.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) chatConnectorAction(
 	action func(*http.Request, domain.TenantContext, string) (chatconnectors.Public, error),
 ) http.HandlerFunc {

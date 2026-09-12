@@ -29,4 +29,6 @@ type ChatConnectorTransaction interface {
 		expectedVersion int64,
 		now time.Time,
 	) error
+	// 删除即彻底移除这条凭据；密文随行一起消失，不留下"已设置"的空壳。
+	DeleteChatConnector(ctx context.Context, tenantID, platform string, expectedVersion int64) error
 }

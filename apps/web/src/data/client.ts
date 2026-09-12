@@ -332,6 +332,9 @@ export const api = {
       body: JSON.stringify({ app_key, app_secret }),
     })
   },
+  deleteChatConnector(platform: ChatConnector['platform']): Promise<void> {
+    return request(`/chat-connectors/${encodeURIComponent(platform)}`, { method: 'DELETE' })
+  },
   detectChatConnector(platform: ChatPlatform): Promise<ChatConnector> {
     return request(`/chat-connectors/${encodeURIComponent(platform)}/detect`, { method: 'POST' })
   },
@@ -508,6 +511,9 @@ export const api = {
   },
   cancelJob(jobId: string): Promise<JobSummary> {
     return request(`/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' })
+  },
+  deleteDocument(documentId: string): Promise<void> {
+    return request(`/documents/${encodeURIComponent(documentId)}`, { method: 'DELETE' })
   },
   retryJob(jobId: string): Promise<JobSummary> {
     return request(`/jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' })

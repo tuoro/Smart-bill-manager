@@ -155,3 +155,42 @@ func (p Prober) Probe(ctx context.Context, platform, appKey, appSecret string) e
 	_, err := api.accessToken(probeCtx)
 	return err
 }
+
+// SendText 主动给一个人发文本。回复用的是回调里的 sessionWebhook，而回执、提醒
+// 这类"我们先开口"的消息没有 webhook 可用，只能走主动发消息接口。
+// userID 是 senderStaffId——企业内稳定的 userid，也正是这个接口认的那个。
+func (a *OpenAPI) SendText(ctx context.Context, userID, text string) error {
+	token, err := a.accessToken(ctx)
+	if err != nil {
+		return err
+	}
+	parameter, err := json.Marshal(map[string]string{"content": text})
+	if err != nil {
+		return err
+	}
+	body, err := json.Marshal(map[string]any{
+		"robotCode": a.appKey,
+		"userIds":   []string{userID},
+		"msgKey":    "sampleText",
+		"msgParam":  string(parameter),
+	})
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.base+"/v1.0/robot/oToMessages/batchSend", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("x-acs-dingtalk-access-token", token)
+	response, err := a.client.Do(request)
+	if err != nil {
+		return fmt.Errorf("send chat text: %w", err)
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<16))
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("send chat text: status %d", response.StatusCode)
+	}
+	return nil
+}

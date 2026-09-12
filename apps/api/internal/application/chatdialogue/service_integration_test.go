@@ -651,3 +651,58 @@ func TestMenuAndQueries(t *testing.T) {
 		t.Fatalf("gap report = %q", gap)
 	}
 }
+
+// 多张候选要逐张问金额：本单剩余与每张的可接额度都不能超，写错当场挡住。
+func TestLinkMultipleCandidatesAsksEachAmount(t *testing.T) {
+	f := newFixture(t)
+	f.deliver(t, "payment-a.png", 61, 0)
+	if got := f.say(t, "确认"); !strings.HasPrefix(got, "已保存。") {
+		t.Fatalf("first payment = %q", got)
+	}
+	*f.envelope = paymentEnvelope("20.00", "另一家店")
+	f.deliver(t, "payment-b.png", 62, 0)
+	if got := f.say(t, "确认"); !strings.HasPrefix(got, "已保存。") {
+		t.Fatalf("second payment = %q", got)
+	}
+	// 一张发票同时够得着两笔支付：两张候选。
+	*f.envelope = invoiceEnvelope("81.46", "美团", "INV-MULTI")
+	f.deliver(t, "invoice.png", 63, 0)
+	if card := f.notifier.last(); !strings.Contains(card, "找到 2 张可关联的单据") {
+		t.Fatalf("invoice card = %q", card)
+	}
+	if got := f.say(t, "处理"); !strings.Contains(got, "可关联的单据：") {
+		t.Fatalf("candidate list = %q", got)
+	}
+	if got := f.say(t, "1,9"); !strings.Contains(got, "回复编号关联") {
+		t.Fatalf("out-of-range choice = %q", got)
+	}
+	ask := f.say(t, "1,2")
+	if !strings.Contains(ask, "分配多少？") || !strings.Contains(ask, "本单还剩 CNY 81.46") {
+		t.Fatalf("first amount prompt = %q", ask)
+	}
+	if got := f.say(t, "很多"); !strings.Contains(got, "12.34") {
+		t.Fatalf("bad amount = %q", got)
+	}
+	if got := f.say(t, "999.00"); !strings.Contains(got, "不超过") {
+		t.Fatalf("over-limit amount = %q", got)
+	}
+	second := f.say(t, "61.46")
+	if !strings.Contains(second, "已分配 CNY 61.46") || !strings.Contains(second, "本单还剩 CNY 20.00") {
+		t.Fatalf("second amount prompt = %q", second)
+	}
+	card := f.say(t, "20.00")
+	if !strings.Contains(card, "· 关联 ") || !strings.Contains(card, "CNY 61.46") || !strings.Contains(card, "CNY 20.00") {
+		t.Fatalf("card after allocating = %q", card)
+	}
+	if got := f.say(t, "确认"); !strings.HasPrefix(got, "已保存。") {
+		t.Fatalf("confirm = %q", got)
+	}
+	var links int
+	var allocated int64
+	if err := f.store.DB().QueryRow(`SELECT count(*), coalesce(sum(allocated_minor), 0) FROM payment_invoice_links WHERE ended_at IS NULL`).Scan(&links, &allocated); err != nil {
+		t.Fatal(err)
+	}
+	if links != 2 || allocated != 8146 {
+		t.Fatalf("links = %d, allocated = %d, want 2 / 8146", links, allocated)
+	}
+}

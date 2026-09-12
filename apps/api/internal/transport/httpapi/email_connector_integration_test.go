@@ -177,6 +177,16 @@ func TestEmailSourceConnectorLifecycleAndOwnership(t *testing.T) {
 	if again["message_count"] != float64(2) || !strings.Contains(asString(t, again["last_sync_message"]), "0") {
 		t.Fatalf("second sync = %#v", again)
 	}
+	// 停用后不再同步；重新启用会立刻恢复，不必重新检测。
+	stopped := decodeMap(t, f.request(http.MethodPost, path+"/deactivate", nil, memberA, true, ""))
+	if stopped["sync_enabled"] != false || stopped["connection_status"] != "passed" {
+		t.Fatalf("deactivated = %#v", stopped)
+	}
+	resumed := decodeMap(t, f.request(http.MethodPost, path+"/activate", nil, memberA, true, ""))
+	if resumed["sync_enabled"] != true {
+		t.Fatalf("reactivated = %#v", resumed)
+	}
+
 	// 成员 A 能看自己的邮件，B 不能。
 	messages := decodeMap(t, f.request(http.MethodGet, path+"/messages", nil, memberA, false, ""))
 	items, _ := messages["items"].([]any)

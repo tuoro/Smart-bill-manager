@@ -195,10 +195,11 @@ fieldset {
 label {
   display: grid;
   gap: 0.5rem;
+  min-width: 0;
 }
 .trip-editor-dates {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
 }
 .trip-editor-actions {
@@ -209,7 +210,7 @@ label {
 }
 @media (max-width: 600px) {
   .trip-editor-dates {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

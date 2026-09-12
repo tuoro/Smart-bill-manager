@@ -802,6 +802,11 @@ dialog.sidebar::backdrop {
   min-height: 40px;
   padding: 8px 10px;
   border: 1px solid var(--border-strong);
+  /* iOS Safari 的日期/时间控件带固有最小宽度，会把 grid 列顶宽、比同列其他输入框
+     凸出一截；明确允许收缩到容器宽度。 */
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);

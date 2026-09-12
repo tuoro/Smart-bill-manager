@@ -58,9 +58,11 @@ test.describe('全站导航：纯合成布局、权限与键盘验收', () => {
           expect(navigationBox!.x).toBe(0)
           expect(navigationBox!.width).toBe(Math.min(280, width - 48))
           expect(navigationBox!.width).toBeLessThan(width)
-          const topbar = await page.locator('.topbar').boundingBox()
-          expect(topbar).not.toBeNull()
-          expect(navigationBox!.y).toBeGreaterThanOrEqual(topbar!.y + topbar!.height)
+          // 抽屉盖住整屏（含顶栏），顶栏不会被遮罩压成一条灰带。
+          expect(navigationBox!.y).toBe(0)
+          expect(Math.abs(navigationBox!.height - page.viewportSize()!.height)).toBeLessThanOrEqual(
+            1,
+          )
           expect(await navigation.evaluate((element) => getComputedStyle(element).position)).toBe(
             'fixed',
           )

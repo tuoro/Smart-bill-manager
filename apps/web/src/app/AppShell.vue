@@ -224,8 +224,21 @@ async function logout() {
         @close="handleDialogClose"
         @click="closeFromBackdrop"
       >
+        <!-- 手机上抽屉盖住整屏（含顶栏），自带品牌与关闭按钮，不和顶栏叠在一起。 -->
         <div v-if="isMobile" class="sidebar-heading">
-          <strong>导航</strong>
+          <span class="brand">
+            <span class="brand-mark"><AppIcon name="receipt" /></span>
+            <span class="brand-name">智能账单管理</span>
+          </span>
+          <button
+            class="icon-button"
+            type="button"
+            aria-label="关闭导航"
+            autofocus
+            @click="closeNavigation(true)"
+          >
+            <AppIcon name="close" />
+          </button>
         </div>
         <nav id="sidebar-links">
           <section
@@ -251,20 +264,8 @@ async function logout() {
             </RouterLink>
           </section>
         </nav>
-        <div class="sidebar-footer">
+        <div v-if="!isMobile" class="sidebar-footer">
           <button
-            v-if="isMobile"
-            class="sidebar-toggle"
-            type="button"
-            aria-label="关闭导航"
-            autofocus
-            @click="closeNavigation(true)"
-          >
-            <AppIcon name="chevron-left" />
-            <span>收起导航</span>
-          </button>
-          <button
-            v-else
             class="sidebar-toggle"
             type="button"
             :aria-label="isCollapsed ? '展开侧栏' : '收起侧栏'"

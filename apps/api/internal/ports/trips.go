@@ -60,6 +60,16 @@ type TripAssignmentReplay struct {
 	Result      TripAssignmentResult
 }
 
+// TripLinkDrift 指向一张归属可能与「已确认关联」规则不一致的单据：升级前写下的
+// 归属、或任何漏掉的事件都会落在这里。是否真要改由规则重算决定，这只是粗筛。
+// ActorUserID 取工作区 Owner：回填由部署触发，最接近的责任人就是工作区所有者。
+type TripLinkDrift struct {
+	TenantID    string
+	ActorUserID string
+	FactType    domain.DocumentType
+	FactID      string
+}
+
 type TripAssignmentCommand struct {
 	ExpectedFactVersion int
 	DecisionSource      string

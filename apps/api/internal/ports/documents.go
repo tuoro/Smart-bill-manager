@@ -155,6 +155,7 @@ type Transaction interface {
 		now time.Time,
 	) error
 	UpdateProviderConfig(ctx context.Context, command ProviderUpdateCommand) error
+	ReconcileTripLinks(ctx context.Context, drift TripLinkDrift, requestID string, now time.Time) error
 	DeleteProviderConfig(ctx context.Context, command ProviderDeleteCommand) error
 	DeleteFact(ctx context.Context, command FactDeleteCommand) error
 	DeleteDocumentAggregate(ctx context.Context, command DocumentDeleteCommand) error

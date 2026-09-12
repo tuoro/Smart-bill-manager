@@ -321,6 +321,12 @@ func runApplication(ctx context.Context, config config, logger *slog.Logger) err
 	if err := mailSyncService.StartActive(ctx); err != nil {
 		logger.Error("start mailbox sync", "error", err)
 	}
+	// 规则上线前写下的归属、或任何漏掉的事件，在这里用同一套规则修回来。正常为 0。
+	if fixed, err := tripService.ReconcileLinkDrift(ctx); err != nil {
+		logger.Error("reconcile trip link drift", "error", err)
+	} else if fixed > 0 {
+		logger.Info("reconciled trip link drift", "facts", fixed)
+	}
 	if err := chatConnectorService.StartActive(ctx); err != nil {
 		return fmt.Errorf("start chat connectors: %w", err)
 	}

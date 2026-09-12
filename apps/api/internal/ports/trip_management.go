@@ -57,6 +57,7 @@ type TripPreferenceCommand struct {
 }
 
 type TripManagementRepository interface {
+	ListTripLinkDrift(ctx context.Context, limit int) ([]TripLinkDrift, error)
 	ListTrips(context.Context, string) ([]Trip, error)
 	ListTripEvidence(context.Context, string, string, string, int) ([]TripEvidence, error)
 }

@@ -199,3 +199,31 @@ func tripRequestHash(value any) (string, error) {
 	hash := sha256.Sum256(append([]byte("trip-workspace/1:"), data...))
 	return hex.EncodeToString(hash[:]), nil
 }
+
+// ReconcileLinkDriftBatch 是一轮归属漂移修复能处理的单据上限。剩下的留给下次启动，
+// 不让一次启动被无界的重算拖住。
+const ReconcileLinkDriftBatch = 500
+
+// ReconcileLinkDrift 在启动时把与「已确认关联」规则不一致的归属重算一遍，用的是
+// 运行期同一套规则，不另写一份 SQL 版本。正常情况下一行都查不到。
+//
+// 每张单据独立事务：一张失败不牵连其他，锁也短。冲突（关联指向多个行程）的单据
+// 重算后仍保持未归属，因此每轮只处理一次，不反复重试到"干净"。
+func (s Service) ReconcileLinkDrift(ctx context.Context) (int, error) {
+	items, err := s.repository.ListTripLinkDrift(ctx, ReconcileLinkDriftBatch)
+	if err != nil {
+		return 0, err
+	}
+	now := s.clock.Now()
+	fixed := 0
+	for _, item := range items {
+		err := s.tx.WithinTransaction(ctx, func(tx ports.Transaction) error {
+			return tx.ReconcileTripLinks(ctx, item, "trip-link-drift-reconcile", now)
+		})
+		if err != nil {
+			return fixed, err
+		}
+		fixed++
+	}
+	return fixed, nil
+}

@@ -292,3 +292,71 @@ func (t transaction) ChangeTripPreference(ctx context.Context, command ports.Tri
 	// 「保持无归属」也影响对方：对方若曾因这张而归属，重算后按剩余信号决定。
 	return t.reconcileLinkedCounterparts(ctx, command.TenantID, command.ActorUserID, command.RequestID, command.FactType, command.FactID, command.CreatedAt)
 }
+
+// ListTripLinkDrift 粗筛归属与「已确认关联」规则不一致的单据：自动模式、且某个活动
+// 关联对方当前所在行程与自己不同（未归属记作空）。真正是否要改由规则重算决定。
+//
+// 正常情况下这个查询返回零行——事件驱动的重算已经维持了一致。它存在是为了修复
+// 规则上线前写下的归属，以及任何漏掉的事件。
+func (s *Store) ListTripLinkDrift(ctx context.Context, limit int) ([]ports.TripLinkDrift, error) {
+	if limit < 1 {
+		return nil, domain.ErrInvalidInput
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT fact.tenant_id, fact.fact_type, fact.fact_id, owner.user_id
+		FROM (
+		    SELECT p.tenant_id, 'payment' AS fact_type, p.id AS fact_id,
+		           coalesce((SELECT a.trip_id FROM trip_fact_assignments a
+		                     WHERE a.tenant_id = p.tenant_id AND a.payment_id = p.id AND a.ended_at IS NULL), '') AS trip_id
+		    FROM payments p WHERE p.deleted_at IS NULL AND p.trip_assignment_mode = 'auto'
+		    UNION ALL
+		    SELECT i.tenant_id, 'invoice', i.id,
+		           coalesce((SELECT a.trip_id FROM trip_fact_assignments a
+		                     WHERE a.tenant_id = i.tenant_id AND a.invoice_id = i.id AND a.ended_at IS NULL), '')
+		    FROM invoices i WHERE i.deleted_at IS NULL AND i.trip_assignment_mode = 'auto'
+		) fact
+		JOIN LATERAL (
+		    SELECT m.user_id FROM memberships m
+		    WHERE m.tenant_id = fact.tenant_id AND m.status = 'active' AND m.role = 'owner'
+		    ORDER BY m.created_at, m.user_id LIMIT 1
+		) owner ON TRUE
+		WHERE EXISTS (
+		    SELECT 1 FROM payment_invoice_links link
+		    JOIN trip_fact_assignments counterpart
+		      ON counterpart.tenant_id = link.tenant_id AND counterpart.ended_at IS NULL
+		     AND ((fact.fact_type = 'payment' AND counterpart.invoice_id = link.invoice_id)
+		       OR (fact.fact_type = 'invoice' AND counterpart.payment_id = link.payment_id))
+		    JOIN trips trip ON trip.tenant_id = counterpart.tenant_id AND trip.id = counterpart.trip_id AND trip.deleted_at IS NULL
+		    WHERE link.tenant_id = fact.tenant_id AND link.ended_at IS NULL
+		      AND ((fact.fact_type = 'payment' AND link.payment_id = fact.fact_id)
+		        OR (fact.fact_type = 'invoice' AND link.invoice_id = fact.fact_id))
+		      AND counterpart.trip_id <> fact.trip_id
+		)
+		ORDER BY fact.tenant_id, fact.fact_type, fact.fact_id
+		LIMIT ?`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list trip link drift: %w", err)
+	}
+	defer rows.Close()
+	items := make([]ports.TripLinkDrift, 0)
+	for rows.Next() {
+		var item ports.TripLinkDrift
+		if err := rows.Scan(&item.TenantID, &item.FactType, &item.FactID, &item.ActorUserID); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+// ReconcileTripLinks 用与运行期完全相同的规则重算一张单据；规则算出的结论与当前
+// 一致时不写入，因此重复执行是安全的。
+func (t transaction) ReconcileTripLinks(ctx context.Context, drift ports.TripLinkDrift, requestID string, now time.Time) error {
+	if drift.FactType == domain.DocumentPayment {
+		return t.reconcileOnePayment(ctx, drift.TenantID, drift.ActorUserID, requestID, drift.FactID, now)
+	}
+	if drift.FactType == domain.DocumentInvoice {
+		return t.reconcileOneInvoice(ctx, drift.TenantID, drift.ActorUserID, requestID, drift.FactID, now)
+	}
+	return domain.ErrInvalidInput
+}

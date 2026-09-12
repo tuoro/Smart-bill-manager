@@ -812,6 +812,23 @@ dialog.sidebar::backdrop {
   color: var(--text);
 }
 
+/* iOS Safari 用系统原生控件画日期输入，自带一圈额外宽度，会比同列其他输入框
+   凸出一截；去掉原生外观后它就按普通文本框排。空值时内部编辑区会塌陷，给最小高度。 */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+}
+
+input[type='date']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value,
+input[type='datetime-local']::-webkit-date-and-time-value {
+  min-height: 1.5em;
+  text-align: left;
+}
+
 input[type='checkbox'],
 input[type='radio'] {
   flex-shrink: 0;

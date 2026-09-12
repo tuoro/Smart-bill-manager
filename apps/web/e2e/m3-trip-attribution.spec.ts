@@ -269,7 +269,6 @@ test.describe('M3 行程归属真实组件状态矩阵', () => {
     await context.setOffline(true)
     await expect(page.getByRole('status').filter({ hasText: '当前离线' })).toBeVisible()
     await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
-    await expect(page.getByRole('button', { name: '刷新凭证', exact: true })).toBeDisabled()
     await context.setOffline(false)
     await expect(page.getByText('当前离线')).toHaveCount(0)
   })

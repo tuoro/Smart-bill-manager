@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { sessionStore } from '../../app/session'
 import { RouterLink } from 'vue-router'
+import AppIcon from '../../components/AppIcon.vue'
 import {
   ApiError,
   api,
@@ -11,7 +12,13 @@ import {
 } from '../../data/client'
 import { randomUUID } from '../../data/random'
 
-const props = defineProps<{ trip?: Trip; canManage: boolean; offline: boolean }>()
+// reloadKey 由页面的「刷新」递增：面板不再自带刷新按钮，跟着页面一起刷。
+const props = defineProps<{
+  trip?: Trip
+  canManage: boolean
+  offline: boolean
+  reloadKey?: number
+}>()
 const emit = defineEmits<{ changed: [] }>()
 const items = ref<TripEvidence[]>([])
 const cursor = ref('')
@@ -76,7 +83,7 @@ async function assign(item: TripEvidence) {
 }
 
 watch(
-  () => [props.trip?.id, onlyAssigned.value, props.offline, props.trip?.version],
+  () => [props.trip?.id, onlyAssigned.value, props.offline, props.trip?.version, props.reloadKey],
   (current, previous) => {
     if (current[0] !== previous?.[0] || current[1] !== previous?.[1]) {
       loadRevision++
@@ -100,26 +107,30 @@ watch(
         <h2 id="trip-materials-title">行程凭证</h2>
         <p>机票、行程单等审核凭证单独保存；多张凭证可归入同一趟行程，不计入费用金额。</p>
       </div>
-      <RouterLink v-if="canManage" class="button" to="/inbox">上传凭证</RouterLink>
+      <RouterLink v-if="canManage" class="button" to="/inbox">去收件箱上传</RouterLink>
     </div>
-    <div class="materials-toolbar">
+    <!-- 筛选只在选中了行程时才有意义；没有行程时这一行整个不出现。 -->
+    <div v-if="trip" class="materials-toolbar">
       <label
-        ><input v-model="onlyAssigned" type="checkbox" :disabled="!trip || loading" />
-        只看当前行程凭证</label
+        ><input v-model="onlyAssigned" type="checkbox" :disabled="loading" /> 只看「{{
+          trip.name
+        }}」的凭证</label
       >
-      <button class="button button-small" :disabled="offline || loading" @click="load()">
-        刷新凭证
-      </button>
     </div>
     <p v-if="error" class="notice notice-danger" role="alert">{{ error }}</p>
-    <p v-if="loading && !items.length" class="quiet-block" role="status">正在加载凭证…</p>
-    <p v-else-if="!items.length" class="quiet-block">
-      {{
+    <div v-if="loading && !items.length" class="state-layout compact" role="status">
+      <span class="spinner spinner-large" aria-hidden="true"></span>
+      <strong>正在加载凭证</strong>
+    </div>
+    <div v-else-if="!items.length" class="state-layout compact">
+      <span class="state-glyph"><AppIcon name="trip" /></span>
+      <strong>{{ onlyAssigned ? '这趟行程还没有关联凭证' : '还没有行程凭证' }}</strong>
+      <span>{{
         onlyAssigned
-          ? '这趟行程还没有关联凭证。取消筛选可从全部凭证中选择。'
-          : '还没有审核后的行程凭证。可先创建行程，稍后上传并审核材料。'
-      }}
-    </p>
+          ? '取消筛选可从全部凭证中挑选并加入。'
+          : '在收件箱上传机票、行程单等并审核后，会出现在这里。'
+      }}</span>
+    </div>
     <ul class="trip-candidate-list">
       <li v-for="item in items" :key="item.id">
         <article class="trip-candidate">

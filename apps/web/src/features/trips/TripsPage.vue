@@ -98,7 +98,10 @@ async function changePreference(candidate: TripAttributionCandidate, mode: 'auto
   }
 }
 
+// 页面「刷新」同时让凭证面板重新加载。
+const materialsReloadKey = ref(0)
 async function loadTrips(preferredTripID = selectedTripID.value) {
+  materialsReloadKey.value++
   const revision = ++tripLoadRevision
   if (!canRead.value) {
     forbidden.value = true
@@ -493,6 +496,7 @@ onUnmounted(() => {
       :trip="selectedTrip"
       :can-manage="Boolean(canManage)"
       :offline="offline"
+      :reload-key="materialsReloadKey"
       @changed="loadTrips()"
     />
   </div>

@@ -16,6 +16,7 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 ```bash
 docker run -d --name smart-bill-manager-db \
   --restart unless-stopped \
+  -p 127.0.0.1:5432:5432 \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
   -e POSTGRES_PASSWORD=<自己设一个数据库密码> \
@@ -37,7 +38,9 @@ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' sma
 
 打开 <http://127.0.0.1:8080>，页面分两步引导：先填数据库连接——地址改成上面查到的 IP，端口 `5432` 和库名 `smart_bill_manager` 保持预填值，账号 `sbm_app`，密码是刚才设的那个（可先点「检测连接」）——验证通过后自动建表；再创建管理员账号（用户名 + 密码）。之后即可使用。
 
-数据库不需要发布宿主端口。两个容器都在 Docker 默认的 `bridge` 网络里，按 IP 直接互通；默认网络不解析容器名，所以地址填 IP。
+数据库那条 `-p 127.0.0.1:5432:5432` 把库开在宿主机回环上，方便用 `psql`、备份工具或图形客户端直接连；只绑 `127.0.0.1`，不会暴露到局域网。宿主机上 5432 已被占用就改成别的，比如 `-p 127.0.0.1:15432:5432`。
+
+应用容器不走这个端口。两个容器都在 Docker 默认的 `bridge` 网络里按 IP 直接互通，所以初始化页的地址填上面查到的容器 IP，不是 `127.0.0.1`——默认网络不解析容器名，也不能从容器里访问宿主机的回环地址。
 
 数据库连接也可以用 `-e SBM_POSTGRES_HOST=<上面查到的 IP>`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步；这几个变量优先于页面保存的配置。已经有 PostgreSQL 的话不需要起第一个容器，直接填它的地址即可。
 

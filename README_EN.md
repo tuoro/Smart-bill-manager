@@ -16,6 +16,7 @@ Start the two containers. No extra network is needed:
 ```bash
 docker run -d --name smart-bill-manager-db \
   --restart unless-stopped \
+  -p 127.0.0.1:5432:5432 \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
   -e POSTGRES_PASSWORD=<choose a database password> \
@@ -37,7 +38,9 @@ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' sma
 
 Open <http://127.0.0.1:8080>. The page guides you through two steps. First the database connection: replace the host with the IP address printed above, keep the prefilled port `5432` and database name `smart_bill_manager`, use the account `sbm_app` and the password you chose ("test connection" is available). Once it verifies, the schema is created. Then create the administrator account with a username and password.
 
-The database does not publish a host port. Both containers sit on Docker's default `bridge` network and reach each other by IP; that network does not resolve container names, which is why the host field takes an IP address.
+The `-p 127.0.0.1:5432:5432` on the database exposes it on the host loopback so that `psql`, backup tools or a GUI client can reach it. It binds `127.0.0.1` only, so it is not reachable from the local network. Pick another host port if 5432 is taken, for example `-p 127.0.0.1:15432:5432`.
+
+The application container does not use that port. Both containers sit on Docker's default `bridge` network and reach each other by IP, so the host field takes the container IP printed above rather than `127.0.0.1`: the default network resolves no container names, and a container cannot reach the host's loopback address.
 
 The connection can also be pinned with `-e SBM_POSTGRES_HOST=<the IP address above>`, `-e SBM_POSTGRES_USER` and `-e SBM_POSTGRES_PASSWORD`, which skips the first step. If you already run PostgreSQL, skip the first container and point at it instead.
 

@@ -25,6 +25,7 @@
 ```bash
 docker run -d --name smart-bill-manager-db \
   --restart unless-stopped \
+  -p 127.0.0.1:5432:5432 \
   -e POSTGRES_USER=sbm_app \
   -e POSTGRES_DB=smart_bill_manager \
   -e POSTGRES_PASSWORD=<数据库密码> \
@@ -34,7 +35,9 @@ docker run -d --name smart-bill-manager-db \
 docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' smart-bill-manager-db
 ```
 
-数据库不需要发布宿主端口。默认 bridge 上容器之间按 IP 互通，发布 `5432` 只会把库暴露到宿主机网络上。
+`-p 127.0.0.1:5432:5432` 把库开在宿主机回环上，供 `psql`、`pg_dump` 和图形客户端直接连接。**只能绑 `127.0.0.1`**：绑到 `0.0.0.0`（写成 `-p 5432:5432` 就是这个效果）会把数据库开给整个局域网，而 Docker 发布端口会绕过 ufw 等宿主机防火墙规则。宿主机 5432 被占用时改宿主侧端口即可，例如 `-p 127.0.0.1:15432:5432`，容器侧保持 `5432`。
+
+应用容器不经过这个端口，它在默认 bridge 上按容器 IP 直连数据库。因此宿主端口改成什么都不影响应用，初始化页里填的始终是上面查到的容器 IP。
 
 ### 2. 应用
 

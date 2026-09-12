@@ -270,7 +270,7 @@ func TestTripCrossTenantOperationsAreZeroWrite(t *testing.T) {
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross tenant material: %v", err)
 	}
-	if err := service.Preference(ctx, foreign.tenant, payment, "blocked", "tenant-preference-request", assignmentVersion(t, fixture, domain.DocumentPayment, payment)); !errors.Is(err, domain.ErrNotFound) {
+	if err := service.Preference(ctx, foreign.tenant, domain.DocumentPayment, payment, "blocked", "tenant-preference-request", assignmentVersion(t, fixture, domain.DocumentPayment, payment)); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("cross tenant preference: %v", err)
 	}
 	if after := tripTransactionalState(t, fixture); after != before {

@@ -181,7 +181,7 @@ func TestFactCorrectionTripMaterialAndAmbiguousAutomaticAttribution(t *testing.T
 		applyCorrection(t, s, f.tenant, domain.DocumentPayment, payment, input, "correction-"+tc.key)
 		assertPaymentTrip(t, f, payment, "", "auto")
 	}
-	if err := trips.Preference(ctx, f.tenant, payment, "blocked", "correction-block-auto", assignmentVersion(t, f, domain.DocumentPayment, payment)); err != nil {
+	if err := trips.Preference(ctx, f.tenant, domain.DocumentPayment, payment, "blocked", "correction-block-auto", assignmentVersion(t, f, domain.DocumentPayment, payment)); err != nil {
 		t.Fatal(err)
 	}
 	w, err = s.GetCorrection(ctx, f.tenant, domain.DocumentPayment, payment)

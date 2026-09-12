@@ -6,7 +6,11 @@ import (
 	"unicode/utf8"
 )
 
-const TripTimeAttributionVersion = "trip-time-attribution/1"
+const (
+	TripTimeAttributionVersion = "trip-time-attribution/1"
+	// TripLinkAttributionVersion：已确认关联的支付与发票互相跟随行程归属。
+	TripLinkAttributionVersion = "trip-link-attribution/1"
+)
 
 // TripDetails 是用户管理的出差范围，不是票面提取结果。
 type TripDetails struct {

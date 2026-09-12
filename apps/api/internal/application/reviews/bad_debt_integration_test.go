@@ -26,6 +26,7 @@ func seedBadDebtPair(t *testing.T) (reviewFixture, string, string, ports.TripMan
 	}
 	p := confirmFactWithoutLinks(t, s, f.tenant, review, "bad-debt-payment")
 	i := confirmFactWithoutLinks(t, s, f.tenant, seedAdditionalReview(t, f, invoiceEnvelopeWithTotal("BAD-DEBT-SYN", 10000), "bad-debt-invoice"), "bad-debt-invoice-confirm")
+	blockInvoiceAuto(t, f, i.FactID)
 	return f, p.FactID, i.FactID, trip
 }
 

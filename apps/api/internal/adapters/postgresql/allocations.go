@@ -609,6 +609,26 @@ func (t transaction) persistAllocationAdjustment(
 			return allocationAdjustmentWriteError("insert adjusted allocation link", err)
 		}
 	}
+	// 关联关系变了，行程归属跟着重算：锚点单据、新关联的对方、以及被解除关联的对方
+	// （它可能曾因这条关联而归属）。
+	if err := t.reconcileFactAndCounterparts(ctx, command.TenantID, command.ActorUserID, command.RequestID, command.AnchorFactType, command.AnchorFactID, command.CreatedAt); err != nil {
+		return err
+	}
+	for _, link := range ended {
+		counterpartType, counterpartID := domain.DocumentInvoice, link.InvoiceID
+		if command.AnchorFactType == domain.DocumentInvoice {
+			counterpartType, counterpartID = domain.DocumentPayment, link.PaymentID
+		}
+		var err error
+		if counterpartType == domain.DocumentPayment {
+			err = t.reconcileOnePayment(ctx, command.TenantID, command.ActorUserID, command.RequestID, counterpartID, command.CreatedAt)
+		} else {
+			err = t.reconcileOneInvoice(ctx, command.TenantID, command.ActorUserID, command.RequestID, counterpartID, command.CreatedAt)
+		}
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

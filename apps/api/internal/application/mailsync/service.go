@@ -251,7 +251,7 @@ func (s Service) SyncOnce(ctx context.Context, tenantID, sourceID string) error 
 			TenantID: tenantID, EmailSourceID: sourceID,
 			ExternalMessageKey: ExternalMessageKey(sourceID, message.UIDValidity, message.UID),
 			ReceivedAt:         receivedAt, Raw: bytesReader(message.Raw),
-			RequestID:          "imap-sync-" + sourceID + "-" + strconv.FormatUint(uint64(message.UID), 10),
+			RequestID: "imap-sync-" + sourceID + "-" + strconv.FormatUint(uint64(message.UID), 10),
 		})
 		if archiveErr != nil {
 			// 同一封邮件原文变了（极罕见）不该卡住整个邮箱：跳过继续。

@@ -240,6 +240,7 @@ func (s *Server) Handler() http.Handler {
 	router.Handle("DELETE /api/v1/trip-evidence/{evidence_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteTripEvidenceHandler))))
 	router.Handle("POST /api/v1/trip-material-assignments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.assignTripMaterialHandler))))
 	router.Handle("POST /api/v1/payments/{payment_id}/trip-preference", s.requireSession(s.requireCSRF(http.HandlerFunc(s.tripPreferenceHandler))))
+	router.Handle("POST /api/v1/invoices/{invoice_id}/trip-preference", s.requireSession(s.requireCSRF(http.HandlerFunc(s.tripPreferenceHandler))))
 	router.Handle("DELETE /api/v1/trips/{trip_id}", s.requireSession(s.requireCSRF(http.HandlerFunc(s.deleteTripHandler))))
 	router.Handle("GET /api/v1/trips/{trip_id}/attribution-candidates", s.requireSession(http.HandlerFunc(s.listTripAttributionCandidatesHandler)))
 	router.Handle("POST /api/v1/trip-assignments", s.requireSession(s.requireCSRF(http.HandlerFunc(s.assignTripFactHandler))))

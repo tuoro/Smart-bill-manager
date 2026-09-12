@@ -50,9 +50,10 @@ type TripMaterialResult struct {
 }
 
 type TripPreferenceCommand struct {
-	TenantID, ActorUserID, PaymentID, Mode, AuditEventID, RequestID string
-	ExpectedVersion                                                 int
-	CreatedAt                                                       time.Time
+	TenantID, ActorUserID, FactID, Mode, AuditEventID, RequestID string
+	FactType                                                     domain.DocumentType
+	ExpectedVersion                                              int
+	CreatedAt                                                    time.Time
 }
 
 type TripManagementRepository interface {

@@ -145,6 +145,7 @@ func TestTripAttributionAssignmentLifecycleAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	blockPaymentAuto(t, fixture, payment.FactID)
+	blockInvoiceAuto(t, fixture, invoice.FactID)
 	tripOne := seedManualTrip(t, fixture, "trip-one", "北京", "2026-08-26", "2026-08-28")
 	tripTwo := seedManualTrip(t, fixture, "trip-two", "深圳", "2026-09-10", "2026-09-12")
 

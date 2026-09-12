@@ -124,7 +124,11 @@ func (s *Server) tripPreferenceHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	if err := s.trips.Preference(r.Context(), tenantContext(principal), r.PathValue("payment_id"), body.Mode,
+	factType, factID := domain.DocumentPayment, r.PathValue("payment_id")
+	if factID == "" {
+		factType, factID = domain.DocumentInvoice, r.PathValue("invoice_id")
+	}
+	if err := s.trips.Preference(r.Context(), tenantContext(principal), factType, factID, body.Mode,
 		requestIDFromRequest(r), body.ExpectedVersion); err != nil {
 		writeError(w, r, err)
 		return

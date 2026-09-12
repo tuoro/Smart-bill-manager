@@ -39,9 +39,21 @@ func assignmentVersion(t *testing.T, fixture reviewFixture, factType domain.Docu
 // 人工生命周期测试显式选择禁止自动；自动匹配测试不能调用此 helper。
 func blockPaymentAuto(t *testing.T, fixture reviewFixture, paymentID string) {
 	t.Helper()
+	blockFactAuto(t, fixture, domain.DocumentPayment, paymentID, "synthetic-block-auto")
+}
+
+// 发票会跟随已确认关联支付的行程（trip-link-attribution/1）；只验证人工生命周期的测试
+// 先把它也设为禁止自动。
+func blockInvoiceAuto(t *testing.T, fixture reviewFixture, invoiceID string) {
+	t.Helper()
+	blockFactAuto(t, fixture, domain.DocumentInvoice, invoiceID, "synthetic-block-invoice-auto")
+}
+
+func blockFactAuto(t *testing.T, fixture reviewFixture, factType domain.DocumentType, factID, requestID string) {
+	t.Helper()
 	service := tripapp.NewService(fixture.store, fixture.store, system.IDGenerator{}, fixedClock{now: fixture.now})
-	if err := service.Preference(context.Background(), fixture.tenant, paymentID, "blocked", "synthetic-block-auto",
-		assignmentVersion(t, fixture, domain.DocumentPayment, paymentID)); err != nil {
+	if err := service.Preference(context.Background(), fixture.tenant, factType, factID, "blocked", requestID,
+		assignmentVersion(t, fixture, factType, factID)); err != nil {
 		t.Fatal(err)
 	}
 }

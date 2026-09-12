@@ -33,7 +33,7 @@ func (s *Store) ListTripAttributionCandidates(
 		    WHERE payment.tenant_id = ? AND payment.deleted_at IS NULL
 		    UNION ALL
 		    SELECT 'invoice', invoice.id, invoice.seller_name, invoice.invoice_date,
-		           invoice.total_minor, invoice.currency, invoice.version, 'manual', NULL::timestamptz, invoice.tenant_id
+		           invoice.total_minor, invoice.currency, invoice.version, invoice.trip_assignment_mode, NULL::timestamptz, invoice.tenant_id
 		    FROM invoices invoice
 		    WHERE invoice.tenant_id = ? AND invoice.deleted_at IS NULL
 		), signals AS (
@@ -293,7 +293,7 @@ func (t transaction) ApplyTripAssignment(
 		return ports.TripAssignmentResult{}, err
 	}
 	if version != command.ExpectedFactVersion || (command.DecisionSource != "manual" && command.DecisionSource != "automatic") ||
-		(command.DecisionSource == "automatic" && (command.FactType != domain.DocumentPayment || mode != "auto")) {
+		(command.DecisionSource == "automatic" && mode != "auto") {
 		return ports.TripAssignmentResult{}, tripStale()
 	}
 	if command.DesiredTripID != "" {
@@ -352,6 +352,9 @@ func (t transaction) ApplyTripAssignment(
 	var ruleVersion any
 	if command.DecisionSource == "automatic" {
 		ruleVersion = domain.TripTimeAttributionVersion
+		if command.RuleVersion != "" {
+			ruleVersion = command.RuleVersion
+		}
 	}
 	if _, err := t.tx.ExecContext(ctx, `
 		INSERT INTO trip_fact_assignment_decisions (
@@ -413,19 +416,23 @@ func (t transaction) ApplyTripAssignment(
 		}
 		result.AssignmentID = command.AssignmentID
 	}
-	if command.FactType == domain.DocumentPayment {
-		if command.DecisionSource == "manual" {
-			mode = "manual"
-			if action == "unassign" {
-				mode = "blocked"
-			}
+	if command.DecisionSource == "manual" {
+		mode = "manual"
+		if action == "unassign" {
+			mode = "blocked"
 		}
+	}
+	if command.FactType == domain.DocumentPayment {
 		_, err = t.tx.ExecContext(ctx, `UPDATE payments SET version = version + 1, trip_assignment_mode = ? WHERE tenant_id = ? AND id = ?`, mode, command.TenantID, command.FactID)
 	} else {
-		_, err = t.tx.ExecContext(ctx, `UPDATE invoices SET version = version + 1 WHERE tenant_id = ? AND id = ?`, command.TenantID, command.FactID)
+		_, err = t.tx.ExecContext(ctx, `UPDATE invoices SET version = version + 1, trip_assignment_mode = ? WHERE tenant_id = ? AND id = ?`, mode, command.TenantID, command.FactID)
 	}
 	if err != nil {
 		return ports.TripAssignmentResult{}, fmt.Errorf("advance trip assignment version: %w", err)
+	}
+	// 这张单据的归属变了，已确认关联的对方跟着重算（它们自己若是人工模式会跳过）。
+	if err := t.reconcileLinkedCounterparts(ctx, command.TenantID, command.ActorUserID, command.RequestID, command.FactType, command.FactID, command.CreatedAt); err != nil {
+		return ports.TripAssignmentResult{}, err
 	}
 	return result, nil
 }
@@ -437,7 +444,7 @@ func (t transaction) lockTripAssignmentFact(
 	factID string,
 ) (int, string, error) {
 	var version int
-	mode := "manual"
+	var mode string
 	var err error
 	if factType == domain.DocumentPayment {
 		err = t.tx.QueryRowContext(ctx, `
@@ -445,8 +452,8 @@ func (t transaction) lockTripAssignmentFact(
 		`, tenantID, factID).Scan(&version, &mode)
 	} else {
 		err = t.tx.QueryRowContext(ctx, `
-			SELECT version FROM invoices WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL FOR UPDATE
-		`, tenantID, factID).Scan(&version)
+			SELECT version, trip_assignment_mode FROM invoices WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL FOR UPDATE
+		`, tenantID, factID).Scan(&version, &mode)
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, "", domain.ErrNotFound

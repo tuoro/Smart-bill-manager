@@ -606,11 +606,13 @@ export const api = {
     })
   },
   tripPreference(
-    paymentId: string,
+    factType: 'payment' | 'invoice',
+    factId: string,
     mode: 'auto' | 'blocked',
     expectedVersion: number,
   ): Promise<void> {
-    return request(`/payments/${encodeURIComponent(paymentId)}/trip-preference`, {
+    const collection = factType === 'payment' ? 'payments' : 'invoices'
+    return request(`/${collection}/${encodeURIComponent(factId)}/trip-preference`, {
       method: 'POST',
       body: JSON.stringify({ mode, expected_version: expectedVersion }),
     })

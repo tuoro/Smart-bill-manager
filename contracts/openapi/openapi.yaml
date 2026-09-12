@@ -1576,7 +1576,36 @@ paths:
                 mode: { type: string, enum: [auto, blocked] }
                 expected_version: { type: integer, minimum: 1 }
       responses:
-        "204": { description: 偏好已记录，auto 会立即重新计算时间归属 }
+        "204": { description: 偏好已记录，auto 会立即按时间与已确认关联重新计算归属 }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /invoices/{invoice_id}/trip-preference:
+    post:
+      operationId: changeInvoiceTripPreference
+      tags: [trips]
+      description: 发票的自动归属只跟随已确认关联支付所在的行程（trip-link-attribution/1）；blocked 保持无归属，auto 立即重算。
+      parameters:
+        - {
+            name: invoice_id,
+            in: path,
+            required: true,
+            schema: { type: string, format: uuid },
+          }
+        - $ref: "#/components/parameters/CsrfToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mode, expected_version]
+              properties:
+                mode: { type: string, enum: [auto, blocked] }
+                expected_version: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: 偏好已记录 }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }

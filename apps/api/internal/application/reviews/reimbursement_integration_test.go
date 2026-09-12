@@ -60,6 +60,7 @@ func TestReimbursementSnapshotPolicyAndStatusLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	blockPaymentAuto(t, fixture, payment.FactID)
+	blockInvoiceAuto(t, fixture, invoice.FactID)
 	trip := seedManualTrip(t, fixture, "reimbursement-trip", "北京", "2026-08-26", "2026-08-28")
 	desiredTripID := trip.TripID
 	assign := func(factType domain.DocumentType, factID, label string) string {

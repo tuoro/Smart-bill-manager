@@ -163,18 +163,18 @@ func (s Service) AssignMaterial(ctx context.Context, tenant domain.TenantContext
 	return result, err
 }
 
-func (s Service) Preference(ctx context.Context, tenant domain.TenantContext, paymentID, mode, requestID string, expectedVersion int) error {
+func (s Service) Preference(ctx context.Context, tenant domain.TenantContext, factType domain.DocumentType, factID, mode, requestID string, expectedVersion int) error {
 	if err := tenant.Require(domain.CapabilityTripAssignmentsManage); err != nil {
 		return err
 	}
-	if paymentID == "" || requestID == "" || expectedVersion < 1 || (mode != "auto" && mode != "blocked") {
+	if !domain.ValidTripAssignmentFactType(factType) || factID == "" || requestID == "" || expectedVersion < 1 || (mode != "auto" && mode != "blocked") {
 		return domain.ErrInvalidInput
 	}
 	ids, err := s.operationIDs(1)
 	if err != nil {
 		return err
 	}
-	command := ports.TripPreferenceCommand{TenantID: tenant.TenantID, ActorUserID: tenant.UserID, PaymentID: paymentID,
+	command := ports.TripPreferenceCommand{TenantID: tenant.TenantID, ActorUserID: tenant.UserID, FactType: factType, FactID: factID,
 		Mode: mode, AuditEventID: ids[0], RequestID: requestID, ExpectedVersion: expectedVersion, CreatedAt: s.clock.Now()}
 	return s.tx.WithinTransaction(ctx, func(tx ports.Transaction) error { return tx.ChangeTripPreference(ctx, command) })
 }

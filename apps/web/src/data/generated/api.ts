@@ -1090,6 +1090,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/invoices/{invoice_id}/trip-preference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 发票的自动归属只跟随已确认关联支付所在的行程（trip-link-attribution/1）；blocked 保持无归属，auto 立即重算。 */
+        post: operations["changeInvoiceTripPreference"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/trips/{trip_id}/attribution-candidates": {
         parameters: {
             query?: never;
@@ -4961,7 +4978,40 @@ export interface operations {
             };
         };
         responses: {
-            /** @description 偏好已记录，auto 会立即重新计算时间归属 */
+            /** @description 偏好已记录，auto 会立即按时间与已确认关联重新计算归属 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeInvoiceTripPreference: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRF-Token": components["parameters"]["CsrfToken"];
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "auto" | "blocked";
+                    expected_version: number;
+                };
+            };
+        };
+        responses: {
+            /** @description 偏好已记录 */
             204: {
                 headers: {
                     [name: string]: unknown;

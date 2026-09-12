@@ -250,3 +250,4 @@ chat-intake-tenant-pin	连接归属的工作区与发送者绑定的工作区不
 provider-edit-resets-capability	编辑连接参数后库里的配置必须回到待检测、停用、版本递增；留空密钥沿用旧密钥而不是清空；跨工作区 404	./internal/transport/httpapi	TestProviderUpdateResetsDetectionKeepsKeyAndIsTenantScoped
 email-source-ownership-and-connector	邮箱按成员归属：别人看不到、动不了；密码错检测失败且不能启用；换密码重置；同步把附件送进识别队列且游标不重复；软删除后列表消失、单据保留、可重新登记	./internal/transport/httpapi	TestEmailSourceConnectorLifecycleAndOwnership
 imap-incremental-cursor	首次接入只回溯 30 天，之后按 UID 增量；处理失败时游标停在失败之前；一轮受 limit 限制	./internal/adapters/imap	TestFetchNewLooksBackThenContinuesByUID
+trip-link-attribution	已确认关联的支付与发票互相跟随行程归属；关联指向不同行程即冲突留人工；「保持无归属」优先且恢复自动后重新跟随；解除关联不影响无关单据	./internal/application/reviews	TestLinkedPaymentAndInvoiceFollowEachOthersTrip

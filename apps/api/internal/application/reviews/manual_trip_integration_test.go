@@ -140,11 +140,11 @@ func TestTripTimeAttributionBoundariesOverlapsAndManualPriority(t *testing.T) {
 		ExpectedAssignmentID: &manual.AssignmentID, ExpectedFactVersion: manual.FactVersion, Reason: "保持无归属", IdempotencyKey: "manual-block-again", RequestID: "manual-block-request"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Preference(ctx, fixture.tenant, payment, "auto", "restore-auto-request", assignmentVersion(t, fixture, domain.DocumentPayment, payment)); err != nil {
+	if err := service.Preference(ctx, fixture.tenant, domain.DocumentPayment, payment, "auto", "restore-auto-request", assignmentVersion(t, fixture, domain.DocumentPayment, payment)); err != nil {
 		t.Fatal(err)
 	}
 	assertPaymentTrip(t, fixture, payment, trip.TripID, "auto")
-	if err := service.Preference(ctx, fixture.tenant, payment, "blocked", "block-auto-request", assignmentVersion(t, fixture, domain.DocumentPayment, payment)); err != nil {
+	if err := service.Preference(ctx, fixture.tenant, domain.DocumentPayment, payment, "blocked", "block-auto-request", assignmentVersion(t, fixture, domain.DocumentPayment, payment)); err != nil {
 		t.Fatal(err)
 	}
 	oldRangePayment := confirmTripPayment(t, fixture, "edit-old-range", "2026-08-27T14:00:00+08:00")

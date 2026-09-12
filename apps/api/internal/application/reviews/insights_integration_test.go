@@ -42,6 +42,7 @@ func TestFactInsightsUseCurrentLinksAssignmentsAndStableTenantSnapshot(t *testin
 		t.Fatal(err)
 	}
 	blockPaymentAuto(t, fixture, payment.FactID)
+	blockInvoiceAuto(t, fixture, invoice.FactID)
 	trip := seedManualTrip(t, fixture, "insight-trip", "北京", "2026-08-26", "2026-08-28")
 	tripID := trip.TripID
 	if _, err := tripService.Assign(ctx, fixture.tenant, tripapp.AssignmentInput{

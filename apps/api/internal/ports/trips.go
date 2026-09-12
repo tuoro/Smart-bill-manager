@@ -61,8 +61,10 @@ type TripAssignmentReplay struct {
 }
 
 type TripAssignmentCommand struct {
-	ExpectedFactVersion  int
-	DecisionSource       string
+	ExpectedFactVersion int
+	DecisionSource      string
+	// RuleVersion 仅自动决定使用；留空按时间规则。
+	RuleVersion          string
 	TenantID             string
 	ActorUserID          string
 	FactType             domain.DocumentType

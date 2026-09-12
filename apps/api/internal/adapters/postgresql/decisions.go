@@ -269,8 +269,9 @@ func (t transaction) ConfirmReview(ctx context.Context, command ports.ConfirmCom
 	`, command.TenantID, documentID); err != nil {
 		return ports.ConfirmResult{}, fmt.Errorf("complete review document: %w", err)
 	}
-	if command.Payment != nil {
-		if err := t.reconcileTripPayments(ctx, command.TenantID, command.ActorUserID, command.RequestID, command.CreatedAt, result.FactID, nil); err != nil {
+	// 新单据先按自身规则归属，再让刚确认关联的对方跟着重算。
+	if command.Payment != nil || command.Invoice != nil {
+		if err := t.reconcileFactAndCounterparts(ctx, command.TenantID, command.ActorUserID, command.RequestID, documentType, result.FactID, command.CreatedAt); err != nil {
 			return ports.ConfirmResult{}, err
 		}
 	}

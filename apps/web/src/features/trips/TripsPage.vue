@@ -86,7 +86,7 @@ async function changePreference(candidate: TripAttributionCandidate, mode: 'auto
   changingFactID.value = candidate.fact_id
   rowErrors.value[candidate.fact_id] = ''
   try {
-    await api.tripPreference(candidate.fact_id, mode, candidate.fact_version)
+    await api.tripPreference(candidate.fact_type, candidate.fact_id, mode, candidate.fact_version)
     success.value =
       mode === 'auto' ? '已恢复自动归属并重新计算。' : '已保持无归属，后续自动重算不会覆盖该选择。'
     await loadTrips()
@@ -392,7 +392,7 @@ onUnmounted(() => {
           :disabled="editorOpen || offline || !!changingFactID || candidatesLoading"
         />
         <p class="quiet-block">
-          支付按实际交易时间与行程时区自动匹配，重叠时由人工选择。下方日期与关联建议仅作参考，发票始终人工归属。
+          支付按实际交易时间与行程时区自动匹配；已确认关联的支付与发票互相跟随归属。重叠或关联指向不同行程时留给人工。
         </p>
 
         <div v-if="candidatesLoading" class="state-layout" role="status">
@@ -433,7 +433,7 @@ onUnmounted(() => {
               <div v-if="canManage" class="trip-assignment-form">
                 <div class="trip-assignment-actions">
                   <button
-                    v-if="candidate.fact_type === 'payment' && candidate.assignment_mode !== 'auto'"
+                    v-if="candidate.assignment_mode !== 'auto'"
                     class="button"
                     :disabled="Boolean(changingFactID) || offline"
                     @click="changePreference(candidate, 'auto')"
@@ -441,11 +441,7 @@ onUnmounted(() => {
                     恢复自动归属
                   </button>
                   <button
-                    v-if="
-                      candidate.fact_type === 'payment' &&
-                      !candidate.current_assignment_id &&
-                      candidate.assignment_mode === 'auto'
-                    "
+                    v-if="!candidate.current_assignment_id && candidate.assignment_mode === 'auto'"
                     class="button"
                     :disabled="Boolean(changingFactID) || offline"
                     @click="changePreference(candidate, 'blocked')"

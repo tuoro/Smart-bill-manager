@@ -107,6 +107,7 @@ Source -> Claim -> Fact
 | [部署指南](docs/deployment.md) | 安装、初始化、启动、停止和网络边界 |
 | [本地运维](docs/local-operations.md) | 健康检查、容量、诊断与升级边界 |
 | [成员与账号](docs/member-accounts.md) | 成员邀请、停用、自助改密与本地恢复说明 |
+| [钉钉收单](docs/dingtalk.md) | 建钉钉应用、启用连接器、绑定账号与聊天里审单 |
 | [材料包导出](docs/material-export.md) | 当前行程与固定报销快照 ZIP、文件范围和资源限制 |
 | [备份与恢复](docs/backup-restore.md) | 认证备份、验证和完整恢复 |
 | [产品与范围](docs/product.md) / [路线图](docs/roadmap.md) | 产品定位、已完成范围和后续门禁 |

@@ -40,7 +40,7 @@ flowchart LR
     API --> Mail[IMAP 邮箱]
 ```
 
-当前系统只启用 Browser、Web、API、PostgreSQL 17、本地文件存储和模型 API。M3 增加的邮件归档、行程归属和报销工作流仍位于同一模块化单体；不装配邮箱网络连接，也不为报销连接外部系统。真实邮箱与外部报销系统接入仍在独立门禁之后。
+当前系统启用 Browser、Web、API、PostgreSQL 17、本地文件存储、模型 API、IMAP 邮箱和钉钉 Stream 长连接。邮件归档、行程归属和报销工作流仍位于同一模块化单体。两个网络连接器都只依赖应用端口产生候选，不构成第二条写入路径；不为报销连接外部系统。真实邮箱已接通 IMAP，但大规模真实信箱联调仍在独立门禁之后。
 
 ## 目标目录
 
@@ -194,20 +194,25 @@ flowchart LR
 
 ### 钉钉连接器
 
-已装配的第一个网络连接器，位于 `internal/adapters/dingtalk`。同一条规矩：只依赖 `chatintake` 应用端口，不碰数据库、对象存储、Document 或 Job；它做的事只有翻译——把钉钉回调按 `msgtype` 分派为「兑换绑定码」或「投递文件」，再把结果翻译成回复文案（文案以 `docs/design/chat-intake-dialogue.md` 为准）。
+已装配的第一个网络连接器，位于 `internal/adapters/dingtalk`。同一条规矩：只依赖 `chatintake` 应用端口，不碰数据库、对象存储、Document 或 Job；它做的事只有翻译——把钉钉回调按 `msgtype` 分派为「兑换绑定码」「投递文件」或「对话输入」，再把结果翻译成回复文案（文案以 `docs/design/chat-intake-dialogue.md` 为准）。
 
 ```mermaid
 flowchart LR
     DingTalk[钉钉 Stream
 出站长连接] --> Handler[dingtalk.Handler]
-    Handler -->|文本| Redeem[chatintake.RedeemBindingCode]
+    Handler -->|绑定码| Redeem[chatintake.RedeemBindingCode]
     Handler -->|文件/图片| Download[OpenAPI 两步下载]
+    Handler -->|对话输入| Dialogue[chatdialogue.Handle]
     Download -->|字节探测类型| Receive[chatintake.Receive]
     Receive --> Document[既有 Document]
     Document --> Job[既有 ProcessingJob]
+    Job -->|完成回执| Dialogue
+    Dialogue --> Reviews[既有 reviews 用例]
 ```
 
-凭据按工作区保存在 `chat_connectors`（AppSecret 由主密钥加密，与供应商 API Key 同一套），由面板保存→检测→启用；`dingtalk.Manager` 按工作区起停连接，每条连接钉在它的工作区上。信任边界在应用层而不在连接器：未绑定发送者一律拒收、按成员真实角色鉴权、同租户 SHA 去重，连接器不复制任何一条。发送者标识用 `senderStaffId`（企业内稳定 userid），文件类型只看字节不看钉钉给的文件名。识别完成后的回执与对话式确认尚未装配。
+凭据按工作区保存在 `chat_connectors`（AppSecret 由主密钥加密，与供应商 API Key 同一套），由面板保存→检测→启用；`dingtalk.Manager` 按工作区起停连接，每条连接钉在它的工作区上。信任边界在应用层而不在连接器：未绑定发送者一律拒收、按成员真实角色鉴权、同租户 SHA 去重，连接器不复制任何一条。发送者标识用 `senderStaffId`（企业内稳定 userid），文件类型只看字节不看钉钉给的文件名。
+
+识别完成后的回执与对话式审核已装配：Worker 完成 Job 后经 `ports.ChatNotifier` 主动推送抽取结果卡片，后续的改字段、处理重复件、选择候选、填写分配金额与确认/作废由 `application/chatdialogue` 驱动，会话状态落在 `chat_sessions`（每人同时只保留一份在办单据）。确认与作废复用与网页同一套审核用例，连接器不新增任何一条决定路径。
 
 ### AI 处理
 

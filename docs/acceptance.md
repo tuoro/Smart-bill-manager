@@ -12,9 +12,9 @@ B7/B8 验收结果（2026-09-05）：639 个 Go 测试事件、237/237 关键不
 
 B6 已按 [ADR-0030](decisions/0030-material-delivery-packages.md#恢复与验收) 完成本地验收：两种范围精确版本、超过一页不截断、共享对象去重、旧快照不补填、权限/会话隔离、预览冲突、缺件与损坏整包失败、各项容量与回收边界均已验证。Web 使用原生附件下载并通过完整合成业务旅程；旧 M3 的导出排除不再适用于该限定切片。证据见 `tests/evidence/business-completion/b6-material-exports.json`。
 
-B5 门禁以 [ADR-0029](decisions/0029-member-account-lifecycle.md#验收与退出) 为准：第二成员完整加入、全局已有身份保护、多工作区、最后 Owner 并发、改密/登录竞争、停用恢复不复活会话、邀请单次消费、受控恢复审计、前向升级与认证恢复。Web 另验迟到响应、401 失效、409 草稿及复制失败；原覆盖率门槛及本地验收已通过，证据见 `tests/evidence/business-completion/b5-member-accounts.json`；未发布。
+B5 门禁以 [ADR-0029](decisions/0029-member-account-lifecycle.md#验收与退出) 为准：第二成员完整加入、全局已有身份保护、多工作区、最后 Owner 并发、改密/登录竞争、停用恢复不复活会话、邀请单次消费、受控恢复审计、前向升级与认证恢复。Web 另验迟到响应、401 失效、409 草稿及复制失败；原覆盖率门槛及本地验收已通过，证据见 `tests/evidence/business-completion/b5-member-accounts.json`；随 `v0.4.0` 发布。
 
-状态：M0～M4 历史冻结范围、人工行程及 B1～B8 已按 ADR-0025～0032 完成本地验收；补齐结果尚未发布
+状态：M0～M4 历史冻结范围、人工行程及 B1～B8 已按 ADR-0025～0032 验收并随 `v0.4.0` 发布；后续切片随 `v0.5.0`、`v0.6.0` 发布
 硬边界：已达成共识
 量化指标：产品负责人已于 2026-08-27 批准当前数值
 

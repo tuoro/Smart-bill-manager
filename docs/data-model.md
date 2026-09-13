@@ -10,7 +10,7 @@ B7/B8：`0008` 按 ADR-0031 增加双侧有界候选/余额索引和每端 200 �
 
 B6 已验收增补：[ADR-0030](decisions/0030-material-delivery-packages.md) 只读取现有活动归属或不可变报销条目/材料快照，不增加表或迁移。导出清单的公开字段不含 storage_key；初始 Review 只定位原件，不能替代旧快照未捕获的正式 Review。临时包 ID/句柄为进程内至多两个可过期资源，不能用于业务查询或恢复正式数据。
 
-B5 增补（已本地验收、未发布）：`0007` 按 [ADR-0029](decisions/0029-member-account-lifecycle.md) 增加 Membership.version、单次邀请（仅 token hash）与全局账号审计。角色/状态变化撤销本租户会话，密码变化撤销全局会话；不保存租户级密码。邀请消费、成员变化和审计原子提交，现有用户与业务记录前向保留。
+B5 增补（随 `v0.4.0` 发布）：`0007` 按 [ADR-0029](decisions/0029-member-account-lifecycle.md) 增加 Membership.version、单次邀请（仅 token hash）与全局账号审计。角色/状态变化撤销本租户会话，密码变化撤销全局会话；不保存租户级密码。邀请消费、成员变化和审计原子提交，现有用户与业务记录前向保留。
 
 B4 增补（已本地验收）：`0006` 按 [ADR-0028](decisions/0028-invoice-supporting-materials.md) 新增发票辅助 Link/决定、报销材料快照与捕获标记。Document 仍是唯一不可变二进制身份，SHA 按租户去重；活动关联唯一，终止关系和历史快照保留，Invoice.version 绑定材料变更。历史报销仅标记未捕获，不回填当前附件或改旧 hash。
 
@@ -413,7 +413,7 @@ AuditEvent 追加写，不保存密钥、完整单据、完整模型输出或证
 
 ## M3 与后续领域
 
-### EmailSource（M3 首切片）
+### EmailSource（M3 首切片，`v0.6.0` 接通真实 IMAP）
 
 - tenant_id、id；
 - display_name；
@@ -422,9 +422,16 @@ AuditEvent 追加写，不保存密钥、完整单据、完整模型输出或证
 - transport_security：`implicit_tls` 或 `starttls`；
 - status：`pending_connection` 或 `active`；
 - idempotency_key、request_hash；
-- created_by_user_id、created_at、last_archived_at、version。
+- created_by_user_id、created_at、last_archived_at、version；
+- 迁移 `0015` 增加：imap_username、encrypted_password、connection_status、connection_checked_at、connection_safe_message、sync_enabled、sync_uid_validity、sync_last_uid、last_sync_at、last_sync_safe_message、deleted_at。
 
-Source 描述符不包含密码、OAuth、Token、Cookie、密文、密钥引用或可恢复凭据。`tenant_id + idempotency_key` 和规范连接身份分别唯一；记录只追加创建，当前切片没有修改连接配置的第二入口。
+`tenant_id + idempotency_key` 唯一；连接身份的唯一性由部分索引 `email_sources_live_identity_key` 在 `deleted_at IS NULL` 上保证，因此软删除后同一身份可以重新添加。
+
+凭据自迁移 `0015` 起落在本表：`encrypted_password` 由主密钥加密（与 Provider API Key、钉钉 AppSecret 同一套 `SecretCipher`），明文密码、OAuth、Token 和 Cookie 都不入库，接口只回显是否已设置。`sync_enabled` 受 CHECK 约束保护，只有在 `connection_status = 'passed'`、凭据已存在且未软删除时才能为真——检测未过的邮箱无法被打开同步。
+
+`sync_uid_validity` 与 `sync_last_uid` 是 IMAP 增量游标：首次同步回看 30 天，此后按 UID 递增拉取，游标只在消息成功入库后前移，中途失败不会跳过邮件；服务器重置 UIDVALIDITY 时游标作废并重新回看。
+
+邮箱按成员归属，`created_by_user_id` 即归属人；成员可以增删自己的邮箱，这是两档角色里成员独有的能力。
 
 ### EmailMessage
 
@@ -447,6 +454,22 @@ Source 描述符不包含密码、OAuth、Token、Cookie、密文、密钥引用
 - created_at。
 
 `tenant_id + email_message_id + part_index` 唯一。附件对象不可覆盖；同租户精确重复可以链接已有 Document。邮件拥有附件对象，Document 删除不能删除该对象；删除未确认的邮件来源 Document 时附件的 `document_id` 置空，邮件归档继续存在。
+
+### 聊天收单（ChatIdentity / ChatBindingCode / ChatConnector / ChatSession）
+
+四张表，分别回答「这个人是谁」「怎么证明是他」「这个工作区连的是哪个机器人」「他手上这份单据谈到哪了」。
+
+**chat_identities**（迁移 `0010`）：platform、external_user_id、tenant_id、user_id、created_by_user_id、created_at。主键 `(platform, external_user_id)`，所以一个钉钉账号只能绑到一个成员。外键指向 `memberships`，成员被移出工作区时绑定随之失效。`external_user_id` 用钉钉的 `senderStaffId`，改昵称换头像都不影响。
+
+**chat_binding_codes**（迁移 `0011`）：一次性绑定码，只存哈希，有效期 10 分钟，用过即失效。
+
+**chat_connectors**（迁移 `0013`）：tenant_id、platform、app_key、encrypted_app_secret、detection_status、detection_checked_at、detection_safe_message、active、version、updated_by_user_id、created_at、updated_at。主键 `(tenant_id, platform)`，另有 `(platform, app_key)` 唯一——同一个钉钉应用不能被两个工作区同时使用。AppSecret 与邮箱密码、Provider API Key 共用主密钥加密。
+
+**chat_sessions**（迁移 `0017`，`0018` 增加 plan_json）：platform、external_user_id、tenant_id、user_id、job_id、document_name、state、expected_revision、reminded、plan_json、started_at、updated_at。
+
+主键同样是 `(platform, external_user_id)`，这一条就是「一个人同时只有一份在办单据」的机制保证，不靠应用层自觉。state 取值为 `awaiting_decision`、`awaiting_field_value`、`awaiting_duplicate`、`awaiting_candidates`、`awaiting_allocation_amount`。`plan_json` 记这段对话攒下的决定（待改字段、已判的重复、已选候选与金额），攒齐后一次性交给与网页同一条确认用例。
+
+会话是纯对话状态：删掉它不改变任何账目，单据回到网页的待审核队列。外键对 `chat_identities` 和 `processing_jobs` 都是级联删除，解绑或单据消失时不留悬挂会话。20 分钟未响应提醒一次（`reminded`），30 分钟后清理。
 
 ### Document 来源扩展
 

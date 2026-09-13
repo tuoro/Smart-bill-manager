@@ -8,7 +8,7 @@ B7/B8 结构增补见 ADR-0040/0032：目标查询使用 SQL 有界 keyset，提
 
 B6 已验收增补：[ADR-0030](decisions/0030-material-delivery-packages.md) 将精确清单查询、ZIP 应用编排和磁盘临时文件分别置于 PostgreSQL port、应用层和本地存储 adapter。一次 RR 快照固定业务范围；有界匿名文件句柄支持准备/一次下载，既不是数据库导出任务也不是新的权威数据源。
 
-B5 增补（已本地验收、未发布）：[ADR-0029](decisions/0029-member-account-lifecycle.md) 复用全局 User、Membership、Session 与现有 Argon2/token；Tenant 锁保护最后 Owner，User 锁及已核验 hash 比较保护登录/改密。Owner 只管理本租户成员，受控本地恢复不是 Web 重置接口；client/session 统一认证代际，不建立第二身份源。
+B5 增补（随 `v0.4.0` 发布）：[ADR-0029](decisions/0029-member-account-lifecycle.md) 复用全局 User、Membership、Session 与现有 Argon2/token；Tenant 锁保护最后 Owner，User 锁及已核验 hash 比较保护登录/改密。Owner 只管理本租户成员，受控本地恢复不是 Web 重置接口；client/session 统一认证代际，不建立第二身份源。
 
 B4 增补（已本地验收）：[ADR-0028](decisions/0028-invoice-supporting-materials.md) 用 InvoiceMaterial 关系复用不可变 Document；无 Job 的辅助上传不进入 AI 链。材料编辑按 Invoice/Document 锁和聚合版本原子提交，精确文件发布意图以同一 PostgreSQL 事务锁核对恢复；报销提交固定材料集。原件权限、物理删除和精确备份共同更新，不新增文件数据源。
 

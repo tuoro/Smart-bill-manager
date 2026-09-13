@@ -1,8 +1,10 @@
 # AI 票面原文提取管线
 
-状态：M3 行程归属切片已完成的活动基线
+状态：随 `v0.6.0` 发布的活动基线
 
-当前契约：`bill-visible-text-cn/2` / `bill-visible-text/2` / `bill-visible-text-provider/2` / `claim-mapper/4` / `document-claim/3`
+当前契约：`bill-visible-text-cn/5` / `bill-visible-text/2` / `bill-visible-text-provider/2` / `claim-mapper/5` / `document-claim/4`
+
+版本号以代码为准：提示词与抽取 Schema 见 `application/processing/worker.go`，映射器与 Claim Schema 见 `application/claimmapping/mapper.go`，Provider 面向 Schema 见 `adapters/openaicompatible/provider_schema.go`。改契约必须同时改这几处常量，文档随之更新。
 
 ## 唯一活动链路
 

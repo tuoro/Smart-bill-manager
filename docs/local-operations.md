@@ -22,6 +22,21 @@
 
 构建完成后必须用 `tools/check-release-image.mjs check` 核验标签、必需/禁止资产、Go/Node 工具链与包管理器缺席、Compose 规范化配置和 acceptance 内部网络。正式原始报告只允许写入 `/tmp` 下 owner-only 隔离目录。
 
+## 文档与代码一致性门禁
+
+`tools/check-doc-consistency.mjs` 检查两类只会静静漂移的东西，随 `node --test tools/*.test.mjs` 在 CI 里跑：
+
+1. **契约版本。** 当前版本号只在 `docs/ai-pipeline.md` 的「当前契约：」这一行声明，检查断言它与 `worker.go`、`mapper.go`、`provider_schema.go` 里的 Go 常量完全一致。`docs/architecture.md` 与 `docs/data-model.md` 描述的是当前系统，出现非当前版本即判漂移；历史版本沿革只写在 `ai-pipeline.md` 的沿革段落与 ADR 里。
+2. **新表必须记录。** 迁移里每条 `CREATE TABLE` 建的表都要在 `docs/data-model.md` 里有条目，按表名或实体名任一种写法都算。表名到实体名的转换由工具完成（`payment_invoice_links` → `PaymentInvoiceLink`），不需要维护映射表。
+
+加这两项是因为两类漂移都真实发生过：契约版本在代码里走到 `claim-mapper/5` 而文档停在 `/4`，聊天的四张表落库两个版本后数据模型文档里没有一个字。检查只比对字符串集合，不做语义判断，因此没有需要人工裁量的误报。单独运行：
+
+```bash
+node tools/check-doc-consistency.mjs .
+```
+
+它不检查文档写得好不好，只检查该有的条目在不在、版本号对不对。
+
 ## 首次 Owner 初始化
 
 数据库连接同样可以在浏览器里配置。未通过环境变量提供连接信息时，应用只启动一个最小 HTTP 表面（SPA 加 `GET /api/v1/setup`、`POST /api/v1/setup/database` 与其 `/test` 变体），`/api/v1/ready` 返回 `503`，其余 `/api/` 路径返回 `database_not_configured` 而不是页面——否则前端会把 200 加 HTML 误判成有效响应。连接验证通过后配置写入 `/var/lib/sbm/config`（`sbm:sbm 0700`，与只读穿越的主密钥目录 `/var/lib/sbm/secrets` 分开），进程随即转入常规启动并自动应用迁移；验证失败不保存任何设置。

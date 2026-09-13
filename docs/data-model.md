@@ -120,6 +120,22 @@ M1、M2 实现上传单据、Claim/Fact 与分配链。M3 首切片新增 EmailS
 
 空数据库只允许通过本地 `bootstrap-owner` 命令创建首个 User、Tenant 和 active owner Membership。命令必须在单一事务中完成，只在三张表都为空时可执行，重复执行明确失败；密码只从交互式标准输入或权限受限的挂载文件读取，不能出现在命令参数、环境变量或日志。该能力不暴露 HTTP 路由。首个 owner 登录后，后续用户与 Membership 只能通过带 `members.manage` 能力的受权用例创建。
 
+### MemberInvitation（`member_invitations`）
+
+- id、tenant_id、email、role、token_hash；
+- created_by_user_id、created_at、expires_at、reason；
+- idempotency_key、request_hash、audit_event_id、version；
+- consumed / revoked 的时刻、执行者与审计事件。
+
+只存邀请令牌的 SHA-256，不存明文，接口也不回显。`token_hash` 全局唯一，单次消费：接受、撤销或过期之后同一串码不再可用。`role` 的取值随迁移 `0014` 收敛为两档。认证恢复会撤销未消费的邀请并标记 restore 原因，旧邀请码不能在恢复后复活。
+
+### AccountEvent（`account_events`）
+
+- id、user_id、actor_kind（`self` 或 `local_operator`）、action（`password_changed` 或 `password_recovered`）；
+- reason、created_at。
+
+全局账号审计，追加写。CHECK 约束把两组取值绑死：本人只能改密，本地运维只能恢复，不存在第三种组合。不记录密码、哈希或令牌。
+
 ## ProviderConfig
 
 - tenant_id；
@@ -208,7 +224,7 @@ AiRun 追加写。重试创建新 AiRun，不覆盖失败 attempt。版本字段
 
 每条链只有第一个 revision 由对应 AiRun 的 Visible Text 经本地 Claim Mapper 产生：`origin_ai_run_id = produced_by_ai_run_id`；后续只允许用户修订并记录 `revised_by_user_id`，M1 不对已形成 ClaimSet 的 Job 重新调用模型。两种作者约束由数据库 Check 和外键保证，不能只靠日志推断。`tenant_id + document_id + revision` 唯一；数据库对 `draft`、`ready_for_review`、`blocked` 三种非终态按 `tenant_id + document_id` 建部分唯一约束。新 revision 必须指向被替代版本，并在同一事务中把旧版本置为 `superseded`。同一 Document 同时最多一个非终态 current revision，只有 `ready_for_review` 能被确认；`blocked` 必须继续修订、驳回或取消。`superseded`、`confirmed`、`rejected` 与 `cancelled` 为终态。
 
-每个 ClaimSet revision 是完整、不可变的 `document-claim/3` 快照，不是增量补丁：当前 `document_type` 的 Schema 中每个字段都必须有且只有一个 FieldClaim，包括显式 `absent` 的可选字段；上一 revision 存在但当前 Schema 或明细已移除的路径也必须保留一个 `presence = absent` 墓碑。用户可以显式修正 `document_type`（`payment`、`invoice`、`trip` 或 `unknown`），以及新增、删除、修改或重排 InvoiceItem；`unknown` 不能进入 `ready_for_review` 或创建 Fact。创建用户 revision 的事务复制未修改字段、写入修改字段和墓碑、重跑校验并原子切换 current revision；读取、校验和 Fact 创建只读取当前 revision，禁止沿 supersedes 链补字段，Fact 只读取当前类型中 `present` 的正式字段。
+每个 ClaimSet revision 是完整、不可变的 `document-claim/4` 快照，不是增量补丁：当前 `document_type` 的 Schema 中每个字段都必须有且只有一个 FieldClaim，包括显式 `absent` 的可选字段；上一 revision 存在但当前 Schema 或明细已移除的路径也必须保留一个 `presence = absent` 墓碑。用户可以显式修正 `document_type`（`payment`、`invoice`、`trip` 或 `unknown`），以及新增、删除、修改或重排 InvoiceItem；`unknown` 不能进入 `ready_for_review` 或创建 Fact。创建用户 revision 的事务复制未修改字段、写入修改字段和墓碑、重跑校验并原子切换 current revision；读取、校验和 Fact 创建只读取当前 revision，禁止沿 supersedes 链补字段，Fact 只读取当前类型中 `present` 的正式字段。
 
 ### FieldClaim
 
@@ -494,6 +510,12 @@ Document 增加 `ingestion_kind = upload | email_attachment` 与 `original_objec
 
 TripEvidence 与 Payment/Invoice 一样只能由对应类型的 confirmed ReviewDecision 创建；`destination + start_date + end_date` 必填且 `end_date >= start_date`。票面字段不可改写，删除采用软删除并保留字段来源与审核链。地点、姓名和预订编号是租户私有业务字段，不进入 safe metadata。
 
+### InvoiceMaterialDecision / InvoiceMaterialLink（ADR-0028 发票辅助材料）
+
+与行程那对同构，但挂在发票上。Decision 保存 invoice_id、document_id、link_id、actor、动作（`upload | add | remove`）、期望与结果版本、理由、幂等键与审计事件；结果版本必须恰好是期望版本加一，不允许跳版。
+
+Link 是不可变区间：`created_by_decision_id` 与 `ended_by_decision_id` 各自唯一，结束三字段（时刻、决定、审计）要么全空要么全有，由 CHECK 保证不出现半结束状态。同一份材料的加挂与摘除各产生一条决定，历史不可改写。
+
 ### TripMaterialDecision / TripMaterialLink
 
 凭证归属与费用分开存储，不产生虚拟金额。Decision 保存凭证、actor、来源 `manual | migration`、前 Link、目标行程、期望凭证版本、动作、理由、幂等键及审计。迁移来源仅允许 `0002` 初始化，运行时只能写人工决定。每个凭证最多一条活动 Link，容器可以有多条；移动必须由同一决定结束前 Link 并建立新 Link。删除容器或凭证只终止对应 Link，历史不可改写或删除。
@@ -519,6 +541,20 @@ Decision 不可更新或删除。assign 要求无 previous 且有目标，move �
 - ended_at、ended_by_decision_id、ended_by_audit_event_id，可为空。
 
 每个 Payment 或 Invoice 同时最多一条活动 Link。创建字段不可变；活动 Link 只允许一次性终止，终止来源严格二选一为后续 AssignmentDecision 或 Fact 删除 AuditEvent。历史 Link 禁止删除，活动 Link 是当前行程归属的唯一数据源。
+
+### ReimbursementMaterialSnapshot（`reimbursement_material_snapshots`）
+
+- tenant_id、reimbursement_id、invoice_id、link_id、document_id；
+- 主键 `(tenant_id, reimbursement_id, link_id)`。
+
+报销提交那一刻把当时挂着的发票材料固定下来，此后原始 Link 再增删都不改变这份快照。材料包导出按快照取件，所以同一次报销重复导出内容一致。
+
+### DeletionTombstone（`deletion_tombstones`）
+
+- id、tenant_id、actor_user_id、resource_type、resource_id_hash；
+- object_hashes_json、resource_counts_json、request_id、created_at。
+
+物理删除留下的凭据：只存资源标识与对象内容的哈希、各类计数，不存原件、字段值或可还原的业务内容。用于事后核对删了什么、删了多少，不能用它恢复数据。
 
 ### FactFieldOrigin 与 ReviewDecision 扩展
 

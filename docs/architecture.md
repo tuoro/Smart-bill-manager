@@ -220,8 +220,8 @@ flowchart LR
 2. 创建 AiRun，冻结 ProviderConfig 版本与安全指纹、模型、显式输出模式、Prompt、Visible Text Schema、Provider-facing Schema 版本与 SHA-256、Claim Schema 和 Claim Mapper 版本。
 3. 规范化图片/PDF 页面为经 8 位 RGBA 像素缓冲编码的版本化 PNG 模型副本，不修改原始 Source。
 4. 唯一 OpenAI-compatible Adapter 从 `bill-visible-text/2` 确定性投影 `bill-visible-text-provider/2`，不出现供应商品牌分支；它按 ProviderConfig 显式选择 `json_schema` 或 `json_object`，禁止失败后自动切换。
-5. 模型按 `bill-visible-text-cn/2` 只返回文档类型、固定 Payment/Invoice/Trip 路径，以及每个非空字段的票面 `{text,page}`；不得返回独立 Evidence、归一化值、内部 Claim、归属建议或计算结果。Adapter 只硬拒绝无效 JSON、错误或多余根成员、错误版本/文档类型，以及 `json_schema` 模式的 strict 传输失败；不删除 `null`、补值、改名或修复嵌套字段。
-6. 唯一 `claim-mapper/4` 把票面原文绑定为 Evidence，并确定性处理批准的币种/金额、日期、时间、时区、数量、null/缺失、数组顺序和审核专用补充字段；发票只有 `amount_with_tax` 能映射为 `total_minor`，Trip 日期只做表示法规范化，空白业务值不得计算。随后按 `document-claim/3` 执行字段与业务校验并保存 ClaimSet、FieldClaim、Evidence 和 ValidationResult。
+5. 模型按 `bill-visible-text-cn/5` 只返回文档类型、固定 Payment/Invoice/Trip 路径，以及每个非空字段的票面 `{text,page}`；不得返回独立 Evidence、归一化值、内部 Claim、归属建议或计算结果。Adapter 只硬拒绝无效 JSON、错误或多余根成员、错误版本/文档类型，以及 `json_schema` 模式的 strict 传输失败；不删除 `null`、补值、改名或修复嵌套字段。
+6. 唯一 `claim-mapper/5` 把票面原文绑定为 Evidence，并确定性处理批准的币种/金额、日期、时间、时区、数量、null/缺失、数组顺序和审核专用补充字段；发票只有 `amount_with_tax` 能映射为 `total_minor`，Trip 日期只做表示法规范化，空白业务值不得计算。随后按 `document-claim/4` 执行字段与业务校验并保存 ClaimSet、FieldClaim、Evidence 和 ValidationResult。
 7. 将 Job 转为 `needs_review`、`blocked` 或明确失败。只要根身份有效，单字段形状、页码、金额、日期、时区、Evidence、区段或补充字段问题必须保存为一个 blocked Claim 并保留其他正确字段；只有根级失败不创建 Claim。
 
 M2 多页发票继续复用同一次模型请求和同一 Claim：同一逻辑 item 的不同字段可以引用相邻页面，本地从稳定 `item_key`、`sort_order` 与 Evidence 页码校验连续跨度和不倒退阅读顺序。分页计划只在读取时从 FieldClaim/Evidence/DocumentPage 派生；规范化单页通过显式 tenant 查询与原件相同的 reviewer 状态边界读取，不新增持久化页结论或第二模型调用。

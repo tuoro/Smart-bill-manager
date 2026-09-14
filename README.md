@@ -9,7 +9,9 @@ Smart Bill Manager 是面向个人和小团队的自托管 AI 财务单据工作
 
 ## 安装
 
-需要 `linux/amd64` 主机、Docker Engine，以及至少 6 GiB 可用内存。
+需要 `linux/amd64` 主机、Docker Engine，以及至少 6 GiB 可用内存。两条路径任选一条。
+
+### 用 docker run
 
 起两个容器，不需要额外建网络：
 
@@ -45,6 +47,78 @@ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' sma
 数据库连接也可以用 `-e SBM_POSTGRES_HOST=<上面查到的 IP>`、`-e SBM_POSTGRES_USER`、`-e SBM_POSTGRES_PASSWORD` 预先指定，页面就会跳过第一步；这几个变量优先于页面保存的配置。已经有 PostgreSQL 的话不需要起第一个容器，直接填它的地址即可。
 
 装好之后，数据库连接可以在「系统 → 数据库连接」里查看和修改（仅 Owner），改完重启应用容器生效。数据库容器删除重建后 IP 可能变（`docker restart` 不会变），变了应用就连不上，在这里填新 IP 即可。见[部署指南](docs/deployment.md)。
+
+### 用 Docker Compose
+
+不想手敲两条命令就用这个。建一个目录，放入 `compose.yaml`：
+
+```yaml
+name: smart-bill-manager
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sbm_app
+      POSTGRES_DB: smart_bill_manager
+      POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+    volumes:
+      - sbm-postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbm_app -d smart_bill_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  app:
+    image: ghcr.io/tuoro/smart-bill-manager:v0.6.0
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SBM_POSTGRES_HOST: db
+      SBM_POSTGRES_USER: sbm_app
+      SBM_POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - sbm-data:/var/lib/sbm
+
+volumes:
+  sbm-postgres:
+  sbm-data:
+```
+
+同目录再建 `.env` 写数据库密码，只此一处，两个服务都从这里取：
+
+```bash
+SBM_DB_PASSWORD=<自己设一个数据库密码>
+```
+
+启动：
+
+```bash
+docker compose up -d
+```
+
+打开 <http://127.0.0.1:8080>，**直接创建管理员账号即可，不用填数据库连接**——compose 文件里已经用环境变量指定好了。这是它比上面两条命令省事的地方：compose 会自建一个网络，服务名 `db` 能被解析，所以不需要 `docker inspect` 查 IP，数据库容器重建后地址也不会变。
+
+日常操作：
+
+```bash
+docker compose logs -f app     # 看日志
+docker compose restart app     # 重启应用
+docker compose down            # 停止并删除容器，数据保留在卷里
+```
+
+`docker compose down` 不加 `-v` 不会删卷，数据和主密钥都留着。升级时把 `image` 改成新 tag 再 `docker compose up -d`；有待执行的迁移时应用会拒绝启动，先备份，再给 app 加上 `SBM_ALLOW_MIGRATION: "true"`。
 
 升级时换用新的镜像 tag 重建应用容器。存在未执行的数据库迁移时应用会拒绝启动并提示——迁移原地修改数据且不可回滚，请先按[备份与恢复](docs/backup-restore.md)创建并验证备份，再加 `-e SBM_ALLOW_MIGRATION=true` 重建。
 

@@ -9,7 +9,9 @@ Smart Bill Manager is a self-hosted AI workspace for financial documents. It tur
 
 ## Installation
 
-Requires a `linux/amd64` host, Docker Engine, and at least 6 GiB of available memory.
+Requires a `linux/amd64` host, Docker Engine, and at least 6 GiB of available memory. Pick either path.
+
+### With docker run
 
 Start the two containers. No extra network is needed:
 
@@ -45,6 +47,78 @@ The application container does not use that port. Both containers sit on Docker'
 The connection can also be pinned with `-e SBM_POSTGRES_HOST=<the IP address above>`, `-e SBM_POSTGRES_USER` and `-e SBM_POSTGRES_PASSWORD`, which skips the first step. If you already run PostgreSQL, skip the first container and point at it instead.
 
 Recreating the database container may change its IP address (`docker restart` does not). If it does, the app can no longer connect; an owner enters the new address under System → Database connection and restarts the application container.
+
+### With Docker Compose
+
+Create a directory and put this in `compose.yaml`:
+
+```yaml
+name: smart-bill-manager
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sbm_app
+      POSTGRES_DB: smart_bill_manager
+      POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+    volumes:
+      - sbm-postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbm_app -d smart_bill_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  app:
+    image: ghcr.io/tuoro/smart-bill-manager:v0.6.0
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SBM_POSTGRES_HOST: db
+      SBM_POSTGRES_USER: sbm_app
+      SBM_POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - sbm-data:/var/lib/sbm
+
+volumes:
+  sbm-postgres:
+  sbm-data:
+```
+
+Put the database password in a `.env` file next to it. It is defined once and both services read it:
+
+```bash
+SBM_DB_PASSWORD=<choose a database password>
+```
+
+Start it:
+
+```bash
+docker compose up -d
+```
+
+Open <http://127.0.0.1:8080> and **create the administrator account straight away — there is no database step**, because the compose file already pins the connection through environment variables. That is what this path saves: Compose creates its own network where the service name `db` resolves, so no `docker inspect` lookup is needed and the address does not change when the database container is recreated.
+
+Day to day:
+
+```bash
+docker compose logs -f app     # follow the logs
+docker compose restart app     # restart the application
+docker compose down            # stop and remove the containers, keeping the volumes
+```
+
+`docker compose down` without `-v` keeps the volumes, so data and the master key survive. To upgrade, change `image` to a newer tag and run `docker compose up -d`; when migrations are pending the app refuses to start, so back up first and then add `SBM_ALLOW_MIGRATION: "true"` to the app service.
 
 To upgrade, recreate the application container with a newer image tag. When migrations are pending the app refuses to start and says so — migrations rewrite data in place and cannot be rolled back, so create and verify a backup first (see [backup and restore](docs/backup-restore.md)), then recreate with `-e SBM_ALLOW_MIGRATION=true`.
 

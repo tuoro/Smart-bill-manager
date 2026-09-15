@@ -50,9 +50,49 @@ Recreating the database container may change its IP address (`docker restart` do
 
 ### With Docker Compose
 
-Create a directory and put this in `compose.yaml`:
+Download the deployment file:
+
+```bash
+curl -O https://raw.githubusercontent.com/tuoro/Smart-bill-manager/main/compose.yaml
+```
+
+Open it and replace the password on the first line with your own. Nothing else needs to change:
 
 ```yaml
+x-database-password: &database-password 改成你自己的数据库密码
+```
+
+Then start it from the directory holding that file:
+
+```bash
+docker compose up -d
+```
+
+Open <http://127.0.0.1:8080> and **create the administrator account straight away — there is no database step**, because the file already pins the connection. That is what this path saves: Compose creates its own network where the service name `db` resolves, so no `docker inspect` lookup is needed and the address does not change when the database container is recreated.
+
+Day-to-day commands run from that same directory:
+
+```bash
+docker compose logs -f app     # follow the logs
+docker compose restart app     # restart the application
+docker compose down            # stop and remove the containers, keeping the volumes
+```
+
+`docker compose down` without `-v` keeps the volumes, so data and the master key survive. To upgrade, change `image` to a newer tag and run `docker compose up -d`; when migrations are pending the app refuses to start, so back up first and then add `SBM_ALLOW_MIGRATION: "true"` to the app service.
+
+The full file is below; you can also create `compose.yaml` yourself and paste this in:
+
+```yaml
+# Smart Bill Manager 单机部署。
+#
+# 用法：改下面这一行的密码，然后在本文件所在目录执行 docker compose up -d，
+# 再打开 http://127.0.0.1:8080 创建管理员账号即可。
+#
+# 密码只写这一处，两个服务共用；它是新建数据库的密码，自己定一个即可，
+# 不要保留下面的占位文字。
+
+x-database-password: &database-password 改成你自己的数据库密码
+
 name: smart-bill-manager
 
 services:
@@ -62,9 +102,10 @@ services:
     environment:
       POSTGRES_USER: sbm_app
       POSTGRES_DB: smart_bill_manager
-      POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+      POSTGRES_PASSWORD: *database-password
     volumes:
       - sbm-postgres:/var/lib/postgresql/data
+    # 只绑回环，供 psql 和备份工具连接；不要改成 5432:5432，那会把库开给局域网。
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -85,7 +126,7 @@ services:
     environment:
       SBM_POSTGRES_HOST: db
       SBM_POSTGRES_USER: sbm_app
-      SBM_POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+      SBM_POSTGRES_PASSWORD: *database-password
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -95,30 +136,6 @@ volumes:
   sbm-postgres:
   sbm-data:
 ```
-
-Put the database password in a `.env` file next to it. It is defined once and both services read it:
-
-```bash
-SBM_DB_PASSWORD=<choose a database password>
-```
-
-Start it:
-
-```bash
-docker compose up -d
-```
-
-Open <http://127.0.0.1:8080> and **create the administrator account straight away — there is no database step**, because the compose file already pins the connection through environment variables. That is what this path saves: Compose creates its own network where the service name `db` resolves, so no `docker inspect` lookup is needed and the address does not change when the database container is recreated.
-
-Day to day:
-
-```bash
-docker compose logs -f app     # follow the logs
-docker compose restart app     # restart the application
-docker compose down            # stop and remove the containers, keeping the volumes
-```
-
-`docker compose down` without `-v` keeps the volumes, so data and the master key survive. To upgrade, change `image` to a newer tag and run `docker compose up -d`; when migrations are pending the app refuses to start, so back up first and then add `SBM_ALLOW_MIGRATION: "true"` to the app service.
 
 To upgrade, recreate the application container with a newer image tag. When migrations are pending the app refuses to start and says so — migrations rewrite data in place and cannot be rolled back, so create and verify a backup first (see [backup and restore](docs/backup-restore.md)), then recreate with `-e SBM_ALLOW_MIGRATION=true`.
 

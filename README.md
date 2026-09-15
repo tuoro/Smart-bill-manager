@@ -50,9 +50,49 @@ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' sma
 
 ### 用 Docker Compose
 
-不想手敲两条命令就用这个。建一个目录，放入 `compose.yaml`：
+不想敲命令就用这个。下载部署文件：
+
+```bash
+curl -O https://raw.githubusercontent.com/tuoro/Smart-bill-manager/main/compose.yaml
+```
+
+打开它，把第一行的密码改成自己的，其余不用动：
 
 ```yaml
+x-database-password: &database-password 改成你自己的数据库密码
+```
+
+然后在该文件所在目录启动：
+
+```bash
+docker compose up -d
+```
+
+打开 <http://127.0.0.1:8080>，**直接创建管理员账号即可，不用填数据库连接**——文件里已经配好了。这是它比上面两条命令省事的地方：Compose 会自建一个网络，服务名 `db` 能被解析，所以不需要 `docker inspect` 查 IP，数据库容器重建后地址也不会变。
+
+日常操作都在这个目录里执行：
+
+```bash
+docker compose logs -f app     # 看日志
+docker compose restart app     # 重启应用
+docker compose down            # 停止并删除容器，数据保留在卷里
+```
+
+`docker compose down` 不加 `-v` 不会删卷，数据和主密钥都留着。升级时把文件里的 `image` 改成新 tag 再 `docker compose up -d`；有待执行的迁移时应用会拒绝启动，先备份，再给 app 加上 `SBM_ALLOW_MIGRATION: "true"`。
+
+完整内容如下，也可以自己新建一个 `compose.yaml` 粘贴进去：
+
+```yaml
+# Smart Bill Manager 单机部署。
+#
+# 用法：改下面这一行的密码，然后在本文件所在目录执行 docker compose up -d，
+# 再打开 http://127.0.0.1:8080 创建管理员账号即可。
+#
+# 密码只写这一处，两个服务共用；它是新建数据库的密码，自己定一个即可，
+# 不要保留下面的占位文字。
+
+x-database-password: &database-password 改成你自己的数据库密码
+
 name: smart-bill-manager
 
 services:
@@ -62,9 +102,10 @@ services:
     environment:
       POSTGRES_USER: sbm_app
       POSTGRES_DB: smart_bill_manager
-      POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+      POSTGRES_PASSWORD: *database-password
     volumes:
       - sbm-postgres:/var/lib/postgresql/data
+    # 只绑回环，供 psql 和备份工具连接；不要改成 5432:5432，那会把库开给局域网。
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -85,7 +126,7 @@ services:
     environment:
       SBM_POSTGRES_HOST: db
       SBM_POSTGRES_USER: sbm_app
-      SBM_POSTGRES_PASSWORD: ${SBM_DB_PASSWORD:?请在 .env 里设置 SBM_DB_PASSWORD}
+      SBM_POSTGRES_PASSWORD: *database-password
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -95,30 +136,6 @@ volumes:
   sbm-postgres:
   sbm-data:
 ```
-
-同目录再建 `.env` 写数据库密码，只此一处，两个服务都从这里取：
-
-```bash
-SBM_DB_PASSWORD=<自己设一个数据库密码>
-```
-
-启动：
-
-```bash
-docker compose up -d
-```
-
-打开 <http://127.0.0.1:8080>，**直接创建管理员账号即可，不用填数据库连接**——compose 文件里已经用环境变量指定好了。这是它比上面两条命令省事的地方：compose 会自建一个网络，服务名 `db` 能被解析，所以不需要 `docker inspect` 查 IP，数据库容器重建后地址也不会变。
-
-日常操作：
-
-```bash
-docker compose logs -f app     # 看日志
-docker compose restart app     # 重启应用
-docker compose down            # 停止并删除容器，数据保留在卷里
-```
-
-`docker compose down` 不加 `-v` 不会删卷，数据和主密钥都留着。升级时把 `image` 改成新 tag 再 `docker compose up -d`；有待执行的迁移时应用会拒绝启动，先备份，再给 app 加上 `SBM_ALLOW_MIGRATION: "true"`。
 
 升级时换用新的镜像 tag 重建应用容器。存在未执行的数据库迁移时应用会拒绝启动并提示——迁移原地修改数据且不可回滚，请先按[备份与恢复](docs/backup-restore.md)创建并验证备份，再加 `-e SBM_ALLOW_MIGRATION=true` 重建。
 

@@ -1,0 +1,52 @@
+# Smart Bill Manager 单机部署。
+#
+# 用法：改下面这一行的密码，然后在本文件所在目录执行 docker compose up -d，
+# 再打开 http://127.0.0.1:8080 创建管理员账号即可。
+#
+# 密码只写这一处，两个服务共用；它是新建数据库的密码，自己定一个即可，
+# 不要保留下面的占位文字。
+
+x-database-password: &database-password 改成你自己的数据库密码
+
+name: smart-bill-manager
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sbm_app
+      POSTGRES_DB: smart_bill_manager
+      POSTGRES_PASSWORD: *database-password
+    volumes:
+      - sbm-postgres:/var/lib/postgresql/data
+    # 只绑回环，供 psql 和备份工具连接；不要改成 5432:5432，那会把库开给局域网。
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbm_app -d smart_bill_manager"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  app:
+    image: ghcr.io/tuoro/smart-bill-manager:v0.6.0
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SBM_POSTGRES_HOST: db
+      SBM_POSTGRES_USER: sbm_app
+      SBM_POSTGRES_PASSWORD: *database-password
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - sbm-data:/var/lib/sbm
+
+volumes:
+  sbm-postgres:
+  sbm-data:

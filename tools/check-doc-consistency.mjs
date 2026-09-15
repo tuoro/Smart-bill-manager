@@ -84,6 +84,26 @@ export function undocumentedTables(tables, document) {
   return tables.filter(table => !document.includes(table) && !document.includes(entityName(table)));
 }
 
+// README 里贴的部署文件必须与仓库里那份逐字一致，否则用户复制的是另一套配置。
+export function embeddedComposeBlocks(document) {
+  return [...document.matchAll(/```yaml\n([\s\S]*?)```/g)]
+    .map(match => match[1])
+    .filter(block => block.includes("smart-bill-manager"));
+}
+
+export function composeMismatches(documents, shipped) {
+  const mismatched = [];
+  for (const [path, text] of documents) {
+    const blocks = embeddedComposeBlocks(text);
+    if (blocks.length !== 1) {
+      mismatched.push({ document: path, reason: `expected exactly one compose block, found ${blocks.length}` });
+      continue;
+    }
+    if (blocks[0] !== shipped) mismatched.push({ document: path, reason: "compose block differs from compose.yaml" });
+  }
+  return mismatched;
+}
+
 export async function check(root) {
   const current = await codeContracts(root);
   const canonicalText = await readFile(join(root, canonicalDocument), "utf8");
@@ -97,6 +117,13 @@ export async function check(root) {
     if (stale.length) drifted.push({ document: path, stale_tokens: stale });
   }
 
+  const shippedCompose = await readFile(join(root, "compose.yaml"), "utf8");
+  const composeDocuments = [];
+  for (const path of ["README.md", "README_EN.md"]) {
+    composeDocuments.push([path, await readFile(join(root, path), "utf8")]);
+  }
+  const composeDrift = composeMismatches(composeDocuments, shippedCompose);
+
   const tables = await migrationTables(root);
   const undocumented = undocumentedTables(tables, await readFile(join(root, "docs/data-model.md"), "utf8"));
 
@@ -108,7 +135,8 @@ export async function check(root) {
     current_state_documents_drifted: drifted,
     migration_table_count: tables.length,
     undocumented_tables: undocumented,
-    passed: !missing.length && !extra.length && !drifted.length && !undocumented.length,
+    readme_compose_mismatches: composeDrift,
+    passed: !missing.length && !extra.length && !drifted.length && !undocumented.length && !composeDrift.length,
   };
 }
 

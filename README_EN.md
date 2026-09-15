@@ -50,83 +50,65 @@ Recreating the database container may change its IP address (`docker restart` do
 
 ### With Docker Compose
 
-Download the deployment file:
+Equivalent to the two commands above, flag for flag, written as one file. Download it:
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuoro/Smart-bill-manager/main/compose.yaml
 ```
 
-Open it and replace the password on the first line with your own. Nothing else needs to change:
-
-```yaml
-x-database-password: &database-password 改成你自己的数据库密码
-```
-
-Then start it from the directory holding that file:
+Replace `POSTGRES_PASSWORD` with your own password, leave the rest alone, then start it from the directory holding that file:
 
 ```bash
 docker compose up -d
 ```
 
-Open <http://127.0.0.1:8080> and **create the administrator account straight away — there is no database step**, because the file already pins the connection. That is what this path saves: Compose creates its own network where the service name `db` resolves, so no `docker inspect` lookup is needed and the address does not change when the database container is recreated.
+Open <http://127.0.0.1:8080>. The page guides you through two steps. First the database connection: **the host, port and database name are already prefilled and need no change and no IP lookup** — only fill in the account `sbm_app` and the password you chose. Then create the administrator account.
 
-Day-to-day commands run from that same directory:
+That is what this path saves over the two `docker run` commands: Compose creates its own network that resolves service names, and the service name matches the container name, which is exactly the address the page prefills.
+
+For the first few seconds the database is still initialising, so "test connection" fails if you click it immediately; wait a moment and click again. The two `docker run` commands behave the same way.
+
+Day-to-day commands run from that directory. Plain `docker logs` and `docker restart` keep working too, because the container names are the same:
 
 ```bash
-docker compose logs -f app     # follow the logs
-docker compose restart app     # restart the application
-docker compose down            # stop and remove the containers, keeping the volumes
+docker compose logs -f smart-bill-manager     # follow the logs
+docker compose restart smart-bill-manager     # restart the application
+docker compose down                           # stop and remove the containers, keeping the volumes
 ```
 
-`docker compose down` without `-v` keeps the volumes, so data and the master key survive. To upgrade, change `image` to a newer tag and run `docker compose up -d`; when migrations are pending the app refuses to start, so back up first and then add `SBM_ALLOW_MIGRATION: "true"` to the app service.
+`docker compose down` without `-v` keeps the volumes, so data and the master key survive. To upgrade, change `image` to a newer tag and run `docker compose up -d`; when migrations are pending the app refuses to start, so back up first and then add `SBM_ALLOW_MIGRATION: "true"` to the application service.
 
 The full file is below; you can also create `compose.yaml` yourself and paste this in:
 
 ```yaml
-# Smart Bill Manager 单机部署。
+# Smart Bill Manager 单机部署，与 README 里那两条 docker run 等价。
 #
-# 用法：改下面这一行的密码，然后在本文件所在目录执行 docker compose up -d，
-# 再打开 http://127.0.0.1:8080 创建管理员账号即可。
-#
-# 密码只写这一处，两个服务共用；它是新建数据库的密码，自己定一个即可，
-# 不要保留下面的占位文字。
-
-x-database-password: &database-password 改成你自己的数据库密码
+# 用法：把下面的密码改成自己的，在本文件所在目录执行 docker compose up -d，
+# 再打开 http://127.0.0.1:8080 按页面提示配置即可。
 
 name: smart-bill-manager
 
 services:
-  db:
+  smart-bill-manager-db:
     image: postgres:17-alpine
+    container_name: smart-bill-manager-db
     restart: unless-stopped
+    # 只绑回环，供 psql 和备份工具连接；不要写成 5432:5432，那会把库开给局域网。
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: sbm_app
       POSTGRES_DB: smart_bill_manager
-      POSTGRES_PASSWORD: *database-password
+      POSTGRES_PASSWORD: 改成你自己的数据库密码
     volumes:
       - sbm-postgres:/var/lib/postgresql/data
-    # 只绑回环，供 psql 和备份工具连接；不要改成 5432:5432，那会把库开给局域网。
-    ports:
-      - "127.0.0.1:5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sbm_app -d smart_bill_manager"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 10s
 
-  app:
+  smart-bill-manager:
     image: ghcr.io/tuoro/smart-bill-manager:v0.6.0
+    container_name: smart-bill-manager
     restart: unless-stopped
     init: true
     stop_grace_period: 20s
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      SBM_POSTGRES_HOST: db
-      SBM_POSTGRES_USER: sbm_app
-      SBM_POSTGRES_PASSWORD: *database-password
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

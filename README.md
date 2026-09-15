@@ -50,83 +50,65 @@ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' sma
 
 ### 用 Docker Compose
 
-不想敲命令就用这个。下载部署文件：
+和上面两条命令等价，参数一一对应，只是写成了一个文件。下载它：
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuoro/Smart-bill-manager/main/compose.yaml
 ```
 
-打开它，把第一行的密码改成自己的，其余不用动：
-
-```yaml
-x-database-password: &database-password 改成你自己的数据库密码
-```
-
-然后在该文件所在目录启动：
+把里面的 `POSTGRES_PASSWORD` 改成自己的密码，其余不用动，然后在该文件所在目录启动：
 
 ```bash
 docker compose up -d
 ```
 
-打开 <http://127.0.0.1:8080>，**直接创建管理员账号即可，不用填数据库连接**——文件里已经配好了。这是它比上面两条命令省事的地方：Compose 会自建一个网络，服务名 `db` 能被解析，所以不需要 `docker inspect` 查 IP，数据库容器重建后地址也不会变。
+打开 <http://127.0.0.1:8080>，页面分两步：先填数据库连接——**地址、端口、库名都已经预填好，不用改也不用查 IP**，只补账号 `sbm_app` 和刚才设的密码——再创建管理员账号。
 
-日常操作都在这个目录里执行：
+这是它比两条 `docker run` 省事的地方：Compose 自建的网络能解析服务名，而服务名和容器名一致，正好就是页面预填的那个地址。
+
+刚启动的前几秒数据库还在初始化，这时点「检测连接」会失败，等几秒再点一次即可。两条 `docker run` 也是同样的时序。
+
+日常操作在该目录里执行，`docker logs`、`docker restart` 那套命令也照样能用，因为容器名是一样的：
 
 ```bash
-docker compose logs -f app     # 看日志
-docker compose restart app     # 重启应用
-docker compose down            # 停止并删除容器，数据保留在卷里
+docker compose logs -f smart-bill-manager     # 看日志
+docker compose restart smart-bill-manager     # 重启应用
+docker compose down                           # 停止并删除容器，数据保留在卷里
 ```
 
-`docker compose down` 不加 `-v` 不会删卷，数据和主密钥都留着。升级时把文件里的 `image` 改成新 tag 再 `docker compose up -d`；有待执行的迁移时应用会拒绝启动，先备份，再给 app 加上 `SBM_ALLOW_MIGRATION: "true"`。
+`docker compose down` 不加 `-v` 不会删卷，数据和主密钥都留着。升级时把文件里的 `image` 改成新 tag 再 `docker compose up -d`；有待执行的迁移时应用会拒绝启动，先备份，再给应用服务加上 `SBM_ALLOW_MIGRATION: "true"`。
 
 完整内容如下，也可以自己新建一个 `compose.yaml` 粘贴进去：
 
 ```yaml
-# Smart Bill Manager 单机部署。
+# Smart Bill Manager 单机部署，与 README 里那两条 docker run 等价。
 #
-# 用法：改下面这一行的密码，然后在本文件所在目录执行 docker compose up -d，
-# 再打开 http://127.0.0.1:8080 创建管理员账号即可。
-#
-# 密码只写这一处，两个服务共用；它是新建数据库的密码，自己定一个即可，
-# 不要保留下面的占位文字。
-
-x-database-password: &database-password 改成你自己的数据库密码
+# 用法：把下面的密码改成自己的，在本文件所在目录执行 docker compose up -d，
+# 再打开 http://127.0.0.1:8080 按页面提示配置即可。
 
 name: smart-bill-manager
 
 services:
-  db:
+  smart-bill-manager-db:
     image: postgres:17-alpine
+    container_name: smart-bill-manager-db
     restart: unless-stopped
+    # 只绑回环，供 psql 和备份工具连接；不要写成 5432:5432，那会把库开给局域网。
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: sbm_app
       POSTGRES_DB: smart_bill_manager
-      POSTGRES_PASSWORD: *database-password
+      POSTGRES_PASSWORD: 改成你自己的数据库密码
     volumes:
       - sbm-postgres:/var/lib/postgresql/data
-    # 只绑回环，供 psql 和备份工具连接；不要改成 5432:5432，那会把库开给局域网。
-    ports:
-      - "127.0.0.1:5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sbm_app -d smart_bill_manager"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 10s
 
-  app:
+  smart-bill-manager:
     image: ghcr.io/tuoro/smart-bill-manager:v0.6.0
+    container_name: smart-bill-manager
     restart: unless-stopped
     init: true
     stop_grace_period: 20s
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      SBM_POSTGRES_HOST: db
-      SBM_POSTGRES_USER: sbm_app
-      SBM_POSTGRES_PASSWORD: *database-password
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
